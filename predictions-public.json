@@ -1,5 +1,38 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "",
-  "races": []
+  "updatedAt": "デモ表示用データ（実際の予想ではありません）",
+  "races": [
+    {
+      "id": "demo-kyoto-1r-001",
+      "published": true,
+      "sample": true,
+      "date": "表示テスト",
+      "track": "京都",
+      "race": "1",
+      "confidence": "B（架空）",
+      "recommend": "デモ／購入不可・成績対象外",
+      "version": "demo-v1",
+      "publishedAt": "サンプル",
+      "first": "2,3",
+      "second": "2,3,8",
+      "third": "2,3,8,10",
+      "ranking": "2,3,8,10",
+      "analysis": "画面表示の確認用に作った架空データです。実際の出馬表・調教・血統・馬場データは取得していません。",
+      "reason": "動作確認のためだけのサンプルです。実在レースの分析・購入推奨・公式予想として扱わないでください。",
+      "tickets": [
+        {
+          "kind": "3連単",
+          "points": 8,
+          "unit": 100,
+          "bets": "1着：2,3／2着：2,3,8／3着：2,3,8,10（同じ馬番は重複させない）"
+        },
+        {
+          "kind": "3連複",
+          "points": 4,
+          "unit": 100,
+          "bets": "2,3,8,10 ボックス（4頭・4点）"
+        }
+      ]
+    }
+  ]
 }
