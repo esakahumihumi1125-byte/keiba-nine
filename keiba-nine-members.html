@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>競馬ナイン｜会員ログイン</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#091727;color:#edf3ff}*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#102541,#091727);min-height:100vh}main{max-width:740px;margin:auto;padding:38px 20px 70px}header{display:flex;align-items:center;justify-content:space-between;gap:15px}h1{color:#edc36d;letter-spacing:2px;font-size:28px;margin:0}h2{font-size:27px;margin:12px 0 20px}.badge{font-size:12px;border:1px solid #a68a50;border-radius:30px;padding:8px 12px;color:#edc36d;white-space:nowrap}.sub,p{color:#b6c7dd;line-height:1.85}.card{margin-top:30px;padding:25px;border:1px solid #39516c;border-radius:23px;background:#172d47}.eyebrow{font-size:12px;letter-spacing:3px;color:#edc36d}.notice{border-left:4px solid #e7bb60;padding-left:15px;margin:25px 0}button{width:100%;min-height:56px;border-radius:14px;border:1px solid #607996;background:#28415d;color:#edf3ff;font:700 17px system-ui;cursor:pointer;margin-top:12px;padding:15px}button.google{background:#fff;color:#1f1f1f;border-color:#dadce0;display:flex;align-items:center;justify-content:center;gap:14px}button:disabled{opacity:.5;cursor:wait}button:focus-visible,a:focus-visible{outline:3px solid #f3c86b;outline-offset:4px}a{color:#edc36d}#status{white-space:pre-wrap;overflow-wrap:anywhere}dl{margin:20px 0}dt{color:#b6c7dd;font-size:13px;margin-top:17px}dd{margin:5px 0;overflow-wrap:anywhere;line-height:1.7}#uid{font-family:monospace;font-size:14px}footer{margin-top:30px;font-size:14px}[hidden]{display:none!important}
+</style></head><body><main>
+<header><h1>KEIBA NINE</h1><span class="badge">ログイン確認 v0.1</span></header><p class="sub">競馬ナイン｜会員ページ</p>
+<section class="card"><div class="eyebrow">MEMBER ACCESS</div><h2>Googleでログイン</h2><p>普段使っているGoogleアカウントでログインできます。初回ログイン時にアカウントを作成します。</p><p class="notice">現在は動作確認用です。料金は発生しません。会員限定記事はまだ掲載していません。</p>
+<p id="status" role="status" aria-live="polite">ログイン状態を確認しています…</p>
+<button id="login" class="google" disabled><svg aria-hidden="true" width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6C44.4 38.03 46.98 31.87 46.98 24.55z"/><path fill="#FBBC05" d="M10.53 28.59A14.41 14.41 0 0 1 9.75 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A23.87 23.87 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Googleでログイン</button>
+<div id="account" hidden><dl><dt>メールアドレス</dt><dd id="email"></dd><dt>ユーザーID（設定確認用）</dt><dd id="uid"></dd></dl><p>ログインできました。記事の閲覧権限は、次の設定で管理します。</p><button id="logout">ログアウト</button></div>
+<button id="retry" hidden>状態を再確認</button></section>
+<footer><a href="keiba-nine-member-preview.html">記事の試作ページへ →</a><p>ログイン情報は、このブラウザに保存されます。共有端末では利用後にログアウトしてください。</p></footer><noscript>ログインにはJavaScriptを有効にしてください。</noscript></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(() => {
+ 'use strict';
+ const REDIRECT='https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-members.html';
+ const $=id=>document.getElementById(id);
+ const status=$('status'),login=$('login'),account=$('account'),logout=$('logout'),retry=$('retry');
+ let client,revision=0;
+ function hideAccount(){account.hidden=true;$('email').textContent='';$('uid').textContent='';}
+ function fail(message){hideAccount();status.textContent=message;login.hidden=false;login.disabled=false;retry.hidden=false;}
+ function cleanUrl(){history.replaceState(null,'',location.pathname);}
+ async function refresh(){
+  const ticket=++revision;hideAccount();login.disabled=true;retry.hidden=true;
+  status.textContent='ログイン状態を確認しています…';
+  try{
+   const {data:sessionData,error:sessionError}=await client.auth.getSession();
+   if(sessionError)throw sessionError;
+   if(ticket!==revision)return;
+   if(!sessionData.session){status.textContent='未ログインです。';login.hidden=false;login.disabled=false;return;}
+   const {data,error}=await client.auth.getUser();
+   if(error)throw error;
+   if(ticket!==revision)return;
+   if(!data.user)throw new Error('missing user');
+   $('email').textContent=data.user.email||'メールアドレスなし';$('uid').textContent=data.user.id;
+   status.textContent='ログイン済み';account.hidden=false;login.hidden=true;logout.disabled=false;
+  }catch(e){if(ticket===revision)fail('ログイン状態を確認できませんでした。通信を確認して「状態を再確認」を押してください。');}
+ }
+ login.onclick=async()=>{
+  login.disabled=true;retry.hidden=true;status.textContent='Googleのログイン画面へ移動します…';
+  try{const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:REDIRECT,queryParams:{prompt:'select_account'}}});if(error)throw error;}
+  catch(e){fail('ログインを開始できませんでした。通信とSupabaseのGoogle設定を確認してください。');}
+ };
+ logout.onclick=async()=>{
+  ++revision;logout.disabled=true;status.textContent='ログアウトしています…';
+  try{const {error}=await client.auth.signOut({scope:'local'});if(error)throw error;await refresh();}
+  catch(e){status.textContent='ログアウトできませんでした。通信を確認して再度押してください。';logout.disabled=false;}
+ };
+ retry.onclick=()=>refresh();
+ async function start(){
+  if(location.origin!=='https://esakahumihumi1125-byte.github.io'||location.pathname!=='/keiba-nine/keiba-nine-members.html'){
+   status.textContent='このファイルをGitHubに追加して、公開ページをSafariで開いてください。';login.hidden=true;return;
+  }
+  if(!window.supabase){status.textContent='ログイン機能を読み込めませんでした。通信を確認してページを再読み込みしてください。';login.hidden=true;return;}
+  try{
+   client=window.supabase.createClient('https://cmsntciwteuzltvdgbdd.supabase.co','sb_publishable_UgwF-UAeYeATfPzizrw-nw_xfjnDPzz',{auth:{storageKey:'keiba_nine_members_auth_v1',flowType:'pkce',detectSessionInUrl:false,persistSession:true,autoRefreshToken:true}});
+   const params=new URLSearchParams(location.search),hash=new URLSearchParams(location.hash.slice(1));
+   if(params.has('error')||hash.has('error')){cleanUrl();fail('Googleログインが完了しませんでした。もう一度ログインしてください。');return;}
+   const code=params.get('code');
+   if(code){const {error}=await client.auth.exchangeCodeForSession(code);cleanUrl();if(error){fail('ログインの確認期限が切れたか、開始したブラウザと異なります。同じSafariでもう一度ログインしてください。');return;}}
+   client.auth.onAuthStateChange(()=>{setTimeout(()=>refresh(),0);});
+   await refresh();
+  }catch(e){fail('ログイン機能の準備に失敗しました。Safariの通常タブで開き直してください。');}
+ }
+ start();
+})();
+</script></body></html>
