@@ -11,7 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Check prediction JSON
         run: |
           python -m json.tool keiba-nine-auto-feed.json > /dev/null
           echo "Prediction feed JSON OK"
+
+      - name: Check AI Python syntax
+        run: |
+          python -m py_compile scripts/generate_forecasts.py
+          echo "AI program syntax OK"
