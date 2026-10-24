@@ -1,0 +1,77 @@
+name: KEIBA NINE BETA 4.3 AI Analysis Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_paid_ai_test:
+        description: "Run paid synthetic AI analysis?"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  ai-analysis-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check Python and JSON
+        run: |
+          python -m py_compile scripts/data_sources.py
+          python -m py_compile scripts/analyze_races.py
+          python -m json.tool scripts/test_race_data.json > /dev/null
+
+      - name: Free synthetic data test
+        run: |
+          python scripts/analyze_races.py
+          test ! -f scripts/race_analysis_test.json
+
+      - name: Run paid AI analysis test
+        if: ${{ inputs.run_paid_ai_test == true }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RUN_PAID_AI_TEST: "yes"
+        run: |
+          python scripts/analyze_races.py
+
+      - name: Validate AI test output
+        if: ${{ inputs.run_paid_ai_test == true }}
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("scripts/race_analysis_test.json")
+          result = json.loads(path.read_text(encoding="utf-8"))
+
+          assert result["schemaVersion"] == "4.3"
+          assert result["testOnly"] is True
+          assert result["recordType"] == "test"
+          assert result["publishable"] is False
+          assert result["raceId"] == "TEST-RACE-001"
+
+          ranking = result["analysis"]["ranking"]
+          numbers = [horse["horseNumber"] for horse in ranking]
+          assert len(numbers) == 3
+          assert set(numbers) == {1, 2, 3}
+
+          print("BETA 4.3 AI OUTPUT VALIDATED")
+          PY
+
+      - name: Save synthetic AI result
+        if: ${{ inputs.run_paid_ai_test == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: keiba-nine-beta43-ai-test
+          path: scripts/race_analysis_test.json
+          retention-days: 7
