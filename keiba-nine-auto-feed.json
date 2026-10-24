@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "date": "2026-11-01",
+  "generatedAt": "2026-10-24T03:00:00+00:00",
+  "source": {
+    "name": "合成テスト",
+    "rightsNote": "架空の合成データのみ"
+  },
+  "forecasts": [
+    {
+      "date": "2026-11-01",
+      "track": "京都",
+      "race": 1,
+      "off": "10:00",
+      "recordType": "test",
+      "status": "draft",
+      "confidence": "C",
+      "intent": "参考",
+      "ranking": [
+        2,
+        3,
+        8,
+        10
+      ],
+      "first": [
+        2,
+        3
+      ],
+      "second": [
+        2,
+        3,
+        8
+      ],
+      "third": [
+        2,
+        3,
+        8,
+        10
+      ],
+      "trioMode": "ボックス",
+      "trioPool": [
+        2,
+        3,
+        8,
+        10
+      ],
+      "trioAxis": [],
+      "trioFormation": [
+        [],
+        [],
+        []
+      ],
+      "rankS": [],
+      "rankA": [
+        2,
+        3
+      ],
+      "triPoints": 8,
+      "trioPoints": 4,
+      "evaluations": {
+        "recent": {
+          "grade": "未検証",
+          "note": "架空の動作テスト用です。実在のレース分析ではありません。"
+        },
+        "training": {
+          "grade": "未検証",
+          "note": "架空データ"
+        },
+        "course": {
+          "grade": "未検証",
+          "note": ""
+        }
+      },
+      "horses": [
+        {
+          "number": 2,
+          "name": "テストホースA",
+          "overall": "未検証",
+          "strength": "架空テスト",
+          "risk": "実在の馬ではありません"
+        }
+      ],
+      "racePlan": {
+        "scenario": "架空の展開イメージ",
+        "verdict": "絶対に購入しないでください"
+      },
+      "evidence": {
+        "references": [
+          "架空の動作確認用データ"
+        ]
+      }
+    }
+  ]
+}
