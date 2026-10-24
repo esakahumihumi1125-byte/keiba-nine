@@ -1,0 +1,51 @@
+name: KEIBA NINE BETA 4.3 Data Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate Python and JSON
+        run: |
+          python -m py_compile scripts/data_sources.py
+          python -m json.tool scripts/test_race_data.json > /dev/null
+
+      - name: Test synthetic race data loading
+        run: |
+          python - <<'PY'
+          from scripts.data_sources import collect_sources
+
+          result = collect_sources(
+              ["scripts/test_race_data.json"]
+          )
+
+          assert result["schemaVersion"] == "4.3"
+
+          sources = result["sources"]
+          assert len(sources) == 1
+
+          source = sources[0]
+          assert source["recordType"] == "test"
+
+          races = source["races"]
+          assert len(races) == 1
+          assert races[0]["raceId"] == "TEST-RACE-001"
+          assert len(races[0]["horses"]) == 3
+
+          print("BETA 4.3 DATA TEST PASSED")
+          print("Sources: 1, Races: 1, Horses: 3")
+          PY
