@@ -1,0 +1,67 @@
+{
+  "sourceId": "keiba-nine-synthetic-test",
+  "recordType": "test",
+  "rightsNote": "100% synthetic test data. No real horses or licensed racing data.",
+  "races": [
+    {
+      "raceId": "TEST-RACE-001",
+      "raceName": "競馬ナイン架空テスト1R",
+      "distanceMeters": 1600,
+      "surface": "turf",
+      "trackCondition": "good",
+      "horses": [
+        {
+          "horseNumber": 1,
+          "horseName": "テストホースA",
+          "runningStyle": "front",
+          "workout": {
+            "last600mSeconds": 38.2,
+            "grade": "A"
+          },
+          "pastRuns": [
+            {
+              "finishPosition": 2,
+              "distanceMeters": 1600
+            }
+          ],
+          "courseSuitability": "A",
+          "pedigree": "架空血統A"
+        },
+        {
+          "horseNumber": 2,
+          "horseName": "テストホースB",
+          "runningStyle": "closer",
+          "workout": {
+            "last600mSeconds": 39.1,
+            "grade": "B"
+          },
+          "pastRuns": [
+            {
+              "finishPosition": 1,
+              "distanceMeters": 1400
+            }
+          ],
+          "courseSuitability": "B",
+          "pedigree": "架空血統B"
+        },
+        {
+          "horseNumber": 3,
+          "horseName": "テストホースC",
+          "runningStyle": "stalker",
+          "workout": {
+            "last600mSeconds": 38.6,
+            "grade": "A"
+          },
+          "pastRuns": [
+            {
+              "finishPosition": 3,
+              "distanceMeters": 1600
+            }
+          ],
+          "courseSuitability": "A",
+          "pedigree": "架空血統C"
+        }
+      ]
+    }
+  ]
+}
