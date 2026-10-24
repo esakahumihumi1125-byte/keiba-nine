@@ -2,6 +2,12 @@ name: KEIBA NINE - Feed Check
 
 on:
   workflow_dispatch:
+    inputs:
+      ai_test:
+        description: "Run ONE paid synthetic AI test?"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -9,6 +15,7 @@ permissions:
 jobs:
   check-feed:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
@@ -21,3 +28,18 @@ jobs:
         run: |
           python -m py_compile scripts/generate_forecasts.py
           echo "AI program syntax OK"
+
+      - name: Run synthetic AI test
+        if: ${{ inputs.ai_test == true }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python scripts/generate_forecasts.py
+
+      - name: Save AI test result
+        if: ${{ inputs.ai_test == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: keiba-nine-ai-test
+          path: keiba-nine-ai-test.json
+          if-no-files-found: error
