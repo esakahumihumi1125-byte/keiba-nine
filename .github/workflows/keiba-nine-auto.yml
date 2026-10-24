@@ -1,0 +1,17 @@
+name: KEIBA NINE - Feed Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check prediction JSON
+        run: |
+          python -m json.tool keiba-nine-auto-feed.json > /dev/null
+          echo "Prediction feed JSON OK"
