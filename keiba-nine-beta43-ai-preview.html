@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KEIBA NINE BETA 4.3 AI Preview</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#09172c;color:#f4f6fc;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
+main{max-width:680px;margin:auto;padding:24px 18px 70px}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px}
+h1{color:#e8bc69;font-size:27px;letter-spacing:3px;margin:0}
+.tag{border:1px solid #ad8546;border-radius:30px;padding:8px 12px;color:#e8bc69;font-size:12px;white-space:nowrap}
+h2{font-size:21px;margin:30px 0 12px}
+p{line-height:1.8}
+.note{background:#283b57;border:1px solid #465c7b;border-radius:14px;padding:15px;margin:22px 0}
+.note strong{color:#f0c776}
+.panel{background:#142a48;border:1px solid #314c70;border-radius:16px;padding:20px;margin:16px 0}
+label{display:block;font-weight:bold;margin-bottom:12px}
+input{max-width:100%;font-size:16px}
+.small{color:#aebed4;font-size:13px}
+.error{color:#ffb3b3}
+.card{background:#172f50;border:1px solid #425e83;border-radius:15px;margin:13px 0;padding:18px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.horse{font-weight:bold;font-size:20px}
+.grade{color:#f1c778;border:1px solid #a6834b;border-radius:9px;padding:6px 10px;white-space:nowrap}
+.rank{color:#bacbe1;font-size:13px;margin-bottom:6px}
+.reason{font-size:14px;line-height:1.8}
+button{background:#e8bc69;color:#16243b;border:0;border-radius:10px;padding:12px;font-weight:bold}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>KEIBA NINE</h1>
+<span class="tag">BETA 4.3</span>
+</header>
+<p class="small">AI分析結果｜ローカル確認専用</p>
+<div class="note">
+<strong>架空テスト専用・実戦利用禁止</strong>
+<p>端末内のJSONファイルを読み込んで表示します。データの送信、公開、記録への加算は行いません。</p>
+</div>
+<section class="panel">
+<label for="file">AI分析結果のJSONを選択</label>
+<input id="file" type="file" accept=".json,application/json">
+<p class="small">iPhoneの「ファイル」から race_analysis_test.json を選んでください。</p>
+<p id="status" class="small" role="status">ファイルはまだ選択されていません。</p>
+</section>
+<section id="results" hidden>
+<h2 id="raceTitle">架空テスト1R</h2>
+<p id="summary"></p>
+<div id="ranking"></div>
+<p class="small">出典：端末内の架空AIテストファイル。予想精度・回収率を示すものではありません。</p>
+</section>
+</main>
+<script>
+"use strict";
+const input=document.getElementById("file");
+const status=document.getElementById("status");
+const results=document.getElementById("results");
+const rankingBox=document.getElementById("ranking");
+const horseNames={1:"テストホースA",2:"テストホースB",3:"テストホースC"};
+
+function addText(parent,tag,cls,value){
+  const el=document.createElement(tag);
+  if(cls)el.className=cls;
+  el.textContent=String(value);
+  parent.appendChild(el);
+  return el;
+}
+input.addEventListener("change",async function(){
+  results.hidden=true;
+  rankingBox.replaceChildren();
+  status.className="small";
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  try{
+    if(file.size>1000000)throw Error("ファイルが大きすぎます。");
+    const data=JSON.parse(await file.text());
+    if(data.schemaVersion!=="4.3"||
+       data.testOnly!==true||
+       data.recordType!=="test"||
+       data.publishable!==false||
+       data.sourceId!=="keiba-nine-synthetic-test"||
+       data.raceId!=="TEST-RACE-001"){
+      throw Error("BETA 4.3専用の架空テストデータではありません。");
+    }
+    const a=data.analysis;
+    if(!a||!Array.isArray(a.ranking)||a.ranking.length!==3){
+      throw Error("AIの評価データを確認できません。");
+    }
+    const numbers=a.ranking.map(x=>x.horseNumber);
+    if(new Set(numbers).size!==3||
+       numbers.some(n=>![1,2,3].includes(n))){
+      throw Error("出走馬の番号が一致しません。");
+    }
+    a.ranking.forEach((entry,i)=>{
+      if(!["S","A","B","C"].includes(entry.overallGrade)||
+         typeof entry.reason!=="string"){
+        throw Error("評価形式が正しくありません。");
+      }
+      const card=document.createElement("article");
+      card.className="card";
+      addText(card,"div","rank","総合評価 "+(i+1)+"位");
+      const top=document.createElement("div");
+      top.className="top";
+      addText(top,"div","horse",entry.horseNumber+"番 "+horseNames[entry.horseNumber]);
+      addText(top,"span","grade",entry.overallGrade+"ランク");
+      card.appendChild(top);
+      addText(card,"p","reason",entry.reason);
+      rankingBox.appendChild(card);
+    });
+    document.getElementById("summary").textContent=
+      typeof a.summary==="string"?a.summary:"架空データの分析結果です。";
+    status.textContent="架空AI分析データを読み込みました。";
+    results.hidden=false;
+  }catch(err){
+    rankingBox.replaceChildren();
+    status.className="small error";
+    status.textContent="読み込みできませんでした："+err.message;
+  }
+});
+</script>
+</body>
+</html>
