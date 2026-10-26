@@ -435,10 +435,10 @@ function trioTickets29(mode, pool, axis, a, b, c){
 #flow50 .f50-step button{padding:8px 11px;font-size:12px}
 #flow50 .f50-warning{border-left:3px solid #d6a557;background:#352e2a;padding:10px;color:#f8dcb3;line-height:1.65;font-size:11px;border-radius:5px;margin-top:12px}
 @media(max-width:355px){#flow50 .f50-fields{grid-template-columns:1fr}}
-</style></head><body><main id="app"><header class="brand"><div><div class="logo">KEIBA NINE</div><div class="sub">競馬ナイン｜データで勝負する競馬予想</div></div><span class="tag">BETA · 5.0</span></header>
+</style></head><body><main id="app"><header class="brand"><div><div class="logo">KEIBA NINE</div><div class="sub">競馬ナイン｜データで勝負する競馬予想</div></div><span class="tag">BETA · 5.1</span></header>
 <section id="home" class="screen active"><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
-<section class="panel" id="flow50" aria-label="BETA 5.0 個人実戦の運用ガイド">
- <div class="f50-top"><h3>🏇 BETA 5.1｜予想の自動保存・馬券連携</h3><span class="f50-chip">個人用・読み取り専用</span></div>
+<section class="panel" id="flow50" aria-label="BETA 5.1 個人実戦の運用ガイド">
+ <div class="f50-top"><h3>🏇 BETA 5.1｜予想の自動保存・馬券連携</h3><span class="f50-chip">個人用・予想保存</span></div>
  <p class="f50-note">実際に端末へ保存した記録の進行状況を確認できるで。ここから保存・投票・結果確定・Google送信はしません。既存の画面へ移動するだけやで。</p>
  <div class="f50-counts" id="flow50Counts" aria-live="polite"><div class="f50-count"><small>実戦</small><strong>—</strong></div><div class="f50-count"><small>架空テスト</small><strong>—</strong></div><div class="f50-count"><small>旧・未分類</small><strong>—</strong></div></div>
  <div class="f50-fields">
@@ -1290,12 +1290,13 @@ $('#verifyRefresh').onclick=loadVerifyDemo;
 const STORE='keiba_nine_beta23_local_v1';
 const TRACKS=['東京','京都','新潟','中山','阪神','中京','福島','小倉','札幌','函館'];
 const R23={forecasts:[],results:[]};
+let storageError51=false;
 try{
  const old=JSON.parse(localStorage.getItem(STORE)||'null');
  if(old && old.schema===1 && Array.isArray(old.forecasts)&&Array.isArray(old.results)){
   R23.forecasts=old.forecasts;R23.results=old.results;
- }
-}catch(e){console.warn('v23: local data could not be read',e);}
+ }else if(old!==null){storageError51=true;}
+}catch(e){storageError51=true;console.warn('v23: local data could not be read',e);}
 const el=id=>document.getElementById(id);
 const get=id=>el(id).value;
 const money23=n=>Math.round(Number(n)||0).toLocaleString('ja-JP')+'円';
@@ -1359,7 +1360,7 @@ function preview(){updateTrio29();try{
  }catch(e){el('rpTicketPreview').textContent=String(e.message||e);el('rpTicketPreview').className='caption real-err';return;}
  el('rpTicketPreview').className='caption';
 }
-function persist23(){try{localStorage.setItem(STORE,JSON.stringify({schema:1,forecasts:R23.forecasts,results:R23.results}));render23();el('localStatus271').textContent='端末：保存完了（'+new Date().toLocaleTimeString('ja-JP')+'）。下の保存済み記録・成績に反映しました。';el('syncStatus271').textContent=getToken25()?(ci25('cloudAuto25').checked?'クラウド：自動バックアップ待ち。送信完了はここに表示します。':'クラウド：今回の変更は未送信。「シートへ今すぐ保存」を押してください。'):'クラウド：未接続。今回の変更は端末内に保存しました。';queueCloud25();return true;}catch(e){alert('端末内の保存に失敗したで。空き容量やプライベートブラウズ設定を確認してな。');return false;}}
+function persist23(){if(storageError51){alert("保存済みデータを読み取れないため、上書きを停止しました。バックアップを確認してください。");return false;}try{localStorage.setItem(STORE,JSON.stringify({schema:1,forecasts:R23.forecasts,results:R23.results}));render23();el('localStatus271').textContent='端末：保存完了（'+new Date().toLocaleTimeString('ja-JP')+'）。下の保存済み記録・成績に反映しました。';el('syncStatus271').textContent=getToken25()?(ci25('cloudAuto25').checked?'クラウド：自動バックアップ待ち。送信完了はここに表示します。':'クラウド：今回の変更は未送信。「シートへ今すぐ保存」を押してください。'):'クラウド：未接続。今回の変更は端末内に保存しました。';queueCloud25();return true;}catch(e){alert('端末内の保存に失敗したで。空き容量やプライベートブラウズ設定を確認してな。');return false;}}
 const getAllRaces=()=>{
  const m=new Map();
  for(const f of R23.forecasts){const k=scopedKey27(f);if(!m.has(k))m.set(k,[]);m.get(k).push(f);}
@@ -1371,7 +1372,7 @@ function adjudicate(f,r){
  const {tri,trio}=ticketLists(f);if(!r)return null;
  const actual=[Number(r.one),Number(r.two),Number(r.three)];
  if(actual.some(n=>!isHorse(n))||new Set(actual).size!==3)return null;
- if(!Number.isFinite(Number(r.triDividend))||!Number.isFinite(Number(r.trioDividend)))return null;
+ if(['triDividend','trioDividend'].some(k=>r[k]==null||String(r[k]).trim()===''||!Number.isSafeInteger(Number(r[k]))||Number(r[k])<0))return null;
  const triHit=tri.some(t=>t.length===3&&t.every((n,j)=>n===actual[j]));
  const sorted=actual.slice().sort((a,b)=>a-b);
  const trioHit=trio.some(t=>t.length===3&&t.every((n,j)=>n===sorted[j]));
@@ -1545,7 +1546,10 @@ el('rpImport').addEventListener('change',async e=>{
   for(const f of data.forecasts){if(typeof f.date!=='string'||typeof f.track!=='string'||!TRACKS.includes(f.track)||!Array.isArray(f.tri)||!Array.isArray(f.trio)||f.tri.length>1000||f.trio.length>1000||[...f.tri,...f.trio].some(t=>!Array.isArray(t)||t.length!==3||t.some(n=>!isHorse(n))))throw Error('バックアップの予想データが不正やで。');}
   for(const r of data.results)if(!Number.isInteger(Number(r.one))||!isHorse(Number(r.one)))throw Error('結果データが不正やで。');
   if(!confirm('BETA 2.9.1の実戦記録をバックアップの内容で置き換えるで。復元する？'))return;
-  R23.forecasts=data.forecasts;R23.results=data.results;persist23();alert('実戦記録を復元できたで。');
+  const previous={forecasts:R23.forecasts,results:R23.results,error:storageError51};
+  R23.forecasts=data.forecasts;R23.results=data.results;storageError51=false;
+  if(persist23())alert('実戦記録を復元できたで。');
+  else{R23.forecasts=previous.forecasts;R23.results=previous.results;storageError51=previous.error;}
  }catch(e){alert('バックアップ復元失敗：'+e.message);}finally{e.target.value='';}
 });
 el('rpDate').value=japaneseDate();
@@ -1776,6 +1780,7 @@ preview();render23();
 window.KEIBA_NINE_24_TEST={analyticsRows:analyticsRows24,group:group24,refresh:renderAnalytics24};
 // BETA 5.1: append feed forecasts to the existing personal verification ledger.
 window.saveFeedForecast51=function(r){
+ if(storageError51)throw Error('保存済み記録を読み取れないため自動保存を停止しました');
  if(R23.forecasts.some(f=>f.feedIdentity51===r.feedIdentity51))return false;
  const now=new Date().toISOString();
  const version=Math.max(0,...R23.forecasts.filter(f=>raceKey(f)===raceKey(r)).map(f=>Number(f.version)||0))+1;
@@ -2130,8 +2135,8 @@ const when40=r=>Date.parse(r.date+'T'+r.off+':00+09:00');
 const before40=r=>r.off&&Number.isFinite(when40(r))&&Date.now()<when40(r);
 const statusName40={final:'確定',draft:'暫定',skip:'見送り'};
 const kindName40={live:'実戦予想',test:'架空テスト'};
-let rows=[];let pending=null;
-try{const saved=JSON.parse(localStorage.getItem(K)||'null');if(saved&&saved.schema===1&&Array.isArray(saved.forecasts))rows=saved.forecasts.filter(r=>r&&typeof r.id==='string').slice(-3000)}catch(e){console.warn('batch40: saved data unreadable',e)}
+let rows=[];let pending=null;let batchError51=false;
+try{const saved=JSON.parse(localStorage.getItem(K)||'null');if(saved&&saved.schema===1&&Array.isArray(saved.forecasts)&&saved.forecasts.every(r=>r&&typeof r.id==='string'))rows=saved.forecasts;else if(saved!==null)batchError51=true;}catch(e){batchError51=true;console.warn('batch40: saved data unreadable',e)}
 function norm40(input,index){
  const p='行'+(index+1)+'：';if(!input||typeof input!=='object'||Array.isArray(input))throw Error(p+'オブジェクトが必要やで。');
  const date=String(input.date||''),track=String(input.track||''),race=Number(input.race);
@@ -2277,7 +2282,7 @@ function validate40(){
   el('bulkSave40').disabled=!imports.length;
  }catch(e){el('bulkPreview40').innerHTML='<p class="notice">⚠ '+escape40(e.message)+'</p>'}
 }
-function save40(){if(!pending||!pending.length)return;
+function save40(){if(batchError51){alert('保存済み予想を読み取れないため上書きを停止しました。');return;}if(!pending||!pending.length)return;
  if(!confirm('検査済みの予想 '+pending.length+'件をこのiPhoneの「予想」一覧へ保存するで。過去版は残す。続ける？'))return;
  const existing=rows.slice(),now=new Date().toISOString(),add=[];
  for(const r of pending){const v=Math.max(0,...rows.filter(x=>identity40(x)===identity40(r)).map(x=>Number(x.version)||0))+1;const o={...r,id:id40(),version:v,importedAt:now};rows.push(o);add.push(o)}
@@ -2338,6 +2343,10 @@ el('bulkExportCsv40').addEventListener('click',()=>{
 });
 // BETA 5.1: validate the complete feed before any writes; preserve old versions.
 window.receiveFeed51=function(feed){
+ if(batchError51)throw Error('保存済み予想を読み取れないため自動保存を停止しました');
+ if(!feed||feed.schema!==1||!Array.isArray(feed.forecasts)||feed.forecasts.length>120)throw Error('配信形式が不正です');
+ const keys=feed.forecasts.map(r=>[r.date,r.track,r.race,r.recordType].join('|'));
+ if(new Set(keys).size!==keys.length)throw Error('配信に同一レースが重複しています');
  const now=Date.now(),generated=Date.parse(feed.generatedAt);
  if(!Number.isFinite(generated)||generated>now)throw Error('配信作成日時が不正です');
  const candidates=feed.forecasts.filter(r=>r.recordType==='live'&&r.status==='final').map((raw,i)=>{
@@ -2349,7 +2358,9 @@ window.receiveFeed51=function(feed){
  let added=0;
  for(const r of candidates){
   if(rows.some(x=>identity40(x)===identity40(r)&&Date.parse(x.feedGeneratedAt)>generated))continue;
+  const latest=rows.filter(x=>identity40(x)===identity40(r)).sort((a,b)=>Number(b.version)-Number(a.version))[0];
   let saved=rows.find(x=>x.feedIdentity51===r.feedIdentity51);
+  if(!saved&&latest?.feedIdentity51&&comparison40(latest)===comparison40(r))saved=latest;
   if(!saved){
    saved={...r,id:id40(),version:Math.max(0,...rows.filter(x=>identity40(x)===identity40(r)).map(x=>Number(x.version)||0))+1,importedAt:new Date().toISOString()};
    const next=[...rows,saved];
