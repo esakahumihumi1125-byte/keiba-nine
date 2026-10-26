@@ -2108,6 +2108,13 @@ function parseNine28(raw){
 })();
 </script>
 <style>
+
+.s52-rank-S{--rank-ink:#ffda80;--rank-bg:#fff0c2;--rank-text:#553900}
+.s52-rank-A{--rank-ink:#ff9b9b;--rank-bg:#ffe1e1;--rank-text:#8a1616}
+.s52-rank-B{--rank-ink:#8ee2b2;--rank-bg:#d7f5e3;--rank-text:#145331}
+#simple52 .s52-rank{border-left:4px solid var(--rank-ink);padding-left:12px;margin:12px 0}
+#simple52 .s52-rank strong{color:var(--rank-ink)}
+#simple52 .s52-horse{background:var(--rank-bg);color:var(--rank-text);border:1px solid var(--rank-ink)}
 #simple52 h2{font-size:24px} .s52-rank{padding:16px 0;border-bottom:1px solid #ddd}.s52-rank strong{display:block;font-size:18px;margin-bottom:10px}.s52-horse{display:inline-block;padding:8px 12px;margin:4px;border-radius:12px;background:#edf2fa;color:#162b48;font-weight:700}.s52-total{font-size:24px;font-weight:800;margin:14px 0}.s52-bets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.s52-bets span{padding:8px;background:#f2f4f7;color:#15233b;border-radius:8px}
 </style><script>
 /* SIMPLE52_LOGIC_START */
@@ -2132,7 +2139,7 @@ function recommend52(r){
  const ranks=['S','A','B'].map(g=>{
  const explicit=Array.isArray(r['rank'+g])?r['rank'+g]:[];
  const nums=[...new Set([...explicit,...horses.filter(h=>h.overall===g).map(h=>h.number)].map(Number))].filter(n=>Number.isInteger(n)&&n>=1&&n<=18&&!seen.has(n));nums.forEach(n=>seen.add(n));
- return '<div class="s52-rank"><strong>'+g+'ランク</strong>'+ (nums.map(n=>'<span class="s52-horse">'+n+'番 '+safe(horses.find(h=>Number(h.number)===n)?.name||'')+'</span>').join('')||'<span class="muted">評価未登録</span>')+'</div>';
+ return '<div class="s52-rank s52-rank-'+g+'"><strong>'+g+'ランク</strong>'+ (nums.map(n=>'<span class="s52-horse">'+n+'番 '+safe(horses.find(h=>Number(h.number)===n)?.name||'')+'</span>').join('')||'<span class="muted">評価未登録</span>')+'</div>';
  }).join('');
  const bets=recommend52(r),closed=r.status!=='final'||!r.off||Date.now()>=Date.parse(r.date+'T'+r.off+':00+09:00');
  body.innerHTML='<h2>'+safe(r.date.slice(5).replace('-','／'))+' '+safe(r.track)+Number(r.race)+'レース</h2><p>'+ (r.status==='skip'||r.intent==='見送り'?'見送り':closed?'参考・確認用':'確定予想')+'</p>'+ranks+'<h3>おすすめ3連単</h3><p class="caption">登録済みの着順候補と総合評価順から自動で組み合わせ。目安30〜40点、最大40点。</p><div class="s52-total">'+bets.length+'点 ／ '+(bets.length*100).toLocaleString('ja-JP')+'円</div><p class="caption">1点100円。'+(bets.length<30?'候補を増やして点数を埋めることはしません。':'')+'</p><details><summary>買い目をすべて見る</summary><div class="s52-bets">'+bets.map(b=>'<span>'+b.join(' → ')+'</span>').join('')+'</div></details><details><summary>予想の理由</summary><p style="white-space:pre-wrap">'+safe([r.training,r.analysis,r.reason].filter(Boolean).join('\n')||'未登録')+'</p></details><p class="caption">元の保存予想・買い目・成績は変更しません。この自動案は未保存です。</p>';
