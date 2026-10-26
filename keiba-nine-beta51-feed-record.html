@@ -436,7 +436,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
 #flow50 .f50-warning{border-left:3px solid #d6a557;background:#352e2a;padding:10px;color:#f8dcb3;line-height:1.65;font-size:11px;border-radius:5px;margin-top:12px}
 @media(max-width:355px){#flow50 .f50-fields{grid-template-columns:1fr}}
 </style></head><body><main id="app"><header class="brand"><div><div class="logo">KEIBA NINE</div><div class="sub">競馬ナイン｜データで勝負する競馬予想</div></div><span class="tag">BETA · 5.1</span></header>
-<section id="home" class="screen active"><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
+<section id="home" class="screen active"><section class="panel" id="simple52"><h2>レースの予想</h2><label for="simple52Pick">日付・競馬場・レース</label><select id="simple52Pick"></select><div id="simple52Body" aria-live="polite"></div></section><details><summary style="padding:16px">記録・収支・詳しい操作</summary><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
 <section class="panel" id="flow50" aria-label="BETA 5.1 個人実戦の運用ガイド">
  <div class="f50-top"><h3>🏇 BETA 5.1｜予想の自動保存・馬券連携</h3><span class="f50-chip">個人用・予想保存</span></div>
  <p class="f50-note">実際に端末へ保存した記録の進行状況を確認できるで。ここから保存・投票・結果確定・Google送信はしません。既存の画面へ移動するだけやで。</p>
@@ -450,7 +450,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
  <div id="flow50Steps" aria-live="polite"></div>
  <p class="f50-warning">🔐 このガイドに出る「結果確認済み」は本人が入力した確認状態。公式データとの自動照合ではないで。架空テスト・旧記録は実戦の仮想回収率に混ぜず、予想が発走前に確定したことも端末時刻だけでは第三者へ証明できません。</p>
 </section>
-<div id="realHomeSummary" class="panel real-summary"><strong>🏇 実戦記録サマリー</strong><p class="caption">発走前の予想を版付きで保存し、後から結果と照合。公開実績ではありません。</p><div class="muted">まだ記録がありません。</div></div><div class="sectiontitle">クイックメニュー</div><div class="buttons" style="margin:8px 0"><button class="btn secondary" onclick="show('published');loadPublished()">🏇 予想を見る</button><button class="btn" onclick="show('ticket')">🎫 馬券を組み立てる</button></div><div class="buttons"><button class="btn" onclick="show('live')">＋ 実戦の予想を記録</button><button class="btn secondary" onclick="show('results')">▤ 成績を確認</button><button class="btn secondary" onclick="show('tools')">↧ バックアップ</button></div><div class="sectiontitle">最新の予想</div><div id="recent"></div><p class="notice">端末保存が基本。Googleシートのバックアップ設定は「その他」から確認できるで。</p></section>
+<div id="realHomeSummary" class="panel real-summary"><strong>🏇 実戦記録サマリー</strong><p class="caption">発走前の予想を版付きで保存し、後から結果と照合。公開実績ではありません。</p><div class="muted">まだ記録がありません。</div></div><div class="sectiontitle">クイックメニュー</div><div class="buttons" style="margin:8px 0"><button class="btn secondary" onclick="show('published');loadPublished()">🏇 予想を見る</button><button class="btn" onclick="show('ticket')">🎫 馬券を組み立てる</button></div><div class="buttons"><button class="btn" onclick="show('live')">＋ 実戦の予想を記録</button><button class="btn secondary" onclick="show('results')">▤ 成績を確認</button><button class="btn secondary" onclick="show('tools')">↧ バックアップ</button></div><div class="sectiontitle">最新の予想</div><div id="recent"></div><p class="notice">端末保存が基本。Googleシートのバックアップ設定は「その他」から確認できるで。</p></details></section>
 
 <section id="ticket" class="screen"><div class="heading">🎫 馬券</div>
 <section id="batchTicket40" class="panel" hidden aria-label="予想の購入不可プレビュー"><div class="bulk40-header"><strong>📋 予想の買い目確認</strong><span class="bulk40-chip test">購入不可の確認表示</span></div><div id="batchTicket40Body" aria-live="polite"></div><button class="btn secondary full" id="batchTicket40Back" type="button">予想一覧へ戻る</button></section><section id="demoTicket39" class="panel demo39" hidden aria-label="架空予想の馬券テストプレビュー"><div class="demo39-head"><strong>🏇 予想 → 馬券</strong><span class="demo39-marker">架空テスト専用</span></div><div id="demoTicket39Content" aria-live="polite"></div><div class="demo39-secondary"><button class="btn secondary" type="button" id="demoBack39">予想に戻る</button><button class="btn ghost" type="button" id="demoClose39">通常の馬券入力へ</button></div></section><div class="panel" id="forecastTransfer38"><div class="flex"><strong>🏇 保存した予想から買い目を反映</strong><span class="pill">実戦予想</span></div><p class="caption">端末に保存済みの実戦予想を選ぶと、馬番・券種・レース情報を入力欄へ反映するで。反映だけでは購入・保存されません。</p><label for="forecastPick38">実戦予想を選択</label><select id="forecastPick38"><option value="">保存済みの実戦予想を読み込み中…</option></select><button type="button" class="btn secondary full" id="forecastLoad38">この予想を馬券画面に反映</button><p class="caption" id="forecastStatus38" role="status">架空テスト・旧未分類データは候補に表示しません。</p></div><div class="panel hero"><strong>予想から買い目を組み立てる</strong><p class="caption">3連単・3連複を選んで点数と金額を確認。My Keibaへの自動投票は行いません。予想を保存するときは開催日・競馬場・発走時刻を確認してな。</p></div>
@@ -1571,7 +1571,7 @@ el('raExport24').addEventListener('click',()=>{
 });
 // BETA 2.5: Google Identity Services OAuth token model + versioned private Sheets snapshots.
 // No OAuth secret, access token or private data is committed to GitHub.
-const CLOUD_SPREADSHEET25='13u9KOsIxMxubAnCKOehKDoiiZvUqL11avn6z3-sbSzE';
+const CLOUD_SPREADSHEET25_KEY='keiba_nine_private_sheet_id_v25';
 const CLOUD_TAB25='端末同期_v25';
 const CLOUD_CID_STORE25='keiba_nine_google_client_id_v25';
 const CLOUD_SCOPE25='https://www.googleapis.com/auth/spreadsheets';
@@ -1584,7 +1584,11 @@ const status25=(text,kind)=>{
 };
 const getToken25=()=>cloud25.token && Date.now()<cloud25.expiresAt-30000 ? cloud25.token : '';
 const range25=range=>encodeURIComponent("'"+CLOUD_TAB25+"'!"+range);
-const sheetsEndpoint25=range=>'https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(CLOUD_SPREADSHEET25)+'/values/'+range25(range);
+const sheetsEndpoint25=range=>{
+ let id=localStorage.getItem(CLOUD_SPREADSHEET25_KEY)||'';
+ if(!id){const entered=prompt('Googleバックアップ先のスプレッドシートURL（またはID）を入力してください。端末内だけに保存します。')||'';id=(entered.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/)||[])[1]||entered.trim();if(!/^[A-Za-z0-9_-]{20,}$/.test(id))throw Error('バックアップ先が未設定です。端末の記録は保持されています。');localStorage.setItem(CLOUD_SPREADSHEET25_KEY,id);}
+ return 'https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(id)+'/values/'+range25(range);
+};
 const takeSnapshot25=()=>({schema:1,savedAt:new Date().toISOString(),forecasts:R23.forecasts,results:R23.results});
 const fingerprint25=()=>JSON.stringify({forecasts:R23.forecasts,results:R23.results});
 function validateSnapshot25(x){
@@ -2103,6 +2107,40 @@ function parseNine28(raw){
  }));
 })();
 </script>
+<style>
+#simple52 h2{font-size:24px} .s52-rank{padding:16px 0;border-bottom:1px solid #ddd}.s52-rank strong{display:block;font-size:18px;margin-bottom:10px}.s52-horse{display:inline-block;padding:8px 12px;margin:4px;border-radius:12px;background:#edf2fa;color:#162b48;font-weight:700}.s52-total{font-size:24px;font-weight:800;margin:14px 0}.s52-bets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.s52-bets span{padding:8px;background:#f2f4f7;color:#15233b;border-radius:8px}
+</style><script>
+/* SIMPLE52_LOGIC_START */
+function recommend52(r){
+ if(r.status==='skip'||r.intent==='見送り')return [];
+ const valid=a=>Array.isArray(a)?[...new Set(a.map(Number).filter(n=>Number.isInteger(n)&&n>=1&&n<=18))]:[];
+ const first=valid(r.first).slice(0,3),second=valid(r.second),third=valid(r.third);
+ const order=valid(r.ranking),score=n=>order.includes(n)?order.indexOf(n):18;
+ const bets=[];
+ for(const a of first)for(const b of second)for(const c of third)if(a!==b&&a!==c&&b!==c)bets.push([a,b,c]);
+ bets.sort((a,b)=>(score(a[0])*4+score(a[1])*2+score(a[2]))-(score(b[0])*4+score(b[1])*2+score(b[2]))||a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
+ return bets.slice(0,40);
+}
+/* SIMPLE52_LOGIC_END */
+(function(){
+ let rows=[];const pick=document.getElementById('simple52Pick'),body=document.getElementById('simple52Body');
+ const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function draw(){
+ const r=rows.find(x=>x.id===pick.value);
+ if(!r){body.innerHTML='<p>実戦の予想はまだありません。データ接続後、ここにランクとおすすめ3連単を表示します。</p><button type="button" class="btn secondary" id="s52Open">予想の取得・登録へ</button>';document.getElementById('s52Open').onclick=()=>{show('published');if(typeof loadPublished==='function')loadPublished()};return;}
+ const horses=Array.isArray(r.horses)?r.horses:[],seen=new Set();
+ const ranks=['S','A','B'].map(g=>{
+ const explicit=Array.isArray(r['rank'+g])?r['rank'+g]:[];
+ const nums=[...new Set([...explicit,...horses.filter(h=>h.overall===g).map(h=>h.number)].map(Number))].filter(n=>Number.isInteger(n)&&n>=1&&n<=18&&!seen.has(n));nums.forEach(n=>seen.add(n));
+ return '<div class="s52-rank"><strong>'+g+'ランク</strong>'+ (nums.map(n=>'<span class="s52-horse">'+n+'番 '+safe(horses.find(h=>Number(h.number)===n)?.name||'')+'</span>').join('')||'<span class="muted">評価未登録</span>')+'</div>';
+ }).join('');
+ const bets=recommend52(r),closed=r.status!=='final'||!r.off||Date.now()>=Date.parse(r.date+'T'+r.off+':00+09:00');
+ body.innerHTML='<h2>'+safe(r.date.slice(5).replace('-','／'))+' '+safe(r.track)+Number(r.race)+'レース</h2><p>'+ (r.status==='skip'||r.intent==='見送り'?'見送り':closed?'参考・確認用':'確定予想')+'</p>'+ranks+'<h3>おすすめ3連単</h3><p class="caption">登録済みの着順候補と総合評価順から自動で組み合わせ。目安30〜40点、最大40点。</p><div class="s52-total">'+bets.length+'点 ／ '+(bets.length*100).toLocaleString('ja-JP')+'円</div><p class="caption">1点100円。'+(bets.length<30?'候補を増やして点数を埋めることはしません。':'')+'</p><details><summary>買い目をすべて見る</summary><div class="s52-bets">'+bets.map(b=>'<span>'+b.join(' → ')+'</span>').join('')+'</div></details><details><summary>予想の理由</summary><p style="white-space:pre-wrap">'+safe([r.training,r.analysis,r.reason].filter(Boolean).join('\n')||'未登録')+'</p></details><p class="caption">元の保存予想・買い目・成績は変更しません。この自動案は未保存です。</p>';
+ }
+ window.updateSimple52=function(all){const prev=pick.value;rows=all.filter(r=>r.recordType==='live');pick.innerHTML=rows.map(r=>'<option value="'+safe(r.id)+'">'+safe(r.date)+' '+safe(r.track)+Number(r.race)+'R</option>').join('')||'<option value="">予想待ち</option>';if(rows.some(r=>r.id===prev))pick.value=prev;draw()};
+ pick.addEventListener('change',draw);window.updateSimple52([]);
+})();
+</script>
 <script>
 /* KEIBA NINE BETA 4.0 - independent batch forecast publishing desk.
    This is browser-local ONLY. No automatic Google sheet writes or bookmaker actions.
@@ -2175,7 +2213,7 @@ function norm40(input,index){
  if(claimedTri!==null&&claimedTri!==tri.length)throw Error(p+'3連単の申告点数 '+claimedTri+'点と計算 '+tri.length+'点が違うで。');
  if(claimedTrio!==null&&claimedTrio!==trio.length)throw Error(p+'3連複の申告点数 '+claimedTrio+'点と計算 '+trio.length+'点が違うで。');
  for(const key of ['reason','training','analysis'])if(String(input[key]||'').length>6000)throw Error(p+key+'が長すぎます。');
- return {date,track,race,off,recordType,status,confidence,intent,ranking,first,second,third,trioMode:tm,trioPool:pool,trioAxis:axis,trioFormation:form,tri,trio,reason:String(input.reason||''),training:String(input.training||''),analysis:String(input.analysis||''),rankS:nums40(input.rankS,'総合S'),rankA:nums40(input.rankA,'総合A'),...extras41(input,p)};
+ return {date,track,race,off,recordType,status,confidence,intent,ranking,first,second,third,trioMode:tm,trioPool:pool,trioAxis:axis,trioFormation:form,tri,trio,reason:String(input.reason||''),training:String(input.training||''),analysis:String(input.analysis||''),rankS:nums40(input.rankS,'総合S'),rankA:nums40(input.rankA,'総合A'),rankB:nums40(input.rankB,'総合B'),...extras41(input,p)};
 }
 // Optional enriched fields in BETA 4.2. Old v4.0 records deliberately remain readable.
 const AXES41=[['recent','近走内容'],['training','調教'],['course','コース・距離適性'],['pedigree','血統'],['pace','展開・脚質'],['ground','馬場適性'],['gate','枠順'],['weight','斤量'],['connections','騎手・厩舎'],['rotation','ローテーション']];
@@ -2239,11 +2277,12 @@ function details41(r){
  <div class="bulk41-section"><h4>資料・確認メモ</h4><p class="bulk41-text">確認日時：${sf(ev.checkedAt||'未入力')}</p>${(ev.references||[]).length?ev.references.map(x=>`<p class="bulk41-text">・${sf(x)}</p>`).join(''):'<p class="bulk41-empty">出典・確認資料は未登録。未検証のまま確定扱いにしないよう注意してな。</p>'}</div>`;
 }
 const identity40=r=>[r.date,r.track,r.race,r.recordType].join('|');
-const comparison40=r=>JSON.stringify(Object.fromEntries(['date','track','race','off','recordType','status','confidence','intent','ranking','first','second','third','trioMode','trioPool','trioAxis','trioFormation','tri','trio','reason','training','analysis','rankS','rankA','evaluations','horses','racePlan','evidence'].map(k=>[k,r[k]])));
+const comparison40=r=>JSON.stringify(Object.fromEntries(['date','track','race','off','recordType','status','confidence','intent','ranking','first','second','third','trioMode','trioPool','trioAxis','trioFormation','tri','trio','reason','training','analysis','rankS','rankA','rankB','evaluations','horses','racePlan','evidence'].map(k=>[k,r[k]])));
 const latest40=()=>{const map=new Map();for(const r of rows){const key=identity40(r);const old=map.get(key);if(!old||Number(r.version||0)>Number(old.version||0))map.set(key,r)}return [...map.values()].sort((a,b)=>b.date.localeCompare(a.date)||(['東京','京都','新潟'].indexOf(a.track)-['東京','京都','新潟'].indexOf(b.track))||a.race-b.race)};
 function json40(name,obj){const data=JSON.stringify(obj,null,2);download40(name,data,'application/json;charset=utf-8')}
 function download40(name,data,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([data],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
 function render40(){
+ if(window.updateSimple52)window.updateSimple52(latest40());
  const all=latest40(),date=el('bulkFilterDate40').value,track=el('bulkFilterTrack40').value,visible=all.filter(r=>(!date||r.date===date)&&(!track||r.track===track));
  const counts={final:all.filter(r=>r.status==='final').length,draft:all.filter(r=>r.status==='draft').length,skip:all.filter(r=>r.status==='skip').length};
  el('batchSummary40').innerHTML=`<span>登録 ${all.length}R</span><span>確定 ${counts.final}R</span><span>暫定 ${counts.draft}R</span><span>見送り ${counts.skip}R</span>`;

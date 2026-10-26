@@ -1,0 +1,11 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('keiba-nine-beta51-feed-record.html','utf8');const c={};vm.createContext(c);vm.runInContext(html.split('/* SIMPLE52_LOGIC_START */')[1].split('/* SIMPLE52_LOGIC_END */')[0],c);
+const r={status:'final',first:[1,2],second:[1,2,3,4],third:[1,2,3,4,5,6,7,8],ranking:[1,2,3,4,5,6,7,8]};
+const original=JSON.stringify(r),bets=c.recommend52(r);assert.equal(bets.length,36);assert.equal(new Set(bets.map(b=>b.join(','))).size,36);assert(bets.every(b=>new Set(b).size===3));assert.equal(JSON.stringify(r),original);
+assert.equal(c.recommend52({...r,first:[1,2,3],second:[1,2,3,4,5]}).length,40);
+assert.equal(c.recommend52({...r,status:'skip'}).length,0);assert.equal(c.recommend52({...r,intent:'見送り'}).length,0);
+assert.equal(c.recommend52({...r,first:[1],second:[2],third:[3]}).length,1);
+assert.equal(c.recommend52({...r,first:[99,0],second:[2],third:[3]}).length,0);
+assert.equal(c.recommend52({...r,first:[1,1],second:[2,2],third:[3,3]}).length,1);
+for(const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
+console.log('10 recommendation checks and all inline script syntax passed');
