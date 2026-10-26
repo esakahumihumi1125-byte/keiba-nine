@@ -436,7 +436,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
 #flow50 .f50-warning{border-left:3px solid #d6a557;background:#352e2a;padding:10px;color:#f8dcb3;line-height:1.65;font-size:11px;border-radius:5px;margin-top:12px}
 @media(max-width:355px){#flow50 .f50-fields{grid-template-columns:1fr}}
 </style></head><body><main id="app"><header class="brand"><div><div class="logo">KEIBA NINE</div><div class="sub">競馬ナイン｜データで勝負する競馬予想</div></div><span class="tag">BETA · 5.1</span></header>
-<section id="home" class="screen active"><section class="panel" id="simple52"><h2>レースの予想</h2><label for="simple52Pick">日付・競馬場・レース</label><select id="simple52Pick"></select><div id="simple52Body" aria-live="polite"></div></section><details><summary style="padding:16px">記録・収支・詳しい操作</summary><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
+<section id="home" class="screen active"><section class="panel" id="simple52"><h2>レースの予想</h2><div class="cols"><div><label for="raceDate54">日付</label><select id="raceDate54"></select></div><div><label for="raceTrack54">競馬場</label><select id="raceTrack54"></select></div></div><div class="cols"><div><label for="simple52Pick">レース</label><select id="simple52Pick"></select></div><div><label>レース移動</label><button class="btn secondary full" type="button" id="nextRace54">次のレース →</button></div></div><div id="simple52Body" aria-live="polite"></div></section><details><summary style="padding:16px">記録・収支・詳しい操作</summary><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
 <section class="panel" id="flow50" aria-label="BETA 5.1 個人実戦の運用ガイド">
  <div class="f50-top"><h3>🏇 BETA 5.1｜予想の自動保存・馬券連携</h3><span class="f50-chip">個人用・予想保存</span></div>
  <p class="f50-note">実際に端末へ保存した記録の進行状況を確認できるで。ここから保存・投票・結果確定・Google送信はしません。既存の画面へ移動するだけやで。</p>
@@ -501,7 +501,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
   <button class="btn full" type="submit">レース前の予想を版として保存</button><p class="caption">※1点100円固定。保存後は上書きせずv2、v3...と履歴を残す。</p>
  </form>
 </section>
-<section id="live" class="screen">
+<section id="live" class="screen"><section class="panel" id="finance54"><h2>収支の確認</h2><label for="financeMode54">記録の種類</label><select id="financeMode54"><option value="simulation">仮想購入の検証</option><option value="actual">実購入（本人の記録）</option></select><div class="finance54-grid"><div class="kpi"><span class="caption" id="financeStakeLabel54">購入想定額</span><strong id="financeStake54">0円</strong></div><div class="kpi"><span class="caption">払戻</span><strong id="financeReturn54">0円</strong></div><div class="kpi"><span class="caption">収支</span><strong id="financeNet54">0円</strong></div></div><p class="caption" id="financeNote54"></p><details><summary>購入した買い目を記録する</summary><p class="caption">保存したおすすめ3連単を全点・各100円で購入した場合に記録できます。一部だけ購入・金額変更・追加購入には未対応です。</p><label for="purchasePick54">購入した予想版</label><select id="purchasePick54"></select><p id="purchaseBets54" class="caption"></p><label class="real-check"><input type="checkbox" id="purchaseConfirm54">この買い目を全点、各100円で実際に購入しました</label><button class="btn secondary full" type="button" id="purchaseSave54">実購入として記録</button><p id="purchaseNotice54" role="status"></p></details></section>
  <div class="heading">📋 記録・振り返り</div>
  <div class="panel hero"><h3>📚 保存した予想と結果</h3><p class="caption">保存履歴・同期状況・振り返りをここで確認。新しい買い目は「予想」の「買い目を編集・保存」から作成できます。</p><button type="button" class="btn secondary" onclick="show('results');loadVerifyDemo()">📊 結果入力・成績を見る</button></div>
 
@@ -1366,7 +1366,7 @@ const getAllRaces=()=>{
  for(const f of R23.forecasts){const k=scopedKey27(f);if(!m.has(k))m.set(k,[]);m.get(k).push(f);}
  return [...m].sort((a,b)=>b[0].localeCompare(a[0]));
 };
-const eligibleRecord=xs=>xs.filter(preOff).sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt))[0]||null;
+const eligibleRecord=xs=>{const valid=xs.filter(preOff),chosen=valid.some(f=>f.recommendation54)?valid.filter(f=>!f.feedIdentity51):valid;return chosen.sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt)||Number(b.version)-Number(a.version))[0]||null;};
 const resultOf=key=>R23.results.filter(r=>scopedKey27(r)===key).sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt))[0]||null;
 function adjudicate(f,r){
  const {tri,trio}=ticketLists(f);if(!r)return null;
@@ -1481,7 +1481,7 @@ function render23(){
  home.innerHTML=`<strong>🏇 個人記録｜実戦とテストを分離</strong><p class="caption">保存記録 ${races.length}組（区分別）・発走前版あり ${chosen.filter(x=>x.f).length}組／結果入力 ${chosen.filter(x=>x.r).length}組</p><div class="real-mini">実戦区分の照合対象 ${live.length}R｜100円ずつ購入と仮定した回収率 <b class="gold">${roi}</b></div><p class="caption">※端末時計に基づく保存記録。公式公開実績や実購入収支ではない。</p>`;
  list.innerHTML=races.length?races.map(([key,versions])=>{
   const sorted=versions.slice().sort((a,b)=>b.version-a.version);
-  return `<div class="real-record"><strong>${safe(sorted[0].date)} ${safe(sorted[0].track)}${sorted[0].race}R</strong> <span class="real-pill">${versions.length}版保存</span> <span class="record27-label ${kindClass27(kind27(sorted[0]))}">${safe(kindLabel27(kind27(sorted[0])))}</span><div class="real-mini">${sorted.map(f=>`v${f.version} ${safe(savedate(f))} ${preOff(f)?'<span class="real-ok">発走前の端末記録</span>':'<span class="real-err">発走後の記録・検証対象外</span>'} ｜ ${safe(f.intent)} ｜ 3連単 ${(f.tri||[]).length}点・3連複 ${(f.trio||[]).length}点`).join('<br>')}</div><details><summary>予想版の詳細</summary>${sorted.map(f=>`<div class="real-mini"><strong>v${f.version}</strong>：1着 ${safe((f.first||[]).join(','))||'—'} / 2着 ${safe((f.second||[]).join(','))||'—'} / 3着 ${safe((f.third||[]).join(','))||'—'}<br>3連複 ${safe(f.trioMode||'ボックス')}：${safe((f.trio||[]).map(t=>t.join('-')).join(' / '))||'—'}<br>総合S ${safe((f.sRank||[]).join(','))||'—'}／総合A ${safe((f.aRank||[]).join(','))||'—'}<br>${safe(f.reason||'根拠未入力')}</div>`).join('<hr>')}</details></div>`;
+  return `<div class="real-record"><strong>${safe(sorted[0].date)} ${safe(sorted[0].track)}${sorted[0].race}R</strong> <span class="real-pill">${versions.length}版保存</span> <span class="record27-label ${kindClass27(kind27(sorted[0]))}">${safe(kindLabel27(kind27(sorted[0])))}</span><div class="real-mini">${sorted.map(f=>`v${f.version} ${safe(savedate(f))} ${preOff(f)?'<span class="real-ok">発走前の端末記録</span>':'<span class="real-err">発走後の記録・検証対象外</span>'} ｜ ${safe(f.intent)} ｜ 3連単 ${(f.tri||[]).length}点・3連複 ${(f.trio||[]).length}点`).join('<br>')}</div><details><summary>予想版の詳細</summary>${sorted.map(f=>`<div class="real-mini"><strong>v${f.version}</strong>${f.recommendation54?'<br>保存したおすすめ3連単：'+safe((f.tri||[]).map(t=>t.join('→')).join(' / '))+'<br>（個別の組み合わせ・各100円）<br>':'：'}1着 ${safe((f.first||[]).join(','))||'—'} / 2着 ${safe((f.second||[]).join(','))||'—'} / 3着 ${safe((f.third||[]).join(','))||'—'}<br>3連複 ${safe(f.trioMode||'ボックス')}：${safe((f.trio||[]).map(t=>t.join('-')).join(' / '))||'—'}<br>総合S ${safe((f.sRank||[]).join(','))||'—'}／総合A ${safe((f.aRank||[]).join(','))||'—'}<br>${safe(f.reason||'根拠未入力')}</div>`).join('<hr>')}</details></div>`;
  }).join(''):'<div class="empty">まだ実戦記録がないで。上のフォームから入力してな。</div>';
  kpis.innerHTML=`<div class="kpi"><span class="caption">照合した実レース</span><strong>${live.length} R</strong></div><div class="kpi"><span class="caption">3連単的中</span><strong>${total.triHits} R</strong></div><div class="kpi"><span class="caption">仮想投資</span><strong>${money23(total.stake)}</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong>${money23(total.ret)}</strong></div><div class="kpi"><span class="caption">仮想収支</span><strong>${total.stake?(total.ret-total.stake>0?'+':'')+money23(total.ret-total.stake):'—'}</strong></div><div class="kpi"><span class="caption">回収率</span><strong class="gold">${roi}</strong></div>`;
  forms.innerHTML=races.length?races.map(([key,versions])=>{
@@ -1768,7 +1768,7 @@ window.keibaScopedFinance27=()=>{
  return {stake,returnMoney,net:returnMoney-stake,roi:stake?returnMoney/stake*100:null};
 };
 const renderOld27=window.show;
-window.show=function(name){renderOld27(name);render23();};
+window.show=function(name){renderOld27(name);render23();if(name==='ticket')window.refreshForecastPick54?.();if(name==='home')window.refreshSimple54?.();};
 // Update home KPIs after results are saved without rewriting the legacy ledger.
 const updateHome27=()=>{
  const st=window.keibaScopedFinance27();
@@ -1779,7 +1779,7 @@ const updateHome27=()=>{
  el('homeNet').textContent=(st.net>0?'+':'')+'¥'+st.net.toLocaleString('ja-JP');
 };
 const renderR23Original=render23;
-render23=function(){renderR23Original();updateHome27();};
+render23=function(){renderR23Original();updateHome27();window.refreshFinance54?.();};
 preview();render23();
 window.KEIBA_NINE_24_TEST={analyticsRows:analyticsRows24,group:group24,refresh:renderAnalytics24};
 // BETA 5.1: append feed forecasts to the existing personal verification ledger.
@@ -1795,6 +1795,51 @@ window.saveFeedForecast51=function(r){
  if(!persist23()){R23.forecasts.pop();throw Error('予想の保存に失敗しました。再取得してください');}
  return true;
 };
+// User-selected suggestions are independent, exact ticket snapshots.
+window.savedRecommendation54=key=>R23.forecasts.find(f=>f.recommendation54===key)||null;
+window.saveRecommendation54=function(sourceId,expected){
+ if(storageError51)throw Error('記録を読み取れないため、上書きを停止しています。');
+ const r=window.sourceRecommendation54?.(sourceId);
+ if(!r||identity54(r)!==expected)throw Error('予想が更新されました。最新の買い目を確認してください。');
+ const state=state54(r);if(!state.canSave)throw Error(state.reason);
+ const old=window.savedRecommendation54(expected);if(old)return old;
+ const tri=recommend52(r).map(b=>b.slice());
+ const snapshot=JSON.parse(JSON.stringify(r));delete snapshot.feedIdentity51;delete snapshot.purchase54;
+ Object.assign(snapshot,{id:id23(),savedAt:new Date().toISOString(),version:Math.max(0,...R23.forecasts.filter(f=>raceKey(f)===raceKey(r)).map(f=>Number(f.version)||0))+1,
+  recommendation54:expected,sourceId54:r.id,unit:100,first:[],second:[],third:[],tri,trio:[],trioPool:[],trioAxis:[],trioFormation:[[],[],[]],trioMode:'ボックス',sRank:ranks54(r).S,aRank:ranks54(r).A});
+ if(!preOff(snapshot))throw Error('発走時刻を過ぎたため保存できません。');
+ R23.forecasts.push(snapshot);
+ if(!persist23()){R23.forecasts.pop();throw Error('保存できませんでした。端末の空き容量を確認してください。');}
+ return snapshot;
+};
+window.recordPurchase54=function(id){
+ if(storageError51)throw Error('記録の読み取りエラーのため保存できません。');
+ const f=R23.forecasts.find(f=>f.id===id);
+ if(!f||kind27(f)!=='live'||!f.recommendation54||!preOff(f))throw Error('発走前に保存したおすすめ買い目を選んでください。');
+ if(f.purchase54)return f;
+ if(R23.forecasts.some(x=>raceKey(x)===raceKey(f)&&x.purchase54))throw Error('このレースは実購入を記録済みです。二重登録はできません。');
+ f.purchase54={confirmedAt:new Date().toISOString(),unit:100,signature:JSON.stringify(f.tri)};
+ if(!persist23()){delete f.purchase54;throw Error('実購入の記録を保存できませんでした。');}
+ return f;
+};
+window.financeSummary54=function(mode='simulation'){
+ let items=[];
+ if(mode==='actual'){
+  const seen=new Set();
+  for(const f of R23.forecasts){
+   if(kind27(f)!=='live'||!f.purchase54||f.purchase54.unit!==100||f.purchase54.signature!==JSON.stringify(f.tri)||!f.recommendation54||!preOff(f)||seen.has(raceKey(f)))continue;
+   seen.add(raceKey(f));items.push(f);
+  }
+ }else items=getAllRaces().map(([,xs])=>eligibleRecord(xs)).filter(f=>f&&kind27(f)==='live'&&f.intent==='購入推奨');
+ let stake=0,returned=0,pending=0,count=0;
+ for(const f of items){
+  const r=resultOf(scopedKey27(f)),o=r?.confirmed?adjudicate(f,r):null;
+  if(!o){pending+=100*((f.tri||[]).length+(f.trio||[]).length);continue;}
+  stake+=o.stake;returned+=o.returned;count++;
+ }
+ return {stake,returned,net:returned-stake,pending,count};
+};
+
 window.KEIBA_NINE_23_TEST={parseHorseNumbers:nums,comboTri:combosTri,comboTrio:combosTrio,adjudicate,sampleTest,readForm,kind27,scopedKey27,getRaces:()=>R23.forecasts.slice(),getResults:()=>R23.results.slice()};
 })();
 
@@ -2019,6 +2064,7 @@ function parseNine28(raw){
  btn.addEventListener('click',()=>{
   const f=choices.find(x=>String(x.id)===pick.value);
   if(!f){alert('先に保存済みの実戦予想を選んでな。');return;}
+  if(f.recommendation54){status.textContent='この予想は個別の組み合わせで保存しています。「記録」で全買い目を確認してください。フォーメーションへの再展開は行いません。';return;}
   if(!confirm(`${f.date} ${f.track}${f.race}R の予想を入力欄へ反映するで。現在の未保存の入力内容は上書きされるけど、続ける？`))return;
   for(const [id,value] of [['rpDate',f.date],['rpTrack',f.track],['rpRace',f.race],['rpOff',f.off],['rpConfidence',f.confidence],['rpIntent',f.intent],['rpFirst',(f.first||[]).join(',')],['rpSecond',(f.second||[]).join(',')],['rpThird',(f.third||[]).join(',')],['rpRankS',(f.sRank||[]).join(',')],['rpRankA',(f.aRank||[]).join(',')],['rpReason',f.reason||''],['rpTrioMode',f.trioMode||'ボックス'],['rpTrio',(f.trioPool||[]).join(',')],['rpTrioAxis',(f.trioAxis||[]).join(',')]])setValue(id,value);
   for(let i=0;i<3;i++)setValue(['rpTrioA','rpTrioB','rpTrioC'][i],(f.trioFormation?.[i]||[]).join(','));
@@ -2030,7 +2076,7 @@ function parseNine28(raw){
   status.textContent=`${f.track}${f.race}R v${f.version||1} を反映したで。点数・金額を確認してからMy Keibaで本人が購入してな。`;
   document.getElementById('premiumFormation32')?.scrollIntoView({behavior:'smooth',block:'start'});
  });
- document.querySelectorAll('.tabs button[data-screen="ticket"]').forEach(b=>b.addEventListener('click',refresh));
+ window.refreshForecastPick54=refresh;
  refresh();
 })();
 </script><script>
@@ -2129,24 +2175,59 @@ function recommend52(r){
  return bets.slice(0,40);
 }
 /* SIMPLE52_LOGIC_END */
-(function(){
- let rows=[];const pick=document.getElementById('simple52Pick'),body=document.getElementById('simple52Body');
- const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- function draw(){
- const r=rows.find(x=>x.id===pick.value);
- if(!r){body.innerHTML='<p>実戦の予想はまだありません。データ接続後、ここにランクとおすすめ3連単を表示します。</p><button type="button" class="btn secondary" id="s52Open">予想の取得・登録へ</button>';document.getElementById('s52Open').onclick=()=>{show('published');if(typeof loadPublished==='function')loadPublished()};return;}
- const horses=Array.isArray(r.horses)?r.horses:[],seen=new Set();
- const ranks=['S','A','B'].map(g=>{
- const explicit=Array.isArray(r['rank'+g])?r['rank'+g]:[];
- const nums=[...new Set([...explicit,...horses.filter(h=>h.overall===g).map(h=>h.number)].map(Number))].filter(n=>Number.isInteger(n)&&n>=1&&n<=18&&!seen.has(n));nums.forEach(n=>seen.add(n));
- return '<div class="s52-rank s52-rank-'+g+'"><strong>'+g+'ランク</strong>'+ (nums.map(n=>'<span class="s52-horse">'+n+'番 '+safe(horses.find(h=>Number(h.number)===n)?.name||'')+'</span>').join('')||'<span class="muted">評価未登録</span>')+'</div>';
- }).join('');
- const bets=recommend52(r),closed=r.status!=='final'||!r.off||Date.now()>=Date.parse(r.date+'T'+r.off+':00+09:00');
- body.innerHTML='<h2>'+safe(r.date.slice(5).replace('-','／'))+' '+safe(r.track)+Number(r.race)+'レース</h2><p>'+ (r.status==='skip'||r.intent==='見送り'?'見送り':closed?'参考・確認用':'確定予想')+'</p>'+ranks+'<h3>おすすめ3連単</h3><p class="caption">登録済みの着順候補と総合評価順から自動で組み合わせ。目安30〜40点、最大40点。</p><div class="s52-total">'+bets.length+'点 ／ '+(bets.length*100).toLocaleString('ja-JP')+'円</div><p class="caption">1点100円。'+(bets.length<30?'候補を増やして点数を埋めることはしません。':'')+'</p><details><summary>買い目をすべて見る</summary><div class="s52-bets">'+bets.map(b=>'<span>'+b.join(' → ')+'</span>').join('')+'</div></details><details><summary>予想の理由</summary><p style="white-space:pre-wrap">'+safe([r.training,r.analysis,r.reason].filter(Boolean).join('\n')||'未登録')+'</p></details><p class="caption">元の保存予想・買い目・成績は変更しません。この自動案は未保存です。</p>';
+/* SIMPLE54_LOGIC_START */
+function ranks54(r){
+ const groups={S:[],A:[],B:[],C:[]},seen=new Set();
+ for(const g of Object.keys(groups)){
+  const source=r['rank'+g]||(g==='S'?r.sRank:g==='A'?r.aRank:[]);
+  const explicit=Array.isArray(source)?source:[];
+  for(const n of [...explicit,...(Array.isArray(r.horses)?r.horses:[]).filter(h=>h.overall===g).map(h=>h.number)].map(Number)){
+   if(Number.isInteger(n)&&n>=1&&n<=18&&!seen.has(n)){groups[g].push(n);seen.add(n);}
+  }
  }
- window.updateSimple52=function(all){const prev=pick.value;rows=all.filter(r=>r.recordType==='live');pick.innerHTML=rows.map(r=>'<option value="'+safe(r.id)+'">'+safe(r.date)+' '+safe(r.track)+Number(r.race)+'R</option>').join('')||'<option value="">予想待ち</option>';if(rows.some(r=>r.id===prev))pick.value=prev;draw()};
- pick.addEventListener('change',draw);window.updateSimple52([]);
+ return groups;
+}
+function state54(r,now=Date.now()){
+ if(!r)return {label:'データ待ち',canSave:false,reason:'レースの予想データがまだありません。'};
+ if(r.status==='skip'||r.intent==='見送り')return {label:'見送り',canSave:false,reason:r.racePlan?.verdict||r.reason||'登録された判断は見送りです。'};
+ if(r.recordType!=='live')return {label:'確認用',canSave:false,reason:'実戦予想ではありません。'};
+ const off=Date.parse(r.date+'T'+r.off+':00+09:00');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(r.off)||!Number.isFinite(off))return {label:'データ待ち',canSave:false,reason:'発走日時が未確認です。'};
+ if(now>=off)return {label:'発走後・確認用',canSave:false,reason:'発走後はおすすめ予想を新規保存できません。'};
+ if(r.status!=='final')return {label:'暫定',canSave:false,reason:'予想が確定するまで保存を待ってください。'};
+ const bets=recommend52(r),ranked=new Set(Object.values(ranks54(r)).flat());
+ if(!bets.length)return {label:'データ待ち',canSave:false,reason:'着順候補が未登録です。'};
+ if(bets.some(b=>b.some(n=>!ranked.has(n))))return {label:'評価待ち',canSave:false,reason:'買い目に総合評価が未登録の馬がいます。未取得の評価は自動補完しません。'};
+ if(!['購入推奨','参考'].includes(r.intent))return {label:'判断待ち',canSave:false,reason:'購入推奨・参考・見送りの判断を確認してください。'};
+ return {label:'確定',canSave:true,reason:r.racePlan?.winReason||r.reason||'詳しい理由は未登録です。'};
+}
+function identity54(r){return JSON.stringify([r.id,r.version||0,r.date,r.track,r.race,r.off,r.intent,recommend52(r),ranks54(r)]);}
+/* SIMPLE54_LOGIC_END */
+
+(function(){
+ let rows=[],notice='',lastState='';const get=id=>document.getElementById(id),pick=get('simple52Pick'),body=get('simple52Body'),date=get('raceDate54'),track=get('raceTrack54');
+ const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const options=(el,values,previous,empty)=>{el.innerHTML=values.map(([v,label])=>'<option value="'+safe(v)+'">'+safe(label)+'</option>').join('')||'<option value="">'+empty+'</option>';if(values.some(([v])=>v===previous))el.value=previous;el.disabled=!values.length;};
+ function fillRaces(){const prev=pick.value;options(pick,rows.filter(r=>r.date===date.value&&r.track===track.value).sort((a,b)=>Number(a.race)-Number(b.race)).map(r=>[String(r.id),r.race+'R'+(r.off?' ・ '+r.off:'')]),prev,'予想待ち');draw();}
+ function fillTracks(){const prev=track.value;options(track,[...new Set(rows.filter(r=>r.date===date.value).map(r=>r.track))].map(v=>[v,v]),prev,'開催待ち');fillRaces();}
+ function draw(){
+ const r=rows.find(x=>String(x.id)===pick.value),state=state54(r);lastState=state.label;
+ const all=[...pick.options];get('nextRace54').disabled=!r||pick.selectedIndex>=all.length-1;
+ if(!r){body.innerHTML='<p class="pill">データ待ち</p><p>予想が届くと、ランクとおすすめ3連単がここに表示されます。</p>';return;}
+ const key=identity54(r),saved=window.savedRecommendation54?.(key),bets=recommend52(r),ranks=ranks54(r);
+ const rankHTML=['S','A','B'].map(g=>'<div class="s52-rank s52-rank-'+g+'"><strong>'+g+'ランク</strong>'+(ranks[g].map(n=>'<span class="s52-horse">'+n+'番 '+safe((r.horses||[]).find(h=>Number(h.number)===n)?.name||'')+'</span>').join('')||'<span class="muted">評価未登録</span>')+'</div>').join('');
+ const verdict=r.status==='skip'||r.intent==='見送り'?'見送り':r.intent==='購入推奨'?'買う候補': '参考・購入判断は保留';
+ body.innerHTML='<h2>'+safe(r.date.slice(5).replace('-','／'))+' '+safe(r.track)+Number(r.race)+'レース</h2><div class="buttons"><span class="pill">'+safe(state.label)+'</span>'+(saved?'<span class="pill ok">保存済み v'+Number(saved.version)+'</span>':'')+'</div><div class="notice"><strong>'+safe(verdict)+'</strong><p>'+safe(state.reason)+'</p></div>'+rankHTML+'<h3>おすすめ3連単</h3><p class="caption">登録された着順候補・総合評価順から作成。目安30〜40点、最大40点。</p><div class="s52-total">'+bets.length+'点 ／ '+(bets.length*100).toLocaleString('ja-JP')+'円</div><p class="caption">1点100円。'+(bets.length<30?'点数を埋めるための追加はしません。':'')+'</p><details><summary>買い目をすべて見る</summary><div class="s52-bets">'+bets.map(b=>'<span>'+b.join(' → ')+'</span>').join('')+'</div></details><button class="btn full" id="saveRecommendation54" type="button" '+(!state.canSave||saved?'disabled':'')+'>'+(saved?'保存済み':'この予想を保存')+'</button><p class="caption">表示中の3連単だけを保存します。保存は購入ではありません。'+(r.intent==='参考'?'参考予想は仮想収支の合計対象外です。':'')+'</p><p id="saveNotice54" role="status">'+safe(notice)+'</p><details><summary>詳しい予想の理由</summary><p style="white-space:pre-wrap">'+safe([r.training,r.analysis,r.reason].filter(Boolean).join('\n')||'未登録')+'</p></details>';
+ get('saveRecommendation54').onclick=()=>{try{window.saveRecommendation54(r.id,key);notice='保存しました。「記録」で買い目と結果を確認できます。';}catch(e){notice=e.message;}draw();};
+ }
+ window.updateSimple52=function(all){const prev=date.value;rows=all.filter(r=>r.recordType==='live');options(date,[...new Set(rows.map(r=>r.date))].sort().reverse().map(v=>[v,v]),prev,'データ待ち');if(!prev){const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});const upcoming=[...new Set(rows.map(r=>r.date))].filter(v=>v>=today).sort()[0];if(upcoming)date.value=upcoming;}fillTracks();};
+ date.addEventListener('change',()=>{notice='';fillTracks()});track.addEventListener('change',()=>{notice='';fillRaces()});pick.addEventListener('change',()=>{notice='';draw()});
+ get('nextRace54').onclick=()=>{if(pick.selectedIndex<pick.options.length-1){pick.selectedIndex++;notice='';draw()}};
+ window.refreshSimple54=draw;
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)draw()});setInterval(()=>{if(state54(rows.find(x=>String(x.id)===pick.value)).label!==lastState)draw()},30000);
+ window.updateSimple52([]);
 })();
+
 </script>
 <script>
 /* KEIBA NINE BETA 4.0 - independent batch forecast publishing desk.
@@ -2288,6 +2369,7 @@ const comparison40=r=>JSON.stringify(Object.fromEntries(['date','track','race','
 const latest40=()=>{const map=new Map();for(const r of rows){const key=identity40(r);const old=map.get(key);if(!old||Number(r.version||0)>Number(old.version||0))map.set(key,r)}return [...map.values()].sort((a,b)=>b.date.localeCompare(a.date)||(['東京','京都','新潟'].indexOf(a.track)-['東京','京都','新潟'].indexOf(b.track))||a.race-b.race)};
 function json40(name,obj){const data=JSON.stringify(obj,null,2);download40(name,data,'application/json;charset=utf-8')}
 function download40(name,data,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([data],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
+window.sourceRecommendation54=id=>{const r=latest40().find(r=>String(r.id)===String(id));return r?JSON.parse(JSON.stringify(r)):null;};
 function render40(){
  if(window.updateSimple52)window.updateSimple52(latest40());
  const all=latest40(),date=el('bulkFilterDate40').value,track=el('bulkFilterTrack40').value,visible=all.filter(r=>(!date||r.date===date)&&(!track||r.track===track));
@@ -3175,5 +3257,28 @@ reload42();
  const batch=get('batchPanel40');if(batch){const d=fold(get('published'),'予想のまとめて登録・詳細管理','batchManage53');d.append(batch);}
 })();
 /* NAV53_END */
+</script>
+<style>.finance54-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}.finance54-grid .kpi{padding:12px 8px}.finance54-grid strong{font-size:clamp(16px,4.2vw,24px);overflow-wrap:anywhere}button:disabled{opacity:.5;cursor:default}#saveRecommendation54{margin-top:18px;min-height:52px}</style><script>
+(function(){
+ const get=id=>document.getElementById(id),mode=get('financeMode54');
+ const money=n=>n.toLocaleString('ja-JP')+'円';
+ window.refreshFinance54=function(){
+  const st=window.financeSummary54(mode.value);get('financeStake54').textContent=money(st.stake);get('financeReturn54').textContent=money(st.returned);get('financeNet54').textContent=money(st.net);
+  get('financeNote54').textContent=(mode.value==='actual'?'本人が購入したと記録した買い目のみ。':'購入推奨を全点100円で買った仮定。')+'結果確認済み '+st.count+'レースを集計。結果待ち '+money(st.pending)+'は収支に含みません。';
+  get('financeStakeLabel54').textContent=mode.value==='actual'?'購入額':'購入想定額';
+  const pick=get('purchasePick54'),prev=pick.value;pick.replaceChildren(new Option('保存した買い目を選ぶ',''));
+  for(const f of window.KEIBA_NINE_23_TEST.getRaces().filter(f=>f.recordType==='live'&&f.recommendation54))pick.add(new Option(f.date+' '+f.track+f.race+'R v'+f.version+' ・ '+f.tri.length+'点'+(f.purchase54?' ・ 購入記録済み':''),f.id));
+  if([...pick.options].some(o=>o.value===prev))pick.value=prev;
+ };
+ mode.onchange=window.refreshFinance54;
+ get('purchaseSave54').onclick=()=>{const f=window.KEIBA_NINE_23_TEST.getRaces().find(f=>f.id===get('purchasePick54').value);try{
+  if(!f)throw Error('保存した買い目を選んでください。');
+  if(!get('purchaseConfirm54').checked)throw Error('全点を各100円で購入したことを確認してください。');
+  window.recordPurchase54(f.id);get('purchaseNotice54').textContent='実購入の記録を保存しました。投票先からの自動取得ではありません。';get('purchaseConfirm54').checked=false;window.refreshFinance54();
+ }catch(e){get('purchaseNotice54').textContent=e.message;}};
+ get('purchasePick54').onchange=()=>{get('purchaseConfirm54').checked=false;const f=window.KEIBA_NINE_23_TEST.getRaces().find(f=>f.id===get('purchasePick54').value);get('purchaseBets54').textContent=f?f.tri.map(b=>b.join(' → ')).join(' ／ ')+' ・ 計'+money(f.tri.length*100):'';};
+ window.refreshFinance54();
+})();
+
 </script>
 </body></html>

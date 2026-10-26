@@ -31,3 +31,4 @@ const old=Array.from({length:3001},(_,i)=>({id:'old'+i,date:'2020-01-01',track:'
 for(const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);checks++;
 ok(fs.readFileSync('index.html','utf8').includes('keiba-nine-beta51-feed-record.html'));ok(html.includes('BETA · 5.1'));
 console.log(`${checks} checks passed: feed validation, deduplication, history, storage failures, result calculation, script syntax and entry point.`);
+module.exports={context,section};
