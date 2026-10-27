@@ -1,0 +1,32 @@
+name: Private service checks
+on:
+  push:
+    paths:
+      - 'scripts/**'
+      - 'tests/test_*.py'
+      - 'deploy/**'
+      - '.github/workflows/private-service-check.yml'
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'tests/test_*.py'
+      - 'deploy/**'
+      - '.github/workflows/private-service-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run synthetic tests without credentials
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Validate source syntax
+        run: python -m compileall -q scripts deploy
