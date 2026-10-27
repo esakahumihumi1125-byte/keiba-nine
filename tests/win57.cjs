@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('keiba-nine-beta51-feed-record.html','utf8'),ctx={};vm.createContext(ctx);vm.runInContext(html.split('/* WIN57_LOGIC_START */')[1].split('/* WIN57_LOGIC_END */')[0],ctx);
+const base={date:'2030-11-03',deadline:'2030-11-03T14:45',confirmed:true,legs:[1,2,3,4,5].map(race=>({track:'京都',race,numbers:'1,2,2'}))};
+const before=Date.parse('2030-11-03T14:44:59+09:00'),at=before+1000;
+const run=(r=base,t=before,rows=[])=>ctx.validateWin57(r,t,rows);let n=0;const ok=x=>{assert(x);n++};const bad=(r,t=before,rows=[])=>{assert.throws(()=>run(r,t,rows));n++};
+const saved=run();ok(saved.points===32);ok(saved.unit===100);ok(saved.legs[0].numbers.length===2);ok(saved.created==='2030-11-03T05:44:59.000Z');
+bad(base,at);bad(base,at+1);bad({...base,confirmed:false});bad({...base,deadline:'2030-11-04T14:45'});bad({...base,date:'2030-02-30',deadline:'2030-02-30T14:45'});bad({...base,deadline:'2030-11-03T25:00'});
+bad({...base,legs:base.legs.slice(1)});bad({...base,legs:base.legs.map(x=>({...x,race:1}))});bad({...base,legs:base.legs.map(x=>({...x,numbers:'1,2,3'}))});
+for(const numbers of ['0','19','1e1','-1','', '1,x'])bad({...base,legs:base.legs.map(x=>({...x,numbers}))});
+bad({...base,deadline:'2030-11-03T15:00'},at,[saved]);bad({...base,deadline:'2030-11-03T15:00'},before,[saved]);
+ok(run(base,before,[saved]).version===2);ok(base.legs[0].numbers==='1,2,2');
+console.log(n+' WIN5 deadline, validation and counting checks passed');

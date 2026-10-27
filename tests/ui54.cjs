@@ -42,5 +42,16 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  w.show('live');d.getElementById('purchaseOpen56').click();ok(d.getElementById('purchaseDetail56').open);
 
  ok(d.getElementById('realForecastList').textContent.includes(chosen.tri[0].join('→')));
+
+ ok(d.getElementById('win57').textContent.includes('自動予想は未配信'));
+ d.getElementById('win57Date').value=date;d.getElementById('win57Deadline').value=date+'T14:45';
+ for(let i=0;i<5;i++){d.getElementById('win57Track'+i).value='京都';d.getElementById('win57Race'+i).value=i+1;d.getElementById('win57Nums'+i).value='1,2,2';}
+ d.getElementById('win57Confirm').checked=true;d.getElementById('win57Form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+ const winSaved=w.localStorage.getItem('keiba_nine_win5_v57');ok(JSON.parse(winSaved)[0].points===32);
+ ok(d.querySelectorAll('#win57Body .w57-leg').length===5);ok(d.getElementById('win57Body').textContent.includes('3,200円'));
+ ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===beforeFilter);
+ d.getElementById('win57Deadline').value=date+'T15:00';d.getElementById('win57Confirm').checked=true;d.getElementById('win57Form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+ ok(d.getElementById('win57Notice').textContent.includes('締切は変更できません'));
+ ok(w.localStorage.getItem('keiba_nine_win5_v57')===winSaved);
  ok(errors.length===0);console.log(checks+' full-page DOM interaction checks passed');
  }finally{dom.window.close()}})().catch(e=>{console.error(e);process.exitCode=1});

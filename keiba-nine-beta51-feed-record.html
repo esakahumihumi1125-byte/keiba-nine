@@ -437,7 +437,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
 @media(max-width:355px){#flow50 .f50-fields{grid-template-columns:1fr}}
 </style>
 
-</head><body><main id="app"><header class="brand"><div><div class="logo">KEIBA NINE</div><div class="sub">レースを選ぶ。評価を見る。記録する。</div></div><span class="tag">BETA · 5.6</span></header>
+</head><body><main id="app"><header class="brand"><div><div class="logo">KEIBA NINE</div><div class="sub">レースを選ぶ。評価を見る。記録する。</div></div><span class="tag">BETA · 5.7</span></header>
 <section id="home" class="screen active"><section class="panel" id="simple52"><div class="s55-heading"><div><p class="s55-eyebrow">RACE PICK</p><h2>レースを選ぶ</h2></div><span class="s55-step">01 / 予想</span></div><div class="cols"><div><label for="raceDate54">日付</label><select id="raceDate54"></select></div><div><label for="raceTrack54">競馬場</label><select id="raceTrack54"></select></div></div><div class="cols"><div><label for="simple52Pick">レース</label><select id="simple52Pick"></select></div><div><label>レース移動</label><button class="btn secondary full" type="button" id="nextRace54">次のレース →</button></div></div><div id="simple52Body" aria-live="polite"></div></section><details><summary style="padding:16px">記録・収支・詳しい操作</summary><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
 <section class="panel" id="flow50" aria-label="BETA 5.1 個人実戦の運用ガイド">
  <div class="f50-top"><h3>🏇 BETA 5.1｜予想の自動保存・馬券連携</h3><span class="f50-chip">個人用・予想保存</span></div>
@@ -3334,6 +3334,53 @@ reload42();
  get('purchaseOpen56').onclick=()=>{purchase.open=true;purchase.scrollIntoView({block:'start'});};get('resultOpen56').onclick=()=>{show('results');window.refreshRecords56();pick.focus();};
  list.addEventListener('click',e=>{const b=e.target.closest('[data-result56]');if(!b)return;show('results');window.refreshRecords56();selectResult(b.dataset.result56);pick.scrollIntoView({block:'start'});});
  window.refreshRecords56();
+})();
+</script>
+
+<style id="win57style">
+#win57{margin-top:24px}#win57 h2{font-size:26px;margin:0}#win57 .w57-leg{display:grid;grid-template-columns:48px 1fr;gap:12px;border-top:1px solid #354256;padding:14px 0}#win57 .w57-leg>span{color:#efd194;font-size:12px}#win57 .w57-leg strong{display:block;font-size:17px}#win57 .w57-horses{font-size:25px;color:#f3d393;letter-spacing:2px;font-variant-numeric:tabular-nums}#win57 .w57-total{font-size:26px;color:#f3d393;font-weight:800}#win57 .w57-fields{border-top:1px solid #354256;padding-top:10px;margin-top:14px}#win57 label{font-size:13px}#win57 .w57-check{display:flex;align-items:flex-start;gap:10px}#win57 .w57-check input{width:22px;min-height:22px;flex-shrink:0}#win57Notice{white-space:pre-wrap;color:#f5d69d}#win57History .w57-old{padding:12px 0;border-bottom:1px solid #344154}#win57Preview{font-size:18px;color:#efd194}
+</style>
+<script>
+/* WIN57_LOGIC_START */
+function validateWin57(input,now,existing=[]){
+ const tracks=['東京','京都','新潟','中山','阪神','中京','福島','小倉','札幌','函館'];
+ if(!input||!/^\d{4}-\d{2}-\d{2}$/.test(input.date||'')||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input.deadline||''))throw Error('開催日と公式締切を入力してください。');
+ const deadline=Date.parse(input.deadline+':00+09:00');
+ if(!Number.isFinite(deadline)||input.deadline.slice(0,10)!==input.date||new Date(deadline+9*3600000).toISOString().slice(0,16)!==input.deadline)throw Error('締切は開催日と同じ日の日本時間を指定してください。');
+ if(!Number.isFinite(now)||now>=deadline)throw Error('締切を過ぎています。新しい確定・変更はできません。');
+ if(existing.some(r=>r.date===input.date&&(!Number.isFinite(Date.parse(r.deadline+':00+09:00'))||now>=Date.parse(r.deadline+':00+09:00'))))throw Error('この開催日は締切後のため変更できません。');
+ if(existing.some(r=>r.date===input.date&&r.deadline!==input.deadline))throw Error('保存済みの締切は変更できません。公式日程が変更された場合は対応が必要です。');
+ if(!input.confirmed)throw Error('JRA公式の対象5レース・順番・締切を確認してください。');
+ if(!Array.isArray(input.legs)||input.legs.length!==5)throw Error('対象5レースを入力してください。');
+ const legs=input.legs.map(l=>{
+  if(!tracks.includes(l.track)||!Number.isInteger(Number(l.race))||Number(l.race)<1||Number(l.race)>12)throw Error('競馬場とレース番号を確認してください。');
+  const text=String(l.numbers||'').trim(),tokens=text.split(/[,、\s]+/);
+  if(!text||tokens.some(n=>!/^\d{1,2}$/.test(n)||Number(n)<1||Number(n)>18))throw Error('候補馬番は1〜18をカンマで区切って入力してください。');
+  const numbers=[...new Set(tokens.map(Number))];return {track:l.track,race:Number(l.race),numbers};
+ });
+ if(new Set(legs.map(l=>l.track+'|'+l.race)).size!==5)throw Error('対象レースが重複しています。');
+ const points=legs.reduce((n,l)=>n*l.numbers.length,1);
+ if(points>48)throw Error('合計'+points+'点です。上限48点以内に候補を絞ってください。');
+ return {date:input.date,deadline:input.deadline,legs,points,unit:100,source:'manual',created:new Date(now).toISOString(),version:1+existing.filter(r=>r.date===input.date).length};
+}
+/* WIN57_LOGIC_END */
+(function(){
+ const KEY='keiba_nine_win5_v57',get=id=>document.getElementById(id),safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const panel=document.createElement('section');panel.id='win57';panel.className='panel';panel.innerHTML='<p class="s55-eyebrow">FIVE RACES · ONE TICKET</p><h2>WIN5</h2><p class="caption">自動予想は未配信です。確認済みの候補は手動で記録できます。通常の3連単とは別管理です。</p><label for="win57Pick">開催日</label><select id="win57Pick"></select><div id="win57Body" aria-live="polite"></div><details id="win57Edit"><summary>候補を入力・締切前に確定する</summary><p class="caption">JRA公式の対象順に入力してください。馬番はカンマ区切り。確定した内容をこの端末に保存します。購入は行いません。</p><form id="win57Form"><div class="cols"><div><label for="win57Date">開催日</label><input id="win57Date" type="date" required></div><div><label for="win57Deadline">公式締切（日本時間）</label><input id="win57Deadline" type="datetime-local" required></div></div><div id="win57Legs"></div><label class="w57-check"><input id="win57Confirm" type="checkbox">JRA公式の対象5レース・順番・締切と出走馬を確認しました</label><p id="win57Preview" role="status"></p><button class="btn full" type="submit">この候補を確定・保存</button></form></details><p id="win57Notice" role="status"></p><details><summary>確定履歴を見る</summary><div id="win57History"></div></details><button type="button" class="btn secondary full" id="win57Old">旧WIN5記録を見る</button><p class="caption">締切判定は端末時計によります。保存は購入・公式の時刻証明ではありません。端末内だけの保存で、Googleバックアップには未対応です。</p>';
+ get('home').append(panel);
+ const jump=document.createElement('button');jump.type='button';jump.className='btn secondary full';jump.textContent='WIN5を見る →';jump.style.marginTop='18px';jump.onclick=()=>panel.scrollIntoView({block:'start'});get('simple52').before(jump);
+ const tracks=['東京','京都','新潟','中山','阪神','中京','福島','小倉','札幌','函館'];
+ for(let i=0;i<5;i++){const div=document.createElement('div');div.className='w57-fields';div.innerHTML='<strong>WIN '+(i+1)+'</strong><div class="cols"><div><label for="win57Track'+i+'">競馬場</label><select id="win57Track'+i+'"><option value="">選択</option>'+tracks.map(t=>'<option>'+t+'</option>').join('')+'</select></div><div><label for="win57Race'+i+'">レース</label><input id="win57Race'+i+'" type="number" min="1" max="12" required></div></div><label for="win57Nums'+i+'">1着候補の馬番</label><input id="win57Nums'+i+'" placeholder="例：3,8" required>';get('win57Legs').append(div);}
+ function read(){const raw=localStorage.getItem(KEY);if(!raw)return [];const rows=JSON.parse(raw);if(!Array.isArray(rows)||rows.some(r=>!r||!Array.isArray(r.legs)||r.legs.length!==5||r.legs.some(l=>!l||!Array.isArray(l.numbers))))throw Error('WIN5の保存データを読み込めません。上書きを止めました。');return rows;}
+ function input(){return {date:get('win57Date').value,deadline:get('win57Deadline').value,confirmed:get('win57Confirm').checked,legs:tracks.slice(0,5).map((_,i)=>({track:get('win57Track'+i).value,race:get('win57Race'+i).value,numbers:get('win57Nums'+i).value}))};}
+ function legsHTML(r){return r.legs.map((l,i)=>'<div class="w57-leg"><span>WIN '+(i+1)+'</span><div><strong>'+safe(l.track)+safe(l.race)+'R</strong><div class="w57-horses">'+l.numbers.map(safe).join('・')+'</div></div></div>').join('');}
+ function draw(){try{const rows=read(),pick=get('win57Pick'),prev=pick.value,dates=[...new Set(rows.map(r=>r.date))].sort().reverse();pick.replaceChildren(...(dates.length?dates.map(d=>new Option(d,d)):[new Option('確定予想はまだありません','')]));if(dates.includes(prev))pick.value=prev;const r=rows.filter(r=>r.date===pick.value).slice(-1)[0];get('win57Body').innerHTML=r?'<p class="pill">'+(Date.now()>=Date.parse(r.deadline+':00+09:00')?'締切済み・買い目固定':'締切前・手動確定')+'</p><p>締切 <strong>'+safe(r.deadline.slice(11))+'</strong>（日本時間）</p>'+legsHTML(r)+'<p class="w57-total">'+Number(r.points)+'点 ／ '+(r.points*100).toLocaleString('ja-JP')+'円</p><p class="caption">各100円・手動入力 v'+Number(r.version)+'</p>':'<div class="empty">WIN5予想はまだありません。<br>5レース分が揃うと、ここでまとめて確認できます。</div>';
+ get('win57History').innerHTML=rows.length?rows.slice().reverse().map(r=>'<details class="w57-old"><summary>'+safe(r.date)+' v'+Number(r.version)+'・'+Number(r.points)+'点</summary>'+legsHTML(r)+'<p class="caption">保存 '+safe(r.created)+' ／ 締切 '+safe(r.deadline)+'（日本時間）</p></details>').join(''):'<p class="caption">確定履歴はまだありません。</p>';
+ }catch(e){get('win57Notice').textContent='保存データを確認できません。上書きを止めました。';}}
+ get('win57Form').oninput=()=>{try{const r=validateWin57({...input(),confirmed:true},Date.now(),read());get('win57Preview').textContent=r.points+'点 ／ '+(r.points*100).toLocaleString('ja-JP')+'円（各100円）';}catch(e){get('win57Preview').textContent=e.message;}};
+ get('win57Form').onsubmit=e=>{e.preventDefault();try{const rows=read(),r=validateWin57(input(),Date.now(),rows);localStorage.setItem(KEY,JSON.stringify([...rows,r]));get('win57Notice').textContent='WIN5 '+r.points+'点を確定・保存しました。馬券の購入はしていません。';draw();get('win57Pick').value=r.date;draw();get('win57Confirm').checked=false;get('win57Edit').open=false;}catch(e){get('win57Notice').textContent=e instanceof SyntaxError?'保存データを読み込めません。上書きは行いません。':e.name==='QuotaExceededError'?'端末に保存できませんでした。容量を確認してください。':e.message;}};
+ get('win57Pick').onchange=draw;get('win57Old').onclick=()=>{show('live');get('win53').open=true;get('win53').scrollIntoView({block:'start'});};
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)draw();});setInterval(()=>{try{const r=read().filter(r=>r.date===get('win57Pick').value).slice(-1)[0],pill=get('win57Body').querySelector('.pill');if(r&&pill)pill.textContent=Date.now()>=Date.parse(r.deadline+':00+09:00')?'締切済み・買い目固定':'締切前・手動確定';}catch(e){}},1000);draw();
 })();
 </script>
 </body></html>

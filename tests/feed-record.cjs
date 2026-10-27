@@ -29,6 +29,6 @@ for(const broken of ['broken-original',JSON.stringify({schema:9,forecasts:[],res
 const q=context({batch:'broken-batch'});assert.throws(()=>q.c.receiveFeed51(feed));checks++;ok(q.storage.get('batch')==='broken-batch');
 const old=Array.from({length:3001},(_,i)=>({id:'old'+i,date:'2020-01-01',track:'京都',race:1,recordType:'test',version:i}));const large=context({batch:JSON.stringify({schema:1,forecasts:old})});large.c.receiveFeed51(feed);ok(JSON.parse(large.storage.get('batch')).forecasts.length===3002);
 for(const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);checks++;
-ok(fs.readFileSync('index.html','utf8').includes('keiba-nine-beta51-feed-record.html'));ok(html.includes('BETA · 5.6'));
+ok(fs.readFileSync('index.html','utf8').includes('keiba-nine-beta51-feed-record.html'));ok(html.includes('BETA · 5.7'));
 console.log(`${checks} checks passed: feed validation, deduplication, history, storage failures, result calculation, script syntax and entry point.`);
 module.exports={context,section};
