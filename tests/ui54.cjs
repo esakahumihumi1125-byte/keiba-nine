@@ -25,6 +25,22 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  d.getElementById('financeMode54').value='actual';d.getElementById('financeMode54').dispatchEvent(new w.Event('change'));ok(d.getElementById('financeNote54').textContent.includes('結果待ち 3,600円'));
  w.show('results');const form=[...d.querySelectorAll('.real-result-entry')].find(f=>f.dataset.race===date+'|京都|1|live');const b=chosen.tri[0];for(const [name,v] of Object.entries({one:b[0],two:b[1],three:b[2],triDividend:5000,trioDividend:0}))form.elements.namedItem(name).value=v;form.elements.namedItem('confirmed').checked=true;form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  w.show('live');ok(d.getElementById('financeStake54').textContent==='3,600円');ok(d.getElementById('financeReturn54').textContent==='5,000円');ok(d.getElementById('financeNet54').textContent==='1,400円');
+ const beforeFilter=w.localStorage.getItem('keiba_nine_beta23_local_v1');
+ ok(d.getElementById('recordKind56').value==='live');
+ const kind=d.getElementById('recordKind56');kind.value='test';kind.dispatchEvent(new w.Event('change'));
+ ok([...d.querySelectorAll('#realForecastList > [data-key56]')].every(r=>r.hidden));
+ ok(!d.getElementById('recordEmpty56').hidden);
+ kind.value='live';kind.dispatchEvent(new w.Event('change'));
+ const card=[...d.querySelectorAll('#realForecastList > [data-key56]')].find(r=>r.dataset.key56===date+'|京都|1|live');
+ ok(!card.hidden);ok(card.querySelector('.r56-state').textContent==='結果確認済み');
+ ok(!card.querySelector('details').open);card.querySelector('[data-result56]').click();
+ ok(d.getElementById('results').classList.contains('active'));
+ ok(d.getElementById('resultPick56').value===date+'|京都|1|live');
+ ok([...d.querySelectorAll('#realResultForms > details')].filter(r=>!r.hidden).length===1);
+ ok(!d.getElementById('resultsAdvanced56').open);
+ ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===beforeFilter);
+ w.show('live');d.getElementById('purchaseOpen56').click();ok(d.getElementById('purchaseDetail56').open);
+
  ok(d.getElementById('realForecastList').textContent.includes(chosen.tri[0].join('→')));
  ok(errors.length===0);console.log(checks+' full-page DOM interaction checks passed');
  }finally{dom.window.close()}})().catch(e=>{console.error(e);process.exitCode=1});
