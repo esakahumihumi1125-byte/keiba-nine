@@ -2219,6 +2219,23 @@ function quality58(r){
  const workouts=relevant.filter(h=>Array.isArray(h.workouts)&&h.workouts.length>0).length;
  return {named,total:nums.length,source,training,recent,workouts,missing:!nums.length||named<nums.length||recent<nums.length||workouts<nums.length||!source};
 }
+function roster60(r,now=Date.now()){
+ const card=r?.raceCard,fail=reason=>({ok:false,reason,label:'出走表の照合待ち'});
+ if(!card)return fail('出走表が未取得です。出典付きの全頭データが揃うまで、おすすめの保存を停止しています。');
+ if(card.complete!==true||!Array.isArray(card.runners)||!card.runners.length)return fail('全頭分の出走表が未確認です。');
+ if(card.date!==r.date||card.track!==r.track||Number(card.race)!==Number(r.race))return fail('出走表と予想の対象レースが違います。');
+ const stamp=Date.parse(card.checkedAt);
+ if(!String(card.source||'').trim()||!/(Z|[+-]\d{2}:\d{2})$/.test(card.checkedAt||'')||!Number.isFinite(stamp)||stamp>now)return fail('出走表の出典・確認日時を確認してください。');
+ const runners=new Map();
+ for(const h of card.runners){const n=Number(h.number);if(!Number.isInteger(n)||n<1||n>18||runners.has(n)||!String(h.name||'').trim()||!['active','scratched','excluded'].includes(h.status))return fail('出走表に馬番の重複・未入力・不正な状態があります。');runners.set(n,h);}
+ const nums=[...new Set([...Object.values(ranks54(r)).flat(),...(r.ranking||[]),...(r.first||[]),...(r.second||[]),...(r.third||[]),...(r.tri||[]).flat(),...(r.trio||[]).flat()].map(Number))];
+ const absent=nums.filter(n=>!runners.has(n));if(absent.length)return fail('出走表にない馬番：'+absent.join('・')+'。予想の更新が必要です。');
+ const removed=nums.filter(n=>runners.get(n).status!=='active');if(removed.length)return fail('取消・除外の馬番：'+removed.join('・')+'。自動で馬を補充せず、予想の更新を待ちます。');
+ const tidy=v=>String(v||'').normalize('NFKC').replace(/\s+/g,'');
+ const mismatch=(r.horses||[]).filter(h=>runners.has(Number(h.number))&&tidy(h.name)&&tidy(h.name)!==tidy(runners.get(Number(h.number)).name));
+ if(mismatch.length)return fail('馬番と馬名が一致しません：'+mismatch.map(h=>h.number).join('・')+'。');
+ return {ok:true,label:'登録出走表と一致',reason:card.runners.length+'頭の登録出走表と照合済み。確認日時以降の取消・変更は自動取得していません。'};
+}
 function state54(r,now=Date.now()){
  if(!r)return {label:'データ待ち',canSave:false,reason:'レースの予想データがまだありません。'};
  if(r.status==='skip'||r.intent==='見送り')return {label:'見送り',canSave:false,reason:r.racePlan?.verdict||r.reason||'登録された判断は見送りです。'};
@@ -2230,10 +2247,11 @@ function state54(r,now=Date.now()){
  const bets=recommend52(r),ranked=new Set(Object.values(ranks54(r)).flat());
  if(!bets.length)return {label:'データ待ち',canSave:false,reason:'着順候補が未登録です。'};
  if(bets.some(b=>b.some(n=>!ranked.has(n))))return {label:'評価待ち',canSave:false,reason:'買い目に総合評価が未登録の馬がいます。未取得の評価は自動補完しません。'};
+ const roster=roster60(r,now);if(!roster.ok)return {label:roster.label,canSave:false,reason:roster.reason};
  if(!['購入推奨','参考'].includes(r.intent))return {label:'判断待ち',canSave:false,reason:'購入推奨・参考・見送りの判断を確認してください。'};
  return {label:'確定',canSave:true,reason:r.racePlan?.winReason||r.reason||'詳しい理由は未登録です。'};
 }
-function identity54(r){return JSON.stringify([r.id,r.version||0,r.date,r.track,r.race,r.off,r.intent,recommend52(r),ranks54(r)]);}
+function identity54(r){return JSON.stringify([r.id,r.version||0,r.date,r.track,r.race,r.off,r.intent,recommend52(r),ranks54(r),...(r.raceCard?[r.raceCard]:[])]);}
 /* SIMPLE54_LOGIC_END */
 
 (function(){
@@ -2246,12 +2264,13 @@ function identity54(r){return JSON.stringify([r.id,r.version||0,r.date,r.track,r
  const r=rows.find(x=>String(x.id)===pick.value),state=state54(r);lastState=state.label;
  const all=[...pick.options];get('nextRace54').disabled=!r||pick.selectedIndex>=all.length-1;
  if(!r){body.innerHTML='<div class="s55-empty"><span class="s55-empty-icon" aria-hidden="true">—</span><span class="pill">データ待ち</span><h3>予想の到着を待っています</h3><p>予想が届くと、ここに馬の評価と<br>おすすめ3連単が並びます。</p><div class="s55-legend"><span>S ゴールド</span><span>A レッド</span><span>B グリーン</span></div><p class="caption">実データの自動接続は準備中です。</p></div>';return;}
- const quality=quality58(r);
- const qualityHTML='<section class="quality58" aria-label="予想データの確認"><strong>予想データ '+(quality.missing?'· 未取得あり':'· 評価対象分の登録あり')+'</strong><div class="data59-grid">'+[['出走馬名',quality.named],['過去成績',quality.recent],['調教記録',quality.workouts]].map(([label,count])=>'<div><span>'+label+'</span><b>'+count+'／'+quality.total+'頭</b><small>'+(count===0?'未取得':count<quality.total?'一部未取得':'登録あり')+'</small></div>').join('')+'</div><p class="caption">評価・買い目の対象馬について確認。出走表の全頭照合は未対応です。コメントやS・A・Bだけでは、成績・調教記録の取得済みに数えません。</p><details><summary>情報源・確認日時を見る</summary><p>確認日時：'+safe(r.evidence?.checkedAt||'未登録')+'</p><p style="white-space:pre-wrap">'+safe((r.evidence?.references||[]).filter(Boolean).join('\n')||'情報源未登録')+'</p><p class="caption">登録内容の正確さ・最新性は未検証です。未取得情報を推測で補完しません。</p></details></section>';
+ const quality=quality58(r),roster=roster60(r);
+ const qualityHTML='<section class="quality58" aria-label="予想データの確認"><strong>予想データ '+(quality.missing?'· 未取得あり':'· 評価対象分の登録あり')+'</strong><div class="data59-grid">'+[['出走馬名',quality.named],['過去成績',quality.recent],['調教記録',quality.workouts]].map(([label,count])=>'<div><span>'+label+'</span><b>'+count+'／'+quality.total+'頭</b><small>'+(count===0?'未取得':count<quality.total?'一部未取得':'登録あり')+'</small></div>').join('')+'</div><p class="caption">評価・買い目の対象馬について確認。コメントやS・A・Bだけでは、成績・調教記録の取得済みに数えません。</p><details><summary>情報源・確認日時を見る</summary><p>確認日時：'+safe(r.evidence?.checkedAt||'未登録')+'</p><p style="white-space:pre-wrap">'+safe((r.evidence?.references||[]).filter(Boolean).join('\n')||'情報源未登録')+'</p><p class="caption">登録内容の正確さ・最新性は未検証です。未取得情報を推測で補完しません。</p></details></section>';
+ const rosterHTML='<section class="roster60 quality58" role="status"><strong>'+safe(roster.label)+'</strong><p>'+safe(roster.reason)+'</p>'+(r.raceCard?'<details><summary>出走表の出典・全頭一覧</summary><p>'+safe(r.raceCard.source)+'<br>'+safe(r.raceCard.checkedAt)+'</p><ul>'+r.raceCard.runners.map(h=>'<li>'+Number(h.number)+' '+safe(h.name)+' · '+({active:'出走予定',scratched:'取消',excluded:'除外'}[h.status]||'未確認')+'</li>').join('')+'</ul></details>':'')+'</section>';
  const key=identity54(r),saved=window.savedRecommendation54?.(key),bets=recommend52(r),ranks=ranks54(r);
  const rankHTML=['S','A','B'].map(g=>'<div class="s52-rank s52-rank-'+g+'"><strong>'+g+'ランク</strong>'+ (ranks[g].map(n=>{const horse=(r.horses||[]).find(h=>Number(h.number)===n),reason=reason59(horse);return '<div class="horse59"><span class="s52-horse"><b class="s55-number">'+n+'</b><span class="s55-name">'+safe(horse?.name||'馬番 '+n)+'</span></span><p class="reason59">'+safe(reason.short)+'</p>'+(reason.full||horse?.risk||horse?.recentRuns?.length||horse?.workouts?.length?'<details><summary>根拠・注意点</summary><p>'+safe(reason.full||'根拠未登録')+'</p>'+(horse?.risk?'<p>注意：'+safe(horse.risk)+'</p>':'')+[['過去成績',horse?.recentRuns],['調教記録',horse?.workouts]].map(([label,rows])=>'<h4>'+label+'</h4>'+((rows||[]).map(row=>'<p>'+safe(row.date)+' '+safe(row.detail)+'<br><small>出典：'+safe(row.source)+'</small></p>').join('')||'<p>未取得</p>')).join('')+'</details>':'')+'</div>';}).join('')||'<span class="muted">評価未登録</span>')+'</div>').join('');
- const verdict=r.status==='skip'||r.intent==='見送り'?'見送り':r.intent==='購入推奨'?'買う候補': '参考・購入判断は保留';
- body.innerHTML='<div class="s55-racehead"><p class="s55-eyebrow">RACE FORECAST</p><h2>'+safe(r.date.slice(5).replace('-','／'))+' '+safe(r.track)+Number(r.race)+'レース</h2></div><div class="buttons"><span class="pill">'+safe(state.label)+'</span>'+(saved?'<span class="pill ok">保存済み v'+Number(saved.version)+'</span>':'')+'</div><div class="notice"><strong>'+safe(verdict)+'</strong><p>'+safe(state.reason)+'</p></div>'+qualityHTML+rankHTML+'<section class="s55-ticket"><p class="s55-eyebrow">RECOMMENDED TICKETS</p><h3>おすすめ3連単</h3><p class="caption">登録された着順候補・総合評価順から作成。目安30〜40点、最大40点。</p><div class="s52-total">'+bets.length+'点 ／ '+(bets.length*100).toLocaleString('ja-JP')+'円</div><p class="caption">1点100円。'+(bets.length<30?'点数を埋めるための追加はしません。':'')+'</p><details><summary>買い目をすべて見る</summary><div class="s52-bets">'+bets.map(b=>'<span class="s55-bet">'+b.map(n=>'<b>'+n+'</b>').join('<i aria-hidden="true">→</i>')+'</span>').join('')+'</div></details><button class="btn full" id="saveRecommendation54" type="button" '+(!state.canSave||saved?'disabled':'')+'>'+(saved?'保存済み':'この予想を保存')+'</button><p class="caption">表示中の3連単だけを保存します。保存は購入ではありません。'+(r.intent==='参考'?'参考予想は仮想収支の合計対象外です。':'')+'</p><p id="saveNotice54" role="status">'+safe(notice)+'</p></section><details><summary>詳しい予想の理由</summary><p style="white-space:pre-wrap">'+safe([r.training,r.analysis,r.reason].filter(Boolean).join('\n')||'未登録')+'</p></details>';
+ const verdict=r.status==='skip'||r.intent==='見送り'?'見送り':!state.canSave?'確認用・新規保存は停止中':r.intent==='購入推奨'?'買う候補': '参考・購入判断は保留';
+ body.innerHTML='<div class="s55-racehead"><p class="s55-eyebrow">RACE FORECAST</p><h2>'+safe(r.date.slice(5).replace('-','／'))+' '+safe(r.track)+Number(r.race)+'レース</h2></div><div class="buttons"><span class="pill">'+safe(state.label)+'</span>'+(saved?'<span class="pill ok">保存済み v'+Number(saved.version)+'</span>':'')+'</div><div class="notice"><strong>'+safe(verdict)+'</strong><p>'+safe(state.reason)+'</p></div>'+qualityHTML+rosterHTML+rankHTML+'<section class="s55-ticket"><p class="s55-eyebrow">RECOMMENDED TICKETS</p><h3>'+(state.canSave?'おすすめ3連単':'3連単候補（確認用）')+'</h3><p class="caption">登録された着順候補・総合評価順から作成。目安30〜40点、最大40点。</p><div class="s52-total">'+bets.length+'点 ／ '+(bets.length*100).toLocaleString('ja-JP')+'円</div><p class="caption">1点100円。'+(bets.length<30?'点数を埋めるための追加はしません。':'')+'</p><details><summary>買い目をすべて見る</summary><div class="s52-bets">'+bets.map(b=>'<span class="s55-bet">'+b.map(n=>'<b>'+n+'</b>').join('<i aria-hidden="true">→</i>')+'</span>').join('')+'</div></details><button class="btn full" id="saveRecommendation54" type="button" '+(!state.canSave||saved?'disabled':'')+'>'+(saved?'保存済み':'この予想を保存')+'</button><p class="caption">表示中の3連単だけを保存します。保存は購入ではありません。'+(r.intent==='参考'?'参考予想は仮想収支の合計対象外です。':'')+'</p><p id="saveNotice54" role="status">'+safe(notice)+'</p></section><details><summary>詳しい予想の理由</summary><p style="white-space:pre-wrap">'+safe([r.training,r.analysis,r.reason].filter(Boolean).join('\n')||'未登録')+'</p></details>';
  get('saveRecommendation54').onclick=()=>{try{window.saveRecommendation54(r.id,key);notice='保存しました。「記録」で買い目と結果を確認できます。';}catch(e){notice=e.message;}draw();};
  }
  window.updateSimple52=function(all){const prev=date.value;rows=all.filter(r=>r.recordType==='live');options(date,[...new Set(rows.map(r=>r.date))].sort().reverse().map(v=>[v,v]),prev,'データ待ち');if(!prev){const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});const upcoming=[...new Set(rows.map(r=>r.date))].filter(v=>v>=today).sort()[0];if(upcoming)date.value=upcoming;}fillTracks();};
@@ -2364,6 +2383,16 @@ function records59read(value,label){
 }
 function extras41(input,label){
  const x={};
+ if(input.raceCard!=null){
+  const c=input.raceCard;
+  if(!c||typeof c!=='object'||Array.isArray(c)||typeof c.complete!=='boolean'||!Array.isArray(c.runners)||c.runners.length<1||c.runners.length>18)throw Error(label+'出走表は1〜18頭と全頭確認フラグが必要です。');
+  if(c.date!==input.date||c.track!==input.track||Number(c.race)!==Number(input.race))throw Error(label+'出走表の対象レースが一致しません。');
+  const source=str41(c.source,'出走表の出典',350),checkedAt=str41(c.checkedAt,'出走表の確認日時',40);
+  if(!source||!/(Z|[+-]\d{2}:\d{2})$/.test(checkedAt)||!Number.isFinite(Date.parse(checkedAt)))throw Error(label+'出走表の出典・タイムゾーン付き確認日時が必要です。');
+  const seen=new Set();const runners=c.runners.map(h=>{if(!h||typeof h!=='object')throw Error('出走馬の形式が不正です。');const number=Number(h.number),name=str41(h.name,'出走馬名',60),status=h.status;if(!Number.isInteger(number)||number<1||number>18||seen.has(number)||!name||!['active','scratched','excluded'].includes(status))throw Error(label+'出走馬の重複・馬名・状態を確認してください。');seen.add(number);return {number,name,status};});
+  x.raceCard={date:c.date,track:c.track,race:Number(c.race),complete:c.complete,source,checkedAt,runners};
+ }
+
  if(input.evaluations!=null){
   if(typeof input.evaluations!=='object'||Array.isArray(input.evaluations))throw Error(label+'evaluationsは評価項目のオブジェクトが必要やで。');
   const obj={};for(const [key,title] of AXES41){
@@ -2411,7 +2440,7 @@ function details41(r){
  <div class="bulk41-section"><h4>資料・確認メモ</h4><p class="bulk41-text">確認日時：${sf(ev.checkedAt||'未入力')}</p>${(ev.references||[]).length?ev.references.map(x=>`<p class="bulk41-text">・${sf(x)}</p>`).join(''):'<p class="bulk41-empty">出典・確認資料は未登録。未検証のまま確定扱いにしないよう注意してな。</p>'}</div>`;
 }
 const identity40=r=>[r.date,r.track,r.race,r.recordType].join('|');
-const comparison40=r=>JSON.stringify(Object.fromEntries(['date','track','race','off','recordType','status','confidence','intent','ranking','first','second','third','trioMode','trioPool','trioAxis','trioFormation','tri','trio','reason','training','analysis','rankS','rankA','rankB','evaluations','horses','racePlan','evidence'].map(k=>[k,r[k]])));
+const comparison40=r=>JSON.stringify(Object.fromEntries(['date','track','race','off','recordType','status','confidence','intent','ranking','first','second','third','trioMode','trioPool','trioAxis','trioFormation','tri','trio','reason','training','analysis','rankS','rankA','rankB','evaluations','horses','racePlan','evidence','raceCard'].map(k=>[k,r[k]])));
 const latest40=()=>{const map=new Map();for(const r of rows){const key=identity40(r);const old=map.get(key);if(!old||Number(r.version||0)>Number(old.version||0))map.set(key,r)}return [...map.values()].sort((a,b)=>b.date.localeCompare(a.date)||(['東京','京都','新潟'].indexOf(a.track)-['東京','京都','新潟'].indexOf(b.track))||a.race-b.race)};
 function json40(name,obj){const data=JSON.stringify(obj,null,2);download40(name,data,'application/json;charset=utf-8')}
 function download40(name,data,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([data],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}

@@ -9,8 +9,8 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  let checks=0;const ok=x=>{assert(x);checks++};
  ok(d.querySelectorAll('.tabs button').length===3);ok(d.getElementById('simple52Body').textContent.includes('データ待ち'));
  const date=new Date(Date.now()+86400000).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
- const row={date,track:'京都',race:1,off:'23:59',recordType:'live',status:'final',intent:'購入推奨',ranking:[1,2,3,4,5,6,7,8],rankS:[1,2],rankA:[3,4],rankB:[5,6,7,8],first:[1,2],second:[1,2,3,4],third:[1,2,3,4,5,6,7,8],horses:[{number:1,name:'テスト馬',overall:'S',reason:'<img src=x onerror=alert(1)> テスト根拠',risk:'テスト注意点',recentRuns:[{date:'2026-01-01',source:'test only',detail:'架空の過去成績'}],workouts:[{date:'2026-01-02',source:'test only',detail:'架空の調教記録'}]}],evidence:{references:['synthetic UI test only']}};
- w.receiveFeed51({schema:1,generatedAt:new Date(Date.now()-60000).toISOString(),forecasts:[row,{...row,race:2},{...row,track:'東京'}]});
+ const row={date,track:'京都',race:1,off:'23:59',recordType:'live',status:'final',intent:'購入推奨',ranking:[1,2,3,4,5,6,7,8],rankS:[1,2],rankA:[3,4],rankB:[5,6,7,8],first:[1,2],second:[1,2,3,4],third:[1,2,3,4,5,6,7,8],horses:[{number:1,name:'テスト馬',overall:'S',reason:'<img src=x onerror=alert(1)> テスト根拠',risk:'テスト注意点',recentRuns:[{date:'2026-01-01',source:'test only',detail:'架空の過去成績'}],workouts:[{date:'2026-01-02',source:'test only',detail:'架空の調教記録'}]}],raceCard:{date,track:'京都',race:1,complete:true,source:'synthetic roster only',checkedAt:new Date(Date.now()-120000).toISOString(),runners:Array.from({length:8},(_,i)=>({number:i+1,name:i===0?'テスト馬':'架空馬'+(i+1),status:'active'}))},evidence:{references:['synthetic UI test only']}};
+ w.receiveFeed51({schema:1,generatedAt:new Date(Date.now()-60000).toISOString(),forecasts:[row,{...row,race:2,raceCard:{...row.raceCard,race:2}},{...row,track:'東京',raceCard:{...row.raceCard,track:'東京'}}]});
  d.getElementById('raceTrack54').value='京都';d.getElementById('raceTrack54').dispatchEvent(new w.Event('change'));
  ok(d.getElementById('raceDate54').value===date);ok(d.getElementById('raceTrack54').options.length===2);ok(d.getElementById('simple52Pick').options.length===2);
  ok(d.querySelectorAll('.s52-rank-B .s52-horse').length===4);ok(!d.getElementById('saveRecommendation54').disabled);
@@ -54,5 +54,12 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  d.getElementById('win57Deadline').value=date+'T15:00';d.getElementById('win57Confirm').checked=true;d.getElementById('win57Form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  ok(d.getElementById('win57Notice').textContent.includes('締切は変更できません'));
  ok(w.localStorage.getItem('keiba_nine_win5_v57')===winSaved);
+ // A later cancellation prevents saving, without altering the earlier chosen snapshot.
+ const oldSource=w.sourceRecommendation54(d.getElementById('simple52Pick').value),oldKey=w.identity54(oldSource);
+ const changed={...row,track:'東京',raceCard:{...row.raceCard,track:'東京',runners:row.raceCard.runners.map(h=>h.number===1?{...h,status:'scratched'}:h)}};
+ w.receiveFeed51({schema:1,generatedAt:new Date(Date.now()-1000).toISOString(),forecasts:[changed]});
+ ok(d.querySelector('.roster60').textContent.includes('取消・除外'));ok(d.getElementById('saveRecommendation54').disabled);ok(d.querySelector('.s55-ticket h3').textContent.includes('確認用'));
+ const updated=w.sourceRecommendation54(d.getElementById('simple52Pick').value);assert.throws(()=>w.saveRecommendation54(updated.id,w.identity54(updated)));checks++;assert.throws(()=>w.saveRecommendation54(updated.id,oldKey));checks++;
+ ok(JSON.stringify(w.KEIBA_NINE_23_TEST.getRaces().find(f=>f.id===chosen.id).tri)===JSON.stringify(chosen.tri));
  ok(errors.length===0);console.log(checks+' full-page DOM interaction checks passed');
  }finally{dom.window.close()}})().catch(e=>{console.error(e);process.exitCode=1});
