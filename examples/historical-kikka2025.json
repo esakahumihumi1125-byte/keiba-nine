@@ -1,0 +1,19 @@
+{
+  "recordType": "historical",
+  "raceId": "JRA-20251026-KYOTO-11",
+  "offAt": "2025-10-26T15:40:00+09:00",
+  "asOf": "2025-10-26T15:30:00+09:00",
+  "declaredNumbers": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18],
+  "evidence": [],
+  "result": {
+    "raceId": "JRA-20251026-KYOTO-11",
+    "finish": [9,15,14],
+    "trifectaPayout": 140270,
+    "source": "https://www.jra.go.jp/datafile/seiseki/g1/kikka/result/kikka2025.html",
+    "retrievedAt": "2026-10-28T00:00:00Z",
+    "retrievedAtPrecision": "day",
+    "deadHeat": false,
+    "excludedNumbers": []
+  },
+  "note": "公式結果の数値を手動確認した検証例。取得日は日単位の記録。asOfは検査用に設定した締切であり、当時予想を作成した証拠ではありません。馬番一覧も結果表由来であり、レース前出走表の証拠として扱いません。"
+}
