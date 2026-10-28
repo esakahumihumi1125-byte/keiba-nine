@@ -9,13 +9,14 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  let checks=0;const ok=x=>{assert(x);checks++};
  ok(d.querySelectorAll('.tabs button').length===3);ok(d.getElementById('simple52Body').textContent.includes('データ待ち'));
  const date=new Date(Date.now()+86400000).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
- const row={date,track:'京都',race:1,off:'23:59',recordType:'live',status:'final',intent:'購入推奨',ranking:[1,2,3,4,5,6,7,8],rankS:[1,2],rankA:[3,4],rankB:[5,6,7,8],first:[1,2],second:[1,2,3,4],third:[1,2,3,4,5,6,7,8],evidence:{references:['synthetic UI test only']}};
+ const row={date,track:'京都',race:1,off:'23:59',recordType:'live',status:'final',intent:'購入推奨',ranking:[1,2,3,4,5,6,7,8],rankS:[1,2],rankA:[3,4],rankB:[5,6,7,8],first:[1,2],second:[1,2,3,4],third:[1,2,3,4,5,6,7,8],horses:[{number:1,name:'テスト馬',overall:'S',reason:'<img src=x onerror=alert(1)> テスト根拠',risk:'テスト注意点',recentRuns:[{date:'2026-01-01',source:'test only',detail:'架空の過去成績'}],workouts:[{date:'2026-01-02',source:'test only',detail:'架空の調教記録'}]}],evidence:{references:['synthetic UI test only']}};
  w.receiveFeed51({schema:1,generatedAt:new Date(Date.now()-60000).toISOString(),forecasts:[row,{...row,race:2},{...row,track:'東京'}]});
  d.getElementById('raceTrack54').value='京都';d.getElementById('raceTrack54').dispatchEvent(new w.Event('change'));
  ok(d.getElementById('raceDate54').value===date);ok(d.getElementById('raceTrack54').options.length===2);ok(d.getElementById('simple52Pick').options.length===2);
  ok(d.querySelectorAll('.s52-rank-B .s52-horse').length===4);ok(!d.getElementById('saveRecommendation54').disabled);
+ ok(d.querySelector('.data59-grid').textContent.includes('過去成績'));ok(d.querySelector('.data59-grid').textContent.includes('1／8頭'));ok(d.querySelector('.reason59').textContent.includes('<img'));ok(!d.querySelector('.horse59 img'));ok(d.querySelector('.horse59 details').textContent.includes('架空の調教記録'));
  d.getElementById('saveRecommendation54').click();ok(d.getElementById('saveRecommendation54').disabled);ok(d.getElementById('saveNotice54').textContent.includes('保存しました'));
- let ledger=JSON.parse(w.localStorage.getItem('keiba_nine_beta23_local_v1'));const chosen=ledger.forecasts.find(f=>f.recommendation54);ok(chosen.tri.length===36);ok(chosen.trio.length===0);
+ let ledger=JSON.parse(w.localStorage.getItem('keiba_nine_beta23_local_v1'));const chosen=ledger.forecasts.find(f=>f.recommendation54);ok(chosen.tri.length===36);ok(chosen.trio.length===0);ok(chosen.horses[0].workouts[0].detail==='架空の調教記録');
  d.getElementById('nextRace54').click();ok(d.getElementById('simple52Body').textContent.includes('京都2レース'));ok(d.getElementById('nextRace54').disabled);ok(!d.getElementById('saveRecommendation54').disabled);
  d.getElementById('raceTrack54').value='東京';d.getElementById('raceTrack54').dispatchEvent(new w.Event('change'));ok(d.getElementById('simple52Pick').options.length===1);ok(d.getElementById('simple52Body').textContent.includes('東京1レース'));
  d.querySelector('[data-screen="live"]').click();ok(d.getElementById('live').classList.contains('active'));ok(d.getElementById('finance54').textContent.includes('購入想定額'));

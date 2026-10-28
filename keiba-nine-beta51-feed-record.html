@@ -2201,12 +2201,19 @@ function ranks54(r){
  }
  return groups;
 }
+function reason59(h){
+ const text=String(h?.reason||h?.strength||'').trim().replace(/\s+/g,' ');
+ return text?{short:Array.from(text).slice(0,48).join('')+(Array.from(text).length>48?'…':''),full:text}:{short:'根拠未登録',full:''};
+}
 function quality58(r){
- const nums=[...new Set(Object.values(ranks54(r)).flat())],horses=r.horses||[];
- const named=nums.filter(n=>String(horses.find(h=>Number(h.number)===n)?.name||'').trim()).length;
+ const nums=[...new Set([...Object.values(ranks54(r)).flat(),...(r.first||[]),...(r.second||[]),...(r.third||[])].map(Number))],horses=r.horses||[];
+ const relevant=nums.map(n=>horses.find(h=>Number(h.number)===n)||{});
+ const named=relevant.filter(h=>String(h.name||'').trim()).length;
  const source=Array.isArray(r.evidence?.references)&&r.evidence.references.some(v=>String(v).trim());
  const training=Boolean(String(r.training||'').trim());
- return {named,total:nums.length,source,training};
+ const recent=relevant.filter(h=>Array.isArray(h.recentRuns)&&h.recentRuns.length>0).length;
+ const workouts=relevant.filter(h=>Array.isArray(h.workouts)&&h.workouts.length>0).length;
+ return {named,total:nums.length,source,training,recent,workouts,missing:!nums.length||named<nums.length||recent<nums.length||workouts<nums.length||!source};
 }
 function state54(r,now=Date.now()){
  if(!r)return {label:'データ待ち',canSave:false,reason:'レースの予想データがまだありません。'};
@@ -2236,9 +2243,9 @@ function identity54(r){return JSON.stringify([r.id,r.version||0,r.date,r.track,r
  const all=[...pick.options];get('nextRace54').disabled=!r||pick.selectedIndex>=all.length-1;
  if(!r){body.innerHTML='<div class="s55-empty"><span class="s55-empty-icon" aria-hidden="true">—</span><span class="pill">データ待ち</span><h3>予想の到着を待っています</h3><p>予想が届くと、ここに馬の評価と<br>おすすめ3連単が並びます。</p><div class="s55-legend"><span>S ゴールド</span><span>A レッド</span><span>B グリーン</span></div><p class="caption">実データの自動接続は準備中です。</p></div>';return;}
  const quality=quality58(r);
- const qualityHTML='<details class="quality58"><summary>情報の登録状況'+(!quality.source||!quality.training||quality.named<quality.total?' · 未登録あり':'')+'</summary><ul><li>情報源：'+(quality.source?'登録あり':'未登録')+'</li><li>評価対象の馬名：'+quality.named+'／'+quality.total+'頭</li><li>調教コメント：'+(quality.training?'登録あり':'未登録')+'</li></ul><p class="caption">登録の有無です。内容の正確さ・最新性や調教時計の取得を保証する表示ではありません。未登録情報を推測で補完しません。</p></details>';
+ const qualityHTML='<section class="quality58" aria-label="予想データの確認"><strong>予想データ '+(quality.missing?'· 未取得あり':'· 評価対象分の登録あり')+'</strong><div class="data59-grid">'+[['出走馬名',quality.named],['過去成績',quality.recent],['調教記録',quality.workouts]].map(([label,count])=>'<div><span>'+label+'</span><b>'+count+'／'+quality.total+'頭</b><small>'+(count===0?'未取得':count<quality.total?'一部未取得':'登録あり')+'</small></div>').join('')+'</div><p class="caption">評価・買い目の対象馬について確認。出走表の全頭照合は未対応です。コメントやS・A・Bだけでは、成績・調教記録の取得済みに数えません。</p><details><summary>情報源・確認日時を見る</summary><p>確認日時：'+safe(r.evidence?.checkedAt||'未登録')+'</p><p style="white-space:pre-wrap">'+safe((r.evidence?.references||[]).filter(Boolean).join('\n')||'情報源未登録')+'</p><p class="caption">登録内容の正確さ・最新性は未検証です。未取得情報を推測で補完しません。</p></details></section>';
  const key=identity54(r),saved=window.savedRecommendation54?.(key),bets=recommend52(r),ranks=ranks54(r);
- const rankHTML=['S','A','B'].map(g=>'<div class="s52-rank s52-rank-'+g+'"><strong>'+g+'ランク</strong>'+(ranks[g].map(n=>'<span class="s52-horse"><b class="s55-number">'+n+'</b><span class="s55-name">'+safe((r.horses||[]).find(h=>Number(h.number)===n)?.name||'馬番 '+n)+'</span></span>').join('')||'<span class="muted">評価未登録</span>')+'</div>').join('');
+ const rankHTML=['S','A','B'].map(g=>'<div class="s52-rank s52-rank-'+g+'"><strong>'+g+'ランク</strong>'+ (ranks[g].map(n=>{const horse=(r.horses||[]).find(h=>Number(h.number)===n),reason=reason59(horse);return '<div class="horse59"><span class="s52-horse"><b class="s55-number">'+n+'</b><span class="s55-name">'+safe(horse?.name||'馬番 '+n)+'</span></span><p class="reason59">'+safe(reason.short)+'</p>'+(reason.full||horse?.risk||horse?.recentRuns?.length||horse?.workouts?.length?'<details><summary>根拠・注意点</summary><p>'+safe(reason.full||'根拠未登録')+'</p>'+(horse?.risk?'<p>注意：'+safe(horse.risk)+'</p>':'')+[['過去成績',horse?.recentRuns],['調教記録',horse?.workouts]].map(([label,rows])=>'<h4>'+label+'</h4>'+((rows||[]).map(row=>'<p>'+safe(row.date)+' '+safe(row.detail)+'<br><small>出典：'+safe(row.source)+'</small></p>').join('')||'<p>未取得</p>')).join('')+'</details>':'')+'</div>';}).join('')||'<span class="muted">評価未登録</span>')+'</div>').join('');
  const verdict=r.status==='skip'||r.intent==='見送り'?'見送り':r.intent==='購入推奨'?'買う候補': '参考・購入判断は保留';
  body.innerHTML='<div class="s55-racehead"><p class="s55-eyebrow">RACE FORECAST</p><h2>'+safe(r.date.slice(5).replace('-','／'))+' '+safe(r.track)+Number(r.race)+'レース</h2></div><div class="buttons"><span class="pill">'+safe(state.label)+'</span>'+(saved?'<span class="pill ok">保存済み v'+Number(saved.version)+'</span>':'')+'</div><div class="notice"><strong>'+safe(verdict)+'</strong><p>'+safe(state.reason)+'</p></div>'+qualityHTML+rankHTML+'<section class="s55-ticket"><p class="s55-eyebrow">RECOMMENDED TICKETS</p><h3>おすすめ3連単</h3><p class="caption">登録された着順候補・総合評価順から作成。目安30〜40点、最大40点。</p><div class="s52-total">'+bets.length+'点 ／ '+(bets.length*100).toLocaleString('ja-JP')+'円</div><p class="caption">1点100円。'+(bets.length<30?'点数を埋めるための追加はしません。':'')+'</p><details><summary>買い目をすべて見る</summary><div class="s52-bets">'+bets.map(b=>'<span class="s55-bet">'+b.map(n=>'<b>'+n+'</b>').join('<i aria-hidden="true">→</i>')+'</span>').join('')+'</div></details><button class="btn full" id="saveRecommendation54" type="button" '+(!state.canSave||saved?'disabled':'')+'>'+(saved?'保存済み':'この予想を保存')+'</button><p class="caption">表示中の3連単だけを保存します。保存は購入ではありません。'+(r.intent==='参考'?'参考予想は仮想収支の合計対象外です。':'')+'</p><p id="saveNotice54" role="status">'+safe(notice)+'</p></section><details><summary>詳しい予想の理由</summary><p style="white-space:pre-wrap">'+safe([r.training,r.analysis,r.reason].filter(Boolean).join('\n')||'未登録')+'</p></details>';
  get('saveRecommendation54').onclick=()=>{try{window.saveRecommendation54(r.id,key);notice='保存しました。「記録」で買い目と結果を確認できます。';}catch(e){notice=e.message;}draw();};
@@ -2340,6 +2347,17 @@ function grade41(value,label){
  if(['S','A','B','C','未検証'].includes(s))return s;
  throw Error(label+'の評価はS/A/B/C/未検証から選んでな。');
 }
+function records59read(value,label){
+ if(value==null)return [];
+ if(!Array.isArray(value)||value.length>20)throw Error(label+'は20件以内の配列で指定してください。');
+ return value.map(row=>{
+  if(!row||typeof row!=='object'||Array.isArray(row))throw Error(label+'の記録形式が不正です。');
+  const date=str41(row.date,label+'日付',10),source=str41(row.source,label+'出典',350),detail=str41(row.detail,label+'内容',1000);
+  const stamp=Date.parse(date+'T00:00:00Z');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(stamp)||new Date(stamp).toISOString().slice(0,10)!==date||!source||!detail)throw Error(label+'には正しい日付・出典・具体的な記録内容が必要です。');
+  return {date,source,detail};
+ });
+}
 function extras41(input,label){
  const x={};
  if(input.evaluations!=null){
@@ -2358,7 +2376,8 @@ function extras41(input,label){
    if(!h||typeof h!=='object'||Array.isArray(h))throw Error(label+'馬別評価'+(i+1)+'の書式が不正やで。');
    const number=Number(h.number);if(!Number.isInteger(number)||number<1||number>18||seen.has(number))throw Error(label+'馬別評価の馬番が不正か重複しているで。');
    seen.add(number);
-   return {number,name:str41(h.name,'馬名',60),overall:grade41(h.overall,'総合'),training:grade41(h.training,'調教'),course:grade41(h.course,'距離'),pedigree:grade41(h.pedigree,'血統'),pace:grade41(h.pace,'展開'),strength:str41(h.strength,'強み',1000),risk:str41(h.risk,'不安材料',1000),reason:str41(h.reason,'個別根拠',1300)};
+   const records59={recentRuns:records59read(h.recentRuns,'過去成績'),workouts:records59read(h.workouts,'調教記録')};
+   return {...records59,number,name:str41(h.name,'馬名',60),overall:grade41(h.overall,'総合'),training:grade41(h.training,'調教'),course:grade41(h.course,'距離'),pedigree:grade41(h.pedigree,'血統'),pace:grade41(h.pace,'展開'),strength:str41(h.strength,'強み',1000),risk:str41(h.risk,'不安材料',1000),reason:str41(h.reason,'個別根拠',1300)};
   });
  }
  if(input.racePlan!=null){
@@ -3430,4 +3449,7 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 
 <style>.racecourse58-banner{height:125px;background:#cee9da url('./assets/racecourse58.svg') center 62%/cover no-repeat;border-radius:16px;padding:14px;margin-bottom:18px}.racecourse58-banner span{display:inline-block;color:#28523b;background:#ffffffeb;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700}</style>
 <script>(function(){const banner=document.createElement('div');banner.className='racecourse58-banner';banner.innerHTML='<span>青空のターフへ · KEIBA NINE</span>';document.getElementById('home').prepend(banner);})();</script>
+<style id="data59style">
+.data59-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}.data59-grid>div{background:#fff;padding:10px 5px;border-radius:10px;text-align:center;border:1px solid #d2dfd4}.data59-grid span,.data59-grid small{display:block;font-size:11px;color:#52665b}.data59-grid b{display:block;font-size:18px;color:#244f38}.horse59{min-width:0;width:100%;padding:6px 0}.horse59 .s52-horse{width:100%}.reason59{font-size:13px;color:#405c49;margin:6px 2px 4px;overflow-wrap:anywhere}.horse59 details{margin:0 2px;font-size:13px;overflow-wrap:anywhere}.horse59 summary{font-size:12px}.horse59 h4{margin-bottom:4px}.quality58 p{overflow-wrap:anywhere}
+</style>
 </body></html>

@@ -1,0 +1,17 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('keiba-nine-beta51-feed-record.html','utf8'),c={};vm.createContext(c);
+const section=(a,b)=>html.slice(html.indexOf(a),html.indexOf(b));
+vm.runInContext(section('/* SIMPLE54_LOGIC_START */','/* SIMPLE54_LOGIC_END */')+section('function str41(','const gradeStyle41='),c);
+const record={date:'2026-10-20',source:'架空テスト資料',detail:'架空の記録。実成績ではありません。'};
+const raw={date:'2026-10-29',horses:[{number:1,name:'テスト馬',overall:'S',training:'S',reason:'近走の内容を評価',risk:'距離延長',recentRuns:[record],workouts:[record]},{number:2,name:'未取得の馬',overall:'A',training:'A',strength:'登録された強み'}]};
+const normalized=c.extras41(raw,'test'),race={...normalized,rankS:[1],rankA:[2],first:[3],training:'コメントだけ',evidence:{references:['test']}};
+const q=c.quality58(race);assert.equal(q.total,3);assert.equal(q.named,2);assert.equal(q.recent,1);assert.equal(q.workouts,1);assert.equal(q.missing,true);
+assert.equal(c.reason59(normalized.horses[0]).short,'近走の内容を評価');assert.equal(c.reason59(normalized.horses[1]).short,'登録された強み');assert.equal(c.reason59({training:'S'}).short,'根拠未登録');
+assert.equal(c.reason59({reason:'長'.repeat(60)}).short.length,49);
+assert.equal(c.quality58({rankS:[1],training:'コメント',horses:[{number:1,training:'S'}]}).workouts,0);
+assert.equal(c.quality58({}).missing,true);
+for(const r of [{...record,date:'2026-02-30'},{...record,source:''},{...record,detail:''},null])assert.throws(()=>c.records59read([r],'test'));
+assert.throws(()=>c.records59read(Array(21).fill(record),'test'));
+assert.equal(normalized.horses[0].workouts[0].source,record.source);
+assert.equal(raw.horses[0].recentRuns[0].detail,record.detail);
+console.log('18 data coverage, evidence and validation checks passed');
