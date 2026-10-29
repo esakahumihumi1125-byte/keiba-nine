@@ -507,7 +507,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
   <button class="btn full" type="submit">レース前の予想を版として保存</button><p class="caption">※1点100円固定。保存後は上書きせずv2、v3...と履歴を残す。</p>
  </form>
 </section>
-<section id="live" class="screen"><section class="panel" id="finance54"><p class="s55-eyebrow">MY RECORDS</p><h2>記録</h2><p class="caption">開催日を基準に集計します。仮想購入と実購入は別々に表示します。</p><label for="financeMode54">記録の種類</label><select id="financeMode54"><option value="simulation">仮想購入の検証</option><option value="actual">実購入（本人の記録）</option></select><label for="financePeriod62">集計期間</label><select id="financePeriod62"><option value="all">全期間</option><option value="month">月ごと</option><option value="day">開催日ごと</option></select><div id="financeMonthWrap62" hidden><label for="financeMonth62">集計する月</label><select id="financeMonth62"></select></div><div id="financeDayWrap62" hidden></div><p id="financePeriodLabel62" class="caption" role="status"></p><div class="finance54-grid"><div class="kpi"><span class="caption" id="financeStakeLabel54">購入想定額</span><strong id="financeStake54">0円</strong></div><div class="kpi"><span class="caption">払戻</span><strong id="financeReturn54">0円</strong></div><div class="kpi"><span class="caption">収支</span><strong id="financeNet54">0円</strong></div></div><p class="caption" id="financeNote54"></p><details><summary>購入した買い目を記録する</summary><p class="caption">保存したおすすめ3連単を全点・各100円で購入した場合に記録できます。一部だけ購入・金額変更・追加購入には未対応です。</p><label for="purchasePick54">購入した予想版</label><select id="purchasePick54"></select><p id="purchaseBets54" class="caption"></p><label class="real-check"><input type="checkbox" id="purchaseConfirm54">この買い目を全点、各100円で実際に購入しました</label><button class="btn secondary full" type="button" id="purchaseSave54">実購入として記録</button><p id="purchaseNotice54" role="status"></p></details></section>
+<section id="live" class="screen"><section class="panel" id="finance54"><p class="s55-eyebrow">購入と予想の記録</p><h2>記録</h2><p class="caption">開催日で集計。実購入と仮想収支を切り替えられます。</p><p id="financeModeBanner66" class="record66-mode" role="status"></p><label for="financeMode54">記録の種類</label><select id="financeMode54"><option value="simulation">仮想購入の検証</option><option value="actual">実購入（本人の記録）</option></select><label for="financePeriod62">集計期間</label><select id="financePeriod62"><option value="all">全期間</option><option value="month">月ごと</option><option value="day">開催日ごと</option></select><div id="financeMonthWrap62" hidden><label for="financeMonth62">集計する月</label><select id="financeMonth62"></select></div><div id="financeDayWrap62" hidden></div><p id="financePeriodLabel62" class="caption" role="status"></p><div class="finance54-grid"><div class="kpi"><span class="caption" id="financeStakeLabel54">購入想定額</span><strong id="financeStake54">0円</strong></div><div class="kpi"><span class="caption">払戻</span><strong id="financeReturn54">0円</strong></div><div class="kpi"><span class="caption">収支</span><strong id="financeNet54">0円</strong></div></div><p id="financePending66" class="record66-pending"></p><p class="caption" id="financeNote54"></p><details><summary>購入した買い目を記録する</summary><p class="caption">保存したおすすめ3連単を全点・各100円で購入した場合に記録できます。一部だけ購入・金額変更・追加購入には未対応です。</p><label for="purchasePick54">購入した予想版</label><select id="purchasePick54"></select><p id="purchaseBets54" class="caption"></p><label class="real-check"><input type="checkbox" id="purchaseConfirm54">この買い目を全点、各100円で実際に購入しました</label><button class="btn secondary full" type="button" id="purchaseSave54">実購入として記録</button><p id="purchaseNotice54" role="status"></p></details></section>
  <div class="heading">📋 記録・振り返り</div>
  <div class="panel hero"><h3>📚 保存した予想と結果</h3><p class="caption">保存履歴・同期状況・振り返りをここで確認。新しい買い目は「予想」の「買い目を編集・保存」から作成できます。</p><button type="button" class="btn secondary" onclick="show('results');loadVerifyDemo()">📊 結果入力・成績を見る</button></div>
 
@@ -3361,6 +3361,8 @@ reload42();
   const period=window.recordPeriod62(),st=window.financeSummary54(mode.value,period);get('financePeriodLabel62').textContent=period.month?'集計：'+(period.month==='none'?'月を選択してください':period.month.replace('-','年')+'月'):period.date?'集計：'+(period.date==='none'?'開催日を選択してください':period.date):'集計：全期間';get('financeStake54').textContent=money(st.stake);get('financeReturn54').textContent=money(st.returned);get('financeNet54').textContent=money(st.net);
   get('financeNote54').textContent=(mode.value==='actual'?'本人が購入したと記録した買い目のみ。':'購入推奨を全点100円で買った仮定。')+'結果確認済み '+st.count+'レースを集計。結果待ち '+money(st.pending)+'は収支に含みません。';
   get('financeStakeLabel54').textContent=mode.value==='actual'?'購入額':'購入想定額';
+  get('financeModeBanner66').textContent=mode.value==='actual'?'実購入の収支｜自分で購入登録した馬券':'仮想収支｜実際のお金の収支ではありません';get('financeModeBanner66').dataset.mode=mode.value;
+  get('financePending66').textContent='結果待ち '+money(st.pending)+'（上の収支には含みません）';
   const pick=get('purchasePick54'),prev=pick.value;pick.replaceChildren(new Option('保存した買い目を選ぶ',''));
   for(const f of window.KEIBA_NINE_23_TEST.getRaces().filter(f=>f.recordType==='live'&&f.recommendation54))pick.add(new Option(f.date+' '+f.track+f.race+'R v'+f.version+' ・ '+f.tri.length+'点'+(f.purchase54?' ・ 購入記録済み':''),f.id));
   if([...pick.options].some(o=>o.value===prev))pick.value=prev;
@@ -3408,6 +3410,9 @@ reload42();
  get('financeDayWrap62').append(get('recordDate56').parentElement);
  function periodView62(){const type=get('financePeriod62').value;get('financeMonthWrap62').hidden=type!=='month';get('financeDayWrap62').hidden=type!=='day';}
  const statusFilter=document.createElement('div');statusFilter.innerHTML='<label for="recordState61">結果の状態</label><select id="recordState61"><option value="">すべて</option><option value="missing">結果未入力</option><option value="unconfirmed">入力済み・確認待ち</option><option value="confirmed">結果確認済み</option></select>';filters.after(statusFilter);
+ statusFilter.className='record66-native-state';
+ const stateButtons=document.createElement('div');stateButtons.className='record66-states';stateButtons.setAttribute('role','group');stateButtons.setAttribute('aria-label','結果の状態で絞り込む');
+ for(const [value,label] of [['','すべて'],['missing','結果未入力'],['unconfirmed','確認待ち'],['confirmed','結果確定']]){const b=document.createElement('button');b.type='button';b.dataset.state66=value;b.dataset.label66=label;b.onclick=()=>{get('recordState61').value=value;window.refreshRecords56();};stateButtons.append(b);}statusFilter.after(stateButtons);
  const resultSummary=document.createElement('p');resultSummary.className='caption';resultSummary.id='recordSummary61';statusFilter.after(resultSummary);
  const count=document.createElement('p');count.id='recordsCount56';count.setAttribute('role','status');list.before(count);const empty=document.createElement('p');empty.id='recordEmpty56';empty.textContent='この条件の記録はありません。';empty.hidden=true;list.after(empty);
  const back=document.createElement('button');back.type='button';back.className='btn secondary';back.textContent='← 記録に戻る';back.onclick=()=>show('live');results.prepend(back);
@@ -3426,6 +3431,8 @@ reload42();
   const period=window.recordPeriod62();periodView62();window.refreshFinance54();
   const scoped=rows.filter(r=>(!period.date||r.dataset.date56===period.date)&&(!period.month||r.dataset.date56.slice(0,7)===period.month)&&(!get('recordKind56').value||r.dataset.kind56===get('recordKind56').value));
   const counts={missing:0,unconfirmed:0,confirmed:0};for(const r of scoped)counts[r.dataset.resultState61]++;
+  for(const b of stateButtons.children){b.textContent=b.dataset.label66+' '+(b.dataset.state66?counts[b.dataset.state66]:scoped.length);b.setAttribute('aria-pressed',String(b.dataset.state66===get('recordState61').value));}
+  for(const r of rows){if(r.querySelector(':scope > .record66-detail'))continue;const details=document.createElement('details');details.className='record66-detail';const summary=document.createElement('summary');const title=r.querySelector(':scope > strong'),state=r.querySelector(':scope > .r56-state');if(title)summary.append(title);if(state)summary.append(state);details.append(summary);while(r.firstChild)details.append(r.firstChild);r.append(details);for(const old of details.querySelectorAll('details')){old.open=true;const heading=old.querySelector(':scope > summary');if(heading)heading.hidden=true;}}
   resultSummary.textContent='選択した期間・区分：未入力 '+counts.missing+'件 ／ 確認待ち '+counts.unconfirmed+'件 ／ 確認済み '+counts.confirmed+'件';
   const state=get('recordState61').value;let shown=0;for(const r of rows){r.hidden=!scoped.includes(r)||Boolean(state&&r.dataset.resultState61!==state);if(!r.hidden)shown++;}
   count.textContent='表示 '+shown+'レース（収支は選択期間の実レースを集計。結果の状態による絞り込みは収支に影響しません）';empty.hidden=!rows.length||shown>0;
@@ -3528,5 +3535,23 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 #simple52 .s52-rank strong{font-size:18px;letter-spacing:0}
 #simple52 .s55-name{font-size:16px}
 #simple52 .horse59{min-width:0;overflow-wrap:anywhere}
+</style>
+<style>
+/* Record 66: clear money mode, compact expandable races and touch filters. */
+.record66-mode{padding:12px 14px;border-radius:12px;background:#fff1d5;color:#674a0d;font-weight:700;line-height:1.6}
+.record66-mode[data-mode="actual"]{background:#e5f2e5;color:#1e603c}
+.record66-pending{padding:10px 12px;background:#f2f5f2;border-radius:10px;color:#52665b;font-size:14px}
+.record66-states{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
+.record66-states button{min-height:48px;border:1px solid #bdcec1;border-radius:12px;background:#fff;color:#233c32;font:inherit;font-weight:700;padding:10px}
+.record66-states button[aria-pressed="true"]{background:#235d41;color:white;border-color:#235d41}
+.record66-states button:focus-visible,.record66-detail>summary:focus-visible{outline:3px solid #bd8221;outline-offset:3px}
+.record66-native-state{display:none}
+.record66-detail>summary{cursor:pointer;min-height:48px;padding:4px 0;list-style-position:inside}
+.record66-detail>summary strong{font-size:18px;line-height:1.6}
+.record66-detail>summary .r56-state{margin:6px 0 0;font-size:14px}
+.record66-detail[open]>summary{border-bottom:1px solid #d3dfd4;margin-bottom:12px;padding-bottom:12px}
+.record66-detail .real-mini{overflow-wrap:anywhere}
+#realForecastList>.real-record{padding:12px 16px}
+#recordSummary61{font-size:12px}
 </style>
 </body></html>

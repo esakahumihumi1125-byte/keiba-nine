@@ -62,6 +62,14 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  statusFilter.value='';statusFilter.dispatchEvent(new w.Event('change'));
  ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===beforeFilter);
 
+ ok(d.getElementById('financeModeBanner66').textContent.includes('実購入の収支'));
+ const compact=[...d.querySelectorAll('.record66-detail')].find(el=>el.textContent.includes('保存したおすすめ3連単'));ok(!!compact&&!compact.open);compact.open=true;
+ ok(!!compact.querySelector('[data-result56]'));ok(compact.textContent.includes('保存したおすすめ3連単'));compact.open=false;
+ const confirmedButton=d.querySelector('[data-state66="confirmed"]');confirmedButton.click();
+ ok(statusFilter.value==='confirmed');ok(confirmedButton.getAttribute('aria-pressed')==='true');
+ ok([...d.querySelectorAll('#realForecastList > [data-key56]')].filter(r=>!r.hidden).length===1);
+ d.querySelector('[data-state66=""]').click();ok(statusFilter.value==='');
+ ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===beforeFilter);
  const kind=d.getElementById('recordKind56');kind.value='test';kind.dispatchEvent(new w.Event('change'));
  ok([...d.querySelectorAll('#realForecastList > [data-key56]')].every(r=>r.hidden));
  ok(!d.getElementById('recordEmpty56').hidden);
