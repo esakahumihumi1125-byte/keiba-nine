@@ -1840,15 +1840,16 @@ window.recordPurchase54=function(id){
  if(!persist23()){delete f.purchase54;throw Error('実購入の記録を保存できませんでした。');}
  return f;
 };
+window.purchasedRecords67=function(){
+ const seen=new Set(),items=[];
+ for(const f of R23.forecasts){
+  if(kind27(f)!=='live'||!f.purchase54||f.purchase54.unit!==100||f.purchase54.signature!==JSON.stringify(f.tri)||!f.recommendation54||!preOff(f)||seen.has(raceKey(f)))continue;
+  seen.add(raceKey(f));items.push(f);
+ }
+ return items;
+};
 window.financeSummary54=function(mode='simulation',period={}){
- let items=[];
- if(mode==='actual'){
-  const seen=new Set();
-  for(const f of R23.forecasts){
-   if(kind27(f)!=='live'||!f.purchase54||f.purchase54.unit!==100||f.purchase54.signature!==JSON.stringify(f.tri)||!f.recommendation54||!preOff(f)||seen.has(raceKey(f)))continue;
-   seen.add(raceKey(f));items.push(f);
-  }
- }else items=getAllRaces().map(([,xs])=>eligibleRecord(xs)).filter(f=>f&&kind27(f)==='live'&&f.intent==='購入推奨');
+ const items=mode==='actual'?window.purchasedRecords67():getAllRaces().map(([,xs])=>eligibleRecord(xs)).filter(f=>f&&kind27(f)==='live'&&f.intent==='購入推奨');
  let stake=0,returned=0,pending=0,count=0;
  for(const f of items){
   if(period.date&&f.date!==period.date)continue;
@@ -3371,7 +3372,7 @@ reload42();
  get('purchaseSave54').onclick=()=>{const f=window.KEIBA_NINE_23_TEST.getRaces().find(f=>f.id===get('purchasePick54').value);try{
   if(!f)throw Error('保存した買い目を選んでください。');
   if(!get('purchaseConfirm54').checked)throw Error('全点を各100円で購入したことを確認してください。');
-  window.recordPurchase54(f.id);get('purchaseNotice54').textContent='実購入の記録を保存しました。投票先からの自動取得ではありません。';get('purchaseConfirm54').checked=false;window.refreshFinance54();
+  window.recordPurchase54(f.id);get('purchaseNotice54').textContent='実購入の記録を保存しました。投票先からの自動取得ではありません。';get('purchaseConfirm54').checked=false;window.refreshFinance54();window.refreshRecords56?.();
  }catch(e){get('purchaseNotice54').textContent=e.message;}};
  get('purchasePick54').onchange=()=>{get('purchaseConfirm54').checked=false;const f=window.KEIBA_NINE_23_TEST.getRaces().find(f=>f.id===get('purchasePick54').value);get('purchaseBets54').textContent=f?f.tri.map(b=>b.join(' → ')).join(' ／ ')+' ・ 計'+money(f.tri.length*100):'';};
  window.refreshFinance54();
@@ -3409,6 +3410,7 @@ reload42();
  const filters=document.createElement('div');filters.className='r56-filters';filters.innerHTML='<div><label for="recordDate56">開催日</label><select id="recordDate56"><option value="">すべての日付</option></select></div><div><label for="recordKind56">表示する記録</label><select id="recordKind56"><option value="live">実レース</option><option value="test">架空テスト</option><option value="legacy">旧・未分類</option><option value="">すべて</option></select></div>';list.before(filters);
  get('financeDayWrap62').append(get('recordDate56').parentElement);
  function periodView62(){const type=get('financePeriod62').value;get('financeMonthWrap62').hidden=type!=='month';get('financeDayWrap62').hidden=type!=='day';}
+ const purchaseFilter=document.createElement('div');purchaseFilter.innerHTML='<label for="recordPurchase67">購入の登録</label><select id="recordPurchase67"><option value="">保存した予想すべて</option><option value="yes">購入登録あり</option><option value="no">購入登録なし</option></select><p class="caption">本人が登録した情報です。投票先との自動照合ではありません。</p>';filters.after(purchaseFilter);
  const statusFilter=document.createElement('div');statusFilter.innerHTML='<label for="recordState61">結果の状態</label><select id="recordState61"><option value="">すべて</option><option value="missing">結果未入力</option><option value="unconfirmed">入力済み・確認待ち</option><option value="confirmed">結果確認済み</option></select>';filters.after(statusFilter);
  statusFilter.className='record66-native-state';
  const stateButtons=document.createElement('div');stateButtons.className='record66-states';stateButtons.setAttribute('role','group');stateButtons.setAttribute('aria-label','結果の状態で絞り込む');
@@ -3429,19 +3431,22 @@ reload42();
   const date=get('recordDate56'),previous=date.value,rows=[...list.querySelectorAll(':scope > [data-key56]')];date.replaceChildren(new Option('開催日を選択',''));for(const value of [...new Set(rows.map(r=>r.dataset.date56))].sort().reverse())date.add(new Option(value,value));if([...date.options].some(o=>o.value===previous))date.value=previous;
   const month=get('financeMonth62'),prevMonth=month.value;month.replaceChildren(new Option('月を選択',''));for(const value of [...new Set(rows.map(r=>r.dataset.date56.slice(0,7)))].sort().reverse())month.add(new Option(value.replace('-','年')+'月',value));if([...month.options].some(o=>o.value===prevMonth))month.value=prevMonth;
   const period=window.recordPeriod62();periodView62();window.refreshFinance54();
-  const scoped=rows.filter(r=>(!period.date||r.dataset.date56===period.date)&&(!period.month||r.dataset.date56.slice(0,7)===period.month)&&(!get('recordKind56').value||r.dataset.kind56===get('recordKind56').value));
+  const purchases=new Map(window.purchasedRecords67().map(f=>[window.KEIBA_NINE_23_TEST.scopedKey27(f),f]));
+  for(const r of rows)r.dataset.purchased67=purchases.has(r.dataset.key56)?'yes':'no';
+  const scoped=rows.filter(r=>(!get('recordPurchase67').value||r.dataset.purchased67===get('recordPurchase67').value)&&(!period.date||r.dataset.date56===period.date)&&(!period.month||r.dataset.date56.slice(0,7)===period.month)&&(!get('recordKind56').value||r.dataset.kind56===get('recordKind56').value));
   const counts={missing:0,unconfirmed:0,confirmed:0};for(const r of scoped)counts[r.dataset.resultState61]++;
   for(const b of stateButtons.children){b.textContent=b.dataset.label66+' '+(b.dataset.state66?counts[b.dataset.state66]:scoped.length);b.setAttribute('aria-pressed',String(b.dataset.state66===get('recordState61').value));}
   for(const r of rows){if(r.querySelector(':scope > .record66-detail'))continue;const details=document.createElement('details');details.className='record66-detail';const summary=document.createElement('summary');const title=r.querySelector(':scope > strong'),state=r.querySelector(':scope > .r56-state');if(title)summary.append(title);if(state)summary.append(state);details.append(summary);while(r.firstChild)details.append(r.firstChild);r.append(details);for(const old of details.querySelectorAll('details')){old.open=true;const heading=old.querySelector(':scope > summary');if(heading)heading.hidden=true;}}
+  for(const r of rows){const summary=r.querySelector('.record66-detail>summary');if(!summary)continue;let badge=summary.querySelector('.purchase67-badge');if(!badge){badge=document.createElement('p');badge.className='purchase67-badge';summary.append(badge);}const f=purchases.get(r.dataset.key56);badge.dataset.purchased=String(!!f);badge.textContent=f?'購入登録あり · v'+f.version+' · '+(f.tri.length*100).toLocaleString('ja-JP')+'円':'購入登録なし';}
   resultSummary.textContent='選択した期間・区分：未入力 '+counts.missing+'件 ／ 確認待ち '+counts.unconfirmed+'件 ／ 確認済み '+counts.confirmed+'件';
   const state=get('recordState61').value;let shown=0;for(const r of rows){r.hidden=!scoped.includes(r)||Boolean(state&&r.dataset.resultState61!==state);if(!r.hidden)shown++;}
-  count.textContent='表示 '+shown+'レース（収支は選択期間の実レースを集計。結果の状態による絞り込みは収支に影響しません）';empty.hidden=!rows.length||shown>0;
+  count.textContent='表示 '+shown+'レース（収支は選択期間の実レースを集計。一覧の絞り込みは収支に影響しません）';empty.hidden=!rows.length||shown>0;
 
   const prior=pick.value||selected;pick.replaceChildren(new Option('レースを選択',''));for(const f of forms.querySelectorAll('form')){const summary=f.parentElement.querySelector('summary');pick.add(new Option(summary.textContent,f.dataset.race));}selected=[...pick.options].some(o=>o.value===prior)?prior:'';selectResult(selected);
   get('financeNet54').dataset.negative=String(get('financeNet54').textContent.startsWith('-'));
  };
  get('financePeriod62').onchange=get('financeMonth62').onchange=()=>window.refreshRecords56();
- get('recordState61').onchange=get('recordDate56').onchange=get('recordKind56').onchange=window.refreshRecords56;pick.onchange=()=>selectResult(pick.value);
+ get('recordPurchase67').onchange=get('recordState61').onchange=get('recordDate56').onchange=get('recordKind56').onchange=window.refreshRecords56;pick.onchange=()=>selectResult(pick.value);
  const financeRefresh=window.refreshFinance54;window.refreshFinance54=function(){financeRefresh();get('financeNet54').dataset.negative=String(get('financeNet54').textContent.startsWith('-'));};get('financeMode54').onchange=window.refreshFinance54;
  get('purchaseOpen56').onclick=()=>{purchase.open=true;purchase.scrollIntoView({block:'start'});};get('resultOpen56').onclick=()=>{show('results');window.refreshRecords56();pick.focus();};
  list.addEventListener('click',e=>{const b=e.target.closest('[data-result56]');if(!b)return;show('results');window.refreshRecords56();selectResult(b.dataset.result56);pick.scrollIntoView({block:'start'});});
@@ -3553,5 +3558,10 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 .record66-detail .real-mini{overflow-wrap:anywhere}
 #realForecastList>.real-record{padding:12px 16px}
 #recordSummary61{font-size:12px}
+</style>
+<style>
+.purchase67-badge{font-size:13px;font-weight:600;color:#52665b;margin:8px 0 0;line-height:1.6}
+.purchase67-badge[data-purchased="true"]{color:#1e603c;background:#e5f2e5;border:1px solid #afcdb4;border-radius:8px;padding:6px 10px;display:inline-block}
+#recordPurchase67{min-height:48px}
 </style>
 </body></html>

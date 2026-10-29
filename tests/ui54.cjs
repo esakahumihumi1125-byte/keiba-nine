@@ -70,6 +70,17 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  ok([...d.querySelectorAll('#realForecastList > [data-key56]')].filter(r=>!r.hidden).length===1);
  d.querySelector('[data-state66=""]').click();ok(statusFilter.value==='');
  ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===beforeFilter);
+ const purchaseFilter=d.getElementById('recordPurchase67');
+ const moneyBefore=d.getElementById('financeNet54').textContent;
+ purchaseFilter.value='yes';purchaseFilter.dispatchEvent(new w.Event('change'));
+ const boughtRows=[...d.querySelectorAll('#realForecastList > [data-key56]')].filter(r=>!r.hidden);
+ ok(boughtRows.length===1);ok(boughtRows[0].querySelector('.purchase67-badge').textContent.includes('3,600円'));
+ ok(boughtRows[0].querySelector('.purchase67-badge').textContent.includes('v'+chosen.version));
+ ok(d.getElementById('financeNet54').textContent===moneyBefore);
+ purchaseFilter.value='no';purchaseFilter.dispatchEvent(new w.Event('change'));
+ ok(boughtRows[0].hidden);
+ purchaseFilter.value='';purchaseFilter.dispatchEvent(new w.Event('change'));
+ ok(!boughtRows[0].hidden);ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===beforeFilter);
  const kind=d.getElementById('recordKind56');kind.value='test';kind.dispatchEvent(new w.Event('change'));
  ok([...d.querySelectorAll('#realForecastList > [data-key56]')].every(r=>r.hidden));
  ok(!d.getElementById('recordEmpty56').hidden);
