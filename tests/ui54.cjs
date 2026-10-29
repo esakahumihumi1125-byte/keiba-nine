@@ -15,6 +15,9 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  ok(d.getElementById('raceDate54').value===date);ok(d.getElementById('raceTrack54').options.length===2);ok(d.getElementById('simple52Pick').options.length===2);
  ok(d.querySelectorAll('.s52-rank-B .s52-horse').length===4);ok(!d.getElementById('saveRecommendation54').disabled);
  ok(d.querySelector('.data59-grid').textContent.includes('過去成績'));ok(d.querySelector('.data59-grid').textContent.includes('1／8頭'));ok(d.querySelector('.reason59').textContent.includes('<img'));ok(!d.querySelector('.horse59 img'));ok(d.querySelector('.horse59 details').textContent.includes('架空の調教記録'));
+ ok(!d.querySelector('.forecast65-data').open);
+ ok(!!(d.querySelector('.s52-rank').compareDocumentPosition(d.getElementById('forecastTickets65')) & w.Node.DOCUMENT_POSITION_FOLLOWING));
+ d.getElementById('jumpTickets65').click();ok(d.activeElement.id==='forecastTickets65');
  const originalStorage=w.localStorage.getItem('keiba_nine_beta23_local_v1');
  let copied='';Object.defineProperty(w.navigator,'clipboard',{configurable:true,value:{writeText:async text=>{copied=text;}}});
  d.getElementById('copyTicket63').click();await new Promise(r=>setTimeout(r,0));
