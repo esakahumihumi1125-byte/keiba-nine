@@ -28,6 +28,16 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  w.show('live');ok(d.getElementById('financeStake54').textContent==='3,600円');ok(d.getElementById('financeReturn54').textContent==='5,000円');ok(d.getElementById('financeNet54').textContent==='1,400円');
  const beforeFilter=w.localStorage.getItem('keiba_nine_beta23_local_v1');
  ok(d.getElementById('recordKind56').value==='live');
+ const statusFilter=d.getElementById('recordState61');
+ statusFilter.value='missing';statusFilter.dispatchEvent(new w.Event('change'));
+ ok([...d.querySelectorAll('#realForecastList > [data-key56]')].filter(r=>!r.hidden).every(r=>r.dataset.resultState61==='missing'));
+ ok(d.getElementById('recordSummary61').textContent.includes('確認済み 1件'));
+ statusFilter.value='confirmed';statusFilter.dispatchEvent(new w.Event('change'));
+ ok([...d.querySelectorAll('#realForecastList > [data-key56]')].filter(r=>!r.hidden).length===1);
+ statusFilter.value='unconfirmed';statusFilter.dispatchEvent(new w.Event('change'));ok(!d.getElementById('recordEmpty56').hidden);
+ statusFilter.value='';statusFilter.dispatchEvent(new w.Event('change'));
+ ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===beforeFilter);
+
  const kind=d.getElementById('recordKind56');kind.value='test';kind.dispatchEvent(new w.Event('change'));
  ok([...d.querySelectorAll('#realForecastList > [data-key56]')].every(r=>r.hidden));
  ok(!d.getElementById('recordEmpty56').hidden);
