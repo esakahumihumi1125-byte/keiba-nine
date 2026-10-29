@@ -1,0 +1,14 @@
+{
+  "purpose": "公式結果を使った事後の動作検証。事前予想・実購入・予想実績ではない。",
+  "sourceUrl": "https://www.jra.go.jp/datafile/seiseki/g1/derby/result/derby2025.html",
+  "verifiedOn": "2026-10-29",
+  "date": "2025-06-01",
+  "track": "東京",
+  "race": 11,
+  "off": "15:40",
+  "one": 13,
+  "two": 17,
+  "three": 2,
+  "triDividend": 8460,
+  "trioDividend": 2990
+}
