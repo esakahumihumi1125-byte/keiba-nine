@@ -27,6 +27,17 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  w.show('results');const form=[...d.querySelectorAll('.real-result-entry')].find(f=>f.dataset.race===date+'|京都|1|live');const b=chosen.tri[0];for(const [name,v] of Object.entries({one:b[0],two:b[1],three:b[2],triDividend:5000,trioDividend:0}))form.elements.namedItem(name).value=v;form.elements.namedItem('confirmed').checked=true;form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  w.show('live');ok(d.getElementById('financeStake54').textContent==='3,600円');ok(d.getElementById('financeReturn54').textContent==='5,000円');ok(d.getElementById('financeNet54').textContent==='1,400円');
  const beforeFilter=w.localStorage.getItem('keiba_nine_beta23_local_v1');
+ const period=d.getElementById('financePeriod62'),day=d.getElementById('recordDate56'),month=d.getElementById('financeMonth62');
+ const select=(el,value)=>{el.value=value;el.dispatchEvent(new w.Event('change'));};
+ select(period,'day');ok(!d.getElementById('financeDayWrap62').hidden);ok(d.getElementById('financeStake54').textContent==='0円');
+ select(day,date);ok(d.getElementById('financeNet54').textContent==='1,400円');
+ ok(d.getElementById('financePeriodLabel62').textContent.includes(date));
+ select(period,'month');ok(d.getElementById('financeDayWrap62').hidden);ok(!d.getElementById('financeMonthWrap62').hidden);
+ select(month,date.slice(0,7));ok(d.getElementById('financeNet54').textContent==='1,400円');
+ select(month,'');ok(d.getElementById('financeNet54').textContent==='0円');ok(!d.getElementById('recordEmpty56').hidden);
+ select(period,'all');ok(d.getElementById('financeNet54').textContent==='1,400円');
+ ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===beforeFilter);
+
  ok(d.getElementById('recordKind56').value==='live');
  const statusFilter=d.getElementById('recordState61');
  statusFilter.value='missing';statusFilter.dispatchEvent(new w.Event('change'));

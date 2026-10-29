@@ -15,8 +15,22 @@ c.receiveFeed51({...feed,generatedAt:new Date(Date.now()-10000).toISOString(),fo
 ok(c.financeSummary54('actual').pending===0);c.recordPurchase54(saved.id);ok(c.financeSummary54('actual').pending===3600);c.recordPurchase54(saved.id);ok(c.financeSummary54('actual').pending===3600);
 const bet=saved.tri[0];c.result54({date,track:'京都',race:1,recordType:'live',savedAt:new Date().toISOString(),confirmed:true,one:bet[0],two:bet[1],three:bet[2],triDividend:5000,trioDividend:0});
 for(const mode of ['simulation','actual']){const st=c.financeSummary54(mode);ok(st.stake===3600&&st.returned===5000&&st.net===1400&&st.pending===0);}
+// Period boundaries use the race date, and pending money follows the same filter.
+const laterDate=(Number(date.slice(0,4))+1)+'-02-01';
+const later={...r,date:laterDate,raceCard:{...r.raceCard,date:laterDate}};
+c.receiveFeed51({...feed,forecasts:[later]});
+const laterSource=c.batch54().find(x=>x.date===laterDate);
+const laterSaved=c.saveRecommendation54(laterSource.id,c.identity54(laterSource));c.recordPurchase54(laterSaved.id);
+for(const mode of ['simulation','actual']){
+ const day=c.financeSummary54(mode,{date});ok(day.stake===3600&&day.net===1400&&day.pending===0);
+ const month=c.financeSummary54(mode,{month:laterDate.slice(0,7)});ok(month.stake===0&&month.pending===3600&&month.count===0);
+ const empty=c.financeSummary54(mode,{date:'2000-01-01'});ok(empty.stake===0&&empty.pending===0&&empty.net===0);
+ ok(c.financeSummary54(mode).pending===3600);
+}
+// Return the original source to the head for the existing duplicate/save checks.
+c.receiveFeed51({...feed,generatedAt:new Date().toISOString(),forecasts:[{...r,rankA:[4,3]}]});
 // Failed write must not leave an in-memory save or a purchase marker.
-const source2=c.batch54()[0],key2=c.identity54(source2);h.fail('keiba_nine_beta23_local_v1');const n=c.getRaces().length;throws(()=>c.saveRecommendation54(source2.id,key2));ok(c.getRaces().length===n);h.fail(null);
+const source2=c.batch54().find(x=>x.date===date),key2=c.identity54(source2);h.fail('keiba_nine_beta23_local_v1');const n=c.getRaces().length;throws(()=>c.saveRecommendation54(source2.id,key2));ok(c.getRaces().length===n);h.fail(null);
 const second=c.saveRecommendation54(source2.id,key2);throws(()=>c.recordPurchase54(second.id));
 const reloaded=setup({'keiba_nine_beta23_local_v1':h.storage.get('keiba_nine_beta23_local_v1')});ok(reloaded.c.savedRecommendation54(key).tri.length===36);ok(reloaded.c.financeSummary54('actual').stake===3600); // the next successful save persisted the injected result too
 const bad=setup({'keiba_nine_beta23_local_v1':'broken'});throws(()=>bad.c.saveRecommendation54(source.id,key));

@@ -507,7 +507,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
   <button class="btn full" type="submit">レース前の予想を版として保存</button><p class="caption">※1点100円固定。保存後は上書きせずv2、v3...と履歴を残す。</p>
  </form>
 </section>
-<section id="live" class="screen"><section class="panel" id="finance54"><p class="s55-eyebrow">MY RECORDS</p><h2>記録</h2><p class="caption">すべての期間の収支。仮想購入と実購入は別々に集計します。</p><label for="financeMode54">記録の種類</label><select id="financeMode54"><option value="simulation">仮想購入の検証</option><option value="actual">実購入（本人の記録）</option></select><div class="finance54-grid"><div class="kpi"><span class="caption" id="financeStakeLabel54">購入想定額</span><strong id="financeStake54">0円</strong></div><div class="kpi"><span class="caption">払戻</span><strong id="financeReturn54">0円</strong></div><div class="kpi"><span class="caption">収支</span><strong id="financeNet54">0円</strong></div></div><p class="caption" id="financeNote54"></p><details><summary>購入した買い目を記録する</summary><p class="caption">保存したおすすめ3連単を全点・各100円で購入した場合に記録できます。一部だけ購入・金額変更・追加購入には未対応です。</p><label for="purchasePick54">購入した予想版</label><select id="purchasePick54"></select><p id="purchaseBets54" class="caption"></p><label class="real-check"><input type="checkbox" id="purchaseConfirm54">この買い目を全点、各100円で実際に購入しました</label><button class="btn secondary full" type="button" id="purchaseSave54">実購入として記録</button><p id="purchaseNotice54" role="status"></p></details></section>
+<section id="live" class="screen"><section class="panel" id="finance54"><p class="s55-eyebrow">MY RECORDS</p><h2>記録</h2><p class="caption">開催日を基準に集計します。仮想購入と実購入は別々に表示します。</p><label for="financeMode54">記録の種類</label><select id="financeMode54"><option value="simulation">仮想購入の検証</option><option value="actual">実購入（本人の記録）</option></select><label for="financePeriod62">集計期間</label><select id="financePeriod62"><option value="all">全期間</option><option value="month">月ごと</option><option value="day">開催日ごと</option></select><div id="financeMonthWrap62" hidden><label for="financeMonth62">集計する月</label><select id="financeMonth62"></select></div><div id="financeDayWrap62" hidden></div><p id="financePeriodLabel62" class="caption" role="status"></p><div class="finance54-grid"><div class="kpi"><span class="caption" id="financeStakeLabel54">購入想定額</span><strong id="financeStake54">0円</strong></div><div class="kpi"><span class="caption">払戻</span><strong id="financeReturn54">0円</strong></div><div class="kpi"><span class="caption">収支</span><strong id="financeNet54">0円</strong></div></div><p class="caption" id="financeNote54"></p><details><summary>購入した買い目を記録する</summary><p class="caption">保存したおすすめ3連単を全点・各100円で購入した場合に記録できます。一部だけ購入・金額変更・追加購入には未対応です。</p><label for="purchasePick54">購入した予想版</label><select id="purchasePick54"></select><p id="purchaseBets54" class="caption"></p><label class="real-check"><input type="checkbox" id="purchaseConfirm54">この買い目を全点、各100円で実際に購入しました</label><button class="btn secondary full" type="button" id="purchaseSave54">実購入として記録</button><p id="purchaseNotice54" role="status"></p></details></section>
  <div class="heading">📋 記録・振り返り</div>
  <div class="panel hero"><h3>📚 保存した予想と結果</h3><p class="caption">保存履歴・同期状況・振り返りをここで確認。新しい買い目は「予想」の「買い目を編集・保存」から作成できます。</p><button type="button" class="btn secondary" onclick="show('results');loadVerifyDemo()">📊 結果入力・成績を見る</button></div>
 
@@ -1840,7 +1840,7 @@ window.recordPurchase54=function(id){
  if(!persist23()){delete f.purchase54;throw Error('実購入の記録を保存できませんでした。');}
  return f;
 };
-window.financeSummary54=function(mode='simulation'){
+window.financeSummary54=function(mode='simulation',period={}){
  let items=[];
  if(mode==='actual'){
   const seen=new Set();
@@ -1851,6 +1851,8 @@ window.financeSummary54=function(mode='simulation'){
  }else items=getAllRaces().map(([,xs])=>eligibleRecord(xs)).filter(f=>f&&kind27(f)==='live'&&f.intent==='購入推奨');
  let stake=0,returned=0,pending=0,count=0;
  for(const f of items){
+  if(period.date&&f.date!==period.date)continue;
+  if(period.month&&f.date.slice(0,7)!==period.month)continue;
   const r=resultOf(scopedKey27(f)),o=r?.confirmed?adjudicate(f,r):null;
   if(!o){pending+=100*((f.tri||[]).length+(f.trio||[]).length);continue;}
   stake+=o.stake;returned+=o.returned;count++;
@@ -3337,8 +3339,9 @@ reload42();
 (function(){
  const get=id=>document.getElementById(id),mode=get('financeMode54');
  const money=n=>n.toLocaleString('ja-JP')+'円';
+ window.recordPeriod62=()=>{const type=get('financePeriod62').value;return type==='month'?{month:get('financeMonth62').value||'none'}:type==='day'?{date:get('recordDate56')?.value||'none'}:{};};
  window.refreshFinance54=function(){
-  const st=window.financeSummary54(mode.value);get('financeStake54').textContent=money(st.stake);get('financeReturn54').textContent=money(st.returned);get('financeNet54').textContent=money(st.net);
+  const period=window.recordPeriod62(),st=window.financeSummary54(mode.value,period);get('financePeriodLabel62').textContent=period.month?'集計：'+(period.month==='none'?'月を選択してください':period.month.replace('-','年')+'月'):period.date?'集計：'+(period.date==='none'?'開催日を選択してください':period.date):'集計：全期間';get('financeStake54').textContent=money(st.stake);get('financeReturn54').textContent=money(st.returned);get('financeNet54').textContent=money(st.net);
   get('financeNote54').textContent=(mode.value==='actual'?'本人が購入したと記録した買い目のみ。':'購入推奨を全点100円で買った仮定。')+'結果確認済み '+st.count+'レースを集計。結果待ち '+money(st.pending)+'は収支に含みません。';
   get('financeStakeLabel54').textContent=mode.value==='actual'?'購入額':'購入想定額';
   const pick=get('purchasePick54'),prev=pick.value;pick.replaceChildren(new Option('保存した買い目を選ぶ',''));
@@ -3385,6 +3388,8 @@ reload42();
  const saved=list.closest('.panel');saved.id='savedPanel56';saved.querySelector('.flex>strong').textContent='保存した予想';
  const backup=get('rpBackup');get('rpImport').closest('.panel').prepend(backup);
  const filters=document.createElement('div');filters.className='r56-filters';filters.innerHTML='<div><label for="recordDate56">開催日</label><select id="recordDate56"><option value="">すべての日付</option></select></div><div><label for="recordKind56">表示する記録</label><select id="recordKind56"><option value="live">実レース</option><option value="test">架空テスト</option><option value="legacy">旧・未分類</option><option value="">すべて</option></select></div>';list.before(filters);
+ get('financeDayWrap62').append(get('recordDate56').parentElement);
+ function periodView62(){const type=get('financePeriod62').value;get('financeMonthWrap62').hidden=type!=='month';get('financeDayWrap62').hidden=type!=='day';}
  const statusFilter=document.createElement('div');statusFilter.innerHTML='<label for="recordState61">結果の状態</label><select id="recordState61"><option value="">すべて</option><option value="missing">結果未入力</option><option value="unconfirmed">入力済み・確認待ち</option><option value="confirmed">結果確認済み</option></select>';filters.after(statusFilter);
  const resultSummary=document.createElement('p');resultSummary.className='caption';resultSummary.id='recordSummary61';statusFilter.after(resultSummary);
  const count=document.createElement('p');count.id='recordsCount56';count.setAttribute('role','status');list.before(count);const empty=document.createElement('p');empty.id='recordEmpty56';empty.textContent='この条件の記録はありません。';empty.hidden=true;list.after(empty);
@@ -3399,16 +3404,19 @@ reload42();
  let selected='';
  function selectResult(key){selected=key||pick.value;pick.value=selected;for(const d of forms.children){const f=d.querySelector('form');if(!f)continue;d.hidden=f.dataset.race!==selected;if(!d.hidden)d.open=true;}}
  window.refreshRecords56=function(){
-  const date=get('recordDate56'),previous=date.value,rows=[...list.querySelectorAll(':scope > [data-key56]')];date.replaceChildren(new Option('すべての日付',''));for(const value of [...new Set(rows.map(r=>r.dataset.date56))].sort().reverse())date.add(new Option(value,value));if([...date.options].some(o=>o.value===previous))date.value=previous;
-  const scoped=rows.filter(r=>(!date.value||r.dataset.date56===date.value)&&(!get('recordKind56').value||r.dataset.kind56===get('recordKind56').value));
+  const date=get('recordDate56'),previous=date.value,rows=[...list.querySelectorAll(':scope > [data-key56]')];date.replaceChildren(new Option('開催日を選択',''));for(const value of [...new Set(rows.map(r=>r.dataset.date56))].sort().reverse())date.add(new Option(value,value));if([...date.options].some(o=>o.value===previous))date.value=previous;
+  const month=get('financeMonth62'),prevMonth=month.value;month.replaceChildren(new Option('月を選択',''));for(const value of [...new Set(rows.map(r=>r.dataset.date56.slice(0,7)))].sort().reverse())month.add(new Option(value.replace('-','年')+'月',value));if([...month.options].some(o=>o.value===prevMonth))month.value=prevMonth;
+  const period=window.recordPeriod62();periodView62();window.refreshFinance54();
+  const scoped=rows.filter(r=>(!period.date||r.dataset.date56===period.date)&&(!period.month||r.dataset.date56.slice(0,7)===period.month)&&(!get('recordKind56').value||r.dataset.kind56===get('recordKind56').value));
   const counts={missing:0,unconfirmed:0,confirmed:0};for(const r of scoped)counts[r.dataset.resultState61]++;
-  resultSummary.textContent='選択した日付・区分：未入力 '+counts.missing+'件 ／ 確認待ち '+counts.unconfirmed+'件 ／ 確認済み '+counts.confirmed+'件';
+  resultSummary.textContent='選択した期間・区分：未入力 '+counts.missing+'件 ／ 確認待ち '+counts.unconfirmed+'件 ／ 確認済み '+counts.confirmed+'件';
   const state=get('recordState61').value;let shown=0;for(const r of rows){r.hidden=!scoped.includes(r)||Boolean(state&&r.dataset.resultState61!==state);if(!r.hidden)shown++;}
-  count.textContent='表示 '+shown+'レース（上の収支は全期間の合計）';empty.hidden=!rows.length||shown>0;
+  count.textContent='表示 '+shown+'レース（収支は選択期間の実レースを集計。結果の状態による絞り込みは収支に影響しません）';empty.hidden=!rows.length||shown>0;
 
   const prior=pick.value||selected;pick.replaceChildren(new Option('レースを選択',''));for(const f of forms.querySelectorAll('form')){const summary=f.parentElement.querySelector('summary');pick.add(new Option(summary.textContent,f.dataset.race));}selected=[...pick.options].some(o=>o.value===prior)?prior:'';selectResult(selected);
   get('financeNet54').dataset.negative=String(get('financeNet54').textContent.startsWith('-'));
  };
+ get('financePeriod62').onchange=get('financeMonth62').onchange=()=>window.refreshRecords56();
  get('recordState61').onchange=get('recordDate56').onchange=get('recordKind56').onchange=window.refreshRecords56;pick.onchange=()=>selectResult(pick.value);
  const financeRefresh=window.refreshFinance54;window.refreshFinance54=function(){financeRefresh();get('financeNet54').dataset.negative=String(get('financeNet54').textContent.startsWith('-'));};get('financeMode54').onchange=window.refreshFinance54;
  get('purchaseOpen56').onclick=()=>{purchase.open=true;purchase.scrollIntoView({block:'start'});};get('resultOpen56').onclick=()=>{show('results');window.refreshRecords56();pick.focus();};
