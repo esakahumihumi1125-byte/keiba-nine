@@ -14,4 +14,9 @@ ok(c.identity54(r)!==c.identity54({...r,raceCard:{...card,complete:false}}));
 const retained=c.extras41(r,'test');ok(retained.raceCard.runners.length===3);
 for(const change of [{race:2},{source:''},{checkedAt:'no'},{runners:[card.runners[0],card.runners[0]]}]){assert.throws(()=>c.extras41({...r,raceCard:{...card,...change}},'test'));n++;}
 ok(JSON.stringify(r.raceCard)===JSON.stringify(card));
+const ticket=c.ticketText63(r,now);ok(ticket.includes('1 → 2 → 3'));ok(ticket.includes('1点 ／ 100円'));
+ok(c.ticketText63({...r,intent:'参考'},now).includes('購入推奨ではありません'));
+for(const value of [{...r,raceCard:undefined},{...r,intent:'見送り'},r]){
+ assert.throws(()=>c.ticketText63(value,value===r?Date.parse('2030-01-03T00:00:00Z'):now));n++;
+}
 console.log(n+' roster matching, cancellation, identity and normalization checks passed');

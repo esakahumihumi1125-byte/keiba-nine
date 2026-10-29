@@ -15,6 +15,16 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  ok(d.getElementById('raceDate54').value===date);ok(d.getElementById('raceTrack54').options.length===2);ok(d.getElementById('simple52Pick').options.length===2);
  ok(d.querySelectorAll('.s52-rank-B .s52-horse').length===4);ok(!d.getElementById('saveRecommendation54').disabled);
  ok(d.querySelector('.data59-grid').textContent.includes('過去成績'));ok(d.querySelector('.data59-grid').textContent.includes('1／8頭'));ok(d.querySelector('.reason59').textContent.includes('<img'));ok(!d.querySelector('.horse59 img'));ok(d.querySelector('.horse59 details').textContent.includes('架空の調教記録'));
+ const originalStorage=w.localStorage.getItem('keiba_nine_beta23_local_v1');
+ let copied='';Object.defineProperty(w.navigator,'clipboard',{configurable:true,value:{writeText:async text=>{copied=text;}}});
+ d.getElementById('copyTicket63').click();await new Promise(r=>setTimeout(r,0));
+ ok(copied.includes(date+' 京都1R'));ok(copied.includes('36点 ／ 3,600円'));
+ ok(copied.split('\n').filter(line=>/^\d+ → \d+ → \d+$/.test(line)).length===36);
+ ok(d.getElementById('copyNotice63').textContent.includes('コピーしました'));
+ Object.defineProperty(w.navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw Error('denied');}}});
+ d.getElementById('copyTicket63').click();await new Promise(r=>setTimeout(r,0));
+ ok(!d.getElementById('copyFallback63').hidden);ok(d.getElementById('copyText63').value===copied);
+ ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===originalStorage);
  d.getElementById('saveRecommendation54').click();ok(d.getElementById('saveRecommendation54').disabled);ok(d.getElementById('saveNotice54').textContent.includes('保存しました'));
  let ledger=JSON.parse(w.localStorage.getItem('keiba_nine_beta23_local_v1'));const chosen=ledger.forecasts.find(f=>f.recommendation54);ok(chosen.tri.length===36);ok(chosen.trio.length===0);ok(chosen.horses[0].workouts[0].detail==='架空の調教記録');
  d.getElementById('nextRace54').click();ok(d.getElementById('simple52Body').textContent.includes('京都2レース'));ok(d.getElementById('nextRace54').disabled);ok(!d.getElementById('saveRecommendation54').disabled);
@@ -79,7 +89,7 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  const oldSource=w.sourceRecommendation54(d.getElementById('simple52Pick').value),oldKey=w.identity54(oldSource);
  const changed={...row,track:'東京',raceCard:{...row.raceCard,track:'東京',runners:row.raceCard.runners.map(h=>h.number===1?{...h,status:'scratched'}:h)}};
  w.receiveFeed51({schema:1,generatedAt:new Date(Date.now()-1000).toISOString(),forecasts:[changed]});
- ok(d.querySelector('.roster60').textContent.includes('取消・除外'));ok(d.getElementById('saveRecommendation54').disabled);ok(d.querySelector('.s55-ticket h3').textContent.includes('確認用'));
+ ok(d.getElementById('copyTicket63').disabled);ok(d.querySelector('.roster60').textContent.includes('取消・除外'));ok(d.getElementById('saveRecommendation54').disabled);ok(d.querySelector('.s55-ticket h3').textContent.includes('確認用'));
  const updated=w.sourceRecommendation54(d.getElementById('simple52Pick').value);assert.throws(()=>w.saveRecommendation54(updated.id,w.identity54(updated)));checks++;assert.throws(()=>w.saveRecommendation54(updated.id,oldKey));checks++;
  ok(JSON.stringify(w.KEIBA_NINE_23_TEST.getRaces().find(f=>f.id===chosen.id).tri)===JSON.stringify(chosen.tri));
  ok(errors.length===0);console.log(checks+' full-page DOM interaction checks passed');
