@@ -8,6 +8,8 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  const w=dom.window,d=w.document;await new Promise(r=>setTimeout(r,100));assert.deepEqual(errors.map(e=>e.message),[]);
  let checks=0;const ok=x=>{assert(x);checks++};
  ok(d.querySelectorAll('.tabs button').length===3);ok(d.getElementById('simple52Body').textContent.includes('データ待ち'));
+ ok(!d.getElementById('recordStart70').hidden);ok(d.querySelector('.record66-states').hidden);ok(d.querySelector('.r56-actions').hidden);
+ d.getElementById('recordStart70').click();ok(d.getElementById('home').classList.contains('active'));
  const date=new Date(Date.now()+86400000).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
  const row={date,track:'京都',race:1,off:'23:59',recordType:'live',status:'final',intent:'購入推奨',ranking:[1,2,3,4,5,6,7,8],rankS:[1,2],rankA:[3,4],rankB:[5,6,7,8],first:[1,2],second:[1,2,3,4],third:[1,2,3,4,5,6,7,8],horses:[{number:1,name:'テスト馬',overall:'S',reason:'<img src=x onerror=alert(1)> テスト根拠',risk:'テスト注意点',recentRuns:[{date:'2026-01-01',source:'test only',detail:'架空の過去成績'}],workouts:[{date:'2026-01-02',source:'test only',detail:'架空の調教記録'}]}],raceCard:{date,track:'京都',race:1,complete:true,source:'synthetic roster only',checkedAt:new Date(Date.now()-120000).toISOString(),runners:Array.from({length:8},(_,i)=>({number:i+1,name:i===0?'テスト馬':'架空馬'+(i+1),status:'active'}))},evidence:{references:['synthetic UI test only']}};
  w.receiveFeed51({schema:1,generatedAt:new Date(Date.now()-60000).toISOString(),forecasts:[row,{...row,race:2,raceCard:{...row.raceCard,race:2}},{...row,track:'東京',raceCard:{...row.raceCard,track:'東京'}}]});
@@ -29,6 +31,7 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  ok(!d.getElementById('copyFallback63').hidden);ok(d.getElementById('copyText63').value===copied);
  ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===originalStorage);
  d.getElementById('saveRecommendation54').click();ok(d.getElementById('saveRecommendation54').disabled);ok(d.getElementById('saveNotice54').textContent.includes('保存しました'));
+ ok(d.getElementById('recordStart70').hidden);ok(!d.querySelector('.record66-states').hidden);ok(!d.querySelector('.r56-actions').hidden);
  let ledger=JSON.parse(w.localStorage.getItem('keiba_nine_beta23_local_v1'));const chosen=ledger.forecasts.find(f=>f.recommendation54);ok(chosen.tri.length===36);ok(chosen.trio.length===0);ok(chosen.horses[0].workouts[0].detail==='架空の調教記録');
  d.getElementById('nextRace54').click();ok(d.getElementById('simple52Body').textContent.includes('京都2レース'));ok(d.getElementById('nextRace54').disabled);ok(!d.getElementById('saveRecommendation54').disabled);
  d.getElementById('raceTrack54').value='東京';d.getElementById('raceTrack54').dispatchEvent(new w.Event('change'));ok(d.getElementById('simple52Pick').options.length===1);ok(d.getElementById('simple52Body').textContent.includes('東京1レース'));
@@ -36,7 +39,7 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  const purchase=d.getElementById('purchasePick54');purchase.value=chosen.id;purchase.dispatchEvent(new w.Event('change'));ok(d.getElementById('purchaseBets54').textContent.includes('3,600円'));
  d.getElementById('purchaseSave54').click();ok(d.getElementById('purchaseNotice54').textContent.includes('確認してください'));
  d.getElementById('purchaseConfirm54').checked=true;d.getElementById('purchaseSave54').click();ok(d.getElementById('purchaseNotice54').textContent.includes('保存しました'));
- d.getElementById('financeMode54').value='actual';d.getElementById('financeMode54').dispatchEvent(new w.Event('change'));ok(d.getElementById('financeNote54').textContent.includes('結果待ち 3,600円'));
+ d.getElementById('financeMode54').value='actual';d.getElementById('financeMode54').dispatchEvent(new w.Event('change'));ok(d.getElementById('financePending66').textContent.includes('結果待ち 3,600円'));
  w.show('results');const form=[...d.querySelectorAll('.real-result-entry')].find(f=>f.dataset.race===date+'|京都|1|live');const b=chosen.tri[0];for(const [name,v] of Object.entries({one:b[0],two:b[1],three:b[2],triDividend:5000,trioDividend:0}))form.elements.namedItem(name).value=v;form.elements.namedItem('confirmed').checked=true;form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  w.show('live');ok(d.getElementById('financeStake54').textContent==='3,600円');ok(d.getElementById('financeReturn54').textContent==='5,000円');ok(d.getElementById('financeNet54').textContent==='1,400円');
  const beforeFilter=w.localStorage.getItem('keiba_nine_beta23_local_v1');

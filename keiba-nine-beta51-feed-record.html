@@ -3360,7 +3360,7 @@ reload42();
  window.recordPeriod62=()=>{const type=get('financePeriod62').value;return type==='month'?{month:get('financeMonth62').value||'none'}:type==='day'?{date:get('recordDate56')?.value||'none'}:{};};
  window.refreshFinance54=function(){
   const period=window.recordPeriod62(),st=window.financeSummary54(mode.value,period);get('financePeriodLabel62').textContent=period.month?'集計：'+(period.month==='none'?'月を選択してください':period.month.replace('-','年')+'月'):period.date?'集計：'+(period.date==='none'?'開催日を選択してください':period.date):'集計：全期間';get('financeStake54').textContent=money(st.stake);get('financeReturn54').textContent=money(st.returned);get('financeNet54').textContent=money(st.net);
-  get('financeNote54').textContent=(mode.value==='actual'?'本人が購入したと記録した買い目のみ。':'購入推奨を全点100円で買った仮定。')+'結果確認済み '+st.count+'レースを集計。結果待ち '+money(st.pending)+'は収支に含みません。';
+  get('financeNote54').textContent=(mode.value==='actual'?'本人が購入したと記録した買い目のみ。':'購入推奨を全点100円で買った仮定。')+'結果確認済み '+st.count+'レースを集計。';
   get('financeStakeLabel54').textContent=mode.value==='actual'?'購入額':'購入想定額';
   get('financeModeBanner66').textContent=mode.value==='actual'?'実購入の収支｜自分で購入登録した馬券':'仮想収支｜実際のお金の収支ではありません';get('financeModeBanner66').dataset.mode=mode.value;
   get('financePending66').textContent='結果待ち '+money(st.pending)+'（上の収支には含みません）';
@@ -3425,6 +3425,7 @@ reload42();
  for(const [value,label] of [['','すべて'],['missing','結果未入力'],['unconfirmed','確認待ち'],['confirmed','結果確定']]){const b=document.createElement('button');b.type='button';b.dataset.state66=value;b.dataset.label66=label;b.onclick=()=>{get('recordState61').value=value;window.refreshRecords56();};stateButtons.append(b);}statusFilter.after(stateButtons);
  const resultSummary=document.createElement('p');resultSummary.className='caption';resultSummary.id='recordSummary61';statusFilter.after(resultSummary);
  const count=document.createElement('p');count.id='recordsCount56';count.setAttribute('role','status');list.before(count);const empty=document.createElement('p');empty.id='recordEmpty56';empty.textContent='この条件の記録はありません。';empty.hidden=true;list.after(empty);
+ const start=document.createElement('button');start.id='recordStart70';start.type='button';start.className='btn full';start.textContent='予想を見る';start.onclick=()=>show('home');list.after(start);
  const back=document.createElement('button');back.type='button';back.className='btn secondary';back.textContent='← 記録に戻る';back.onclick=()=>show('live');results.prepend(back);
  results.querySelector('.heading').textContent='結果を入力・確認';
  const block=get('realResultBlock'),stats=fold(block,'仮想購入の集計を見る','stats56');stats.append(get('realKpis'));
@@ -3438,6 +3439,10 @@ reload42();
  window.refreshRecords56=function(){
   const date=get('recordDate56'),previous=date.value,rows=[...list.querySelectorAll(':scope > [data-key56]')];date.replaceChildren(new Option('開催日を選択',''));for(const value of [...new Set(rows.map(r=>r.dataset.date56))].sort().reverse())date.add(new Option(value,value));if([...date.options].some(o=>o.value===previous))date.value=previous;
   const month=get('financeMonth62'),prevMonth=month.value;month.replaceChildren(new Option('月を選択',''));for(const value of [...new Set(rows.map(r=>r.dataset.date56.slice(0,7)))].sort().reverse())month.add(new Option(value.replace('-','年')+'月',value));if([...month.options].some(o=>o.value===prevMonth))month.value=prevMonth;
+  const hasRecords=rows.length>0;
+  for(const node of [filters,purchaseFilter,stateButtons,resultSummary,count,actions])node.hidden=!hasRecords;
+  start.hidden=hasRecords;
+  saved.querySelector(':scope > p.caption').hidden=!hasRecords;
   const period=window.recordPeriod62();periodView62();window.refreshFinance54();
   const purchases=new Map(window.purchasedRecords67().map(f=>[window.KEIBA_NINE_23_TEST.scopedKey27(f),f]));
   for(const r of rows)r.dataset.purchased67=purchases.has(r.dataset.key56)?'yes':'no';
@@ -3610,5 +3615,14 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 #financeNote54{font-size:12px;margin:8px 0}
 @media(max-width:480px){#live{padding:8px}.r56-actions{margin:10px 0}}
 @media(max-width:340px){.finance69-controls{grid-template-columns:1fr}}
+</style>
+<style>
+/* Record empty state: show controls only when stored races exist. */
+.brand{min-height:0;margin-bottom:16px}
+@media(max-width:480px){.brand{min-height:0;margin-bottom:16px}}
+#live [hidden]{display:none!important}
+#purchaseDetail56:not([open]){display:none}
+#purchaseDetail56[open]{margin-top:14px;border-top:1px solid #d3dfd4;padding-top:8px}
+#recordStart70{margin:12px 0;min-height:48px}
 </style>
 </body></html>
