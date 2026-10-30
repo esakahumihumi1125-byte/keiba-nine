@@ -507,7 +507,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
   <button class="btn full" type="submit">レース前の予想を版として保存</button><p class="caption">※1点100円固定。保存後は上書きせずv2、v3...と履歴を残す。</p>
  </form>
 </section>
-<section id="live" class="screen"><section class="panel" id="finance54"><p class="s55-eyebrow">購入と予想の記録</p><h2>記録</h2><p class="caption">開催日で集計。実購入と仮想収支を切り替えられます。</p><p id="financeModeBanner66" class="record66-mode" role="status"></p><label for="financeMode54">記録の種類</label><select id="financeMode54"><option value="simulation">仮想購入の検証</option><option value="actual">実購入（本人の記録）</option></select><label for="financePeriod62">集計期間</label><select id="financePeriod62"><option value="all">全期間</option><option value="month">月ごと</option><option value="day">開催日ごと</option></select><div id="financeMonthWrap62" hidden><label for="financeMonth62">集計する月</label><select id="financeMonth62"></select></div><div id="financeDayWrap62" hidden></div><p id="financePeriodLabel62" class="caption" role="status"></p><div class="finance54-grid"><div class="kpi"><span class="caption" id="financeStakeLabel54">購入想定額</span><strong id="financeStake54">0円</strong></div><div class="kpi"><span class="caption">払戻</span><strong id="financeReturn54">0円</strong></div><div class="kpi"><span class="caption">収支</span><strong id="financeNet54">0円</strong></div></div><p id="financePending66" class="record66-pending"></p><p class="caption" id="financeNote54"></p><details><summary>購入した買い目を記録する</summary><p class="caption">保存したおすすめ3連単を全点・各100円で購入した場合に記録できます。一部だけ購入・金額変更・追加購入には未対応です。</p><label for="purchasePick54">購入した予想版</label><select id="purchasePick54"></select><p id="purchaseBets54" class="caption"></p><label class="real-check"><input type="checkbox" id="purchaseConfirm54">この買い目を全点、各100円で実際に購入しました</label><button class="btn secondary full" type="button" id="purchaseSave54">実購入として記録</button><p id="purchaseNotice54" role="status"></p></details></section>
+<section id="live" class="screen"><section class="panel" id="finance54"><p class="s55-eyebrow">購入と予想の記録</p><h2>記録</h2><p class="caption">開催日で集計。実購入と仮想収支を切り替えられます。</p><p id="financeModeBanner66" class="record66-mode" role="status"></p><label for="financeMode54">記録の種類</label><select id="financeMode54"><option value="simulation">仮想収支</option><option value="actual">実購入</option></select><label for="financePeriod62">集計期間</label><select id="financePeriod62"><option value="all">全期間</option><option value="month">月ごと</option><option value="day">開催日ごと</option></select><div id="financeMonthWrap62" hidden><label for="financeMonth62">集計する月</label><select id="financeMonth62"></select></div><div id="financeDayWrap62" hidden></div><p id="financePeriodLabel62" class="caption" role="status"></p><div class="finance54-grid"><div class="kpi"><span class="caption" id="financeStakeLabel54">購入想定額</span><strong id="financeStake54">0円</strong></div><div class="kpi"><span class="caption">払戻</span><strong id="financeReturn54">0円</strong></div><div class="kpi"><span class="caption">収支</span><strong id="financeNet54">0円</strong></div></div><p id="financePending66" class="record66-pending"></p><p class="caption" id="financeNote54"></p><details><summary>購入した買い目を記録する</summary><p class="caption">保存したおすすめ3連単を全点・各100円で購入した場合に記録できます。一部だけ購入・金額変更・追加購入には未対応です。</p><label for="purchasePick54">購入した予想版</label><select id="purchasePick54"></select><p id="purchaseBets54" class="caption"></p><label class="real-check"><input type="checkbox" id="purchaseConfirm54">この買い目を全点、各100円で実際に購入しました</label><button class="btn secondary full" type="button" id="purchaseSave54">実購入として記録</button><p id="purchaseNotice54" role="status"></p></details></section>
  <div class="heading">📋 記録・振り返り</div>
  <div class="panel hero"><h3>📚 保存した予想と結果</h3><p class="caption">保存履歴・同期状況・振り返りをここで確認。新しい買い目は「予想」の「買い目を編集・保存」から作成できます。</p><button type="button" class="btn secondary" onclick="show('results');loadVerifyDemo()">📊 結果入力・成績を見る</button></div>
 
@@ -3580,5 +3580,35 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 #backupStatus68{font-size:14px;line-height:1.7;overflow-wrap:anywhere;color:#28533b}
 .restore68{border-top:1px solid #d3dfd4;margin-top:16px;padding-top:8px}
 #rpBackup{min-height:48px}
+</style>
+<script>
+// Keep the same controls and handlers; group them into two compact columns.
+(function(){
+ const mode=document.getElementById('financeMode54'),period=document.getElementById('financePeriod62');
+ const controls=document.createElement('div');controls.className='finance69-controls';mode.before(controls);
+ for(const input of [mode,period]){const box=document.createElement('div'),label=document.querySelector('label[for="'+input.id+'"]');box.append(label,input);controls.append(box);}
+})();
+</script>
+<style>
+/* iPhone screenshot review: reduce vertical overhead without shrinking touch targets. */
+#finance54{padding:14px;margin-top:0}
+#finance54>.s55-eyebrow{margin:0 0 4px;font-size:10px}
+#finance54 h2{font-size:24px;line-height:1.25}
+#finance54>h2+p.caption{display:none}
+#financeModeBanner66{font-size:13px;line-height:1.5;padding:8px 10px;margin:10px 0}
+.finance69-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.finance69-controls>div{min-width:0}
+.finance69-controls label{font-size:12px;margin:0 0 5px}
+.finance69-controls select{min-height:48px;padding:9px 22px 9px 8px;font-size:16px}
+#financePeriodLabel62{margin:8px 0;font-size:12px}
+#finance54 .finance54-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+#finance54 .finance54-grid>.kpi{padding:10px 7px;border-radius:12px;min-width:0}
+#finance54 .finance54-grid>.kpi:last-child{grid-column:auto}
+#finance54 .finance54-grid .caption{font-size:11px}
+#finance54 .finance54-grid strong,#financeNet54{font-size:clamp(18px,5vw,24px);margin-top:5px;line-height:1.35}
+#financePending66{padding:8px 10px;margin:8px 0;font-size:12px}
+#financeNote54{font-size:12px;margin:8px 0}
+@media(max-width:480px){#live{padding:8px}.r56-actions{margin:10px 0}}
+@media(max-width:340px){.finance69-controls{grid-template-columns:1fr}}
 </style>
 </body></html>
