@@ -442,7 +442,7 @@ function trioTickets29(mode, pool, axis, a, b, c){
 <link rel="icon" type="image/png" href="./assets/keiba-nine-icon-v1.png">
 <meta name="apple-mobile-web-app-title" content="KEIBA NINE">
 </head><body><main id="app"><header class="brand"><div><div class="logo">KEIBA NINE</div><div class="sub">レースを選ぶ。評価を見る。記録する。</div></div><span class="tag">BETA · 5.7</span></header>
-<section id="home" class="screen active"><section class="panel" id="simple52"><div class="s55-heading"><div><p class="s55-eyebrow">RACE PICK</p><h2>レースを選ぶ</h2></div><span class="s55-step">01 / 予想</span></div><div class="cols"><div><label for="raceDate54">日付</label><select id="raceDate54"></select></div><div><label for="raceTrack54">競馬場</label><select id="raceTrack54"></select></div></div><div class="cols"><div><label for="simple52Pick">レース</label><select id="simple52Pick"></select></div><div><label>レース移動</label><button class="btn secondary full" type="button" id="nextRace54">次のレース →</button></div></div><div id="simple52Body" aria-live="polite"></div></section><details><summary style="padding:16px">記録・収支・詳しい操作</summary><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
+<section id="home" class="screen active"><section class="panel" id="simple52"><div class="s55-heading"><div><p class="s55-eyebrow">RACE PICK</p><h2>レースを選ぶ</h2></div><span class="s55-step">01 / 予想</span></div><div class="cols"><div><label for="raceDate54">日付</label><select id="raceDate54"></select></div><div><label for="raceTrack54">競馬場</label><select id="raceTrack54"></select></div></div><div class="cols"><div><label for="simple52Pick">レース</label><select id="simple52Pick"></select></div><div><label>レース移動</label><button class="btn secondary full" type="button" id="nextRace54">次のレース →</button></div></div><p id="feedSync72" class="caption" role="status">配信を確認中…</p><div id="simple52Body" aria-live="polite"></div></section><details><summary style="padding:16px">記録・収支・詳しい操作</summary><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
 <section class="panel" id="flow50" aria-label="BETA 5.1 個人実戦の運用ガイド">
  <div class="f50-top"><h3>🏇 BETA 5.1｜予想の自動保存・馬券連携</h3><span class="f50-chip">個人用・予想保存</span></div>
  <p class="f50-note">実際に端末へ保存した記録の進行状況を確認できるで。ここから保存・投票・結果確定・Google送信はしません。既存の画面へ移動するだけやで。</p>
@@ -2645,7 +2645,8 @@ const row42=(r,i,expectedDate)=>{
 
  return {...r,date,track,race,first:a,second:b,third:c,ranking,tri42:tri,trio42:trio};
 };
-let busy=false;
+let busy=false,lastAttempt72=0,lastPayload72='';
+const sync72=text=>{const node=$('feedSync72');if(node)node.textContent=text;};
 function render42(data){
  const list=$('autoList42');
  const nowJst=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
@@ -2670,30 +2671,41 @@ function render42(data){
  return info;
 }
 async function reload42(){
- if(busy)return;busy=true;const status=$('autoStatus42'),list=$('autoList42');
+ if(busy)return;busy=true;lastAttempt72=Date.now();const status=$('autoStatus42'),list=$('autoList42');sync72('配信を確認中…');
  status.textContent='GitHubの自動予想ファイルを確認中…';
  try{
-  const response=await fetch(URL42+'?v='+Date.now(),{cache:'no-store'});
-  if(response.status===404){status.textContent='自動予想はまだ配信されていません。GitHubに予想ファイルを公開するとここに表示されるで。';list.innerHTML='<div class="empty">自動配信の設定待ち｜端末の既存記録はそのまま残ります。</div>';return}
+  const controller72=new AbortController(),timeout72=setTimeout(()=>controller72.abort(),20000);
+  let response,raw;try{response=await fetch(URL42+'?v='+Date.now(),{cache:'no-store',signal:controller72.signal});if(response.ok)raw=await response.text();}finally{clearTimeout(timeout72);}
+  if(response.status===404){sync72('配信待ち｜自動再確認します');status.textContent='自動予想はまだ配信されていません。GitHubに予想ファイルを公開するとここに表示されるで。';list.innerHTML='<div class="empty">自動配信の設定待ち｜端末の既存記録はそのまま残ります。</div>';return}
   if(!response.ok)throw Error('通信エラー：HTTP '+response.status);
-  const raw=await response.text();if(raw.length>500000)throw Error('予想ファイルが大きすぎます');
+  if(raw.length>500000)throw Error('予想ファイルが大きすぎます');
   const obj=JSON.parse(raw);
   if(!obj||obj.schema!==1||!Array.isArray(obj.forecasts)||obj.forecasts.length>120||!obj.generatedAt||!Number.isFinite(Date.parse(obj.generatedAt)))throw Error('自動公開ファイルの形式が不正です');
   if(typeof obj.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(obj.date))throw Error('対象日がありません');
   const converted=obj.forecasts.map((r,i)=>row42(r,i,obj.date));
   const keys=converted.map(r=>r.date+'|'+r.track+'|'+r.race+'|'+r.recordType);
   if(new Set(keys).size!==keys.length)throw Error('同一レースが重複しています');
-  const saved51=window.receiveFeed51({...obj,forecasts:converted});
+  const saved51=raw===lastPayload72?0:window.receiveFeed51({...obj,forecasts:converted});lastPayload72=raw;
   const n=render42(converted);
   const when=new Date(obj.generatedAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  sync72(`最終確認 ${new Date().toLocaleTimeString('ja-JP',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit'})}｜配信対象 ${obj.date}｜表示中は5分ごとに確認`);
   status.textContent=`${obj.date}｜${converted.length}R取得（見送り以外${n}R）｜作成 ${when}｜新規保存 ${saved51}R（未購入・仮想検証）`;
- }catch(err){status.textContent='配信データを確認できません：'+err.message;list.innerHTML='<div class="empty">自動配信は未確認。端末に保存した予想・実戦記録には影響ありません。</div>'}
+ }catch(err){sync72('更新を確認できません｜表示中の予想は最新未確認。再接続時に確認します');status.textContent='配信データを確認できません：'+err.message;list.innerHTML='<div class="empty">自動配信は未確認。端末に保存した予想・実戦記録には影響ありません。</div>'}
  finally{busy=false}
 }
 $('autoList42').addEventListener('click',event=>{
  const b=event.target.closest('[data-feed51-date]');if(b)window.openFeed51(b.dataset.feed51Date,b.dataset.feed51Track,Number(b.dataset.feed51Race));
 });
 $('autoRefresh42').addEventListener('click',reload42);
+function autoReload72(){
+ if(document.hidden||navigator.onLine===false||Date.now()-lastAttempt72<30000)return;
+ reload42();
+}
+setInterval(autoReload72,5*60*1000);
+document.addEventListener('visibilitychange',autoReload72);
+window.addEventListener('pageshow',autoReload72);
+window.addEventListener('online',autoReload72);
+
 const publishedButton=document.querySelector('.tabs button[data-screen="published"]');
 if(publishedButton)publishedButton.addEventListener('click',reload42);
 reload42();
