@@ -114,5 +114,13 @@ const dom=new JSDOM(html,{url:'https://example.com/',runScripts:'dangerously',pr
  ok(d.getElementById('copyTicket63').disabled);ok(d.querySelector('.roster60').textContent.includes('取消・除外'));ok(d.getElementById('saveRecommendation54').disabled);ok(d.querySelector('.s55-ticket h3').textContent.includes('確認用'));
  const updated=w.sourceRecommendation54(d.getElementById('simple52Pick').value);assert.throws(()=>w.saveRecommendation54(updated.id,w.identity54(updated)));checks++;assert.throws(()=>w.saveRecommendation54(updated.id,oldKey));checks++;
  ok(JSON.stringify(w.KEIBA_NINE_23_TEST.getRaces().find(f=>f.id===chosen.id).tri)===JSON.stringify(chosen.tri));
+ w.show('live');ok(!d.getElementById('backupTools68').open);
+ d.getElementById('backupOpen68').click();ok(d.getElementById('backupTools68').open);ok(d.activeElement.id==='rpBackup');
+ let backupBlob;w.URL.createObjectURL=blob=>{backupBlob=blob;return 'blob:test'};w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){};
+ const priorBackup=w.localStorage.getItem('keiba_nine_beta23_local_v1');
+ d.getElementById('rpBackup').click();ok(!!backupBlob);ok(d.getElementById('backupStatus68').textContent.includes('保存完了はアプリから確認できません'));
+ const backupText=await new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(backupBlob);});
+ const exported=JSON.parse(backupText),original=JSON.parse(priorBackup);ok(JSON.stringify(exported.forecasts)===JSON.stringify(original.forecasts));ok(JSON.stringify(exported.results)===JSON.stringify(original.results));
+ const restore=d.getElementById('rpImport');ok(!restore.closest('details').open);w.confirm=()=>false;Object.defineProperty(restore,'files',{configurable:true,value:[{size:backupText.length,text:async()=>backupText}]});restore.dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));ok(w.localStorage.getItem('keiba_nine_beta23_local_v1')===priorBackup);
  ok(errors.length===0);console.log(checks+' full-page DOM interaction checks passed');
  }finally{dom.window.close()}})().catch(e=>{console.error(e);process.exitCode=1});

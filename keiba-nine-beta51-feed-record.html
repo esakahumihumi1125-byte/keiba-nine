@@ -1533,7 +1533,7 @@ function exportCsv(type){let head=[],rows=[];
  downloadFile('keiba-nine-v23-'+type+'-'+japaneseDate()+'.csv',csvRows([head,...rows]),'text/csv;charset=utf-8');
 }
 function sampleTest(){const f={tri:combosTri([2,3],[2,3,8],[2,3,8,10]),trio:combosTrio([2,3,8,10])};const r={one:2,two:3,three:10,triDividend:1200,trioDividend:360};return adjudicate(f,r)}
-function safeBackup(){downloadFile('keiba-nine-v23-private-'+japaneseDate()+'.json',JSON.stringify({schema:1,exportedAt:new Date().toISOString(),forecasts:R23.forecasts,results:R23.results},null,2),'application/json;charset=utf-8');}
+function safeBackup(){if(storageError51)throw Error('保存データの読み取りエラーがあります。空の内容で書き出さないよう停止しました。');downloadFile('keiba-nine-v23-private-'+japaneseDate()+'.json',JSON.stringify({schema:1,exportedAt:new Date().toISOString(),forecasts:R23.forecasts,results:R23.results},null,2),'application/json;charset=utf-8');}
 // Save snapshot (never update previous versions)
 el('realPredictionForm').addEventListener('submit',e=>{e.preventDefault();let obj;try{obj=readForm();}catch(err){alert(err.message);return;}
  const now=new Date().toISOString(),existing=R23.forecasts.filter(f=>raceKey(f)===raceKey(obj)),v=Math.max(0,...existing.map(f=>Number(f.version)||0))+1;
@@ -1554,7 +1554,7 @@ el('realResultForms').addEventListener('submit',e=>{
  R23.results.push(o);
  if(persist23())alert('結果を端末へ保存したで。公式結果との自動照合ではないので、配当や着順をもう一度確認してな。');
 });
-el('rpBackup').onclick=safeBackup;
+el('rpBackup').onclick=()=>{const status=el('backupStatus68');try{safeBackup();if(status)status.textContent='書き出しを開始しました。Safariのダウンロード先・「ファイル」アプリでJSONファイルを確認してください。保存完了はアプリから確認できません。';}catch(e){if(status)status.textContent='書き出せませんでした：'+e.message;else alert('書き出せませんでした：'+e.message);}};
 el('rpExportForecast').onclick=()=>exportCsv('pred');el('rpExportBets').onclick=()=>exportCsv('bets');el('rpExportResult').onclick=()=>exportCsv('result');
 el('rpImport').addEventListener('change',async e=>{
  const file=e.target.files?.[0];if(!file)return;
@@ -1563,7 +1563,7 @@ el('rpImport').addEventListener('change',async e=>{
   if(data.schema!==1||!Array.isArray(data.forecasts)||!Array.isArray(data.results)||data.forecasts.length>3000||data.results.length>3000)throw Error('BETA 2.3形式のバックアップではないで。');
   for(const f of data.forecasts){if(typeof f.date!=='string'||typeof f.track!=='string'||!TRACKS.includes(f.track)||!Array.isArray(f.tri)||!Array.isArray(f.trio)||f.tri.length>1000||f.trio.length>1000||[...f.tri,...f.trio].some(t=>!Array.isArray(t)||t.length!==3||t.some(n=>!isHorse(n))))throw Error('バックアップの予想データが不正やで。');}
   for(const r of data.results)if(!Number.isInteger(Number(r.one))||!isHorse(Number(r.one)))throw Error('結果データが不正やで。');
-  if(!confirm('BETA 2.9.1の実戦記録をバックアップの内容で置き換えるで。復元する？'))return;
+  if(!confirm('保存した予想・購入登録・結果を、このバックアップの内容で置き換えます。復元しますか？'))return;
   const previous={forecasts:R23.forecasts,results:R23.results,error:storageError51};
   R23.forecasts=data.forecasts;R23.results=data.results;storageError51=false;
   if(persist23())alert('実戦記録を復元できたで。');
@@ -3406,7 +3406,15 @@ reload42();
  live.querySelector(':scope > .heading')?.remove();live.querySelector(':scope > .hero')?.remove();
  const sync=live.querySelector('.save271');if(sync)fold(live,'保存・バックアップの状態','sync56').append(sync);
  const saved=list.closest('.panel');saved.id='savedPanel56';saved.querySelector('.flex>strong').textContent='保存した予想';
- const backup=get('rpBackup');get('rpImport').closest('.panel').prepend(backup);
+ const backup=get('rpBackup'),backupPanel=get('rpImport').closest('.panel');backupPanel.prepend(backup);backup.textContent='記録のバックアップを書き出す';backup.classList.add('full');
+ backupPanel.querySelector('h3').textContent='記録をファイルに保存';backupPanel.prepend(backupPanel.querySelector('h3'));
+ const backupGuide=document.createElement('p');backupGuide.className='caption';backupGuide.textContent='保存した予想・買い目・購入登録・結果の履歴を1つのJSONファイルにします。WIN5・設定・未保存の配信予想は含みません。';backup.before(backupGuide);
+ const backupStatus=document.createElement('p');backupStatus.id='backupStatus68';backupStatus.setAttribute('role','status');backup.after(backupStatus);
+ const restoreInput=get('rpImport'),restoreLabel=restoreInput.previousElementSibling;
+ const restore=document.createElement('details');restore.className='restore68';restore.innerHTML='<summary>バックアップから記録を戻す</summary><p class="caption">現在の予想・結果の記録を置き換えます。先に今の記録を書き出してください。ファイルを選んだ後、復元するか確認します。</p>';backupPanel.append(restore);restore.append(restoreLabel,restoreInput);
+ const backupFold=document.createElement('details');backupFold.id='backupTools68';backupFold.className='r56-fold';backupFold.innerHTML='<summary>記録のバックアップ・復元</summary>';saved.after(backupFold);backupFold.append(backupPanel);
+ const backupOpen=document.createElement('button');backupOpen.type='button';backupOpen.className='btn secondary';backupOpen.id='backupOpen68';backupOpen.textContent='記録をバックアップ';saved.querySelector('.flex').append(backupOpen);backupOpen.onclick=()=>{backupFold.open=true;backup.scrollIntoView({block:'center'});backup.focus({preventScroll:true});};
+
  const filters=document.createElement('div');filters.className='r56-filters';filters.innerHTML='<div><label for="recordDate56">開催日</label><select id="recordDate56"><option value="">すべての日付</option></select></div><div><label for="recordKind56">表示する記録</label><select id="recordKind56"><option value="live">実レース</option><option value="test">架空テスト</option><option value="legacy">旧・未分類</option><option value="">すべて</option></select></div>';list.before(filters);
  get('financeDayWrap62').append(get('recordDate56').parentElement);
  function periodView62(){const type=get('financePeriod62').value;get('financeMonthWrap62').hidden=type!=='month';get('financeDayWrap62').hidden=type!=='day';}
@@ -3563,5 +3571,14 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 .purchase67-badge{font-size:13px;font-weight:600;color:#52665b;margin:8px 0 0;line-height:1.6}
 .purchase67-badge[data-purchased="true"]{color:#1e603c;background:#e5f2e5;border:1px solid #afcdb4;border-radius:8px;padding:6px 10px;display:inline-block}
 #recordPurchase67{min-height:48px}
+</style>
+<style>
+#backupTools68{background:#fff;border-color:#bdcec1}
+#backupTools68>.panel{padding:8px 0;border:0;box-shadow:none;margin:0}
+#backupTools68 summary{min-height:48px;cursor:pointer}
+#backupOpen68{min-height:44px;font-size:13px}
+#backupStatus68{font-size:14px;line-height:1.7;overflow-wrap:anywhere;color:#28533b}
+.restore68{border-top:1px solid #d3dfd4;margin-top:16px;padding-top:8px}
+#rpBackup{min-height:48px}
 </style>
 </body></html>
