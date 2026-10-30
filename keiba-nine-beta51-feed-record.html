@@ -2246,7 +2246,7 @@ function state54(r,now=Date.now()){
  const off=Date.parse(r.date+'T'+r.off+':00+09:00');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(r.off)||!Number.isFinite(off))return {label:'データ待ち',canSave:false,reason:'発走日時が未確認です。'};
  if(now>=off)return {label:'発走後・確認用',canSave:false,reason:'発走後はおすすめ予想を新規保存できません。'};
- if(r.status!=='final')return {label:'暫定',canSave:false,reason:'予想が確定するまで保存を待ってください。'};
+ if(r.status!=='final')return {label:'暫定',canSave:false,reason:r.reason||'予想が確定するまで保存を待ってください。'};
  const bets=recommend52(r),ranked=new Set(Object.values(ranks54(r)).flat());
  if(!bets.length)return {label:'データ待ち',canSave:false,reason:'着順候補が未登録です。'};
  if(bets.some(b=>b.some(n=>!ranked.has(n))))return {label:'評価待ち',canSave:false,reason:'買い目に総合評価が未登録の馬がいます。未取得の評価は自動補完しません。'};
@@ -2572,7 +2572,7 @@ window.receiveFeed51=function(feed){
  if(new Set(keys).size!==keys.length)throw Error('配信に同一レースが重複しています');
  const now=Date.now(),generated=Date.parse(feed.generatedAt);
  if(!Number.isFinite(generated)||generated>now)throw Error('配信作成日時が不正です');
- const candidates=feed.forecasts.filter(r=>r.recordType==='live'&&r.status==='final').map((raw,i)=>{
+ const candidates=feed.forecasts.filter(r=>r.recordType==='live').map((raw,i)=>{
   const r=norm40(raw,i);
   if(!r.off||!before40(r)||generated>=when40(r))return null;
   if(!r.evidence?.references?.length)throw Error('確定予想には確認資料が必要です');
@@ -2589,7 +2589,8 @@ window.receiveFeed51=function(feed){
    const next=[...rows,saved];
    localStorage.setItem(K,JSON.stringify({schema:1,forecasts:next}));rows=next;
   }
-  if(window.saveFeedForecast51(saved))added++;
+  // Draft/skip source cards are visible, but never enter the personal forecast ledger.
+  if(saved.status==='final'&&window.saveFeedForecast51(saved))added++;
  }
  render40();return added;
 };

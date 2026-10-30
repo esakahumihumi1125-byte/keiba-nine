@@ -1,49 +1,34 @@
 {
   "schema": 1,
-  "date": "2026-11-01",
-  "generatedAt": "2026-10-24T03:00:00+00:00",
+  "date": "2026-10-31",
+  "generatedAt": "2026-10-30T09:21:32.887Z",
   "source": {
-    "name": "合成テスト",
-    "rightsNote": "架空の合成データのみ"
+    "name": "JRA出馬表を参照した暫定評価",
+    "rightsNote": "公開出馬表の事実を必要最小限で要約。独自の暫定所見であり公式予想ではありません。"
   },
   "forecasts": [
     {
-      "date": "2026-11-01",
+      "date": "2026-10-31",
       "track": "京都",
       "race": 1,
-      "off": "10:00",
-      "recordType": "test",
+      "off": "10:05",
+      "recordType": "live",
       "status": "draft",
       "confidence": "C",
       "intent": "参考",
       "ranking": [
-        2,
-        3,
-        8,
+        5,
+        7,
+        13,
+        14,
+        1,
         10
       ],
-      "first": [
-        2,
-        3
-      ],
-      "second": [
-        2,
-        3,
-        8
-      ],
-      "third": [
-        2,
-        3,
-        8,
-        10
-      ],
+      "first": [],
+      "second": [],
+      "third": [],
       "trioMode": "ボックス",
-      "trioPool": [
-        2,
-        3,
-        8,
-        10
-      ],
+      "trioPool": [],
       "trioAxis": [],
       "trioFormation": [
         [],
@@ -52,41 +37,142 @@
       ],
       "rankS": [],
       "rankA": [
-        2,
-        3
+        5
       ],
-      "triPoints": 8,
-      "trioPoints": 4,
+      "rankB": [
+        7,
+        13,
+        14,
+        1,
+        10
+      ],
+      "triPoints": 0,
+      "trioPoints": 0,
+      "reason": "近走からの暫定評価。主要候補の今回の調教が未確認のため、買い目は保留。",
+      "training": "①の最終追い切りのみ収録。⑤⑦⑬⑭⑩の今回の追い切りは未確認。",
       "evaluations": {
         "recent": {
-          "grade": "未検証",
-          "note": "架空の動作テスト用です。実在のレース分析ではありません。"
+          "grade": "B",
+          "note": "公開出馬表から候補馬の実績を比較。全馬の精密評価は未完了。"
         },
         "training": {
           "grade": "未検証",
-          "note": "架空データ"
+          "note": "①の最終追い切りのみ収録。⑤⑦⑬⑭⑩の今回の追い切りは未確認。"
         },
-        "course": {
+        "ground": {
           "grade": "未検証",
-          "note": ""
+          "note": "当日の馬場は未確認。"
         }
       },
       "horses": [
         {
-          "number": 2,
-          "name": "テストホースA",
-          "overall": "未検証",
-          "strength": "架空テスト",
-          "risk": "実在の馬ではありません"
+          "number": 5,
+          "name": "マルモリマイベスト",
+          "overall": "A",
+          "strength": "距離実績から暫定の中心。",
+          "risk": "今回の調教と当日の状態は未確認。",
+          "recentRuns": [
+            {
+              "date": "2026-09-05",
+              "source": "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0108202604100120261031/52",
+              "detail": "阪神ダ1400mで2着、勝ち馬とタイム差なし。"
+            }
+          ],
+          "workouts": []
+        },
+        {
+          "number": 7,
+          "name": "シムサラビン",
+          "overall": "B",
+          "strength": "初戦からの上積みを検討。",
+          "risk": "1400mへの延長が未確認。",
+          "recentRuns": [
+            {
+              "date": "2026-10-10",
+              "source": "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0108202604100120261031/52",
+              "detail": "京都ダ1200mの新馬で4着。"
+            }
+          ],
+          "workouts": []
+        },
+        {
+          "number": 13,
+          "name": "ジャスコヒラリアス",
+          "overall": "B",
+          "strength": "同コース経験を評価。",
+          "risk": "勝ち切る根拠は不足。",
+          "recentRuns": [
+            {
+              "date": "2026-10-03",
+              "source": "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0108202604100120261031/52",
+              "detail": "京都ダ1400mで4着。"
+            }
+          ],
+          "workouts": []
+        },
+        {
+          "number": 14,
+          "name": "ピコジャック",
+          "overall": "B",
+          "strength": "相手候補。",
+          "risk": "距離延長と調教の確認が必要。",
+          "recentRuns": [
+            {
+              "date": "2026-10-18",
+              "source": "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0108202604100120261031/52",
+              "detail": "京都ダ1200mで4着。"
+            }
+          ],
+          "workouts": []
+        },
+        {
+          "number": 1,
+          "name": "スリーオブスペイズ",
+          "overall": "B",
+          "strength": "同コース経験のある相手候補。",
+          "risk": "先行争いによる消耗に注意。",
+          "recentRuns": [
+            {
+              "date": "2026-10-04",
+              "source": "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0108202604100120261031/52",
+              "detail": "京都ダ1400mの新馬で6着。"
+            }
+          ],
+          "workouts": [
+            {
+              "date": "2026-10-27",
+              "source": "https://race.sp.netkeiba.com/?pid=oikiri&race_id=202608041001&rf=race_toggle_menu",
+              "detail": "CW重、6F84.3秒、終い1F12.5秒、馬なり。"
+            }
+          ],
+          "training": "C"
+        },
+        {
+          "number": 10,
+          "name": "ダイユウエゾフジ",
+          "overall": "B",
+          "strength": "相手候補として比較。",
+          "risk": "中心に置くには根拠不足。",
+          "recentRuns": [
+            {
+              "date": "2026-10-17",
+              "source": "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0108202604100120261031/52",
+              "detail": "京都ダ1400mで5着。"
+            }
+          ],
+          "workouts": []
         }
       ],
       "racePlan": {
-        "scenario": "架空の展開イメージ",
-        "verdict": "絶対に購入しないでください"
+        "scenario": "先行馬の競り合いを含む展開評価は未確定。",
+        "risks": "調教不足・当日状態未確認",
+        "verdict": "参考段階。買い目の提案と保存は保留。"
       },
       "evidence": {
+        "checkedAt": "2026-10-30T09:21:32.887Z",
         "references": [
-          "架空の動作確認用データ"
+          "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0108202604100120261031/52",
+          "https://race.sp.netkeiba.com/?pid=oikiri&race_id=202608041001&rf=race_toggle_menu"
         ]
       }
     }
