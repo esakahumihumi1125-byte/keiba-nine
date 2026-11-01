@@ -1,0 +1,72 @@
+name: KEIBA NINE - Approved Forecast Publication
+
+on:
+  push:
+    paths:
+      - scripts/publish_approved_feed.py
+      - tests/test_approved_feed_publisher.py
+      - .github/workflows/keiba-nine-approved-publish.yml
+  pull_request:
+    paths:
+      - scripts/publish_approved_feed.py
+      - tests/test_approved_feed_publisher.py
+      - .github/workflows/keiba-nine-approved-publish.yml
+  workflow_dispatch:
+  schedule:
+    # GitHub Actions cron uses UTC. About every 30 minutes 07:12-16:42 JST.
+    # GitHub may delay runs. This does not guarantee 10 minutes before off.
+    - cron: "12,42 22-23,0-7 * * *"
+
+jobs:
+  test:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate publisher and regression tests
+        run: |
+          python -m py_compile scripts/publish_approved_feed.py
+          python -m unittest discover -s tests -p 'test_approved_feed_publisher.py' -v
+
+  publish:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 5
+    concurrency:
+      group: keiba-nine-approved-feed-main
+      cancel-in-progress: false
+    env:
+      KEIBA_NINE_PUBLIC_FEED_URL: ${{ secrets.KEIBA_NINE_PUBLIC_FEED_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check approved public feed source
+        run: |
+          if [ -z "$KEIBA_NINE_PUBLIC_FEED_URL" ]; then
+            echo "No authorized source configured: existing feed unchanged."
+            exit 0
+          fi
+          python scripts/publish_approved_feed.py
+      - name: Commit changed future predictions only
+        run: |
+          git add -- keiba-nine-auto-feed.json
+          if git diff --cached --quiet; then
+            echo "No forecast changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update authorized future KEIBA NINE forecast feed"
+          git push origin HEAD:main
