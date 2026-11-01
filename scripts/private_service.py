@@ -11,6 +11,7 @@ import os
 from urllib.parse import parse_qs
 
 from jrdb_private import fetch_race_program, JRDBError
+from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError
 from research_planner import plan_race
 
 MAX_BODY = 131072
@@ -22,7 +23,7 @@ async function request(path){const r=await fetch(path,{credentials:'same-origin'
 let enabled=false;
 request('/api/status').then(s=>{enabled=s.jrdbConfigured;el('status').textContent=enabled?'接続設定あり（実際の接続は取得ボタンで確認）':'JRDBは未設定です。契約と接続設定が必要です。';el('load').disabled=!enabled;}).catch(e=>el('status').textContent=e.message);
 el('date').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
-el('load').onclick=async()=>{el('load').disabled=true;el('message').textContent='取得中…';el('races').replaceChildren();try{if(!el('date').value)throw Error('開催日を選んでください');const data=await request('/api/jrdb/program?date='+encodeURIComponent(el('date').value.replaceAll('-','')));el('message').textContent=data.rows.length+'件取得しました。まだ予想の評価は行っていません。';for(const row of data.rows){const div=document.createElement('div');div.className='race';div.textContent=String(row.racekey||'レース番号未取得')+' / 発走 '+String(row.post_time||'未取得');el('races').append(div);}}catch(e){el('message').textContent=e.message;}finally{el('load').disabled=!enabled;}};
+el('load').onclick=async()=>{el('load').disabled=true;el('message').textContent='取得中…';el('races').replaceChildren();try{if(!el('date').value)throw Error('開催日を選んでください');const data=await request('/api/jrdb/program?date='+encodeURIComponent(el('date').value.replaceAll('-','')));el('message').textContent=data.rows.length+'レースの番組情報を確認。馬名・近走・調教・買い目はまだ未確認です。';for(const row of data.rows){const div=document.createElement('div');div.className='race';const name=row.race_name||'レース名未確認';const dist=row.distance_m==null?'距離未確認':row.distance_m+'m';div.textContent=row.track+row.race+'R '+name+'｜'+(row.surface||'種別未確認')+dist+'｜発走 '+(row.post_time||'未確認')+'｜予想：未作成';el('races').append(div);}}catch(e){el('message').textContent=e.message;}finally{el('load').disabled=!enabled;}};
 '''
 
 
@@ -83,9 +84,10 @@ def create_app(settings=None):
                 return response('400 Bad Request', {'error': '開催日を1つ指定してください。'})
             try:
                 rows = fetch_race_program(query['date'][0])
-            except JRDBError:
-                return response('502 Bad Gateway', {'error': 'JRDBから取得できませんでした。契約・接続設定・開催日を確認してください。'})
-            return response('200 OK', {'rows': rows})
+                preview = normalize_program_rows(rows, query['date'][0])
+            except (JRDBError, ProgrammeFormatError):
+                return response('502 Bad Gateway', {'error': 'JRDB番組データを安全に確認できませんでした。API接続・開催日・応答形式を確認してください。'})
+            return response('200 OK', {'rows': preview, 'programmeOnly': True})
         if method == 'POST' and path == '/api/research':
             if environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower() != 'application/json':
                 return response('415 Unsupported Media Type', {'error': 'JSON形式が必要です。'})
