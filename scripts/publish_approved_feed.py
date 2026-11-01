@@ -31,8 +31,9 @@ def read_source(url):
     except ValueError as ex:
         if str(ex) == "IP-address source URLs are not allowed":
             raise
-    if host in ("localhost", "localhost.localdomain") or "." not in host:
-        raise ValueError("A public DNS hostname is required")
+    approved = os.environ.get("KEIBA_NINE_PUBLIC_FEED_HOST", "").lower().rstrip(".")
+    if not approved or host != approved or host in ("localhost", "localhost.localdomain"):
+        raise ValueError("Source must match the explicitly approved public hostname")
     request = Request(url, headers={"User-Agent": "KEIBA-NINE-public-feed/1"})
     with build_opener(NoRedirect()).open(request, timeout=15) as response:
         if response.status != 200:
@@ -100,8 +101,8 @@ def trio_count(row):
     return len(bets)
 
 
-def validate(payload, now):
-    """Validate new future race forecasts against the app's existing schema."""
+def validate_header(payload, now):
+    """Validate source authorization and fresh timestamp, even on no-op runs."""
     if not isinstance(payload, dict) or payload.get("schema") != 1:
         raise ValueError("Expected public feed schema 1")
     source = payload.get("source")
@@ -123,6 +124,12 @@ def validate(payload, now):
         raise ValueError("Stale or future generation timestamp")
     if payload.get("sample") or payload.get("testOnly"):
         raise ValueError("Sample/test feed cannot be published as live")
+    return target
+
+
+def validate(payload, now):
+    """Validate future race forecasts against the app's existing schema."""
+    target = validate_header(payload, now)
     rows = payload.get("forecasts")
     if not isinstance(rows, list) or not 1 <= len(rows) <= 120:
         raise ValueError("Expected 1-120 race forecasts")
@@ -195,13 +202,13 @@ def post_time(date, row):
 
 
 def publish(payload, existing, now):
-    """Merge authorized future rows while preserving ALL previously started races."""
+    """Only publish future races, preserving started races exactly as they were."""
     if now.tzinfo is None or not isinstance(payload, dict):
         raise ValueError("Timezone-aware now and source object required")
-    target = payload.get("date")
+    target = validate_header(payload, now)
     incoming = payload.get("forecasts")
-    if not isinstance(incoming, list) or not incoming:
-        raise ValueError("Source has no forecast rows")
+    if not isinstance(incoming, list) or not 1 <= len(incoming) <= 120:
+        raise ValueError("Source must contain 1-120 forecast rows")
     old = {}
     if isinstance(existing, dict) and existing.get("date") == target:
         for row in existing.get("forecasts", []):
@@ -224,38 +231,32 @@ def publish(payload, existing, now):
             if row != original:
                 raise ValueError("Started race cannot be altered")
             continue
+        if post_time(target, row) <= now.astimezone(JST):
+            raise ValueError("Cannot first publish a started race")
         fresh.append(row)
-    # Always validate source rights and metadata, even if every race is unchanged.
-    check = dict(payload)
-    check["forecasts"] = fresh if fresh else [dict(incoming[0])]
     if fresh:
-        validate(check, now)
+        validate({**payload, "forecasts": fresh}, now)
     else:
-        if not old or any(old.get((r.get("track"), r.get("race"))) != r for r in incoming):
-            raise ValueError("No future races to publish")
-        # Validate source metadata using an unchanged started row without attempting
-        # a post-time validation; all unchanged rows already exist in Git history.
-        check["forecasts"] = []
-        future_old = next((r for r in incoming if post_time(target, r) > now.astimezone(JST)), None)
-        if future_old:
-            validate({**check, "forecasts": [future_old]}, now)
-        else:
-            if (not isinstance(payload.get("source"), dict) or
-                    payload["source"].get("publicReleaseApproved") is not True or
-                    payload["source"].get("originalForecast") is not True):
-                raise ValueError("Public approval missing")
-            return None
+        if not old:
+            raise ValueError("No eligible races")
+        if any(old.get((r.get("track"), r.get("race"))) != r for r in incoming):
+            raise ValueError("Only unchanged historical rows may be skipped")
     merged = dict(old)
     for row in fresh:
         merged[(row["track"], row["race"])] = row
-    if not 1 <= len(merged) <= 120:
+    if len(merged) > 120:
         raise ValueError("Merged feed race count invalid")
     updated = dict(payload)
-    updated["forecasts"] = sorted(merged.values(),
-                                  key=lambda r: (r["off"], r["track"], r["race"]))
-    if (isinstance(existing, dict) and existing.get("date") == target and
-            existing.get("forecasts") == updated["forecasts"] and
-            existing.get("source") == updated.get("source")):
+    updated["forecasts"] = sorted(
+        merged.values(), key=lambda r: (r["off"], r["track"], r["race"])
+    )
+    if isinstance(existing, dict) and existing.get("date") == target and (
+        existing.get("forecasts") == updated["forecasts"] and
+        existing.get("source") == updated.get("source")
+    ):
+        return None
+    if not fresh:
+        # Do not silently rewrite a feed consisting solely of started races.
         return None
     return updated
 
