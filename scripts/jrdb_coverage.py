@@ -39,7 +39,8 @@ def audit_race_coverage(programme, entries, requested_date):
         key = raw.get("racekey")
         date = raw.get("racedate")
         number = raw.get("horse_number")
-        if key not in horses or date != requested_date:
+        if (not isinstance(key, str) or not KEY.fullmatch(key) or
+                key not in horses or date != requested_date):
             raise CoverageError("Horse entry belongs to another race or date")
         if not isinstance(number, str) or not NUMBER.fullmatch(number):
             raise CoverageError("Invalid horse number")
