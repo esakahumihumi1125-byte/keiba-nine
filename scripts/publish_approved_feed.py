@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish explicitly approved, original public forecasts; never fetch JRDB here."""
+"""Publish original, authorized public predictions; no race scraping or paid AI."""
 import argparse
 import ipaddress
 import json
@@ -101,145 +101,163 @@ def trio_count(row):
 
 
 def validate(payload, now):
+    """Validate new future race forecasts against the app's existing schema."""
     if not isinstance(payload, dict) or payload.get("schema") != 1:
-        raise ValueError("Schema 1 public feed required")
+        raise ValueError("Expected public feed schema 1")
     source = payload.get("source")
-    if (not isinstance(source, dict) or source.get("publicReleaseApproved") is not True
-            or not source.get("name") or not source.get("rightsNote")):
-        raise ValueError("Explicit public publication approval and attribution required")
+    if (not isinstance(source, dict) or source.get("publicReleaseApproved") is not True or
+            source.get("originalForecast") is not True or
+            not isinstance(source.get("name"), str) or not source["name"].strip() or
+            not isinstance(source.get("rightsNote"), str) or not source["rightsNote"].strip()):
+        raise ValueError("Explicit approval for original public forecasts required")
     target = payload.get("date")
     try:
-        date = datetime.strptime(target, "%Y-%m-%d").date()
+        target_date = datetime.strptime(target, "%Y-%m-%d").date()
     except (TypeError, ValueError) as exc:
         raise ValueError("Invalid race date") from exc
     today = now.astimezone(JST).date()
-    if date not in (today, today + timedelta(days=1)):
-        raise ValueError("Only today's or tomorrow's race feed may be published")
+    if target_date not in (today, today + timedelta(days=1)):
+        raise ValueError("Only today/tomorrow may be published")
     generated = stamp(payload.get("generatedAt"))
     if generated > now + timedelta(minutes=5) or generated < now - timedelta(hours=36):
-        raise ValueError("Generated timestamp is stale or in the future")
+        raise ValueError("Stale or future generation timestamp")
+    if payload.get("sample") or payload.get("testOnly"):
+        raise ValueError("Sample/test feed cannot be published as live")
     rows = payload.get("forecasts")
     if not isinstance(rows, list) or not 1 <= len(rows) <= 120:
-        raise ValueError("Feed must have 1-120 races")
+        raise ValueError("Expected 1-120 race forecasts")
     seen = set()
     for row in rows:
-        if not isinstance(row, dict) or row.get("recordType") != "live":
-            raise ValueError("Synthetic/test data cannot be published as live")
+        if not isinstance(row, dict) or row.get("recordType") != "live" or row.get("sample"):
+            raise ValueError("Live, non-synthetic forecasts only")
         if row.get("date") != target or row.get("track") not in TRACKS:
-            raise ValueError("Race date or track mismatch")
+            raise ValueError("Race date/track mismatch")
         race = row.get("race")
         if type(race) is not int or not 1 <= race <= 12:
-            raise ValueError("Invalid race number")
+            raise ValueError("Race number must be 1-12")
         key = (row["track"], race)
         if key in seen:
             raise ValueError("Duplicate race")
         seen.add(key)
-        off = row.get("off")
-        try:
-            post = datetime.strptime(f"{target}T{off}", "%Y-%m-%dT%H:%M").replace(tzinfo=JST)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("Valid local post time is required") from exc
+        post = post_time(target, row)
+        if post <= now.astimezone(JST):
+            raise ValueError("Cannot first publish or change a race after post time")
         if row.get("status") not in ("draft", "final", "skip"):
-            raise ValueError("Invalid status")
-        ranking = numbers(row.get("ranking", []))
-        first, second, third = (numbers(row.get(k, [])) for k in ("first", "second", "third"))
-        tri = triple_count(first, second, third)
-        trio = trio_count(row)
+            raise ValueError("Invalid forecast status")
+        if row.get("confidence", "C") not in ("S", "A", "B", "C"):
+            raise ValueError("Invalid confidence")
+        if row.get("intent", "参考") not in ("購入推奨", "参考", "見送り"):
+            raise ValueError("Invalid intent")
+        a, b, c, ranking = [numbers(row.get(k, [])) for k in
+                             ("first", "second", "third", "ranking")]
+        tri, trio = triple_count(a, b, c), trio_count(row)
         if tri > 48 or trio > 120:
-            raise ValueError("Bet exceeds allowed point count")
+            raise ValueError("Bet point cap exceeded")
         if row.get("triPoints", tri) != tri or row.get("trioPoints", trio) != trio:
-            raise ValueError("Declared bet count differs from actual combinations")
+            raise ValueError("Declared ticket points mismatch")
+        if row["status"] == "skip" and row.get("intent", "見送り") != "見送り":
+            raise ValueError("Skipped races must use a skip intent")
+        if row["status"] != "final" and (tri or trio):
+            raise ValueError("Drafts and skips must not contain bet formations")
         if row["status"] == "final":
-            if post <= now.astimezone(JST):
-                raise ValueError("New final predictions cannot be published after post time")
-            if not tri and not trio:
-                raise ValueError("Final prediction must contain a valid bet")
-            evidence = row.get("evidence", {})
-            card = row.get("raceCard", {})
-            if (not isinstance(evidence, dict) or
+            if tri + trio == 0:
+                raise ValueError("Final forecast must contain a valid ticket")
+            card, evidence = row.get("raceCard"), row.get("evidence")
+            if (not isinstance(card, dict) or card.get("complete") is not True or
+                    card.get("date") != target or card.get("track") != row["track"] or
+                    card.get("race") != race or not isinstance(card.get("source"), str) or
+                    not card["source"] or not isinstance(card.get("runners"), list) or
+                    not isinstance(evidence, dict) or
                     not isinstance(evidence.get("references"), list) or
-                    not evidence["references"] or
-                    not isinstance(card, dict) or card.get("complete") is not True or
-                    not isinstance(card.get("runners"), list)):
-                raise ValueError("Final prediction requires checked references and complete race card")
+                    not evidence["references"]):
+                raise ValueError("Final forecast requires a complete, cited race card")
             runners = card["runners"]
             if not 1 <= len(runners) <= 18:
-                raise ValueError("Invalid complete race card")
-            ids = [h.get("number") for h in runners if isinstance(h, dict)]
-            if len(ids) != len(runners):
-                raise ValueError("Invalid runner record")
-            numbers(ids)
-            if not all(isinstance(h.get("name"), str) and h["name"].strip() for h in runners):
-                raise ValueError("Runner names are required")
-            if not set(ranking + first + second + third).issubset(ids):
-                raise ValueError("Ranked or selected horse missing from complete race card")
+                raise ValueError("Invalid runner count")
+            ids = numbers([h.get("number") if isinstance(h, dict) else None for h in runners])
+            if any(not isinstance(h.get("name"), str) or not h["name"].strip() or
+                   h.get("status") not in ("active", "scratched", "excluded") for h in runners):
+                raise ValueError("Each runner needs name and status")
+            active = {h["number"] for h in runners if h["status"] == "active"}
+            if not set(ranking + a + b + c).issubset(active):
+                raise ValueError("Ranked or bet horse scratched/not in race card")
+            checked = stamp(card.get("checkedAt"))
+            if checked > now + timedelta(minutes=5):
+                raise ValueError("Race card verification timestamp is in the future")
     return payload
 
 
-def preserve_started(payload, existing, now):
-    if not isinstance(existing, dict) or existing.get("date") != payload["date"]:
-        return payload
-    old_rows = {(r["track"], r["race"]): r for r in existing.get("forecasts", [])
-                if isinstance(r, dict) and "track" in r and "race" in r}
-    newer = {(r["track"], r["race"]): r for r in payload["forecasts"]}
-    for key, old in old_rows.items():
-        try:
-            post = datetime.strptime(payload["date"] + "T" + old["off"],
-                                     "%Y-%m-%dT%H:%M").replace(tzinfo=JST)
-        except (KeyError, ValueError):
-            raise ValueError("Existing feed has invalid post time")
-        if post <= now.astimezone(JST):
-            if key in newer and newer[key] != old:
-                raise ValueError("A started race's published prediction must not change")
-            newer[key] = old
-    payload["forecasts"] = sorted(newer.values(),
-                                  key=lambda r: (r["off"], r["track"], r["race"]))
-    if len(payload["forecasts"]) > 120:
-        raise ValueError("Too many races after preserving earlier predictions")
-    return payload
+def post_time(date, row):
+    try:
+        return datetime.strptime(f"{date}T{row['off']}", "%Y-%m-%dT%H:%M").replace(tzinfo=JST)
+    except (TypeError, ValueError, KeyError) as exc:
+        raise ValueError("Valid local post time HH:MM required") from exc
 
 
 def publish(payload, existing, now):
-    if now.tzinfo is None:
-        raise ValueError("now must have timezone")
-    # Keep previously published, already-started rows out of the new-feed validation.
-    incoming = dict(payload)
-    rows = []
-    for row in payload.get("forecasts", []):
+    """Merge authorized future rows while preserving ALL previously started races."""
+    if now.tzinfo is None or not isinstance(payload, dict):
+        raise ValueError("Timezone-aware now and source object required")
+    target = payload.get("date")
+    incoming = payload.get("forecasts")
+    if not isinstance(incoming, list) or not incoming:
+        raise ValueError("Source has no forecast rows")
+    old = {}
+    if isinstance(existing, dict) and existing.get("date") == target:
+        for row in existing.get("forecasts", []):
+            if not isinstance(row, dict) or "track" not in row or "race" not in row:
+                raise ValueError("Invalid existing public forecast")
+            key = (row["track"], row["race"])
+            if key in old:
+                raise ValueError("Existing feed contains duplicate races")
+            old[key] = row
+    fresh, seen = [], set()
+    for row in incoming:
         if not isinstance(row, dict):
-            raise ValueError("Invalid race")
-        rows.append(dict(row))
-    incoming["forecasts"] = rows
-    old_rows = {}
-    if isinstance(existing, dict) and existing.get("date") == incoming.get("date"):
-        old_rows = {(r.get("track"), r.get("race")): r
-                    for r in existing.get("forecasts", []) if isinstance(r, dict)}
-    for row in rows:
-        old = old_rows.get((row.get("track"), row.get("race")))
-        if old == row and row.get("status") == "final":
-            # Previously committed final picks retain their original pre-start validation.
-            row["status"] = "draft" if False else "final"
-    # Validate incoming races; final predictions for started races are only allowed if unchanged.
-    for row in rows:
-        if row.get("status") == "final" and old_rows.get((row.get("track"), row.get("race"))) == row:
-            row["_alreadyPublishedFinal"] = True
-    for row in rows:
-        if row.pop("_alreadyPublishedFinal", False) and row.get("status") == "final":
-            # Validate unchanged past finals against their original launch time.
-            row["_preserved"] = True
-    # The caller should omit started races in the incoming feed; they are restored below.
-    rows_to_check = [r for r in rows if not r.pop("_preserved", False)]
-    incoming["forecasts"] = rows_to_check
-    if not rows_to_check:
-        raise ValueError("At least one future race is required in the source feed")
-    validate(incoming, now)
-    incoming["forecasts"] = rows
-    incoming = preserve_started(incoming, existing, now)
-    if existing and existing.get("date") == incoming["date"]:
-        if (existing.get("forecasts") == incoming["forecasts"] and
-                existing.get("source") == incoming.get("source")):
+            raise ValueError("Invalid incoming race")
+        key = (row.get("track"), row.get("race"))
+        if key in seen:
+            raise ValueError("Duplicate incoming race")
+        seen.add(key)
+        original = old.get(key)
+        if original and post_time(target, original) <= now.astimezone(JST):
+            if row != original:
+                raise ValueError("Started race cannot be altered")
+            continue
+        fresh.append(row)
+    # Always validate source rights and metadata, even if every race is unchanged.
+    check = dict(payload)
+    check["forecasts"] = fresh if fresh else [dict(incoming[0])]
+    if fresh:
+        validate(check, now)
+    else:
+        if not old or any(old.get((r.get("track"), r.get("race"))) != r for r in incoming):
+            raise ValueError("No future races to publish")
+        # Validate source metadata using an unchanged started row without attempting
+        # a post-time validation; all unchanged rows already exist in Git history.
+        check["forecasts"] = []
+        future_old = next((r for r in incoming if post_time(target, r) > now.astimezone(JST)), None)
+        if future_old:
+            validate({**check, "forecasts": [future_old]}, now)
+        else:
+            if (not isinstance(payload.get("source"), dict) or
+                    payload["source"].get("publicReleaseApproved") is not True or
+                    payload["source"].get("originalForecast") is not True):
+                raise ValueError("Public approval missing")
             return None
-    return incoming
+    merged = dict(old)
+    for row in fresh:
+        merged[(row["track"], row["race"])] = row
+    if not 1 <= len(merged) <= 120:
+        raise ValueError("Merged feed race count invalid")
+    updated = dict(payload)
+    updated["forecasts"] = sorted(merged.values(),
+                                  key=lambda r: (r["off"], r["track"], r["race"]))
+    if (isinstance(existing, dict) and existing.get("date") == target and
+            existing.get("forecasts") == updated["forecasts"] and
+            existing.get("source") == updated.get("source")):
+        return None
+    return updated
 
 
 def main():
