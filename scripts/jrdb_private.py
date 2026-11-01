@@ -20,12 +20,13 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def fetch_race_program(racedate):
-    """Return program rows in memory; enabled only for private personal use.
+def _fetch_day(endpoint, racedate):
+    """Return private source rows in memory for one strictly allowlisted endpoint.
 
-    JRDB_PRIVATE_ENABLED is an operator gate, NOT authentication. The hosting
-    environment still needs real owner-only access control before enabling it.
+    JRDB_PRIVATE_ENABLED is not owner authentication; HTTPS + owner gating is mandatory.
     """
+    if endpoint not in ('tra', 'tky'):
+        raise JRDBError('Unsupported JRDB endpoint')
     if os.environ.get("JRDB_PRIVATE_ENABLED") != "1":
         raise JRDBError("Private JRDB integration is disabled")
     if os.environ.get("GITHUB_ACTIONS") == "true":
@@ -42,7 +43,7 @@ def fetch_race_program(racedate):
         raise JRDBError("JRDB credentials are not configured")
     if any(ord(c) < 32 or ord(c) > 126 for c in auth_key):
         raise JRDBError("Invalid credential format")
-    url = "https://dev.api.bigtime.world/v1/tra?" + urllib.parse.urlencode({"api_key": api_key})
+    url = "https://dev.api.bigtime.world/v1/" + endpoint + "?" + urllib.parse.urlencode({"api_key": api_key})
     request = urllib.request.Request(url, data=json.dumps({"racedate": racedate}).encode(),
         headers={"Content-Type": "application/json", "x-user-key": auth_key}, method="POST")
     try:
@@ -64,3 +65,13 @@ def fetch_race_program(racedate):
     if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
         raise JRDBError("Unexpected JRDB response format")
     return rows
+
+
+def fetch_race_program(racedate):
+    """Private-only programme rows (/tra)."""
+    return _fetch_day("tra", racedate)
+
+
+def fetch_horse_entries(racedate):
+    """Private-only horse entry rows (/tky). Do not expose raw records to browsers."""
+    return _fetch_day("tky", racedate)
