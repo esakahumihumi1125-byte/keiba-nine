@@ -127,6 +127,47 @@ class PrivateServiceTests(unittest.TestCase):
         programme.assert_not_called()
         entries.assert_not_called()
 
+    def test_training_and_recent_evidence_are_private_counts_only(self):
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        race = [{'racekey': '05264b01', 'racedate': '20261027',
+                 'racecourse_cd': '05', 'post_time': '1010', 'headcount': 1}]
+        horse = [{'racekey': '05264b01', 'racedate': '20261027',
+                  'horse_number': '01', 'horse_id': '2328aaa95a05',
+                  'horse_name': 'SECRET-HORSE'}]
+        training = [{'racekey': '05264b01', 'racedate': '20261027',
+                     'horse_number': None, 'horse_id': '2328aaa95a05',
+                     'oikirisisu': 40, 'oikirisisu_lastweek': 30,
+                     'internal_field': 'HIDDEN-DATA'}]
+        previous = [{'racekey': '05264b01', 'racedate': '20261027',
+                     'horse_number': '01', 'horse_id': '2328aaa95a05',
+                     'race_back_1_racedate': '20260926'}]
+        with patch('private_service.fetch_race_program', return_value=race), \
+             patch('private_service.fetch_horse_entries', return_value=horse), \
+             patch('private_service.fetch_training_analysis', return_value=training), \
+             patch('private_service.fetch_recent_runs', return_value=previous):
+            result = call(app, '/api/jrdb/evidence', QUERY_STRING='date=20261027')
+        self.assertTrue(result['status'].startswith('200'))
+        data = json.loads(result['body'])
+        self.assertEqual(data['raceCount'], 1)
+        self.assertEqual(data['races'][0]['trainingRecords'], 1)
+        self.assertEqual(data['races'][0]['lastWeekRecords'], 1)
+        self.assertEqual(data['races'][0]['pastRunRecords'], 1)
+        self.assertEqual(data['predictionsReady'], 0)
+        self.assertNotIn(b'SECRET-HORSE', result['body'])
+        self.assertNotIn(b'HIDDEN-DATA', result['body'])
+
+    def test_evidence_endpoint_disabled_without_private_activation(self):
+        with patch('private_service.fetch_race_program') as fetch:
+            result = call(self.app, '/api/jrdb/evidence', QUERY_STRING='date=20261027')
+        self.assertTrue(result['status'].startswith('503'))
+        fetch.assert_not_called()
+
+    def test_evidence_endpoint_is_owner_only(self):
+        for auth in ('', 'Basic malformed'):
+            result = call(self.app, '/api/jrdb/evidence', auth=auth,
+                          QUERY_STRING='date=20261027')
+            self.assertTrue(result['status'].startswith('401'))
+
     def test_invalid_query_is_rejected(self):
         app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
         for query in ['', 'date=20261027&date=20261028', 'url=https://example.com']:
