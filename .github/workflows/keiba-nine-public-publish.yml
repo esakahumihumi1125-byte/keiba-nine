@@ -1,0 +1,65 @@
+name: KEIBA NINE - Approved Public Forecast Publisher
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/publish_approved_feed.py'
+      - 'tests/test_approved_feed_publisher.py'
+      - '.github/workflows/keiba-nine-public-publish.yml'
+  workflow_dispatch:
+  schedule:
+    # 09:00-16:30 JST. GitHub scheduled runs can be delayed.
+    - cron: '0,30 0-7 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keiba-nine-public-publisher
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate publisher and run offline safety tests
+        run: |
+          python -m py_compile scripts/publish_approved_feed.py
+          python -m unittest discover -s tests -p 'test_approved_feed_publisher.py' -v
+          python -m json.tool keiba-nine-auto-feed.json > /dev/null
+
+  publish:
+    needs: verify
+    if: ${{ github.event_name != 'pull_request' && vars.KEIBA_NINE_PUBLICATION_ENABLED == 'true' && vars.KEIBA_NINE_PUBLIC_FEED_HOST != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate authorized live forecast and update public JSON
+        env:
+          KEIBA_NINE_PUBLIC_FEED_URL: ${{ secrets.KEIBA_NINE_PUBLIC_FEED_URL }}
+          KEIBA_NINE_PUBLIC_FEED_HOST: ${{ vars.KEIBA_NINE_PUBLIC_FEED_HOST }}
+        run: python scripts/publish_approved_feed.py
+      - name: Commit only verified feed changes
+        run: |
+          if git diff --quiet -- keiba-nine-auto-feed.json; then
+            echo "No new eligible forecast"
+            exit 0
+          fi
+          git config user.name "keiba-nine-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- keiba-nine-auto-feed.json
+          git commit -m "Publish independently verified approved forecast feed"
+          git push origin HEAD:main
