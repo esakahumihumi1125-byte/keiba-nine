@@ -63,14 +63,13 @@ def audit_evidence_coverage(programme, entries, training, previous, requested_da
             if not isinstance(hid, str) or not HORSE_ID.fullmatch(hid):
                 raise CoverageError("Invalid horse ID in entry")
             index = (key, hid)
-            if index in by_id and by_id[index] != identity:
-                raise CoverageError("Ambiguous horse ID within race")
+            if index in by_id:
+                raise CoverageError("Duplicate horse ID within race")
             by_id[index] = identity
 
     training_seen, week_seen, prior_seen = set(), set(), set()
     all_keys = {item["racekey"] for item in programme}
     for label, collection in (("training", training), ("previous", previous)):
-        record_seen = set()
         for row in collection:
             key, date = row.get("racekey"), row.get("racedate")
             if (not isinstance(key, str) or not KEY.fullmatch(key)
@@ -79,6 +78,12 @@ def audit_evidence_coverage(programme, entries, training, previous, requested_da
             num, hid = row.get("horse_number"), row.get("horse_id")
             identity_number = by_number.get((key, num)) if isinstance(num, str) and NUMBER.fullmatch(num) else None
             identity_id = by_id.get((key, hid)) if isinstance(hid, str) and HORSE_ID.fullmatch(hid) else None
+            if isinstance(hid, str) and hid and not HORSE_ID.fullmatch(hid):
+                raise CoverageError("Malformed horse ID")
+            if isinstance(num, str) and num and not NUMBER.fullmatch(num):
+                raise CoverageError("Malformed horse number")
+            if hid and identity_id is None:
+                raise CoverageError("Unmatched horse ID")
             if identity_id and identity_number and identity_id != identity_number:
                 raise CoverageError("Horse ID and horse number disagree")
             identity = identity_id or identity_number
@@ -99,7 +104,6 @@ def audit_evidence_coverage(programme, entries, training, previous, requested_da
                             raise CoverageError("Previous run date is invalid")
                 if any(_present(d) for d in dates):
                     prior_seen.add(identity)
-            record_seen.add(identity)
 
     for race in base["races"]:
         key = next((row["racekey"] for row in programme
