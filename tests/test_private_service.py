@@ -74,9 +74,29 @@ class PrivateServiceTests(unittest.TestCase):
 
     def test_authorized_connection_uses_fixed_client(self):
         app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
-        with patch('private_service.fetch_race_program', return_value=[{'racekey': 'synthetic'}]) as fetch:
+        incoming = [{'racekey': '05264b11', 'racedate': '20261027',
+                     'post_time': '1555', 'racecourse_cd': '05',
+                     'track_type': '1', 'distance': '2000',
+                     'race_name': '架空テスト', 'headcount': 15,
+                     'privateNotes': 'never-display-secret'}]
+        with patch('private_service.fetch_race_program', return_value=incoming) as fetch:
             result = call(app, '/api/jrdb/program', QUERY_STRING='date=20261027')
-            self.assertTrue(result['status'].startswith('200')); fetch.assert_called_once_with('20261027')
+            self.assertTrue(result['status'].startswith('200'))
+            fetch.assert_called_once_with('20261027')
+            payload = json.loads(result['body'])
+            self.assertTrue(payload['programmeOnly'])
+            self.assertEqual(payload['rows'][0]['track'], '東京')
+            self.assertEqual(payload['rows'][0]['race'], 11)
+            self.assertEqual(payload['rows'][0]['post_time'], '15:55')
+            self.assertNotIn(b'never-display-secret', result['body'])
+
+    def test_invalid_upstream_programme_is_not_exposed(self):
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        with patch('private_service.fetch_race_program',
+                   return_value=[{'racekey': 'invalid', 'secret': 'hidden-value'}]):
+            result = call(app, '/api/jrdb/program', QUERY_STRING='date=20261027')
+            self.assertTrue(result['status'].startswith('502'))
+            self.assertNotIn(b'hidden-value', result['body'])
 
     def test_invalid_query_is_rejected(self):
         app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
