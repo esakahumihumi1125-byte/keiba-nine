@@ -98,6 +98,35 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertTrue(result['status'].startswith('502'))
             self.assertNotIn(b'hidden-value', result['body'])
 
+    def test_private_coverage_counts_without_leaking_horse_data(self):
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        programme = [{'racekey': '05264b11', 'racedate': '20261027',
+                      'racecourse_cd': '05', 'post_time': '1555',
+                      'headcount': 2}]
+        entries = [
+            {'racekey': '05264b11', 'racedate': '20261027',
+             'horse_number': n, 'horse_name': 'TOP-SECRET-HORSE'}
+            for n in ('01', '02')
+        ]
+        with patch('private_service.fetch_race_program', return_value=programme), \
+             patch('private_service.fetch_horse_entries', return_value=entries):
+            result = call(app, '/api/jrdb/coverage', QUERY_STRING='date=20261027')
+        self.assertTrue(result['status'].startswith('200'))
+        payload = json.loads(result['body'])
+        self.assertEqual(payload['raceCount'], 1)
+        self.assertEqual(payload['matchingEntryCounts'], 1)
+        self.assertEqual(payload['predictionsReady'], 0)
+        self.assertNotIn(b'TOP-SECRET-HORSE', result['body'])
+
+    def test_private_coverage_is_denied_without_connection(self):
+        app = create_app(SETTINGS)
+        with patch('private_service.fetch_race_program') as programme, \
+             patch('private_service.fetch_horse_entries') as entries:
+            result = call(app, '/api/jrdb/coverage', QUERY_STRING='date=20261027')
+        self.assertTrue(result['status'].startswith('503'))
+        programme.assert_not_called()
+        entries.assert_not_called()
+
     def test_invalid_query_is_rejected(self):
         app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
         for query in ['', 'date=20261027&date=20261028', 'url=https://example.com']:

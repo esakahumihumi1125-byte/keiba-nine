@@ -7,7 +7,7 @@ import urllib.error
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from jrdb_private import fetch_race_program, JRDBError, _NoRedirect
+from jrdb_private import fetch_race_program, fetch_horse_entries, JRDBError, _NoRedirect
 
 
 class PrivateClientTests(unittest.TestCase):
@@ -48,6 +48,16 @@ class PrivateClientTests(unittest.TestCase):
         self.assertEqual(json.loads(request.data), {'racedate': '20261026'})
         self.assertEqual(request.get_header('X-user-key'), 'synthetic-user')
         self.assertTrue(request.full_url.startswith('https://dev.api.bigtime.world/v1/tra?'))
+
+    def test_horse_entry_endpoint_is_private_and_allowlisted(self):
+        self.assertEqual(fetch_horse_entries('20261026'), [{'racekey': 'synthetic'}])
+        request = self.mock.return_value.open.call_args.args[0]
+        self.assertEqual(request.method, 'POST')
+        self.assertEqual(json.loads(request.data), {'racedate': '20261026'})
+        self.assertIn('/v1/tky?', request.full_url)
+        del os.environ['JRDB_PRIVATE_ENABLED']
+        with self.assertRaises(JRDBError):
+            fetch_horse_entries('20261026')
 
     def test_error_omits_secret_url_and_body(self):
         self.mock.return_value.open.side_effect = urllib.error.HTTPError('https://example/?secret', 403, 'private-data', {}, io.BytesIO(b'private-data'))

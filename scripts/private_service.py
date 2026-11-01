@@ -10,20 +10,22 @@ import json
 import os
 from urllib.parse import parse_qs
 
-from jrdb_private import fetch_race_program, JRDBError
+from jrdb_private import fetch_race_program, fetch_horse_entries, JRDBError
+from jrdb_coverage import audit_race_coverage, CoverageError
 from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError
 from research_planner import plan_race
 
 MAX_BODY = 131072
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用・データ接続確認</p><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>レース情報を取得</button><p id="message" role="status"></p><div id="races"></div></section><p>この画面は接続確認用です。実データからのランク評価・買い目作成にはまだ接続していません。取得した内容は公開アプリやGoogleシートへ送信しません。</p></main><script src="/app.js" defer></script></body></html>'''
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用・データ接続確認</p><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>レース情報を取得</button><button id="coverage" disabled>全場・全Rの取得状況を確認</button><p id="message" role="status"></p><div id="races"></div></section><p>この画面は接続確認用です。実データからのランク評価・買い目作成にはまだ接続していません。取得した内容は公開アプリやGoogleシートへ送信しません。</p></main><script src="/app.js" defer></script></body></html>'''
 CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.7 system-ui,sans-serif}main{max-width:680px;margin:auto;padding:24px}h1{color:#efc66b}section{background:#172d48;padding:20px;border-radius:18px}label{display:block}input,button{box-sizing:border-box;font:inherit;padding:12px;width:100%;margin:8px 0;border-radius:10px;border:1px solid #8b9eb7}button{background:#efc66b;color:#10213b;font-weight:700}button:disabled{opacity:.5}.race{border-bottom:1px solid #415878;padding:12px 0}p{overflow-wrap:anywhere}'''
 JS = ''''use strict';
 const el=id=>document.getElementById(id);
 async function request(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{'X-Keiba-Request':'private'}});const data=await r.json();if(!r.ok)throw Error(data.error||'取得できませんでした');return data;}
 let enabled=false;
-request('/api/status').then(s=>{enabled=s.jrdbConfigured;el('status').textContent=enabled?'接続設定あり（実際の接続は取得ボタンで確認）':'JRDBは未設定です。契約と接続設定が必要です。';el('load').disabled=!enabled;}).catch(e=>el('status').textContent=e.message);
+request('/api/status').then(s=>{enabled=s.jrdbConfigured;el('status').textContent=enabled?'接続設定あり（実際の接続は取得ボタンで確認）':'JRDBは未設定です。契約と接続設定が必要です。';el('load').disabled=!enabled;el('coverage').disabled=!enabled;}).catch(e=>el('status').textContent=e.message);
 el('date').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
 el('load').onclick=async()=>{el('load').disabled=true;el('message').textContent='取得中…';el('races').replaceChildren();try{if(!el('date').value)throw Error('開催日を選んでください');const data=await request('/api/jrdb/program?date='+encodeURIComponent(el('date').value.replaceAll('-','')));el('message').textContent=data.rows.length+'レースの番組情報を確認。馬名・近走・調教・買い目はまだ未確認です。';for(const row of data.rows){const div=document.createElement('div');div.className='race';const name=row.race_name||'レース名未確認';const dist=row.distance_m==null?'距離未確認':row.distance_m+'m';div.textContent=row.track+row.race+'R '+name+'｜'+(row.surface||'種別未確認')+dist+'｜発走 '+(row.post_time||'未確認')+'｜予想：未作成';el('races').append(div);}}catch(e){el('message').textContent=e.message;}finally{el('load').disabled=!enabled;}};
+el('coverage').onclick=async()=>{el('coverage').disabled=true;el('message').textContent='全レースの照合中…';el('races').replaceChildren();try{if(!el('date').value)throw Error('開催日を選んでください');const data=await request('/api/jrdb/coverage?date='+encodeURIComponent(el('date').value.replaceAll('-','')));el('message').textContent=data.raceCount+'Rのうち出走馬件数一致 '+data.matchingEntryCounts+'R。最終確認済み0R、予想作成済み0R（取消・調教など未検証）。';for(const row of data.races){const div=document.createElement('div');div.className='race';div.textContent=row.track+row.race+'R｜発走 '+(row.post_time||'未確認')+'｜登録 '+row.observedEntries+'/'+(row.expectedRunners===null?'?':row.expectedRunners)+'頭｜'+row.status+'｜予想：未作成';el('races').append(div);}}catch(e){el('message').textContent=e.message;}finally{el('coverage').disabled=!enabled;}};
 '''
 
 
@@ -88,6 +90,20 @@ def create_app(settings=None):
             except (JRDBError, ProgrammeFormatError):
                 return response('502 Bad Gateway', {'error': 'JRDB番組データを安全に確認できませんでした。API接続・開催日・応答形式を確認してください。'})
             return response('200 OK', {'rows': preview, 'programmeOnly': True})
+        if method == 'GET' and path == '/api/jrdb/coverage':
+            if settings.get('JRDB_PRIVATE_ENABLED') != '1' or settings.get('GITHUB_ACTIONS') == 'true':
+                return response('503 Service Unavailable', {'error': 'JRDB接続はまだ有効になっていません。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if set(query) != {'date'} or len(query['date']) != 1:
+                return response('400 Bad Request', {'error': '開催日を1つ指定してください。'})
+            try:
+                date = query['date'][0]
+                programme = normalize_program_rows(fetch_race_program(date), date)
+                entries = fetch_horse_entries(date)
+                coverage = audit_race_coverage(programme, entries, date)
+            except (JRDBError, ProgrammeFormatError, CoverageError):
+                return response('502 Bad Gateway', {'error': '全レースの照合ができませんでした。API接続・開催日・データ形式を確認してください。'})
+            return response('200 OK', coverage)
         if method == 'POST' and path == '/api/research':
             if environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower() != 'application/json':
                 return response('415 Unsupported Media Type', {'error': 'JSON形式が必要です。'})
