@@ -1,7 +1,10 @@
+import sys
 import unittest
+from pathlib import Path
 
-from scripts.jrdb_evidence_readiness import audit_evidence_coverage
-from scripts.jrdb_coverage import CoverageError
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from jrdb_evidence_readiness import audit_evidence_coverage
+from jrdb_coverage import CoverageError
 
 
 def sample():
