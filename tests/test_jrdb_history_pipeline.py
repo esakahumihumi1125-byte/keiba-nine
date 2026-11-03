@@ -85,6 +85,8 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(output["goingSummary"]["races"][0]["knownComparableRuns"], 0)
         self.assertEqual(output["goingSummary"]["races"][0]["unknownComparableRuns"], 2)
         self.assertFalse(output["predictionReady"])
+        self.assertEqual(output["unavailablePastConditions"], 2)
+        self.assertFalse(output["historyComplete"])
 
     def test_no_past_keys_never_calls_private_provider(self):
         bundle = context()
@@ -96,6 +98,41 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(output["selectedPastRaces"], 0)
         self.assertEqual(output["draCalls"], 0)
         self.assertEqual(output["dkaCalls"], 0)
+
+    def test_limit_hard_cap_twelve_even_with_many_distinct_races(self):
+        bundle = context()
+        p, e, z, *_ = bundle
+        # Three identified runners, five different past races per runner.
+        template = [
+            ("05264a", 1), ("05264a", 6), ("08264a", 11)
+        ]
+        z.clear()
+        for idx, (prefix, start) in enumerate(template):
+            runner = e[idx]
+            row = {
+                "racekey": runner["racekey"],
+                "racedate": "20261101",
+                "horse_number": runner["horse_number"],
+                "horse_id": runner["horse_id"],
+            }
+            for past_no in range(1, 6):
+                row[f"race_back_{past_no}_racedate"] = "20261004"
+                row[f"race_back_{past_no}_racekey"] = prefix + f"{start + past_no - 1:02d}"
+            z.append(row)
+        plan = plan_bounded_history(p, e, z, "20261101", limit=12)
+        self.assertEqual(plan["referencedCount"], 15)
+        self.assertEqual(plan["selectedCount"], 12)
+        self.assertEqual(plan["deferredCount"], 3)
+        self.assertEqual(plan["maxDraCalls"], 12)
+        self.assertEqual(plan["maxDkaCalls"], 12)
+
+    def test_invalid_current_going_prevents_all_historical_calls(self):
+        bundle = context()
+        bundle[3][0]["racedate"] = "20261102"
+        with self.assertRaises(HistoryFetchError):
+            run_case(bundle)
+        bundle[4].assert_not_called()
+        bundle[5].assert_not_called()
 
     def test_unsupported_limits_rejected_before_network(self):
         for limit in (0, 13, 2.0, "12", True, -1):
