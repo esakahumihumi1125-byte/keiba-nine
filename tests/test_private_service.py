@@ -220,10 +220,12 @@ class PrivateServiceTests(unittest.TestCase):
         entries = [{'racekey': '05264b01', 'racedate': '20261027',
                     'horse_number': '01', 'horse_id': '2328aaa95a05',
                     'horse_name': 'NONPUBLIC-TEST-HORSE'}]
-        with patch('private_service.fetch_race_program', return_value=race), \\
-             patch('private_service.fetch_horse_entries', return_value=entries), \\
-             patch('private_service.fetch_training_analysis', return_value=[]), \\
-             patch('private_service.fetch_recent_runs', return_value=[]):
+        with (
+            patch('private_service.fetch_race_program', return_value=race),
+            patch('private_service.fetch_horse_entries', return_value=entries),
+            patch('private_service.fetch_training_analysis', return_value=[]),
+            patch('private_service.fetch_recent_runs', return_value=[]),
+        ):
             denied = call(private, '/api/jrdb/evidence', auth='',
                           QUERY_STRING='date=20261027')
             result = call(private, '/api/jrdb/evidence',
