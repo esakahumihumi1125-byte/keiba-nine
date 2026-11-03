@@ -154,7 +154,7 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertTrue(unconfigured['status'].startswith('503'))
         cfg = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
         with patch('private_service.fetch_race_program') as fetch:
-            for date in ('not-a-day', '20260230', '20261101&race=1', ''):
+            for date in ('not-a-day', '20260230', '20261101&race=1', '20261101&now=20261101', ''):
                 out = call(cfg, '/api/jrdb/race-day', QUERY_STRING='date='+date)
                 self.assertTrue(out['status'].startswith('400'))
             self.assertTrue(call(cfg, '/api/jrdb/race-day',
@@ -179,6 +179,7 @@ class PrivateServiceTests(unittest.TestCase):
             patch('private_service.fetch_race_program', return_value=raw) as program,
             patch('private_service.fetch_horse_entries', return_value=entries) as horses,
             patch('private_service.fetch_venue_conditions', return_value=conditions) as venue,
+            patch('private_service._now_in_jst', return_value='2026-11-01T09:30:00+09:00'),
         ):
             out = call(app, '/api/jrdb/race-day', QUERY_STRING='date=20261101')
         self.assertEqual(out['status'], '200 OK')
@@ -186,6 +187,16 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(data['racesWithProviderWithdrawal'], 1)
         self.assertEqual(data['racesWithUnknownFlags'], 1)
         self.assertEqual(data['racesWithOfficialFinalCheck'], 0)
+        prestart = data['prestartFreshness']
+        self.assertEqual(prestart['checkedAtJapan'], '2026-11-01 09:30 JST')
+        self.assertEqual(prestart['racesWithinTwoHours'], 2)
+        self.assertEqual(prestart['officiallyVerifiedRaces'], 0)
+        self.assertFalse(prestart['predictionReady'])
+        self.assertFalse(prestart['bettingReady'])
+        tokyo_time = next(x for x in prestart['races'] if x['track'] == '東京')
+        self.assertEqual(tokyo_time['sourceGoingAgeStatus'], 'recent_reported')
+        self.assertFalse(tokyo_time['jraPostTimeVerified'])
+        self.assertFalse(tokyo_time['candidateForManualJraReview'] is False)
         self.assertFalse(data['predictionReady'])
         self.assertFalse(data['bettingReady'])
         tokyo = next(x for x in data['races'] if x['track'] == '東京')
