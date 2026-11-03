@@ -1,0 +1,29 @@
+name: Racecard engine checks
+on:
+  push:
+    paths:
+      - 'racecard-engine.js'
+      - 'racecard-engine-tests.js'
+      - 'racecard-check.html'
+      - '.github/workflows/racecard-validation.yml'
+  pull_request:
+    paths:
+      - 'racecard-engine.js'
+      - 'racecard-engine-tests.js'
+      - 'racecard-check.html'
+      - '.github/workflows/racecard-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-racecard-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check engine JavaScript
+        run: node --check racecard-engine.js
+      - name: Check test JavaScript
+        run: node --check racecard-engine-tests.js
+      - name: Execute offline regression tests
+        run: |
+          node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-engine-tests.js'); console.log('Racecard tests passed:',global.KeibaNineRacecardTests.passed)"
