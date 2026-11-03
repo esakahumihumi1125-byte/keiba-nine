@@ -52,8 +52,36 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(tokyo["knownGoingComparableSamples"]["oneOrTwo"], 1)
         self.assertEqual(tokyo["materialStatus"], "番組履歴は照合")
         self.assertFalse(report["evidenceQuality"]["predictionConfidenceAssessed"])
+        material = next(x for x in report["tenFactorMaterials"]["races"] if x["track"] == "東京")
+        self.assertEqual(report["tenFactorMaterials"]["factorCount"], 10)
+        self.assertEqual(material["factors"]["course_distance"]["observedRunnerCount"], 1)
+        self.assertEqual(material["factors"]["training"]["observedRunnerCount"], 0)
+        self.assertEqual(material["factors"]["recent"]["observedRunnerCount"], 2)
+        self.assertEqual(material["gradedFactors"], 0)
+        self.assertFalse(material["predictionReady"])
         self.assertFalse(report["predictionReady"])
         self.assertFalse(report["goingSuitabilityAssessed"])
+
+    def test_training_source_evidence_from_same_day_is_counted_only(self):
+        from test_jrdb_evidence_readiness import sample
+        _, _, training, _ = sample()
+        report = run_case(context(), training=training)
+        tokyo = next(x for x in report["tenFactorMaterials"]["races"] if x["track"] == "東京")
+        self.assertEqual(tokyo["factors"]["training"]["observedRunnerCount"], 2)
+        self.assertEqual(tokyo["factors"]["recent"]["observedRunnerCount"], 2)
+        self.assertEqual(tokyo["factors"]["course_distance"]["observedRunnerCount"], 1)
+        self.assertEqual(tokyo["factors"]["ground"]["observedRunnerCount"], 1)
+        self.assertEqual(tokyo["observedFactorCount"], 4)
+        self.assertFalse(report["tenFactorMaterials"]["bettingReady"])
+
+    def test_invalid_training_date_aborts_before_paid_historical_calls(self):
+        bundle = context()
+        _, _, training, _ = __import__("test_jrdb_evidence_readiness").sample()
+        training[0]["racedate"] = "20261102"
+        with self.assertRaises(HistoryFetchError):
+            run_case(bundle, training=training)
+        bundle[4].assert_not_called()
+        bundle[5].assert_not_called()
 
     def test_limit_one_defers_remaining_and_does_not_infer_failure(self):
         bundle = context()
