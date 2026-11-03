@@ -253,7 +253,8 @@ class PrivateServiceTests(unittest.TestCase):
         script = call(self.app, '/app.js')['body']
         for label in (b'trainingUnaccounted', b'lastWeekUnaccounted',
                       b'pastRunUnaccounted', b'gapRaceCount',
-                      b'assessmentPreflight', b'sourceStatus'):
+                      b'assessmentPreflight', b'sourceStatus',
+                      b'trainingHypothesis', b'gradeCounts'):
             self.assertIn(label, script)
         self.assertNotIn(b'innerHTML', script)
 
@@ -289,6 +290,64 @@ class PrivateServiceTests(unittest.TestCase):
         for private_value in (b'SECRET-PROVIDER-HORSE', b'SECRET-PAID-REPORT',
                               b'2328aaa95a05', b'oikirisisu'):
             self.assertNotIn(private_value, result['body'])
+
+    def test_private_workout_hypothesis_returns_only_aggregate_provisional_grades(self):
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        program = [{'racekey': '05264b01', 'racedate': '20261027',
+                    'racecourse_cd': '05', 'post_time': '1010', 'headcount': 2}]
+        horses = [
+            {'racekey': '05264b01', 'racedate': '20261027',
+             'horse_number': '01', 'horse_id': '2328aaa95a05',
+             'horse_name': 'PRIVATE-HORSE-A'},
+            {'racekey': '05264b01', 'racedate': '20261027',
+             'horse_number': '02', 'horse_id': '2328aaa95a06',
+             'horse_name': 'PRIVATE-HORSE-B'},
+        ]
+        training = [
+            {'racekey': '05264b01', 'racedate': '20261027',
+             'horse_number': '01', 'horse_id': '2328aaa95a05',
+             'oikirisisu': 78, 'siagarisisu': 80},
+            {'racekey': '05264b01', 'racedate': '20261027',
+             'horse_number': '02', 'horse_id': '2328aaa95a06',
+             'oikirisisu': 62, 'siagarisisu': 60},
+        ]
+        with (
+            patch('private_service.fetch_race_program', return_value=program),
+            patch('private_service.fetch_horse_entries', return_value=horses),
+            patch('private_service.fetch_training_analysis', return_value=training),
+            patch('private_service.fetch_recent_runs', return_value=[]),
+        ):
+            result = call(app, '/api/jrdb/evidence', QUERY_STRING='date=20261027')
+        self.assertEqual(result['status'], '200 OK')
+        payload = json.loads(result['body'])
+        counts = payload['trainingHypothesis']['races'][0]['gradeCounts']
+        self.assertEqual(counts, {'S': 1, 'A': 1, 'B': 0, 'C': 0, '未評価': 0})
+        self.assertFalse(payload['trainingHypothesis']['predictionReady'])
+        self.assertEqual(payload['assessmentPreflight']['gradedFactors'], 0)
+        self.assertEqual(payload['predictionsReady'], 0)
+        for secret in (b'PRIVATE-HORSE-', b'2328aaa95a05',
+                       b'oikirisisu', b'siagarisisu'):
+            self.assertNotIn(secret, result['body'])
+
+    def test_out_of_range_workout_index_cannot_produce_a_race_report(self):
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        program = [{'racekey': '05264b01', 'racedate': '20261027',
+                    'racecourse_cd': '05', 'post_time': '1010', 'headcount': 1}]
+        horses = [{'racekey': '05264b01', 'racedate': '20261027',
+                   'horse_number': '01', 'horse_id': '2328aaa95a05'}]
+        training = [{'racekey': '05264b01', 'racedate': '20261027',
+                     'horse_number': '01', 'horse_id': '2328aaa95a05',
+                     'oikirisisu': 999, 'siagarisisu': 70,
+                     'private': 'SECRET-PROVIDER-SCORE'}]
+        with (
+            patch('private_service.fetch_race_program', return_value=program),
+            patch('private_service.fetch_horse_entries', return_value=horses),
+            patch('private_service.fetch_training_analysis', return_value=training),
+            patch('private_service.fetch_recent_runs', return_value=[]),
+        ):
+            result = call(app, '/api/jrdb/evidence', QUERY_STRING='date=20261027')
+        self.assertTrue(result['status'].startswith('502'))
+        self.assertNotIn(b'SECRET-PROVIDER-SCORE', result['body'])
 
     def test_evidence_endpoint_disabled_without_private_activation(self):
         with patch('private_service.fetch_race_program') as fetch:
