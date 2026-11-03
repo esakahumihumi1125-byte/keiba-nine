@@ -202,7 +202,7 @@ $('savePreview').addEventListener('click',()=>{
   if(!window.KeibaNinePreviewBridge)throw Error('出力プログラムが読み込めません');
   const pack=window.KeibaNinePreviewBridge.toPortablePreview(JSON.parse($('raw').value));
   if(pack.forecasts.length!==result.total)throw Error('データが変更されました。再検証してください');
-  const json=JSON.stringify(pack,null,2);
+  const json=JSON.stringify(pack); // Compact format fits the existing 500KB main-app import limit.
   if(json.length>490000)throw Error('保存用JSONが大きすぎます。開催日・競馬場ごとにファイルを分けてください');
   const blob=new Blob([json],{type:'application/json;charset=utf-8'});
   const url=URL.createObjectURL(blob);
