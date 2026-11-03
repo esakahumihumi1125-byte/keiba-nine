@@ -210,6 +210,13 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(data['unaccountedTotals'],
                          {'training': 0, 'lastWeek': 0, 'pastRuns': 0})
         self.assertEqual(data['predictionsReady'], 0)
+        preflight = data['assessmentPreflight']
+        self.assertEqual(preflight['factorCount'], 10)
+        self.assertEqual(preflight['gradedFactors'], 0)
+        self.assertEqual(preflight['readyForPrediction'], 0)
+        self.assertEqual(preflight['raceCount'], 1)
+        self.assertEqual(preflight['races'][0]['factors']['training']['grade'], '未評価')
+        self.assertEqual(preflight['races'][0]['factors']['recent']['grade'], '未評価')
         self.assertNotIn(b'SECRET-HORSE', result['body'])
         self.assertNotIn(b'HIDDEN-DATA', result['body'])
 
@@ -245,9 +252,43 @@ class PrivateServiceTests(unittest.TestCase):
     def test_private_client_script_displays_missing_evidence_counts(self):
         script = call(self.app, '/app.js')['body']
         for label in (b'trainingUnaccounted', b'lastWeekUnaccounted',
-                      b'pastRunUnaccounted', b'gapRaceCount'):
+                      b'pastRunUnaccounted', b'gapRaceCount',
+                      b'assessmentPreflight', b'sourceStatus'):
             self.assertIn(label, script)
         self.assertNotIn(b'innerHTML', script)
+
+    def test_preflight_does_not_promote_raw_horse_data_to_grades(self):
+        private = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        race = [{'racekey': '05264b01', 'racedate': '20261027',
+                 'racecourse_cd': '05', 'post_time': '1010', 'headcount': 1}]
+        entries = [{'racekey': '05264b01', 'racedate': '20261027',
+                    'horse_number': '01', 'horse_id': '2328aaa95a05',
+                    'horse_name': 'SECRET-PROVIDER-HORSE'}]
+        training = [{'racekey': '05264b01', 'racedate': '20261027',
+                     'horse_number': '01', 'horse_id': '2328aaa95a05',
+                     'oikirisisu': 99, 'oikirisisu_lastweek': 90,
+                     'grade': 'S', 'private_notes': 'SECRET-PAID-REPORT'}]
+        previous = [{'racekey': '05264b01', 'racedate': '20261027',
+                     'horse_number': '01', 'horse_id': '2328aaa95a05',
+                     'race_back_1_racedate': '20261001'}]
+        with (
+            patch('private_service.fetch_race_program', return_value=race),
+            patch('private_service.fetch_horse_entries', return_value=entries),
+            patch('private_service.fetch_training_analysis', return_value=training),
+            patch('private_service.fetch_recent_runs', return_value=previous),
+        ):
+            result = call(private, '/api/jrdb/evidence', QUERY_STRING='date=20261027')
+        self.assertEqual(result['status'], '200 OK')
+        data = json.loads(result['body'])
+        self.assertEqual(data['assessmentPreflight']['gradedFactors'], 0)
+        row = data['assessmentPreflight']['races'][0]
+        self.assertTrue(all(item['grade'] == '未評価'
+                            for item in row['factors'].values()))
+        self.assertEqual(row['factors']['training']['sourceStatus'],
+                         'source_record_count_matches')
+        for private_value in (b'SECRET-PROVIDER-HORSE', b'SECRET-PAID-REPORT',
+                              b'2328aaa95a05', b'oikirisisu'):
+            self.assertNotIn(private_value, result['body'])
 
     def test_evidence_endpoint_disabled_without_private_activation(self):
         with patch('private_service.fetch_race_program') as fetch:
