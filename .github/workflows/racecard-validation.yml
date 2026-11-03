@@ -7,6 +7,9 @@ on:
       - 'racecard-check.html'
       - 'racecard-batch.js'
       - 'racecard-batch-tests.js'
+      - 'racecard-csv.js'
+      - 'racecard-csv-tests.js'
+      - 'scripts/check-racecard-csv-ui.cjs'
       - 'racecard-coverage.js'
       - 'racecard-coverage-tests.js'
       - 'scripts/check-racecard-coverage-ui.cjs'
@@ -26,6 +29,9 @@ on:
       - 'racecard-check.html'
       - 'racecard-batch.js'
       - 'racecard-batch-tests.js'
+      - 'racecard-csv.js'
+      - 'racecard-csv-tests.js'
+      - 'scripts/check-racecard-csv-ui.cjs'
       - 'racecard-coverage.js'
       - 'racecard-coverage-tests.js'
       - 'scripts/check-racecard-coverage-ui.cjs'
@@ -71,6 +77,13 @@ jobs:
       - name: Execute batch regression tests
         run: |
           node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-batch-tests.js'); console.log('Batch tests passed:',global.KeibaNineBatchTests.passed)"
+      - name: Validate generic CSV conversion and mobile UI
+        run: |
+          node --check racecard-csv.js
+          node --check racecard-csv-tests.js
+          node --check scripts/check-racecard-csv-ui.cjs
+          node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-csv.js'); require('./racecard-csv-tests.js'); console.log('CSV tests passed:',global.KeibaNineCSVTests.passed)"
+          node scripts/check-racecard-csv-ui.cjs
       - name: Validate declared full-race program coverage
         run: |
           node --check racecard-coverage.js
