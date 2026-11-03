@@ -98,6 +98,8 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(output["selectedPastRaces"], 0)
         self.assertEqual(output["draCalls"], 0)
         self.assertEqual(output["dkaCalls"], 0)
+        self.assertEqual(output["unkeyedPreviousRuns"], 3)
+        self.assertFalse(output["historyComplete"])
 
     def test_limit_hard_cap_twelve_even_with_many_distinct_races(self):
         bundle = context()
