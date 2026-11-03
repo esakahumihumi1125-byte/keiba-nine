@@ -33,11 +33,12 @@ const horses=gradeRows.map((row,i)=>({
  number:i+1,name:'架空馬'+(i+1),scratched:false,
  evaluations:Object.fromEntries(axes.map((a,j)=>[a,{grade:row[j],note:'架空の単体テスト用根拠情報'}]))
 }));
+const tomorrowJst=new Date(Date.now()+24*60*60*1000).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
 const bundle={kind:'keiba-nine-racecards',schema:1,source:'架空の提供元',licenseConfirmed:true,
- racecards:[{date:'2026-11-07',track:'京都',race:1,horses}]};
+ racecards:[{date:tomorrowJst,track:'京都',race:1,horses}]};
 const ref={kind:'keiba-nine-racecard-reference',schema:1,source:'別入力（架空）',
  checkedAt:new Date().toISOString(),
- races:[{date:'2026-11-07',track:'京都',race:1,complete:true,
+ races:[{date:tomorrowJst,track:'京都',race:1,complete:true,
  horses:horses.map(h=>({number:h.number,name:h.name,scratched:false}))}]};
 const clone=x=>JSON.parse(JSON.stringify(x));
 el('raw').value=JSON.stringify(bundle);
@@ -68,4 +69,19 @@ assert(el('sendDraft').disabled===true,'bad JSON blocks handoff');
 el('referenceRaw').value=JSON.stringify(ref);
 el('compareReference').events.click();
 assert(el('sendDraft').disabled===false,'corrected reference restores test preview');
+const expired=clone(ref);
+expired.checkedAt=new Date(Date.now()-96*60*60*1000).toISOString();
+el('referenceRaw').value=JSON.stringify(expired);
+el('compareReference').events.click();
+assert(el('savePreview').disabled===true&&el('sendDraft').disabled===true,'stale reference blocks both actions');
+assert(el('referenceResult').textContent.includes('72時間'),'stale timestamp warning displayed');
+const future=clone(ref);
+future.checkedAt=new Date(Date.now()+2*60*60*1000).toISOString();
+el('referenceRaw').value=JSON.stringify(future);
+el('compareReference').events.click();
+assert(el('savePreview').disabled===true&&el('sendDraft').disabled===true,'future timestamp blocks preview');
+assert(el('referenceResult').textContent.includes('未来'),'future timestamp warning displayed');
+el('referenceRaw').value=JSON.stringify(ref);
+el('compareReference').events.click();
+assert(el('sendDraft').disabled===false,'rechecked recent timestamp restores draft handoff');
 console.log('Racecard reference UI gating: '+count+' checks passed');
