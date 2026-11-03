@@ -205,15 +205,18 @@ function compareReference(){
   if(!window.KeibaNineReference)throw Error('照合用のプログラムを読み込めません');
   const comparison=window.KeibaNineReference.compareBundle(JSON.parse($('raw').value),JSON.parse(raw));
   referenceResult=comparison;
-  $('sendDraft').disabled=!comparison.matched;
-  $('savePreview').disabled=!comparison.matched;
-  $('referenceStatus').textContent=comparison.matched
-   ?'別データと'+comparison.passed+'Rの馬番・馬名・取消が一致（公式確認の証明ではありません）'
-   :'不一致：'+comparison.failed+'R・'+comparison.issues.length+'項目。保存と本体への引き継ぎを停止中';
-  $('referenceResult').textContent='照合元：'+comparison.referenceSource+'\n確認日時：'+comparison.checkedAt+'\n'+
-   (comparison.matched?'別入力と一致しました。情報の真正性・最新性は未確認です。':
+  $('sendDraft').disabled=!comparison.readyForPreview;
+  $('savePreview').disabled=!comparison.readyForPreview;
+  $('referenceStatus').textContent=!comparison.matched
+   ?'不一致：'+comparison.failed+'R・'+comparison.issues.length+'項目。保存・引き継ぎを停止中'
+   :!comparison.freshness.usable
+    ?'馬番・馬名は一致しましたが照合日時が要再確認。保存・引き継ぎを停止中'
+    :'別データと'+comparison.passed+'Rが一致（取得日 '+comparison.checkedAt+'／公式確認の証明ではありません）';
+  $('referenceResult').textContent='照合元：'+comparison.referenceSource+'\n確認日時：'+comparison.checkedAt+
+   '\n鮮度判定：'+comparison.freshness.message+'\n'+
+   (comparison.matched?'別ファイルの一致確認のみ。情報の真正性・最新性は別途確認が必要です。':
     comparison.issues.slice(0,80).join('\n')+(comparison.issues.length>80?'\n残りの不一致は元データを確認してください':''));
-  return comparison.matched;
+  return comparison.readyForPreview;
  }catch(err){
   referenceResult=null;
   $('sendDraft').disabled=true;$('savePreview').disabled=true;
@@ -223,7 +226,7 @@ function compareReference(){
  }
 }
 function ensureReferenceSafe(){
- if($('referenceRaw').value.trim()&&!compareReference())throw Error('別データと一致していません。照合を確認してください');
+ if($('referenceRaw').value.trim()&&!compareReference())throw Error('別データが不一致、または確認日時が古い・未来です。照合をやり直してください');
 }
 $('referenceRaw').addEventListener('input',()=>{
  referenceResult=null;
