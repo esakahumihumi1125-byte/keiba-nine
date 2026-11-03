@@ -129,6 +129,40 @@ B=45以上、C=45未満。**正式なJRDBランクではありません。**
 独自仮ランクを総合評価へ昇格させることも、実レースの
 3連単の買い目を作成することもしません。利用先は私用の準備診断のみです。
 
+## コース・距離・馬場・4角位置の前処理（2026-11-03）
+
+**コース・距離と馬場の客観的な取得**：
+
+- JRDB公式 `/tra` にある `track_type`（芝/ダート/障害）、
+  `distance`（距離）、`turn_cd`（右/左/直線）を安全に正規化します。
+- 追加した本人専用の `/tka` 取得処理は、開催日の芝/ダート馬場状態を取得します。
+  `holdingkey` の競馬場コード・日付を番組データと照合します。
+  日付・競馬場の不一致、重複開催データ、存在しない馬場状態コードは拒否します。
+- 本人認証付きの `/api/jrdb/context?date=YYYYMMDD` は、
+  レースごとに距離・芝ダート・回り方向・馬場の現在の**取得状況**のみ返します。
+  `updated_at` の存在は検査しますが、リアルタイム最新性の保証には使いません。
+- 障害や不明な馬場は「未確認」で保持。新たな馬場コードを推測しません。
+- `courseInfoPresentCount` と `goingAvailableCount` は情報の存在数であり、
+  競走馬のコース適性・不良馬場適性を示しません。
+  `horseCourseSuitabilityAssessed=false` と
+  `horseGoingSuitabilityAssessed=false` を維持します。
+
+**過去走の4角位置は展開の参考資料のみ**：
+
+- `scripts/jrdb_position_observations.py` は、近走最大3走の4角通過順のうち
+  2走以上を観測できた馬について、4番手以内の観測が多いか、
+  後方観測が多いか、混在しているかを内部で集計します。
+- ブラウザーへ出るのは各傾向の**頭数のみ**で、馬番・馬ID・原データは返しません。
+- 距離・相手・馬場・ペースの違いを補正していないため、
+  この集計だけで逃げ馬、先行力、ハイペースを断定しません。
+- `paceForecastAvailable=false`、`predictionReady=false`。
+  総合S/A/B/Cや3連単の実戦買い目にはまだつなぎません。
+
+資料元：
+<https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra> /
+<https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tka> /
+<https://jrdb-api.keiba.bigtime.world/docs/fields>。
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
