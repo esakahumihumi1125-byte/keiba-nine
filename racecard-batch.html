@@ -36,8 +36,28 @@ summary{cursor:pointer;color:#a7d5ff}
 <button class="secondary" type="button" id="clear">クリア</button>
 <p id="status" role="status">未検証</p>
 </section>
+<section class="panel" id="referencePanel">
+<h2>② 別データと出馬表を照合（任意）</h2>
+<p class="muted">別に用意した出馬表JSONと馬番・馬名・出走取消を比較します。不一致の場合はプレビューの保存と本体への引き継ぎを停止。照合用データを入れなければ、従来どおり未照合の検証用プレビューとして利用できます。</p>
+<label for="referenceFile">照合用JSONファイル</label><input type="file" id="referenceFile" accept=".json,application/json">
+<label for="referenceRaw">照合用JSON（任意）</label><textarea id="referenceRaw" spellcheck="false" style="min-height:120px"></textarea>
+<button class="secondary" type="button" id="compareReference">2つの出馬表を照合する</button>
+<p class="muted" id="referenceStatus" role="status">未照合：照合用JSONは入力されていません。</p>
+<pre id="referenceResult">別ファイルの一致チェックは、JRA公式の真正性や情報の最新性の証明にはなりません。</pre>
+<details><summary>照合用JSONの書式</summary><pre>{
+ "kind":"keiba-nine-racecard-reference",
+ "schema":1,
+ "source":"別途確認した出馬表の出典",
+ "checkedAt":"2026-11-06T17:30:00+09:00",
+ "races":[{
+   "date":"2026-11-07","track":"京都","race":1,
+   "complete":true,"off":"10:00",
+   "horses":[{"number":1,"name":"入力例の馬名","scratched":false}]
+ }]
+}</pre><p class="muted">これは書式例です。実在の馬ではありません。全出走馬の番号・馬名・取消状況が必要です。</p></details>
+</section>
 <section class="panel">
-<h2>② 開催日とレースを選ぶ</h2>
+<h2>③ 開催日とレースを選ぶ</h2>
 <div class="grid">
 <div><label for="date">日付</label><select id="date" disabled><option value="">読み込み待ち</option></select></div>
 <div><label for="track">競馬場</label><select id="track" disabled><option value="">読み込み待ち</option></select></div>
@@ -51,7 +71,7 @@ summary{cursor:pointer;color:#a7d5ff}
 <div id="list" aria-label="レース一覧">読み込み後に日付と競馬場ごとのレース一覧が表示されます。</div>
 </section>
 <section class="panel">
-<h2>③ 暫定評価・参考フォーメーション</h2>
+<h2>④ 暫定評価・参考フォーメーション</h2>
 <pre id="detail">対象レースを選ぶと結果が表示されます。</pre>
 <p class="muted">評価は入力に含まれるS/A/B/Cと根拠メモを固定加重で計算したものです。現実の勝率・回収率・馬券の購入推奨ではありません。調教や近走が不明な場合は見送りにします。</p>
 </section>
@@ -87,13 +107,14 @@ summary{cursor:pointer;color:#a7d5ff}
 </details>
 <script src="./racecard-engine.js"></script>
 <script src="./racecard-batch.js"></script>
+<script src="./racecard-reference.js"></script>
 <script src="./racecard-preview-bridge.js"></script>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
 const maxChars=2000000;
-let result=null,visible=[];
+let result=null,visible=[],referenceResult=null;
 function resetOutputs(){
  result=null;visible=[];
  for(const id of ['date','track','race']){
