@@ -8,7 +8,8 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
-                          fetch_training_analysis, fetch_recent_runs, fetch_venue_conditions, JRDBError, _NoRedirect)
+                          fetch_training_analysis, fetch_recent_runs, fetch_venue_conditions,
+                          fetch_historical_race_program, JRDBError, _NoRedirect)
 
 
 class PrivateClientTests(unittest.TestCase):
@@ -84,6 +85,37 @@ class PrivateClientTests(unittest.TestCase):
         os.environ['GITHUB_ACTIONS'] = 'true'
         with self.assertRaises(JRDBError):
             fetch_venue_conditions('20261026')
+
+    def test_single_historical_racekey_is_only_allowed_dra_query(self):
+        rows = fetch_historical_race_program('05264b01')
+        self.assertEqual(rows, [{'racekey': 'synthetic'}])
+        req = self.mock.return_value.open.call_args.args[0]
+        self.assertEqual(req.method, 'POST')
+        self.assertIn('/v1/dra?', req.full_url)
+        self.assertEqual(json.loads(req.data), {'racekey': '05264b01'})
+        self.assertNotIn('start_racedate', req.data.decode())
+        self.assertNotIn('end_racedate', req.data.decode())
+
+    def test_historical_lookup_invalid_key_never_contacts_provider(self):
+        for bad in ('', '05264B01', 'garbage', '05264a01;DROP',
+                    '05264b0Z', '../api', '０５２６４ｂ０１', 123,
+                    None, {'start_racedate': '20000101'}):
+            with self.subTest(bad=bad):
+                with self.assertRaises(JRDBError):
+                    fetch_historical_race_program(bad)
+        self.mock.assert_not_called()
+
+    def test_historical_lookup_is_disabled_in_actions(self):
+        os.environ['GITHUB_ACTIONS'] = 'true'
+        with self.assertRaises(JRDBError):
+            fetch_historical_race_program('05264b01')
+        self.mock.assert_not_called()
+
+    def test_historical_lookup_requires_explicit_private_activation(self):
+        del os.environ['JRDB_PRIVATE_ENABLED']
+        with self.assertRaises(JRDBError):
+            fetch_historical_race_program('05264b01')
+        self.mock.assert_not_called()
 
     def test_error_omits_secret_url_and_body(self):
         self.mock.return_value.open.side_effect = urllib.error.HTTPError('https://example/?secret', 403, 'private-data', {}, io.BytesIO(b'private-data'))
