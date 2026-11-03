@@ -10,6 +10,7 @@ on:
       - 'racecard-batch.html'
       - 'racecard-reference.js'
       - 'racecard-reference-tests.js'
+      - 'scripts/check-racecard-reference-ui.cjs'
       - 'racecard-preview-bridge.js'
       - 'racecard-preview-bridge-tests.js'
       - 'scripts/check-racecard-main-import.cjs'
@@ -25,6 +26,7 @@ on:
       - 'racecard-batch.html'
       - 'racecard-reference.js'
       - 'racecard-reference-tests.js'
+      - 'scripts/check-racecard-reference-ui.cjs'
       - 'racecard-preview-bridge.js'
       - 'racecard-preview-bridge-tests.js'
       - 'scripts/check-racecard-main-import.cjs'
@@ -68,3 +70,5 @@ jobs:
           node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-preview-bridge.js'); require('./racecard-preview-bridge-tests.js'); console.log('Preview bridge tests passed:',global.KeibaNinePreviewBridgeTests.passed)"
       - name: Verify main app imports exported preview batches
         run: node scripts/check-racecard-main-import.cjs
+      - name: Verify reference mismatch blocks local batch export and handoff
+        run: node scripts/check-racecard-reference-ui.cjs
