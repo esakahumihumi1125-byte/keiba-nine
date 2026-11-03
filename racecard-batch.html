@@ -36,6 +36,22 @@ summary{cursor:pointer;color:#a7d5ff}
 <button class="secondary" type="button" id="clear">クリア</button>
 <p id="status" role="status">未検証</p>
 </section>
+<section class="panel" id="programCoveragePanel">
+<h2>①-2 全場・全Rの不足チェック</h2>
+<p class="muted">一括JSONに開催予定 <code>program</code> が入っている場合に、対象レースの不足や評価未完了を一覧表示します。<strong>日程を指定していない場合は「全R準備完了」と判定しません。</strong> 実際のJRA開催情報を自動取得するものではありません。</p>
+<p id="coverageStatus" role="status">開催予定の確認待ち</p>
+<pre id="coverageResult">一括JSONをチェックすると結果が表示されます。</pre>
+<details><summary>開催予定programの入力例（任意）</summary>
+<pre>"program": {
+  "source": "確認済みの開催予定の出典",
+  "checkedAt": "2026-11-06T17:00:00+09:00",
+  "sessions": [
+    {"date": "2026-11-07", "track": "京都",
+     "races": [1,2,3,4,5,6,7,8,9,10,11,12]}
+  ]
+}</pre>
+<p class="muted">上記はデータ構造例であり、実際の開催日を表すものではありません。開催予定は実在の情報を別途確認して入力してください。単独レースの評価が計算できても、全開催の網羅性を証明したことにはなりません。</p></details>
+</section>
 <section class="panel" id="referencePanel">
 <h2>② 別データと出馬表を照合（任意）</h2>
 <p class="muted">別に用意した出馬表JSONと馬番・馬名・出走取消を比較します。不一致の場合はプレビューの保存と本体への引き継ぎを停止。照合用データを入れなければ、従来どおり未照合の検証用プレビューとして利用できます。</p>
@@ -107,6 +123,7 @@ summary{cursor:pointer;color:#a7d5ff}
 </details>
 <script src="./racecard-engine.js"></script>
 <script src="./racecard-batch.js"></script>
+<script src="./racecard-coverage.js"></script>
 <script src="./racecard-reference.js"></script>
 <script src="./racecard-preview-bridge.js"></script>
 <script>
@@ -129,6 +146,8 @@ function resetOutputs(){
  $('summary').textContent='まだ検証済みのレースはありません。';
  $('list').textContent='読み込み後に一覧が表示されます。';
  $('detail').textContent='対象レースを選ぶと結果が表示されます。';
+ $('coverageStatus').textContent='未確認';
+ $('coverageResult').textContent='一括JSONのチェック後に表示します。';
 }
 function options(select,items,empty){
  select.replaceChildren();
@@ -254,6 +273,36 @@ $('referenceFile').addEventListener('change',async()=>{
 });
 $('compareReference').addEventListener('click',compareReference);
 
+
+function updateCoverage(programBundle){
+ if(!window.KeibaNineCoverage)throw Error('全R不足チェックのプログラムを読み込めません');
+ const coverage=window.KeibaNineCoverage.auditCoverage(programBundle);
+ if(!coverage.declared){
+  $('coverageStatus').textContent='開催予定が未指定：全場・全Rの網羅性は判定できません';
+  $('coverageResult').textContent='受信データ：'+coverage.received+'R／参考フォーメーションが計算可能：'+coverage.ready+'R\n'+coverage.notice;
+  return;
+ }
+ $('coverageStatus').textContent=coverage.allPreviewsReady
+  ?'指定された開催予定の全'+coverage.expected+'Rで、出馬表と暫定評価がそろっています（※入力データ内だけの判定）'
+  :'開催予定 '+coverage.expected+'R／出馬表受信 '+coverage.received+'R／暫定評価可能 '+coverage.ready+'R：未完了';
+ const lines=[
+  '入力された開催予定：'+coverage.source,
+  '開催予定の確認日時：'+coverage.checkedAt,
+  '全対象レースの出馬表がそろった：'+(coverage.allCardsPresent?'はい':'いいえ'),
+  '全対象レースの評価がそろった：'+(coverage.allPreviewsReady?'はい':'いいえ'),
+  ''
+ ];
+ for(const session of coverage.sessions){
+  const prefix=session.date+' '+session.track+'｜'+session.ready+'/'+session.expected+'R 評価準備';
+  lines.push(prefix);
+  if(session.missingRaces.length)lines.push('  未取得：'+session.missingRaces.map(n=>n+'R').join('・'));
+  if(session.unreadyRaces.length)lines.push('  評価待ち・見送り：'+session.unreadyRaces.map(n=>n+'R').join('・'));
+ }
+ if(coverage.unexpected.length)lines.push('','開催予定にない入力レース：'+coverage.unexpected.join('、'));
+ lines.push('','※'+coverage.notice);
+ $('coverageResult').textContent=lines.join('\n');
+}
+
 $('date').addEventListener('change',updateList);
 $('track').addEventListener('change',updateList);
 $('race').addEventListener('change',updateRace);
@@ -283,6 +332,7 @@ $('analyze').addEventListener('click',()=>{
   options($('date'),[['','全日付'],...result.dates.map(d=>[d,d])],'日付なし');
   options($('track'),[['','全競馬場'],...result.tracks.map(t=>[t,t])],'競馬場なし');
   $('status').textContent='形式チェック完了：'+result.total+'R／参考 '+result.ready+'R／見送り '+result.skipped+'R（実在・利用許諾は未検証）';
+  updateCoverage(data);
   $('sendDraft').disabled=false;
   $('savePreview').disabled=false;
   if($('referenceRaw').value.trim())compareReference();
