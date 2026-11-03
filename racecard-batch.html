@@ -123,6 +123,9 @@ function resetOutputs(){
  $('prev').disabled=true;$('next').disabled=true;
  $('sendDraft').disabled=true;
  $('savePreview').disabled=true;
+ referenceResult=null;
+ $('referenceStatus').textContent=$('referenceRaw').value.trim()?'元データの再検証後に照合してください':'未照合：照合用JSONは入力されていません';
+ $('referenceResult').textContent='公式情報の真正性・最新性は確認していません';
  $('summary').textContent='まだ検証済みのレースはありません。';
  $('list').textContent='読み込み後に一覧が表示されます。';
  $('detail').textContent='対象レースを選ぶと結果が表示されます。';
@@ -279,12 +282,14 @@ $('analyze').addEventListener('click',()=>{
   $('status').textContent='形式チェック完了：'+result.total+'R／参考 '+result.ready+'R／見送り '+result.skipped+'R（実在・利用許諾は未検証）';
   $('sendDraft').disabled=false;
   $('savePreview').disabled=false;
+  if($('referenceRaw').value.trim())compareReference();
   updateList();
  }catch(err){resetOutputs();$('status').textContent='検証NG：'+(err.message||'データの形式が不正です')}
 });
 $('savePreview').addEventListener('click',()=>{
  try{
   if(!result)throw Error('先に全Rチェックを実行してください');
+  ensureReferenceSafe();
   if(!window.KeibaNinePreviewBridge)throw Error('出力プログラムが読み込めません');
   const fullPack=window.KeibaNinePreviewBridge.toPortablePreview(JSON.parse($('raw').value));
   if(fullPack.forecasts.length!==result.total)throw Error('データが変更されました。再検証してください');
@@ -308,6 +313,7 @@ $('savePreview').addEventListener('click',()=>{
 $('sendDraft').addEventListener('click',()=>{
  try{
   if(!result)throw Error('先に全Rの形式・評価をチェックしてください');
+  ensureReferenceSafe();
   const bridge=window.KeibaNinePreviewBridge;
   if(!bridge)throw Error('本体への橋渡しプログラムが読み込めません');
   const payload={kind:'keiba-nine-local-preview',schema:1,createdAt:Date.now(),forecasts:bridge.toDraftRows(JSON.parse($('raw').value))};
