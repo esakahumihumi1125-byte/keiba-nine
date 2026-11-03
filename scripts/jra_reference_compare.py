@@ -22,6 +22,7 @@ SURFACES = {"芝", "ダート", "障害"}
 SOURCES = {"operator_transcription", "future_authorized_adapter"}
 WITHDRAWN = {"active": "0", "withdrawn": "1", "unknown": None}
 STATUS = ("missing_reference", "differences_found",
+          "partial_or_unknown_reference",
           "insufficient_comparable_fields", "no_differences_in_available_fields")
 
 
@@ -61,6 +62,7 @@ def _reference_rows(snapshot, requested_date, expected_keys):
         return None
     if (not isinstance(snapshot, dict)
             or snapshot.get("date") != requested_date
+            or type(snapshot.get("source")) is not str
             or snapshot.get("source") not in SOURCES
             or not isinstance(snapshot.get("races"), list)
             or len(snapshot["races"]) > 120
@@ -183,6 +185,7 @@ def compare_independent_race_snapshot(programme, entries, conditions,
         total_comparisons = sum(compared.values())
         state = ("missing_reference" if missing else
                  "differences_found" if total_diff else
+                 "partial_or_unknown_reference" if unknown else
                  "insufficient_comparable_fields" if not total_comparisons else
                  "no_differences_in_available_fields")
         reports.append({
@@ -194,6 +197,7 @@ def compare_independent_race_snapshot(programme, entries, conditions,
             "comparableFields": total_comparisons,
             "unknownComparisons": unknown,
             "independentSnapshotAuthenticated": False,
+            "referenceCollectionFreshnessVerified": False,
             "officialJraFinalVerification": False,
             "officialStarterListVerified": False,
             "officialGoingVerified": False,
@@ -207,6 +211,7 @@ def compare_independent_race_snapshot(programme, entries, conditions,
         "racesWithDifferences": sum(x["differenceCount"] > 0 for x in reports),
         "racesMissingReference": sum(not x["independentReferenceProvided"] for x in reports),
         "officialJraFinalVerification": False,
+        "referenceCollectionFreshnessVerified": False,
         "predictionReady": False, "bettingReady": False,
         "races": reports,
         "note": ("独立資料の入力形式と出走馬・取消・騎手コード・馬場・"
