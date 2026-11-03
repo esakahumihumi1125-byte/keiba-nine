@@ -94,7 +94,9 @@ class PrivateServiceTests(unittest.TestCase):
 
     def test_historical_check_uses_only_redacted_bounded_private_results(self):
         from test_jrdb_going_history import sample_going
+        from test_jrdb_evidence_readiness import sample as evidence_sample
         p, entries, previous, oldprogram, oldgoing, current = sample_going()
+        _, _, training, _ = evidence_sample()
         raw_program = [
             {'racekey': x['racekey'], 'racedate': x['racedate'],
              'post_time': '1010', 'headcount': x['headcount'],
@@ -111,6 +113,7 @@ class PrivateServiceTests(unittest.TestCase):
             patch('private_service.fetch_race_program', return_value=raw_program),
             patch('private_service.fetch_horse_entries', return_value=entries),
             patch('private_service.fetch_recent_runs', return_value=previous),
+            patch('private_service.fetch_training_analysis', return_value=training),
             patch('private_service.fetch_venue_conditions', return_value=current),
             patch('private_service.fetch_historical_race_program',
                   side_effect=lambda key: [x for x in oldprogram if x['racekey'] == key]) as dra,
@@ -127,6 +130,15 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(quality['courseComparableSamples']['oneOrTwo'], 1)
         self.assertEqual(quality['knownGoingComparableSamples']['none'], 1)
         self.assertFalse(report['evidenceQuality']['predictionConfidenceAssessed'])
+        tokyo_materials = next(x for x in report['tenFactorMaterials']['races']
+                               if x['track'] == '東京')
+        self.assertEqual(report['tenFactorMaterials']['factorCount'], 10)
+        self.assertEqual(tokyo_materials['observedFactorCount'], 4)
+        self.assertEqual(tokyo_materials['factors']['training']['observedRunnerCount'], 2)
+        self.assertEqual(tokyo_materials['factors']['course_distance']['observedRunnerCount'], 1)
+        self.assertTrue(all(x['grade'] == '未評価'
+                            for x in tokyo_materials['factors'].values()))
+        self.assertFalse(report['tenFactorMaterials']['bettingReady'])
         self.assertFalse(report['predictionReady'])
         self.assertFalse(report['goingSuitabilityAssessed'])
         tokyo = next(x for x in report['goingSummary']['races'] if x['track'] == '東京')
