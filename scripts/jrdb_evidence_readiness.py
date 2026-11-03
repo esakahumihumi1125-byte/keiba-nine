@@ -113,11 +113,35 @@ def audit_evidence_coverage(programme, entries, training, previous, requested_da
         race["trainingRecords"] = sum(k == key for k, _ in training_seen)
         race["lastWeekRecords"] = sum(k == key for k, _ in week_seen)
         race["pastRunRecords"] = sum(k == key for k, _ in prior_seen)
+        # A verified entry identity can lack an evidence record, but the absence
+        # is not proof that a workout was missed or a first-time starter ran before.
+        observed = race["observedEntries"]
+        race["trainingUnaccounted"] = max(0, observed - race["trainingRecords"])
+        race["lastWeekUnaccounted"] = max(0, observed - race["lastWeekRecords"])
+        race["pastRunUnaccounted"] = max(0, observed - race["pastRunRecords"])
+        gaps = []
+        if race["status"] != "件数一致（取消等未照合）":
+            gaps.append("出走馬登録数を要確認")
+        if race["trainingUnaccounted"]:
+            gaps.append("調教記録なし・未対応 " + str(race["trainingUnaccounted"]) + "頭分")
+        if race["lastWeekUnaccounted"]:
+            gaps.append("1週前調教記録なし・未対応 " + str(race["lastWeekUnaccounted"]) + "頭分")
+        if race["pastRunUnaccounted"]:
+            gaps.append("近走記録なし・該当なし " + str(race["pastRunUnaccounted"]) + "頭分")
+        race["evidenceGaps"] = gaps
         race["rosterVerified"] = False
         race["workoutsVerified"] = False
         race["predictionsReady"] = False
-        race["evidenceStatus"] = "資料件数のみ確認（評価未実施）"
+        race["evidenceStatus"] = ("資料に不足・未対応あり（評価未実施）" if gaps
+                                  else "資料件数のみ一致（内容評価未実施）")
+    base["gapRaceCount"] = sum(bool(race["evidenceGaps"]) for race in base["races"])
+    base["unaccountedTotals"] = {
+        "training": sum(r["trainingUnaccounted"] for r in base["races"]),
+        "lastWeek": sum(r["lastWeekUnaccounted"] for r in base["races"]),
+        "pastRuns": sum(r["pastRunUnaccounted"] for r in base["races"]),
+    }
     base["note"] = ("出走馬・調教・1週前調教・近走の資料件数だけを照合。"
+                    "記録がない馬には新馬・未提供・未照合が含まれ、欠損の原因は不明。"
                     "取消、資料の真偽、血統、馬場、展開、予想は未評価。"
-                    "新馬など近走がない馬も補完しない。")
+                    "実馬名・馬ID・元データや買い目はこの診断結果に含まれない。")
     return base
