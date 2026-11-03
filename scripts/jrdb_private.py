@@ -27,7 +27,7 @@ def _fetch_endpoint(endpoint, parameters):
     Historical requests must specify exactly one existing race key, never a
     date range or an unconstrained search.
     """
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'dra'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'dra', 'dka'):
         raise JRDBError('Unsupported JRDB endpoint')
     if os.environ.get("JRDB_PRIVATE_ENABLED") != "1":
         raise JRDBError("Private JRDB integration is disabled")
@@ -35,7 +35,7 @@ def _fetch_endpoint(endpoint, parameters):
         raise JRDBError("JRDB retrieval is disabled in GitHub Actions")
     if not isinstance(parameters, dict):
         raise JRDBError("Invalid JRDB request parameters")
-    if endpoint == 'dra':
+    if endpoint in ('dra', 'dka'):
         racekey = parameters.get("racekey")
         if (set(parameters) != {"racekey"} or not isinstance(racekey, str)
                 or len(racekey) != 8 or any(ch not in "0123456789abcdef" for ch in racekey)):
@@ -90,6 +90,11 @@ def _fetch_day(endpoint, racedate):
 def fetch_historical_race_program(racekey):
     """One private historical /dra race programme by exact racekey, no range."""
     return _fetch_endpoint('dra', {"racekey": racekey})
+
+
+def fetch_historical_venue_conditions(racekey):
+    """One private historical /dka venue snapshot by exact racekey, no range."""
+    return _fetch_endpoint('dka', {'racekey': racekey})
 
 
 def fetch_race_program(racedate):
