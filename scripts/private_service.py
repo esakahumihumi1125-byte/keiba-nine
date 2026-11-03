@@ -224,10 +224,16 @@ def create_app(settings=None):
                 for horse in race.get('horses', []):
                     if not isinstance(horse, dict):
                         raise ValueError()
-                    for assessment in (horse.get('assessments') or {}).values():
+                    assessments = horse.get('assessments') or {}
+                    if not isinstance(assessments, dict):
+                        raise ValueError()
+                    for assessment in assessments.values():
                         if not isinstance(assessment, dict):
                             raise ValueError()
-                        for evidence in assessment.get('evidence', []):
+                        sources = assessment.get('evidence', [])
+                        if not isinstance(sources, list):
+                            raise ValueError()
+                        for evidence in sources:
                             if not isinstance(evidence, dict) or evidence.get('sourceId') != 'synthetic':
                                 raise ValueError()
                 plan = plan_race(race)
