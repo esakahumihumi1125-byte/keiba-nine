@@ -5,12 +5,18 @@ on:
       - 'racecard-engine.js'
       - 'racecard-engine-tests.js'
       - 'racecard-check.html'
+      - 'racecard-batch.js'
+      - 'racecard-batch-tests.js'
+      - 'racecard-batch.html'
       - '.github/workflows/racecard-validation.yml'
   pull_request:
     paths:
       - 'racecard-engine.js'
       - 'racecard-engine-tests.js'
       - 'racecard-check.html'
+      - 'racecard-batch.js'
+      - 'racecard-batch-tests.js'
+      - 'racecard-batch.html'
       - '.github/workflows/racecard-validation.yml'
   workflow_dispatch:
 permissions:
@@ -24,6 +30,13 @@ jobs:
         run: node --check racecard-engine.js
       - name: Check test JavaScript
         run: node --check racecard-engine-tests.js
+      - name: Check bulk JavaScript
+        run: |
+          node --check racecard-batch.js
+          node --check racecard-batch-tests.js
       - name: Execute offline regression tests
         run: |
           node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-engine-tests.js'); console.log('Racecard tests passed:',global.KeibaNineRacecardTests.passed)"
+      - name: Execute batch regression tests
+        run: |
+          node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-batch-tests.js'); console.log('Batch tests passed:',global.KeibaNineBatchTests.passed)"
