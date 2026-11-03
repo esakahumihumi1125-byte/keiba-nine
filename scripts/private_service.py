@@ -160,6 +160,69 @@ el('history').onclick=async()=>{
  }catch(e){el('message').textContent=e.message;}
  finally{b.disabled=!historyEnabled;}
 };
+let previousManualComparison=null;
+el('manualCompare').onclick=async()=>{
+ const button=el('manualCompare');button.disabled=true;
+ el('manualResults').replaceChildren();
+ el('manualMessage').textContent='本人入力の1Rだけを照合中…';
+ try{
+  if(!manualEnabled)throw Error('本人専用の手入力照合は無効です');
+  if(!el('date').value)throw Error('開催日を選んでください');
+  const date=el('date').value.replaceAll('-','');
+  const track=el('manualTrack').value;
+  if(!track)throw Error('競馬場を選んでください');
+  const race=Number(el('manualRace').value);
+  const horse=el('manualHorse').value;
+  const status=el('manualStatus').value;
+  if(!horse&&status!=='unknown')throw Error('取消状態を入力する場合は馬番を選んでください');
+  const manual={
+   date,source:'operator_transcription',
+   races:[{track,race,completeRoster:false,
+    postTime:el('manualTime').value.trim()||null,
+    going:el('manualGoing').value||null,
+    surface:el('manualSurface').value||null,
+    entries:horse?[{horseNumber:horse,status,jockeyCode:null}]:[]
+   }]
+  };
+  const response=await fetch('/api/jrdb/compare-manual',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'Content-Type':'application/json','X-Keiba-Request':'private'},
+   body:JSON.stringify(manual)
+  });
+  const data=await response.json();
+  if(!response.ok)throw Error(data.error||'照合できませんでした');
+  if(data.officialJraFinalVerification!==false
+     ||data.predictionReady!==false||data.bettingReady!==false
+     ||data.racesCompared!==1)throw Error('公式確認の状態が不正です');
+  const row=data.races.find(x=>x.track===track&&x.race===race);
+  if(!row||row.independentSnapshotAuthenticated!==false
+     ||row.referenceCollectionFreshnessVerified!==false
+     ||row.officialJraFinalVerification!==false
+     ||row.predictionReady!==false||row.bettingReady!==false
+     ||!Number.isInteger(row.differenceCount)||row.differenceCount<0
+     ||!Number.isInteger(row.unknownComparisons)||row.unknownComparisons<0)
+    throw Error('照合件数または確認状態が不正です');
+  const category={withdrawal:'取消',jockey:'騎手コード',going:'馬場',
+    postTime:'発走予定時刻',surface:'芝・ダート',roster:'出走馬一覧'};
+  if(!row.differenceCategories
+     ||Object.keys(category).some(key=>!Number.isInteger(row.differenceCategories[key])
+                                       ||row.differenceCategories[key]<0))
+    throw Error('差分項目が不正です');
+  const details=Object.keys(category)
+    .filter(key=>row.differenceCategories[key]>0)
+    .map(key=>category[key]+row.differenceCategories[key]+'件');
+  const key=date+'|'+track+'|'+race;
+  const before=previousManualComparison&&previousManualComparison.key===key
+    ?previousManualComparison.count:null;
+  const diff=before===null?'':('｜前回との差分件数 '+before+'→'+row.differenceCount);
+  el('manualMessage').textContent=track+race+'R｜入力した範囲の差分 '
+    +row.differenceCount+'件'+(details.length?'（'+details.join('、')+'）':'')
+    +'｜比較できない項目 '+row.unknownComparisons+'件'+diff
+    +'｜出所・最新性の独立認証なし／JRA公式の最終確認：未実施／予想・購入：未接続';
+  previousManualComparison={key,count:row.differenceCount};
+ }catch(err){el('manualMessage').textContent=err.message;}
+ finally{button.disabled=!manualEnabled;}
+};
 el('raceday').onclick=async()=>{
  const button=el('raceday');button.disabled=true;
  el('message').textContent='出走取消フラグ・馬場の資料を照合中…';
