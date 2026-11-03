@@ -63,6 +63,27 @@ are reflected. Even when all records are present, the API reports
 独立に検証する必要があります。現在の研究用の重みやS/A/B/C閾値は仮説であり、
 予測精度と回収率の実績を示すものではありません。
 
+## 調教指数からの暫定S/A/B/C提案（研究用のみ）
+
+`scripts/jrdb_training_hypothesis.py` は、JRDBの `/tcy` に含まれる
+`oikirisisu`（追切指数）と `siagarisisu`（仕上指数）を読み、
+**両方の指数が揃っている馬に限り**、競馬ナイン独自の暫定ランクを計算します。
+出典：https://jrdb-api.keiba.bigtime.world/docs/fields
+（公式フィールド説明では、高い値の方が良く、60を基準とします。）
+
+独自の仮閾値は、２指数の低い方で S=75以上、A=60以上、
+B=45以上、C=45未満。**正式なJRDBランクではありません。**
+数字の根拠は過去の回収率・勝率で較正しておらず、
+データの傾向を試すための研究仮説です。どちらかが未提供なら「未評価」にします。
+馬IDと馬番の照合が曖昧・矛盾する場合や、指数の形式が異常な場合は処理を止めます。
+
+本人専用 `/api/jrdb/evidence` の `trainingHypothesis` は、
+レースごとの S/A/B/C/未評価の**頭数だけ**を返し、
+個別の馬名・馬ID・元の指数・買い目を公開しません。
+10項目の総合評価には昇格させず、`assessmentPreflight` は
+未評価のまま、`predictionsReady=0` のまま維持します。
+実際に使うにはβ版専用APIアカウントと、安全な非公開HTTPSサーバーが必要です。
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
