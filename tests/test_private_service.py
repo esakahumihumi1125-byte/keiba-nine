@@ -203,9 +203,49 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(data['races'][0]['trainingRecords'], 1)
         self.assertEqual(data['races'][0]['lastWeekRecords'], 1)
         self.assertEqual(data['races'][0]['pastRunRecords'], 1)
+        self.assertEqual(data['races'][0]['trainingUnaccounted'], 0)
+        self.assertEqual(data['races'][0]['lastWeekUnaccounted'], 0)
+        self.assertEqual(data['races'][0]['pastRunUnaccounted'], 0)
+        self.assertEqual(data['gapRaceCount'], 0)
+        self.assertEqual(data['unaccountedTotals'],
+                         {'training': 0, 'lastWeek': 0, 'pastRuns': 0})
         self.assertEqual(data['predictionsReady'], 0)
         self.assertNotIn(b'SECRET-HORSE', result['body'])
         self.assertNotIn(b'HIDDEN-DATA', result['body'])
+
+    def test_evidence_gap_summary_is_owner_only_and_not_live_prediction(self):
+        private = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        race = [{'racekey': '05264b01', 'racedate': '20261027',
+                 'racecourse_cd': '05', 'post_time': '1010', 'headcount': 1}]
+        entries = [{'racekey': '05264b01', 'racedate': '20261027',
+                    'horse_number': '01', 'horse_id': '2328aaa95a05',
+                    'horse_name': 'NONPUBLIC-TEST-HORSE'}]
+        with patch('private_service.fetch_race_program', return_value=race), \\
+             patch('private_service.fetch_horse_entries', return_value=entries), \\
+             patch('private_service.fetch_training_analysis', return_value=[]), \\
+             patch('private_service.fetch_recent_runs', return_value=[]):
+            denied = call(private, '/api/jrdb/evidence', auth='',
+                          QUERY_STRING='date=20261027')
+            result = call(private, '/api/jrdb/evidence',
+                          QUERY_STRING='date=20261027')
+        self.assertTrue(denied['status'].startswith('401'))
+        self.assertTrue(result['status'].startswith('200'))
+        report = json.loads(result['body'])
+        self.assertEqual(report['gapRaceCount'], 1)
+        self.assertEqual(report['unaccountedTotals'],
+                         {'training': 1, 'lastWeek': 1, 'pastRuns': 1})
+        self.assertFalse(report['races'][0]['predictionsReady'])
+        self.assertEqual(report['races'][0]['trainingUnaccounted'], 1)
+        self.assertNotIn(b'NONPUBLIC-TEST-HORSE', result['body'])
+        self.assertNotIn(b'2328aaa95a05', result['body'])
+        self.assertNotIn(b'API_KEY', result['body'])
+
+    def test_private_client_script_displays_missing_evidence_counts(self):
+        script = call(self.app, '/app.js')['body']
+        for label in (b'trainingUnaccounted', b'lastWeekUnaccounted',
+                      b'pastRunUnaccounted', b'gapRaceCount'):
+            self.assertIn(label, script)
+        self.assertNotIn(b'innerHTML', script)
 
     def test_evidence_endpoint_disabled_without_private_activation(self):
         with patch('private_service.fetch_race_program') as fetch:
