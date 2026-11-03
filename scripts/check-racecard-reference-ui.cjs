@@ -36,7 +36,7 @@ const horses=gradeRows.map((row,i)=>({
 const bundle={kind:'keiba-nine-racecards',schema:1,source:'架空の提供元',licenseConfirmed:true,
  racecards:[{date:'2026-11-07',track:'京都',race:1,horses}]};
 const ref={kind:'keiba-nine-racecard-reference',schema:1,source:'別入力（架空）',
- checkedAt:'2026-11-06T17:30:00+09:00',
+ checkedAt:new Date().toISOString(),
  races:[{date:'2026-11-07',track:'京都',race:1,complete:true,
  horses:horses.map(h=>({number:h.number,name:h.name,scratched:false}))}]};
 const clone=x=>JSON.parse(JSON.stringify(x));
