@@ -37,7 +37,10 @@ class RaceContextTests(unittest.TestCase):
         races, holding = fake()
         output = audit_race_context(races, holding, "20261101")
         self.assertEqual(output["raceCount"], 3)
-        turf, dirt, jump = output["races"]
+        by_key = {(r["track"], r["race"]): r for r in output["races"]}
+        turf = by_key["東京", 1]
+        dirt = by_key["東京", 2]
+        jump = by_key["京都", 1]
         self.assertEqual((turf["surface"], turf["distance_m"], turf["turn"]),
                          ("芝", 2000, "左"))
         self.assertEqual(turf["going"], "稍重")
