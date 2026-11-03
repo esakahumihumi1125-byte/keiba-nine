@@ -111,6 +111,41 @@ def _reference_rows(snapshot, requested_date, expected_keys):
     return result
 
 
+
+def validate_single_manual_reference(snapshot):
+    """Check owner-entered ONE-RACE transcription before any paid fetch.
+
+    Does not prove source origin. No roster-complete claim, arbitrary source
+    marker, bulk upload or data ingestion is allowed through this narrow UI.
+    Return only the original sanitized structure for in-memory comparison.
+    """
+    from jrdb_evidence_readiness import _valid_date
+    if (not isinstance(snapshot, dict)
+            or set(snapshot) != {"date", "source", "races"}
+            or snapshot.get("source") != "operator_transcription"
+            or not _valid_date(snapshot.get("date"))
+            or not isinstance(snapshot.get("races"), list)
+            or len(snapshot["races"]) != 1
+            or not isinstance(snapshot["races"][0], dict)):
+        raise ReferenceCompareError("Invalid single-race transcription")
+    row = snapshot["races"][0]
+    if (row.get("completeRoster") is not False
+            or not isinstance(row.get("entries"), list)
+            or len(row["entries"]) > 1):
+        raise ReferenceCompareError("Manual input cannot certify full runner list")
+    # The referenced track and number are validated by _reference_rows.
+    track, race = row.get("track"), row.get("race")
+    if type(track) is not str or type(race) is not int:
+        raise ReferenceCompareError("Invalid manual race identifier")
+    _reference_rows(snapshot, snapshot["date"], {(track, race)})
+    if not (row["postTime"] is not None or row["going"] is not None
+            or row["surface"] is not None or
+            any(e["status"] != "unknown" or e["jockeyCode"] is not None
+                for e in row["entries"])):
+        raise ReferenceCompareError("No independent comparison fields supplied")
+    return snapshot
+
+
 def compare_independent_race_snapshot(programme, entries, conditions,
                                       requested_date, independent_snapshot=None):
     """Check structured independent reference against validated JRDB day rows.
