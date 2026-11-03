@@ -316,6 +316,42 @@ GitHub Pages・公開JSON・既存の実戦馬券記録には反映しません�
 本番には利用許諾を確認したデータ取得、出走取消と当日馬場の照合、
 根拠付き評価・バックテスト・本人専用HTTPSサーバーの有効化が必要です。
 
+## 出走取消・当日馬場・発走時刻の提供元確認（2026-11-04）
+
+新しく `scripts/jrdb_race_day_gates.py` を追加。公開用でなく、
+本人認証付きHTTPSサーバー内で `/tra` 番組、`/tky` 出走馬、
+`/tka` 開催馬場の**元データの有無と整合性**を確認します。
+
+- `/tky.withdrawn_flag` は `0`（提供元で取消報告なし）と
+  `1`（提供元で取消報告あり）を区別し、欠損は「未確認」とする。
+- 未知のフラグ、重複馬番、違うレース・開催日などは処理を拒否する。
+- レースごとに取消報告がある頭数、フラグが未確認の頭数、
+  芝・ダート馬場情報の有無、更新日時の記録有無、番組の頭数照合結果を示す。
+- 提供元での取消報告がゼロでも **JRA公式での取消・除外確認が必要**。
+- 馬場の更新日時が記録されていても、最新の当日馬場と保証しない。
+- 発走時刻の記録があってもJRA公式の時刻変更が反映済みとは保証しない。
+
+本人専用 `GET /api/jrdb/race-day?date=YYYYMMDD` は利用者の
+明示操作時だけ開催日の `/tra`・`/tky`・`/tka` を取得して、
+レースごとの件数と未確認状態を表示する。APIキー、馬ID、馬名、
+個別フラグ・レースキーや有料指数は返さない。
+GitHub Pagesなどの公開環境では実行しない。
+
+また `/tka` 開催キーの検査を数字のみから小文字16進6文字へ拡張。
+JRDB公式仕様では開催日目に `a`〜`f` が入ることがある。
+
+**JRA公式の独立データを自動取得する仕組みは今回まだ追加していない。**
+どのレースも `officialScratchesVerified=false`、
+`officialGoingVerified=false`、`officialPostTimeVerified=false`、
+`predictionReady=false`、`bettingReady=false` とする。
+検証済みとして扱うにはJRA公式の取消・馬場・発走時刻との照合と
+適切な更新時刻管理が必要。
+
+参照：
+https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tky
+https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tka
+https://jrdb-api.keiba.bigtime.world/docs/fields
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra

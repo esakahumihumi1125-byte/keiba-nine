@@ -149,6 +149,78 @@ class PrivateServiceTests(unittest.TestCase):
                               b'horse_id', b'05264a01', b'byNumber'):
             self.assertNotIn(private_value, out['body'])
 
+    def test_race_day_status_fails_closed_without_config_or_auth(self):
+        unconfigured = call(self.app, '/api/jrdb/race-day', QUERY_STRING='date=20261101')
+        self.assertTrue(unconfigured['status'].startswith('503'))
+        cfg = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        with patch('private_service.fetch_race_program') as fetch:
+            for date in ('not-a-day', '20260230', '20261101&race=1', ''):
+                out = call(cfg, '/api/jrdb/race-day', QUERY_STRING='date='+date)
+                self.assertTrue(out['status'].startswith('400'))
+            self.assertTrue(call(cfg, '/api/jrdb/race-day',
+                         QUERY_STRING='date=20261101', auth='')['status'].startswith('401'))
+            self.assertTrue(call(cfg, '/api/jrdb/race-day', QUERY_STRING='date=20261101',
+                         HTTP_X_KEIBA_REQUEST='')['status'].startswith('403'))
+        fetch.assert_not_called()
+
+    def test_race_day_reports_source_withdrawals_without_licensed_rows(self):
+        from test_jrdb_race_day_gates import fixture
+        programme, entries, conditions = fixture()
+        raw = [{
+            'racekey': r['racekey'], 'racedate': '20261101',
+            'track_type': '1' if r['track']=='東京' else '2',
+            'distance': str(r['distance_m']),
+            'turn_cd': '2' if r['turn']=='左' else '1',
+            'headcount': r['headcount'],
+            'post_time': '1010',
+        } for r in programme]
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        with (
+            patch('private_service.fetch_race_program', return_value=raw) as program,
+            patch('private_service.fetch_horse_entries', return_value=entries) as horses,
+            patch('private_service.fetch_venue_conditions', return_value=conditions) as venue,
+        ):
+            out = call(app, '/api/jrdb/race-day', QUERY_STRING='date=20261101')
+        self.assertEqual(out['status'], '200 OK')
+        data = json.loads(out['body'])
+        self.assertEqual(data['racesWithProviderWithdrawal'], 1)
+        self.assertEqual(data['racesWithUnknownFlags'], 1)
+        self.assertEqual(data['racesWithOfficialFinalCheck'], 0)
+        self.assertFalse(data['predictionReady'])
+        self.assertFalse(data['bettingReady'])
+        tokyo = next(x for x in data['races'] if x['track'] == '東京')
+        self.assertEqual(tokyo['providerWithdrawnCount'], 1)
+        self.assertFalse(tokyo['officialScratchesVerified'])
+        self.assertFalse(tokyo['officialGoingVerified'])
+        self.assertFalse(tokyo['finalRaceReady'])
+        program.assert_called_once_with('20261101')
+        horses.assert_called_once_with('20261101')
+        venue.assert_called_once_with('20261101')
+        for private in (b'LICENSED-HORSE-PRIVATE', b'LICENSED-GOING-PRIVATE',
+                        b'racekey', b'horse_number', b'horse_name', b'2328aaa95a05'):
+            self.assertNotIn(private, out['body'])
+
+    def test_race_day_malformed_withdrawal_is_redacted_502(self):
+        from test_jrdb_race_day_gates import fixture
+        p, e, c = fixture()
+        e[0]['withdrawn_flag'] = '9'
+        raw = [{
+            'racekey': r['racekey'], 'racedate': '20261101',
+            'track_type': '1' if r['track']=='東京' else '2',
+            'distance': str(r['distance_m']),
+            'turn_cd': '2' if r['turn']=='左' else '1',
+            'headcount': r['headcount'], 'post_time': '1010'
+        } for r in p]
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        with (
+            patch('private_service.fetch_race_program', return_value=raw),
+            patch('private_service.fetch_horse_entries', return_value=e),
+            patch('private_service.fetch_venue_conditions', return_value=c),
+        ):
+            out = call(app, '/api/jrdb/race-day', QUERY_STRING='date=20261101')
+        self.assertTrue(out['status'].startswith('502'))
+        self.assertNotIn(b'LICENSED-HORSE-PRIVATE', out['body'])
+
     def test_no_directory_or_repo_file_serving(self):
         for path in ['/../.env', '/scripts/jrdb_private.py', '/keiba-nine-auto-feed.json']:
             self.assertTrue(call(self.app, path)['status'].startswith('404'))
