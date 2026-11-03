@@ -28,7 +28,8 @@ from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError
 from jrdb_race_context import audit_race_context, RaceContextError
 from jrdb_race_day_gates import audit_race_day_checks
 from jrdb_prestart_freshness import audit_prestart_freshness, FreshnessError
-from jra_reference_compare import compare_independent_race_snapshot, ReferenceCompareError
+from jra_reference_compare import (compare_independent_race_snapshot,
+                                   validate_single_manual_reference, ReferenceCompareError)
 from research_planner import plan_race
 
 def _now_in_jst():
@@ -37,7 +38,7 @@ def _now_in_jst():
 
 
 MAX_BODY = 131072
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用・データ接続確認</p><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>レース情報を取得</button><button id="context" disabled>コース・距離・馬場を確認</button><button id="raceday" disabled>出走取消・当日馬場・発走前の情報を確認</button><p class="muted">JRA公式の変更・出馬表・馬場は<a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式競馬メニュー</a>で別途確認（自動照合は未接続）。</p><button id="coverage" disabled>全場・全Rの取得状況を確認</button><button id="evidence" disabled>調教・近走の資料状況を確認</button><button id="history" disabled>過去の重・不良馬場を照合（最大8レース）</button><p class="muted">本人が実行した時だけ過去APIを最大16回照会します。実データ接続前は無効です。</p><p id="message" role="status"></p><div id="races"></div></section><section><h2>10項目の評価 → 総合ランク → 3連単</h2>
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用・データ接続確認</p><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>レース情報を取得</button><button id="context" disabled>コース・距離・馬場を確認</button><button id="raceday" disabled>出走取消・当日馬場・発走前の情報を確認</button><p class="muted">JRA公式の変更・出馬表・馬場は<a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式競馬メニュー</a>で別途確認（自動照合は未接続）。</p><button id="coverage" disabled>全場・全Rの取得状況を確認</button><button id="evidence" disabled>調教・近走の資料状況を確認</button><button id="history" disabled>過去の重・不良馬場を照合（最大8レース）</button><p class="muted">本人が実行した時だけ過去APIを最大16回照会します。実データ接続前は無効です。</p><p id="message" role="status"></p><div id="races"></div></section><section><h2>JRA画面を見ながら1レースを手入力照合</h2><p class="muted">本人専用。上の開催日を選んで、JRA公式サイトで確認した項目だけ入力します。入力はこの照合で一度だけ使用し、保存しません。データの出所を自動認証できないため、差分ゼロでも「公式確認済み」にはなりません。</p><label for="manualTrack">競馬場</label><select id="manualTrack"><option value="">競馬場を選ぶ</option><option value="札幌">札幌</option><option value="函館">函館</option><option value="福島">福島</option><option value="新潟">新潟</option><option value="東京">東京</option><option value="中山">中山</option><option value="中京">中京</option><option value="京都">京都</option><option value="阪神">阪神</option><option value="小倉">小倉</option></select><label for="manualRace">レース</label><select id="manualRace"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option><option value="4">4R</option><option value="5">5R</option><option value="6">6R</option><option value="7">7R</option><option value="8">8R</option><option value="9">9R</option><option value="10">10R</option><option value="11">11R</option><option value="12">12R</option></select><label for="manualTime">JRAサイトで見た発走時刻（任意、HH:MM）</label><input id="manualTime" type="text" maxlength="5" inputmode="numeric" placeholder="例 10:05"><label for="manualSurface">芝・ダート（任意）</label><select id="manualSurface"><option value="">未入力</option><option>芝</option><option>ダート</option><option>障害</option></select><label for="manualGoing">馬場状態（任意）</label><select id="manualGoing"><option value="">未入力</option><option>良</option><option>稍重</option><option>重</option><option>不良</option></select><label for="manualHorse">取消を確認した馬番（任意・1頭ずつ）</label><select id="manualHorse"><option value="">対象馬なし</option><option value="01">1番</option><option value="02">2番</option><option value="03">3番</option><option value="04">4番</option><option value="05">5番</option><option value="06">6番</option><option value="07">7番</option><option value="08">8番</option><option value="09">9番</option><option value="10">10番</option><option value="11">11番</option><option value="12">12番</option><option value="13">13番</option><option value="14">14番</option><option value="15">15番</option><option value="16">16番</option><option value="17">17番</option><option value="18">18番</option></select><label for="manualStatus">その馬の状態</label><select id="manualStatus"><option value="unknown">未確認</option><option value="active">出走予定</option><option value="withdrawn">取消</option></select><button id="manualCompare" disabled>入力内容とJRDB資料を1回比較</button><p id="manualMessage" role="status">未実行。本人専用HTTPSとJRDB接続の設定が必要です。</p><div id="manualResults"></div><p class="muted">比較対象は最大1レース。JRA公式からの自動取得ではありません。再実行するとその時点の資料を取り直し、前回の差分件数と比較します（画面を閉じれば前回値は消えます）。</p></section><section><h2>10項目の評価 → 総合ランク → 3連単</h2>
 <p class="muted">架空テスト専用の分析画面。実レース・JRDBの有料データ・購入には使用しません。計算は本人専用サーバー内だけで行い、保存や外部送信はしません。</p>
 <button id="researchDemo">架空8頭で動作確認</button>
 <label for="researchFile">検証用JSONファイル（任意）</label>
@@ -48,12 +49,12 @@ HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name=
 <p id="researchMessage" role="status">未検証。架空8頭の動作確認ボタンから試せます。</p>
 <pre id="researchOutput">研究用の検証結果だけを表示します。</pre>
 </section><section><h2>接続準備の診断</h2><p class="muted">本人用の設定だけを確認します。JRDBへの通信や会員情報の確認、予想作成は行いません。</p><button id="diagnose">安全な設定診断を実行</button><p id="diagnostic" role="status">診断は未実施です。</p></section><p>この画面は接続確認用です。実データからのランク評価・買い目作成にはまだ接続していません。取得した内容は公開アプリやGoogleシートへ送信しません。</p></main><script src="/app.js" defer></script></body></html>'''
-CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.7 system-ui,sans-serif}main{max-width:680px;margin:auto;padding:24px}h1{color:#efc66b}section{background:#172d48;padding:20px;border-radius:18px;margin:12px 0}.muted{font-size:14px;color:#c5d3e5}label{display:block}input,button{box-sizing:border-box;font:inherit;padding:12px;width:100%;margin:8px 0;border-radius:10px;border:1px solid #8b9eb7}button{background:#efc66b;color:#10213b;font-weight:700}button:disabled{opacity:.5}.race{border-bottom:1px solid #415878;padding:12px 0}p{overflow-wrap:anywhere}textarea{box-sizing:border-box;width:100%;min-height:120px;background:#0a2035;color:#edf3fa;border:1px solid #829bbb;border-radius:9px;padding:12px;font:14px/1.5 ui-monospace,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;background:#0a2035;padding:12px;border-radius:9px}'''
+CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.7 system-ui,sans-serif}main{max-width:680px;margin:auto;padding:24px}h1{color:#efc66b}section{background:#172d48;padding:20px;border-radius:18px;margin:12px 0}.muted{font-size:14px;color:#c5d3e5}label{display:block}input,button,select{box-sizing:border-box;font:inherit;padding:12px;width:100%;margin:8px 0;border-radius:10px;border:1px solid #8b9eb7}button{background:#efc66b;color:#10213b;font-weight:700}button:disabled{opacity:.5}.race{border-bottom:1px solid #415878;padding:12px 0}p{overflow-wrap:anywhere}textarea{box-sizing:border-box;width:100%;min-height:120px;background:#0a2035;color:#edf3fa;border:1px solid #829bbb;border-radius:9px;padding:12px;font:14px/1.5 ui-monospace,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;background:#0a2035;padding:12px;border-radius:9px}'''
 JS = ''''use strict';
 const el=id=>document.getElementById(id);
 async function request(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{'X-Keiba-Request':'private'}});const data=await r.json();if(!r.ok)throw Error(data.error||'取得できませんでした');return data;}
-let enabled=false,historyEnabled=false;
-request('/api/status').then(s=>{enabled=s.jrdbConfigured===true;historyEnabled=enabled&&s.historyConfigured===true;el('status').textContent=enabled?'接続設定あり（実際の接続は取得ボタンで確認）':'JRDBは未設定です。契約と接続設定が必要です。';el('load').disabled=!enabled;el('context').disabled=!enabled;el('raceday').disabled=!enabled;el('coverage').disabled=!enabled;el('evidence').disabled=!enabled;el('history').disabled=!historyEnabled;}).catch(e=>el('status').textContent=e.message);
+let enabled=false,historyEnabled=false,manualEnabled=false;
+request('/api/status').then(s=>{enabled=s.jrdbConfigured===true;historyEnabled=enabled&&s.historyConfigured===true;manualEnabled=enabled&&s.manualComparisonConfigured===true;el('status').textContent=enabled?'接続設定あり（実際の接続は取得ボタンで確認）':'JRDBは未設定です。契約と接続設定が必要です。';el('load').disabled=!enabled;el('context').disabled=!enabled;el('raceday').disabled=!enabled;el('manualCompare').disabled=!manualEnabled;el('coverage').disabled=!enabled;el('evidence').disabled=!enabled;el('history').disabled=!historyEnabled;}).catch(e=>el('status').textContent=e.message);
 el('diagnose').onclick=async()=>{el('diagnose').disabled=true;el('diagnostic').textContent='設定だけを点検中…';try{const info=await request('/api/setup');const items=['本人認証：有効','通信：'+(info.transport==='https'?'HTTPS':'開発用ループバック'),'JRDBの接続設定：'+(info.jrdbConfigured?'あり（実通信は未検証）':'未設定'),'API利用確認：未実施','実戦予想：未接続','次の段階：'+info.nextStep];el('diagnostic').textContent=items.join('｜');}catch(e){el('diagnostic').textContent=e.message;}finally{el('diagnose').disabled=false;}};
 const RESEARCH_FACTORS=['training','recent','course_distance','pace','ground','pedigree','draw_weight','jockey_stable','rotation','body_condition'];
 function syntheticSample(){
@@ -279,6 +280,7 @@ def create_app(settings=None):
             ready = settings.get('JRDB_PRIVATE_ENABLED') == '1' and all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY')) and settings.get('GITHUB_ACTIONS') != 'true'
             return response('200 OK', {'jrdbConfigured': ready,
                                        'historyConfigured': bool(ready and settings.get('KEIBA_HISTORY_ENABLED') == '1'),
+                                       'manualComparisonConfigured': bool(ready and settings.get('KEIBA_MANUAL_REFERENCE_ENABLED') == '1'),
                                        'livePredictionEnabled': False})
         if method == 'GET' and path == '/api/setup':
             # Strictly coarse, owner-only flags. This endpoint never pings JRDB,
@@ -346,6 +348,43 @@ def create_app(settings=None):
                     FreshnessError, ReferenceCompareError, ValueError):
                 return response('502 Bad Gateway', {
                     'error': '出走取消・馬場の資料が安全に照合できませんでした。'})
+            return response('200 OK', report)
+        if method == 'POST' and path == '/api/jrdb/compare-manual':
+            # One owner-entered race only, no storage and no claiming JRA
+            # authenticity. Validate the entire input BEFORE any provider call.
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or settings.get('KEIBA_MANUAL_REFERENCE_ENABLED') != '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': '本人用の手入力照合は有効になっていません。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower() != 'application/json'):
+                return response('400 Bad Request', {'error': 'JSON形式が必要です。'})
+            try:
+                length = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < length <= 1400:
+                    raise ValueError()
+                raw = environ['wsgi.input'].read(length)
+                if len(raw) != length:
+                    raise ValueError()
+                manual = validate_single_manual_reference(json.loads(raw))
+            except (ValueError, KeyError, TypeError, UnicodeError, ReferenceCompareError):
+                return response('400 Bad Request', {
+                    'error': '手入力した開催日・レース・取消・馬場・時刻の形式を確認してください。'})
+            try:
+                date = manual['date']
+                programme = normalize_program_rows(fetch_race_program(date), date)
+                entries = fetch_horse_entries(date)
+                conditions = fetch_venue_conditions(date)
+                report = compare_independent_race_snapshot(
+                    programme, entries, conditions, date, manual
+                )
+            except (JRDBError, ProgrammeFormatError, CoverageError,
+                    RaceContextError, ReferenceCompareError, ValueError):
+                return response('502 Bad Gateway', {
+                    'error': '本人用の独立資料との比較に失敗しました。接続とデータ形式を確認してください。'})
+            # Only aggregate differences; never source horse identifiers.
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/coverage':
             if settings.get('JRDB_PRIVATE_ENABLED') != '1' or settings.get('GITHUB_ACTIONS') == 'true':
