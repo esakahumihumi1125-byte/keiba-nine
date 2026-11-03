@@ -2700,11 +2700,14 @@ async function reload42(){
   const converted=obj.forecasts.map((r,i)=>row42(r,i,obj.date));
   const keys=converted.map(r=>r.date+'|'+r.track+'|'+r.race+'|'+r.recordType);
   if(new Set(keys).size!==keys.length)throw Error('同一レースが重複しています');
-  const saved51=raw===lastPayload72?0:window.receiveFeed51({...obj,forecasts:converted});lastPayload72=raw;
+  const todayJst=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+  const isPast=obj.date<todayJst;
+  const saved51=isPast?0:(raw===lastPayload72?0:window.receiveFeed51({...obj,forecasts:converted}));
+  lastPayload72=raw;
   const n=render42(converted);
   const when=new Date(obj.generatedAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  sync72(`最終確認 ${new Date().toLocaleTimeString('ja-JP',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit'})}｜配信対象 ${obj.date}｜表示中は5分ごとに確認`);
-  status.textContent=`${obj.date}｜${converted.length}R取得（見送り以外${n}R）｜作成 ${when}｜新規保存 ${saved51}R（未購入・仮想検証）`;
+  sync72(isPast?`過去の配信（${obj.date}）｜本日分の予想は未取得。過去データを今日の予想として保存しません`:`最終確認 ${new Date().toLocaleTimeString('ja-JP',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit'})}｜配信対象 ${obj.date}｜表示中は5分ごとに確認`);
+  status.textContent=(isPast?'過去の配信・本日分ではありません｜':'')+`${obj.date}｜${converted.length}R取得（見送り以外${n}R）｜作成 ${when}｜新規保存 ${saved51}R（未購入・仮想検証）`;
  }catch(err){sync72('更新を確認できません｜表示中の予想は最新未確認。再接続時に確認します');status.textContent='配信データを確認できません：'+err.message;list.innerHTML='<div class="empty">自動配信は未確認。端末に保存した予想・実戦記録には影響ありません。</div>'}
  finally{busy=false}
 }
