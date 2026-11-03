@@ -29,13 +29,15 @@ details{padding:10px 0}summary{cursor:pointer;color:#a9d4ff}
 <h2>① 出馬表データを検証</h2>
 <label for="data">出馬表JSON（提供元と利用許諾の確認が必要）</label>
 <textarea id="data" spellcheck="false" placeholder="許諾済みのJSONをここに入力"></textarea>
+<p class="muted">iPhoneの「ファイル」からJSONを選べます。ファイルはブラウザ内で読み込み、GitHubにアップロードしません。</p>
+<label for="filePick">ローカルJSONファイル（任意）</label><input id="filePick" type="file" accept=".json,application/json" style="width:100%;margin:8px 0;color:inherit">
 <div><button id="check" type="button">形式を検証</button><button class="secondary" id="clear" type="button">入力をクリア</button></div>
 <p id="status" class="status" role="status">未検証</p>
 <pre id="result">データを入力すると、開催日・競馬場・馬番・馬名・取消情報を形式チェックします。</pre>
 </section>
 <section class="panel">
 <h2>② 根拠付きの暫定評価</h2>
-<p class="muted">各馬の近走・調教・コース適性・血統・展開の5項目にS/A/B/C評価と根拠メモがそろった場合のみ、固定加重の機械的な順位と3連単参考フォーメーションを計算します。分析データが足りなければ見送りです。</p>
+<p class="muted">各馬の出走取消状況と、近走・調教・コース適性・血統・展開の5項目にS/A/B/C評価と根拠メモがそろった場合のみ、固定加重の機械的な順位と3連単参考フォーメーションを計算します。分析データが足りなければ見送りです。</p>
 <button id="prepare" type="button">出走候補・暫定評価を計算</button>
 <pre id="prepared">まだ計算していません。</pre>
 <p class="muted">点数上限48点。近走25%・調教25%・コース20%・血統15%・展開15%で計算します。予想精度や回収率の検証は未実施。順位や買い目は入力された評価に依存し、公式情報や勝率を保証しません。</p>
@@ -85,6 +87,21 @@ function formatHorse(h){
   const state=h.scratched===true?'［取消：入力値］':'';
   return h.number+'番 '+h.name+state;
 }
+$('filePick').addEventListener('change',async()=>{
+ const file=$('filePick').files?.[0];if(!file)return;
+ $('status').textContent='ファイル読み込み中…';$('result').textContent='未検証';$('prepared').textContent='未計算';
+ try{
+   if(file.size>100000||!/\.json$/i.test(file.name))throw Error('100KB以内の .json ファイルを選んでください');
+   const raw=await file.text();
+   if(raw.length>100000)throw Error('ファイルが大きすぎます');
+   const obj=JSON.parse(raw);
+   if(!obj||typeof obj!=='object'||Array.isArray(obj))throw Error('JSONオブジェクトを指定してください');
+   $('data').value=raw;
+   $('status').textContent='読み込み完了。形式を検証してください';
+   $('result').textContent='選択したファイル：'+file.name+'（未検証）';
+ }catch(err){$('status').textContent='読み込み失敗';$('result').textContent=err.message||'不正なファイルです'}
+ finally{$('filePick').value=''}
+});
 $('data').addEventListener('input',()=>{
   $('status').textContent='内容が変わりました。再検証してください';
   $('result').textContent='未検証';
