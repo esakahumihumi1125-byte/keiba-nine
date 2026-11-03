@@ -25,7 +25,7 @@ def _fetch_day(endpoint, racedate):
 
     JRDB_PRIVATE_ENABLED is not owner authentication; HTTPS + owner gating is mandatory.
     """
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka'):
         raise JRDBError('Unsupported JRDB endpoint')
     if os.environ.get("JRDB_PRIVATE_ENABLED") != "1":
         raise JRDBError("Private JRDB integration is disabled")
@@ -84,3 +84,8 @@ def fetch_training_analysis(racedate):
 def fetch_recent_runs(racedate):
     """Private-only last-five-race rows (/tze), no public output."""
     return _fetch_day("tze", racedate)
+
+
+def fetch_venue_conditions(racedate):
+    """Private-only current meeting/going records (/tka). No public output."""
+    return _fetch_day('tka', racedate)
