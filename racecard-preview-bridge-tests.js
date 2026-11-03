@@ -51,7 +51,7 @@ ok(portable.forecasts.length===2&&portable.forecasts.every(r=>r.recordType==='te
 ok(portable.forecasts[0].status==='draft'&&portable.forecasts[1].status==='skip','portable draft and skip');
 ok(portable.generatedAt==='2026-11-03T11:00:00.000Z'&&portable.source==='自動テスト','portable source and timestamp');
 const largePortable=root.KeibaNinePreviewBridge.toPortablePreview(largeBundle,'2026-11-03T11:00:00.000Z');
-const json=JSON.stringify(largePortable,null,2);
+const json=JSON.stringify(largePortable);
 ok(json.length<490000,'maximum 120 race export remains below main-app import limit');
 ok(!json.includes('絶対に外へ出さない架空の内部テスト根拠'),'portable backup excludes source evidence notes');
 ok(largePortable.forecasts.every(r=>r.recordType==='test'&&['draft','skip'].includes(r.status)),'full field cannot be promoted to final');
