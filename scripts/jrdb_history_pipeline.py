@@ -45,6 +45,7 @@ def plan_bounded_history(programme, entries, previous, requested_date,
              for r in entries if r.get("horse_id")}
     current_keys = {r["racekey"] for r in programme}
     referenced = {}
+    unkeyed = 0
     for row in previous:
         current = row["racekey"]
         number = row.get("horse_number")
@@ -63,6 +64,7 @@ def plan_bounded_history(programme, entries, previous, requested_date,
             if not _valid_date(date) or date >= requested_date:
                 raise CoverageError("Previous race date invalid")
             if racekey is None or racekey == "":
+                unkeyed += 1
                 continue  # Historical key unavailable; do not guess.
             if (not isinstance(racekey, str) or not KEY.fullmatch(racekey)
                     or racekey[:2] not in TRACKS
@@ -77,11 +79,12 @@ def plan_bounded_history(programme, entries, previous, requested_date,
     return {
         "privateSelected": tuple(ordered[:limit]),
         "referencedCount": len(ordered),
+        "unkeyedPreviousRuns": unkeyed,
         "selectedCount": min(len(ordered), limit),
         "deferredCount": max(0, len(ordered) - limit),
         "maxDraCalls": min(len(ordered), limit),
         "maxDkaCalls": min(len(ordered), limit),
-        "historyComplete": len(ordered) <= limit,
+        "historyComplete": len(ordered) <= limit and unkeyed == 0,
         "version": VERSION,
     }
 
@@ -176,6 +179,7 @@ def run_bounded_history_audit(programme, entries, previous,
     return {
         "version": VERSION,
         "referencedPastRaces": plan["referencedCount"],
+        "unkeyedPreviousRuns": plan["unkeyedPreviousRuns"],
         "selectedPastRaces": plan["selectedCount"],
         "deferredPastRaces": plan["deferredCount"],
         "unavailablePastProgrammes": missing,
