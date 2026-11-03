@@ -43,6 +43,26 @@ Matching numbers alone do not prove the entry set is complete or cancellations
 are reflected. Even when all records are present, the API reports
 `predictionsReady: 0` and `fullyVerifiedRaces: 0`.
 
+## 10項目評価への準備段階（2026-11-03）
+
+本人専用の `/api/jrdb/evidence?date=YYYYMMDD` は、
+従来の資料件数のほかに `assessmentPreflight` を返します。
+`scripts/jrdb_factor_preflight.py` が、**すでに集計・照合された件数だけ**を
+10項目の研究評価基準（調教、近走、コース・距離、展開、馬場、血統、
+枠・斤量、騎手・厩舎、ローテ、馬体）に整理します。
+
+- 調教・近走：「資料件数一致」「一部あり」「記録なし／新馬など対象外の可能性」を区別。
+- 残り8項目：現状は「提供元データからの自動紐付け未実装」と明示。
+- **10項目すべてで** `grade: 未評価`、`assessmentComplete: false`。
+- `gradedFactors: 0`、`readyForPrediction: 0` のまま保持。
+- 本人専用iPhone画面ではレースごとに「10項目の評価準備を見る」を展開できる。
+- 元の馬名、馬ID、調教指数、有料の競馬データ、認証キーを応答にコピーしない。
+
+**資料件数が一致しても実戦の予想を許可しません。** その後は提供元の利用条件と
+原データの仕様を確認し、各評価の根拠・発走前の時刻・馬場／取消／出走馬名を
+独立に検証する必要があります。現在の研究用の重みやS/A/B/C閾値は仮説であり、
+予測精度と回収率の実績を示すものではありません。
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
