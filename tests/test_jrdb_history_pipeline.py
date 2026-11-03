@@ -104,7 +104,7 @@ class BoundedHistoryTests(unittest.TestCase):
         p, e, z, *_ = bundle
         # Three identified runners, five different past races per runner.
         template = [
-            ("05264a", 1), ("05264a", 6), ("08264a", 11)
+            ("05264a", 1), ("052649", 1), ("08264a", 1)
         ]
         z.clear()
         for idx, (prefix, start) in enumerate(template):
