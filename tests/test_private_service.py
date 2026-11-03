@@ -484,8 +484,10 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertNotIn(b'SECRET-PAID-DATA', response['body'])
 
     def test_course_ground_context_disabled_until_api_activation(self):
-        with patch('private_service.fetch_race_program') as programme, \\
-             patch('private_service.fetch_venue_conditions') as going:
+        with (
+            patch('private_service.fetch_race_program') as programme,
+            patch('private_service.fetch_venue_conditions') as going,
+        ):
             result = call(self.app, '/api/jrdb/context',
                           QUERY_STRING='date=20261027')
         self.assertTrue(result['status'].startswith('503'))
