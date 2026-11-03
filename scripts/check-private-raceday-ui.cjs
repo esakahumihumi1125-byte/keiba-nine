@@ -11,6 +11,17 @@ function el(id){
 const document={getElementById:el,createElement:()=>({className:'',textContent:''})};
 const data={raceCount:2,racesWithProviderWithdrawal:1,racesWithUnknownFlags:1,
   racesWithOfficialFinalCheck:0,predictionReady:false,bettingReady:false,
+  raceCount:2,
+  independentComparison:{racesCompared:0,racesMissingReference:2,
+    racesWithDifferences:0,predictionReady:false,bettingReady:false,
+    officialJraFinalVerification:false,races:[
+      {track:'東京',race:1,independentReferenceProvided:false,
+       comparisonStatus:'missing_reference',officialJraFinalVerification:false,
+       bettingReady:false},
+      {track:'京都',race:1,independentReferenceProvided:false,
+       comparisonStatus:'missing_reference',officialJraFinalVerification:false,
+       bettingReady:false}
+    ]},
   prestartFreshness:{checkedAtJapan:'2026-11-07 09:30 JST',
     racesWithinTwoHours:1,officiallyVerifiedRaces:0,predictionReady:false,bettingReady:false,
     races:[
@@ -55,16 +66,18 @@ function tick(){return new Promise(resolve=>setImmediate(resolve))}
  assert.equal(requests[1].opts.headers['X-Keiba-Request'],'private');
  assert.match(el('message').textContent,/発走2時間以内 1R/);
  assert.match(el('message').textContent,/2026-11-07 09:30 JST/);
+ assert.match(el('message').textContent,/独立JRA参照：未接続/);
  assert.match(el('message').textContent,/JRA公式での最終確認：全R未完了/);
  assert.equal(el('races').children.length,2);
  assert.match(el('races').children[0].textContent,/取消報告 1頭/);
  assert.match(el('races').children[0].textContent,/馬場 重/);
  assert.match(el('races').children[1].textContent,/フラグ不明 1頭/);
+ assert.match(el('races').children[0].textContent,/独立照合：未接続/);
  assert.match(el('races').children[1].textContent,/公式の取消・馬場・発走時刻：未確認/);
  assert.match(el('races').children[0].textContent,/発走前：発走2時間以内/);
  assert.match(el('races').children[0].textContent,/更新記録60分以内/);
  assert.match(el('races').children[1].textContent,/発走まで2時間超/);
  assert.equal(el('raceday').disabled,false);
  assert.ok(!js.includes('innerHTML'));
- console.log('Race-day private source check: 20 assertions passed');
+ console.log('Race-day private source check: 22 assertions passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

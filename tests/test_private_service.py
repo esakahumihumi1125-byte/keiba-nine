@@ -187,6 +187,14 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(data['racesWithProviderWithdrawal'], 1)
         self.assertEqual(data['racesWithUnknownFlags'], 1)
         self.assertEqual(data['racesWithOfficialFinalCheck'], 0)
+        comparison = data['independentComparison']
+        self.assertEqual(comparison['racesCompared'], 0)
+        self.assertEqual(comparison['racesMissingReference'], data['raceCount'])
+        self.assertEqual(comparison['racesWithDifferences'], 0)
+        self.assertFalse(comparison['officialJraFinalVerification'])
+        self.assertFalse(comparison['bettingReady'])
+        self.assertTrue(all(x['comparisonStatus'] == 'missing_reference'
+                            for x in comparison['races']))
         prestart = data['prestartFreshness']
         self.assertEqual(prestart['checkedAtJapan'], '2026-11-01 09:30 JST')
         self.assertEqual(prestart['racesWithinTwoHours'], 2)

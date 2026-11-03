@@ -386,6 +386,37 @@ https://www.jra.go.jp/faq/pop02/2_3.html
 取消・騎手変更・当日馬場・発走時刻の比較、変更後の再照合、
 取得タイミングの証跡管理。現段階の時刻分類では本番予想の有効性を主張しません。
 
+## JRA独立資料との照合エンジン（2026-11-04・実接続前）
+
+`scripts/jra_reference_compare.py` に、別の取得元から渡された**構造化された
+出走情報の写し**と、JRDB `/tra`・`/tky`・`/tka` を照合する
+非公開・オフライン比較器を追加しました。現時点では実際のJRA公式データを
+取得するアダプターやJRAの認証付きフィードは**接続していません**。
+手入力・許可済みアダプター候補を想定したデータ形式であり、
+入力の名前がJRAでも正当な出所・最新性を証明するものではありません。
+
+- 開催日・競馬場・レース番号・馬番（非公開内部のみ）を照合。
+- 出走取消状態、騎手コード、芝/ダート・馬場、発走予定時刻、
+  出走馬一覧の一致・差分を、レース単位の**件数とカテゴリ**で報告。
+- 欠けた馬番・取消フラグ・騎手コード・馬場は未知として区別。
+  一部の情報だけ一致した場合も「完全一致」にはしません。
+- 不正日付、知らない競馬場、重複馬番、無効な取消状態、
+  不正な騎手コード、追加の想定外フィールドは拒否。
+- ブラウザーへは差分の**集計件数のみ**返し、馬番・馬名・
+  騎手コード・過去レースキー・有料の馬ごとデータは返しません。
+
+本人用 `/api/jrdb/race-day` は現時点で
+`independentComparison.racesMissingReference == raceCount` とし、
+**独立JRA参照は未接続**と明示。オンラインのJRAデータを
+新たに取得したり、画面から不審な公式スナップショットを送信したりしません。
+
+差分ゼロでも `independentSnapshotAuthenticated=false`、
+`referenceCollectionFreshnessVerified=false`、
+`officialJraFinalVerification=false`、
+`predictionReady=false`、`bettingReady=false` を厳守。
+将来は、利用条件を確認した独立データの取得・出所認証・
+記録時刻と変更履歴の検証・JRA公式との最終突合を別実装で追加する必要があります。
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
