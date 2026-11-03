@@ -76,7 +76,7 @@ async function runResearch(){
   lines.push('','【1着候補】'+(data.first.length?data.first.join('・'):'保留・見送り'),
              '【3連単参考】'+(data.tri.length?data.tri.map(t=>t.join('-')).join('、'):'買い目なし'),
              '','理由：'+data.reason,'※架空の動作確認専用。実戦予想・JRA公式との照合・購入・保存は行っていません。');
-  el('researchOutput').textContent=lines.join('\n');
+  el('researchOutput').textContent=lines.join('\\n');
  }catch(e){el('researchMessage').textContent='検証できません：'+e.message;el('researchOutput').textContent='根拠付きの架空データと日時を確認してください。';}
  finally{button.disabled=false}
 }
