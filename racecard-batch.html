@@ -183,6 +183,71 @@ function updateList(){
  $('list').textContent=visible.map(e=>e.date+' '+e.track+e.race+'R｜'+(e.analysis.ready?'参考 '+e.analysis.combinations.length+'点':'見送り')).join('\n')||'対象レースなし';
  updateRace();
 }
+
+function compareReference(){
+ if(!result){
+  $('referenceStatus').textContent='先に①の出馬表データをチェックしてください';
+  return false;
+ }
+ const raw=$('referenceRaw').value.trim();
+ if(!raw){
+  referenceResult=null;
+  $('referenceStatus').textContent='未照合：別データとの照合はしていません（検証用プレビューのみ）';
+  $('referenceResult').textContent='公式出馬表との一致は保証されません';
+  $('sendDraft').disabled=false;$('savePreview').disabled=false;
+  return true;
+ }
+ try{
+  if(raw.length>maxChars)throw Error('照合用JSONは2MB以内にしてください');
+  if(!window.KeibaNineReference)throw Error('照合用のプログラムを読み込めません');
+  const comparison=window.KeibaNineReference.compareBundle(JSON.parse($('raw').value),JSON.parse(raw));
+  referenceResult=comparison;
+  $('sendDraft').disabled=!comparison.matched;
+  $('savePreview').disabled=!comparison.matched;
+  $('referenceStatus').textContent=comparison.matched
+   ?'別データと'+comparison.passed+'Rの馬番・馬名・取消が一致（公式確認の証明ではありません）'
+   :'不一致：'+comparison.failed+'R・'+comparison.issues.length+'項目。保存と本体への引き継ぎを停止中';
+  $('referenceResult').textContent='照合元：'+comparison.referenceSource+'\n確認日時：'+comparison.checkedAt+'\n'+
+   (comparison.matched?'別入力と一致しました。情報の真正性・最新性は未確認です。':
+    comparison.issues.slice(0,80).join('\n')+(comparison.issues.length>80?'\n残りの不一致は元データを確認してください':''));
+  return comparison.matched;
+ }catch(err){
+  referenceResult=null;
+  $('sendDraft').disabled=true;$('savePreview').disabled=true;
+  $('referenceStatus').textContent='照合できません：'+(err.message||'JSONエラー');
+  $('referenceResult').textContent='照合用JSONを修正してください。保存・本体連携は停止しています。';
+  return false;
+ }
+}
+function ensureReferenceSafe(){
+ if($('referenceRaw').value.trim()&&!compareReference())throw Error('別データと一致していません。照合を確認してください');
+}
+$('referenceRaw').addEventListener('input',()=>{
+ referenceResult=null;
+ $('referenceStatus').textContent='照合用データが変更されました。再照合してください';
+ $('referenceResult').textContent='再照合が必要です';
+ if(result){
+  $('sendDraft').disabled=Boolean($('referenceRaw').value.trim());
+  $('savePreview').disabled=Boolean($('referenceRaw').value.trim());
+ }
+});
+$('referenceFile').addEventListener('change',async()=>{
+ const file=$('referenceFile').files?.[0];if(!file)return;
+ referenceResult=null;$('sendDraft').disabled=true;$('savePreview').disabled=true;
+ try{
+  if(file.size>maxChars||!/\.json$/i.test(file.name))throw Error('2MB以内の.jsonファイルを選択してください');
+  const raw=await file.text();
+  if(raw.length>maxChars)throw Error('照合用ファイルが大きすぎます');
+  JSON.parse(raw);
+  $('referenceRaw').value=raw;
+  $('referenceStatus').textContent='照合用ファイルを読み込みました';
+  if(result)compareReference();
+ }catch(err){
+  $('referenceStatus').textContent='照合ファイルの読み込み失敗：'+(err.message||'形式エラー');
+ }finally{$('referenceFile').value=''}
+});
+$('compareReference').addEventListener('click',compareReference);
+
 $('date').addEventListener('change',updateList);
 $('track').addEventListener('change',updateList);
 $('race').addEventListener('change',updateRace);
