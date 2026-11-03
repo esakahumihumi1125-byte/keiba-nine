@@ -202,6 +202,31 @@ S/A/B/Cの自動付与や3連単・実戦記録への反映はありません。
 <https://jrdb-api.keiba.bigtime.world/docs/endpoints/history/dra>
 <https://jrdb-api.keiba.bigtime.world/docs/endpoints/history/dka>。
 
+## 重・不良馬場の履歴照合（2026-11-03・実接続前）
+
+追加した `scripts/jrdb_going_history.py` は、既存の `/tze` → `/dra`
+過去レースキーと日付の一致を必須にした上で、過去 `/dka` の
+開催キー（レースキーの先頭6文字）と開催日の一致を検査します。
+JRDBの開催キーには小文字 a〜f が入ることがあります。
+
+- 今走と同じ芝/ダートかつ距離差200m以内の過去走について、
+  重（03）・不良（04）で走った件数、3着以内の記録件数を別々に数えます。
+- 当日 `/tka` の馬場状態が取得できた場合のみ、同じ馬場の比較走数を数えます。
+- 過去の馬場・番組が不足すると「未照合」。不適性とは判断しません。
+- 日付・開催キー不一致、重複、無効コードは拒否します。
+- ブラウザー向けの診断集計はレース単位の件数のみ。
+  馬番・馬ID・馬名・過去個別成績・レースキーは出しません。
+
+`scripts/jrdb_private.py` の `fetch_historical_venue_conditions(racekey)` は
+非公開環境から `/dka` の単一レースキーだけを要求します。
+広範囲の日付一括取得やGitHub Actionsからの実接続を許しません。
+
+**実際のJRDB接続、本人専用サーバー画面への接続、馬場適性ランク、
+10項目総合評価、本番3連単自動予想は未完成です。**
+ここでは過去の観測件数を整理するだけで適性・勝率を推定していません。
+
+参照：https://jrdb-api.keiba.bigtime.world/docs/endpoints/history/dka
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
