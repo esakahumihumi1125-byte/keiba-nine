@@ -9,7 +9,7 @@ from datetime import datetime
 from jrdb_program_preview import TRACKS
 
 VERSION = "race-context-1"
-HOLDING = re.compile(r"[0-9]{6}\Z", re.ASCII)
+HOLDING = re.compile(r"[0-9a-f]{6}\Z", re.ASCII)
 DATE = re.compile(r"[0-9]{8}\Z", re.ASCII)
 GOING = {"1": "良", "2": "稍重", "3": "重", "4": "不良"}
 SURFACES = {"芝", "ダート", "障害"}
