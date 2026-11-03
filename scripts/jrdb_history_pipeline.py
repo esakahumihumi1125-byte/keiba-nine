@@ -11,6 +11,7 @@ from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import (
     audit_evidence_coverage, HORSE_ID, NUMBER, KEY, _valid_date
 )
+from jrdb_ten_factor_materials import combine_ten_factor_materials
 from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError, TRACKS
 from jrdb_going_history import (
     build_going_history_observations, summarize_going_history_observations
@@ -119,7 +120,8 @@ def _one_going(rows, key, date):
 def run_bounded_history_audit(programme, entries, previous,
                               current_conditions, requested_date,
                               *, fetch_dra, fetch_dka,
-                              limit=DEFAULT_LOOKUPS_PER_RUN):
+                              limit=DEFAULT_LOOKUPS_PER_RUN,
+                              training=None):
     """Explicit, bounded private lookup with redacted response only.
 
     The caller supplies owner-approved *private* fetch functions after securing
@@ -130,6 +132,15 @@ def run_bounded_history_audit(programme, entries, previous,
     if not callable(fetch_dra) or not callable(fetch_dka):
         raise HistoryFetchError("Private source functions are required")
     plan = plan_bounded_history(programme, entries, previous, requested_date, limit)
+    # Current-day training evidence is an optional private input. Validate its
+    # horse/date identity BEFORE any paid historical requests.
+    try:
+        sources = audit_evidence_coverage(
+            programme, entries, [] if training is None else training,
+            previous, requested_date
+        )
+    except (CoverageError, ValueError, TypeError, KeyError):
+        raise HistoryFetchError("Current evidence validation failed") from None
     # Reject malformed current conditions before any billable historical request.
     try:
         build_going_history_observations(
@@ -176,6 +187,13 @@ def run_bounded_history_audit(programme, entries, previous,
         )
         safe_summary = summarize_going_history_observations(observations)
         quality_summary = summarize_history_evidence_quality(observations)
+        is_history_complete = (
+            plan["historyComplete"] and missing == 0 and missing_going == 0
+        )
+        materials = combine_ten_factor_materials(
+            sources, quality_summary,
+            bounded_history_complete=is_history_complete
+        )
     except (CoverageError, ValueError, KeyError, TypeError):
         raise HistoryFetchError("Private historical evidence validation failed") from None
     return {
@@ -189,9 +207,10 @@ def run_bounded_history_audit(programme, entries, previous,
         "draCalls": dra_calls,
         "dkaCalls": dka_calls,
         "maxTotalCalls": 2 * limit,
-        "historyComplete": plan["historyComplete"] and missing == 0 and missing_going == 0,
+        "historyComplete": is_history_complete,
         "goingSummary": safe_summary,
         "evidenceQuality": quality_summary,
+        "tenFactorMaterials": materials,
         "predictionReady": False,
         "goingSuitabilityAssessed": False,
         "note": ("本人専用の過去資料照合。取得上限内で参照できた履歴の集計のみ。"

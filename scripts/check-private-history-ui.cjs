@@ -5,6 +5,12 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const script = fs.readFileSync('/tmp/keiba-private-console.js', 'utf8');
 const nodes = new Map(), requests = [];
+const FACTORS = ['training','recent','course_distance','pace','ground',
+                 'pedigree','draw_weight','jockey_stable','rotation','body_condition'];
+const materialsFactors = Object.fromEntries(FACTORS.map(key=>[
+ key,{grade:'未評価',assessmentComplete:false,observedRunnerCount:
+  ({training:2,recent:2,course_distance:2,ground:1})[key]??null}
+]));
 function el(id) {
  if (!nodes.has(id)) nodes.set(id, {
   id, value:'',disabled:false,textContent:'',files:[],children:[],
@@ -23,6 +29,9 @@ async function fetchMock(url, options) {
     selectedPastRaces:2,deferredPastRaces:1,
     unavailablePastProgrammes:0,unavailablePastConditions:1,
     predictionReady:false,goingSuitabilityAssessed:false,
+    tenFactorMaterials:{predictionReady:false,bettingReady:false,gradedFactors:0,
+      races:[{track:'東京',race:1,runnerCount:3,predictionReady:false,bettingReady:false,
+              gradedFactors:0,factors:materialsFactors}]},
     evidenceQuality:{predictionReady:false,predictionConfidenceAssessed:false,
       races:[{track:'東京',race:1,runnerCount:3,unlinkedPastRuns:1,
         courseComparableSamples:{none:1,oneOrTwo:1,threePlus:1},
@@ -64,9 +73,12 @@ async function settle(){
  assert.match(el('races').children[0].textContent,/馬場比較 3走以上 0頭/);
  assert.match(el('races').children[0].textContent,/過去番組の未照合 1走/);
  assert.match(el('races').children[0].textContent,/予想信頼度：未算定/);
- assert.match(el('races').children[0].textContent,/馬場適性：未評価/);
+ assert.match(el('races').children[0].textContent,/10項目の資料：調教 2\/3頭/);
+ assert.match(el('races').children[0].textContent,/距離 2\/3頭、馬場 1\/3頭/);
+ assert.match(el('races').children[0].textContent,/残り6項目は未接続/);
+ assert.match(el('races').children[0].textContent,/全10項目：未評価/);
  assert.equal(el('history').disabled,false);
  assert.ok(!script.includes('innerHTML'));
  assert.ok(!requests.some(r=>r.url.includes('api_key')));
- console.log('Manual private history UI: 19 checks passed');
+ console.log('Manual private history UI: 22 checks passed');
 })().catch(err=>{console.error(err);process.exitCode=1});
