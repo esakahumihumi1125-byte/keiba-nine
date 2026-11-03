@@ -28,6 +28,7 @@ from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError
 from jrdb_race_context import audit_race_context, RaceContextError
 from jrdb_race_day_gates import audit_race_day_checks
 from jrdb_prestart_freshness import audit_prestart_freshness, FreshnessError
+from jra_reference_compare import compare_independent_race_snapshot, ReferenceCompareError
 from research_planner import plan_race
 
 def _now_in_jst():
@@ -168,7 +169,13 @@ el('raceday').onclick=async()=>{
   const date=el('date').value.replaceAll('-','');
   const data=await request('/api/jrdb/race-day?date='+encodeURIComponent(date));
   const fresh=data.prestartFreshness;
+  const independent=data.independentComparison;
   if(data.predictionReady!==false||data.bettingReady!==false
+     ||independent?.predictionReady!==false
+     ||independent?.bettingReady!==false
+     ||independent?.officialJraFinalVerification!==false
+     ||independent?.racesCompared!==0
+     ||independent?.racesMissingReference!==data.raceCount
      ||data.racesWithOfficialFinalCheck!==0
      ||fresh?.predictionReady!==false||fresh?.bettingReady!==false
      ||fresh?.officiallyVerifiedRaces!==0)
@@ -176,11 +183,17 @@ el('raceday').onclick=async()=>{
   el('message').textContent='JRDB資料：出走取消報告あり '+data.racesWithProviderWithdrawal
    +'R／取消フラグ不明あり '+data.racesWithUnknownFlags
    +'R｜発走2時間以内 '+fresh.racesWithinTwoHours
-   +'R（'+fresh.checkedAtJapan+'時点）｜JRA公式での最終確認：全R未完了';
+   +'R（'+fresh.checkedAtJapan+'時点）｜独立JRA参照：未接続｜JRA公式での最終確認：全R未完了';
   for(const race of data.races){
    if(race.finalRaceReady!==false||race.predictionReady!==false
       ||race.officialScratchesVerified!==false||race.officialGoingVerified!==false)
      throw Error('最終確認の状態が不正です');
+   const cross=independent.races.find(x=>x.track===race.track&&x.race===race.race);
+   if(!cross||cross.independentReferenceProvided!==false
+      ||cross.comparisonStatus!=='missing_reference'
+      ||cross.officialJraFinalVerification!==false
+      ||cross.bettingReady!==false)
+     throw Error('独立参照の未接続状態が一致しません');
    const timing=fresh.races.find(x=>x.track===race.track&&x.race===race.race);
    if(!timing||timing.jraOfficialDataFetched!==false
       ||timing.jraScratchesVerified!==false||timing.jraGoingVerified!==false
@@ -200,7 +213,7 @@ el('raceday').onclick=async()=>{
     +'頭｜馬場 '+race.sourceGoing
     +'（'+(ages[timing.sourceGoingAgeStatus]||'更新状況不明')+'）'
     +'｜発走前：'+(windows[timing.prestartWindow]||'時刻未確認')
-    +'｜公式の取消・馬場・発走時刻：未確認｜馬券予想：未作成';
+    +'｜独立照合：未接続／公式の取消・馬場・発走時刻：未確認｜馬券予想：未作成';
    el('races').append(div);
   }
  }catch(e){el('message').textContent=e.message;}
@@ -323,8 +336,14 @@ def create_app(settings=None):
                 report['prestartFreshness'] = audit_prestart_freshness(
                     programme, conditions, date, _now_in_jst()
                 )
+                # No authorized independent JRA source adapter is connected
+                # yet. Never accept a browser-provided snapshot or claim an
+                # official check based on provider data alone.
+                report['independentComparison'] = compare_independent_race_snapshot(
+                    programme, entries, conditions, date, None
+                )
             except (JRDBError, ProgrammeFormatError, CoverageError, RaceContextError,
-                    FreshnessError, ValueError):
+                    FreshnessError, ReferenceCompareError, ValueError):
                 return response('502 Bad Gateway', {
                     'error': '出走取消・馬場の資料が安全に照合できませんでした。'})
             return response('200 OK', report)
