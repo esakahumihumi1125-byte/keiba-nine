@@ -22,6 +22,21 @@ Training can have a missing horse number; the adapter joins by the 12-character
 horse ID when the current horse entry is uniquely identified. Contradictions
 cause a redacted error. All work is in memory. No data is persisted.
 
+The private iPhone console's **調教・近走の資料状況を確認** button now
+shows, for each race, how many registered horses have no matched current
+workout record, prior-week record, or previous-race date in the beta source.
+These are reported as `trainingUnaccounted`, `lastWeekUnaccounted` and
+`pastRunUnaccounted`. The optional `evidenceGaps` contains Japanese
+data-presence labels only, never horse IDs, names or source metrics.
+The response additionally contains `gapRaceCount` and `unaccountedTotals`
+across the source programme; it makes no claim that the source programme
+covers every official JRA race.
+
+**Unaccounted is not a diagnosis of a missing upload or an invalid race.**
+First-time starters can have no previous runs, and a provider may legitimately
+have no prior-week workout field. A fully zeroed unaccounted summary is
+**not** a validated runner list, real prediction or wagering recommendation.
+
 This is merely an audit of **data presence**, not data completeness or quality.
 A zero past-run count can be entirely legitimate for first-time starters.
 Matching numbers alone do not prove the entry set is complete or cancellations
