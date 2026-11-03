@@ -30,3 +30,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Validate source syntax
         run: python -m compileall -q scripts deploy
+      - name: Validate owner-only iPhone console JavaScript syntax
+        run: |
+          python -c "import sys; sys.path.insert(0, 'scripts'); from private_service import JS; from pathlib import Path; Path('/tmp/keiba-private-console.js').write_text(JS, encoding='utf-8')"
+          node --check /tmp/keiba-private-console.js
