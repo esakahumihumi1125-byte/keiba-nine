@@ -38,3 +38,4 @@ jobs:
           node scripts/check-private-course-ui.cjs
           node scripts/check-private-history-ui.cjs
           node scripts/check-private-raceday-ui.cjs
+          node scripts/check-private-manual-ui.cjs
