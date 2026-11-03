@@ -33,9 +33,23 @@ function validateReference(input){
  });
  return {source:input.source.trim(),checkedAt:input.checkedAt,races};
 }
+function assessFreshness(reference,nowMillis){
+ const ref=validateReference(reference);
+ const now=nowMillis===undefined?Date.now():Number(nowMillis);
+ if(!Number.isFinite(now))throw Error('照合日時の比較基準が不正です');
+ const checked=Date.parse(ref.checkedAt);
+ const today=new Date(now).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+ const hasUpcoming=ref.races.some(r=>r.date>=today);
+ const ageHours=(now-checked)/3600000;
+ if(ageHours<-(5/60))return {usable:false,status:'future',ageHours,message:'照合元の確認日時が現在より未来です。端末時刻と入力値を確認してください'};
+ if(hasUpcoming&&ageHours>72)return {usable:false,status:'stale',ageHours,message:'開催前の出馬表確認が72時間より古くなっています。取消・変更を再確認してください'};
+ if(!hasUpcoming)return {usable:true,status:'historical',ageHours,message:'過去レースの照合です。現在の出馬表として扱わないでください'};
+ return {usable:true,status:'recent',ageHours,message:'照合日時は72時間以内です。ただし出走取消・変更が現在も正しい保証はありません'};
+}
 function compareBundle(bundle,reference){
  if(!root.KeibaNineBatch)throw Error('一括分析エンジンを読み込んでください');
  const input=root.KeibaNineBatch.validateBundle(bundle),ref=validateReference(reference);
+ const freshness=assessFreshness(reference);
  const refMap=new Map(ref.races.map(r=>[key(r),r]));
  const issues=[],raceChecks=[];
  for(const card of input.racecards){
@@ -58,7 +72,7 @@ function compareBundle(bundle,reference){
   raceChecks.push({date:card.date,track:card.track,race:card.race,matched:problem.length===0,issues:problem});
   for(const reason of problem)issues.push(label+'｜'+reason);
  }
- return {matched:issues.length===0,compared:input.racecards.length,passed:raceChecks.filter(x=>x.matched).length,failed:raceChecks.filter(x=>!x.matched).length,referenceSource:ref.source,checkedAt:ref.checkedAt,referenceCount:ref.races.length,issues,raceChecks,notice:'入力された別ファイル同士の一致のみ確認。提供元の真正性・JRA公式との照合を保証しません。'};
+ return {matched:issues.length===0,readyForPreview:issues.length===0&&freshness.usable,freshness,compared:input.racecards.length,passed:raceChecks.filter(x=>x.matched).length,failed:raceChecks.filter(x=>!x.matched).length,referenceSource:ref.source,checkedAt:ref.checkedAt,referenceCount:ref.races.length,issues,raceChecks,notice:'入力された別ファイル同士の一致のみ確認。提供元の真正性・JRA公式との照合を保証しません。'};
 }
-root.KeibaNineReference={validateReference,compareBundle};
+root.KeibaNineReference={validateReference,compareBundle,assessFreshness};
 })(window);
