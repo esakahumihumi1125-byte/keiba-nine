@@ -3,7 +3,7 @@
 Takes only the already-aggregated JRDB evidence audit. Never reads raw horse
 records, assigns grades, guesses winners, places bets, or publishes data.
 """
-from evaluation_policy import FACTORS, CORE
+from evaluation_policy import FACTORS, CORE, POLICY_VERSION
 
 VERSION = "assessment-preflight-1"
 FACTOR_LABELS = {
@@ -85,7 +85,7 @@ def audit_assessment_preflight(audit):
             "gradedCount": 0, "readyForPrediction": False,
         })
     return {
-        "version": VERSION, "policyVersion": "research-1",
+        "version": VERSION, "policyVersion": POLICY_VERSION,
         "raceCount": len(races), "factorCount": len(FACTORS),
         "gradedFactors": 0, "readyForPrediction": 0,
         "coreFactors": sorted(CORE), "races": races,
