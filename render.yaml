@@ -1,0 +1,30 @@
+# Optional owner-only preview. No Render deployment is created by this file.
+# Paid JRDB/API secrets must never be supplied to this public-edge service.
+services:
+  - type: web
+    name: keiba-nine-owner-preview
+    runtime: python
+    plan: free
+    branch: main
+    autoDeployTrigger: "off"
+    buildCommand: pip install -r deploy/render-requirements.txt
+    startCommand: gunicorn --config deploy/render-gunicorn.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"
+      - key: GUNICORN_CMD_ARGS
+        value: ""
+      - key: KEIBA_RENDER_PREVIEW_ONLY
+        value: "1"
+      - key: JRDB_PRIVATE_ENABLED
+        value: "0"
+      - key: KEIBA_HISTORY_ENABLED
+        value: "0"
+      - key: KEIBA_MANUAL_REFERENCE_ENABLED
+        value: "0"
+      - key: KEIBA_ALLOW_LOCAL_HTTP
+        value: "0"
+      - key: KEIBA_OWNER_USERNAME
+        value: owner
+      - key: KEIBA_OWNER_PASSWORD
+        generateValue: true
