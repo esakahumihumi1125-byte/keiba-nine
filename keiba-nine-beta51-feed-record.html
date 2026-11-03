@@ -2614,8 +2614,35 @@ window.openFeed51=function(date,track,race){
  const matches=rows.filter(r=>r.feedIdentity51&&r.date===date&&r.track===track&&r.race===race);
  const r=matches[matches.length-1];if(r)load40(r.id);
 };
+// Local-only intake from the offline batch checklist. This never saves automatically.
+function receiveLocalPreview40(){
+ const key='kn_batch_preview_transfer_v1';
+ try{
+  const raw=sessionStorage.getItem(key);
+  if(!raw)return;
+  sessionStorage.removeItem(key);
+  if(raw.length>500000)throw Error('受け取りサイズが上限を超えました');
+  const p=JSON.parse(raw),age=Date.now()-Number(p?.createdAt);
+  if(p?.kind!=='keiba-nine-local-preview'||p.schema!==1||!Number.isFinite(age)||age<0||age>10*60*1000||!Array.isArray(p.forecasts)||p.forecasts.length<1||p.forecasts.length>120)throw Error('データが古いか形式が違います');
+  if(!p.forecasts.every(r=>r&&r.recordType==='test'&&['draft','skip'].includes(r.status)&&r.off===''))throw Error('確定実戦予想への自動変換は禁止しています');
+  el('bulkInput40').value=JSON.stringify(p.forecasts);
+  el('batchManage40').open=true;
+  validate40(); // Preview and enable optional save button; does not write records.
+  const note=document.createElement('p');
+  note.className='notice';
+  note.textContent='一括チェックから検証用の暫定予想を受け取りました。自動保存・実戦記録への反映はしていません。必要なら内容を確認して「端末へ一括登録」を押してください。';
+  el('bulkPreview40').prepend(note);
+  show('published');
+  requestAnimationFrame(()=>el('batchManage40').scrollIntoView({block:'start',behavior:'smooth'}));
+ }catch(err){
+  const node=el('bulkPreview40');
+  if(node)node.textContent='一括チェックからの受け取りに失敗しました：'+(err.message||'形式エラー');
+ }
+}
+
 // Initial open: show all dates for the first import; selection remains optional.
 render40();
+receiveLocalPreview40();
 })();
 </script>
 <script>
