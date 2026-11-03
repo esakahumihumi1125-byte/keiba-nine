@@ -65,6 +65,57 @@ class EvidenceReadinessTests(unittest.TestCase):
         self.assertEqual(result["predictionsReady"], 0)
         self.assertEqual(result["fullyVerifiedRaces"], 0)
 
+    def test_missing_evidence_summary_is_per_race_and_contains_no_horse_ids(self):
+        result = self.audit()
+        tokyo, kyoto = result["races"]
+        self.assertEqual(tokyo["trainingUnaccounted"], 0)
+        self.assertEqual(tokyo["lastWeekUnaccounted"], 1)
+        self.assertEqual(tokyo["pastRunUnaccounted"], 1)
+        self.assertEqual(kyoto["trainingUnaccounted"], 1)
+        self.assertEqual(kyoto["lastWeekUnaccounted"], 1)
+        self.assertEqual(kyoto["pastRunUnaccounted"], 1)
+        self.assertEqual(result["unaccountedTotals"],
+                         {"training": 1, "lastWeek": 2, "pastRuns": 2})
+        self.assertEqual(result["gapRaceCount"], 2)
+        self.assertTrue(any("1週前調教" in item for item in tokyo["evidenceGaps"]))
+        self.assertTrue(any("近走記録" in item for item in kyoto["evidenceGaps"]))
+        self.assertNotIn("2328aaa95a05", repr(result))
+        self.assertNotIn("NONPUBLIC", repr(result))
+
+    def test_complete_evidence_counts_never_claim_actual_forecast(self):
+        p, e, t, z = sample()
+        t.append({"racekey": "05264b01", "racedate": "20261101",
+                  "horse_number": "02", "horse_id": "2328aaa95a06",
+                  "oikirisisu_lastweek": 35})
+        t.append({"racekey": "08264b01", "racedate": "20261101",
+                  "horse_number": "01", "horse_id": "2328aaa95a07",
+                  "oikirisisu": 42, "oikirisisu_lastweek": 39})
+        z.extend([
+            {"racekey": "05264b01", "racedate": "20261101",
+             "horse_number": "02", "horse_id": "2328aaa95a06",
+             "race_back_1_racedate": "20261004"},
+            {"racekey": "08264b01", "racedate": "20261101",
+             "horse_number": "01", "horse_id": "2328aaa95a07",
+             "race_back_1_racedate": "20261004"},
+        ])
+        result = self.audit(p, e, t, z)
+        self.assertEqual(result["gapRaceCount"], 0)
+        self.assertEqual(result["unaccountedTotals"],
+                         {"training": 0, "lastWeek": 0, "pastRuns": 0})
+        self.assertTrue(all(not r["evidenceGaps"] for r in result["races"]))
+        self.assertTrue(all(r["predictionsReady"] is False for r in result["races"]))
+        self.assertTrue(all(r["rosterVerified"] is False for r in result["races"]))
+        self.assertEqual(result["predictionsReady"], 0)
+
+    def test_no_evidence_reports_unaccounted_but_not_fabricated_past_runs(self):
+        p, e, _, _ = sample()
+        result = self.audit(p, e, [], [])
+        self.assertEqual(result["gapRaceCount"], 2)
+        self.assertEqual(result["unaccountedTotals"]["training"], 3)
+        self.assertEqual(result["unaccountedTotals"]["lastWeek"], 3)
+        self.assertEqual(result["unaccountedTotals"]["pastRuns"], 3)
+        self.assertFalse(any(r["predictionsReady"] for r in result["races"]))
+
     def test_no_private_horse_content_is_returned(self):
         text = repr(self.audit())
         for secret in ("NONPUBLIC", "SECRET-NOT-FOR-API", "2328aaa95a05"):
