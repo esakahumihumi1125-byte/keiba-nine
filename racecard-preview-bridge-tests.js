@@ -21,5 +21,29 @@ ok(rows[0].ranking.length===7&&rows[0].horses[0].name==='架空テスト1','rank
 ok(rows.every(r=>!('raceCard' in r)&&!('evidence' in r)),'no fabricated official confirmations');
 ok(rows[1].intent==='見送り'&&rows[0].intent==='参考','intent safely derived');
 ok(new Set(rows.map(r=>r.date+'|'+r.track+'|'+r.race)).size===2,'unique races');
-root.KeibaNinePreviewBridgeTests={passed:10};
+// Stress check: 120 races / 18 runners / long private evidence notes must fit the local transfer.
+const letters=['S','A','B','C'],weights=[25,25,20,15,15],scores=new Map();
+for(let n=0;n<1024;n++){
+ const row=keys.map((_,j)=>letters[Math.floor(n/Math.pow(4,j))%4]);
+ const score=row.reduce((sum,grade,j)=>sum+(4-letters.indexOf(grade))*weights[j],0);
+ if(!scores.has(score))scores.set(score,row);
+}
+const unique=[...scores].sort((a,b)=>b[0]-a[0]).slice(0,18);
+const largeHorses=unique.map(([,row],i)=>({
+ number:i+1,name:'架空の長文テスト馬'+(i+1),scratched:false,
+ evaluations:Object.fromEntries(keys.map((k,j)=>[k,{grade:row[j],note:'絶対に外へ出さない架空の内部テスト根拠'.repeat(25).slice(0,500)}]))
+}));
+const tracks=['東京','京都','福島'];
+const largeBundle={kind:'keiba-nine-racecards',schema:1,source:'大容量内部検証',licenseConfirmed:true,
+ racecards:Array.from({length:120},(_,i)=>({
+  date:'2026-11-'+String(1+Math.floor(i/36)).padStart(2,'0'),
+  track:tracks[Math.floor(i/12)%3],race:i%12+1,
+  horses:JSON.parse(JSON.stringify(largeHorses))
+ }))};
+const largeRows=root.KeibaNinePreviewBridge.toDraftRows(largeBundle);
+const transfer=JSON.stringify({kind:'keiba-nine-local-preview',schema:1,createdAt:123456789,forecasts:largeRows});
+ok(largeRows.length===120&&largeRows.every(r=>r.status==='draft'),'120 fully scored race previews');
+ok(transfer.length<490000,'local transfer remains within 490k characters');
+ok(!transfer.includes('絶対に外へ出さない架空の内部テスト根拠'),'evidence source notes not exported by the bridge');
+root.KeibaNinePreviewBridgeTests={passed:13};
 })(window);
