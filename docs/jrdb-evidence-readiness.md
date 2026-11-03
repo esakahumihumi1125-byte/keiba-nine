@@ -163,6 +163,45 @@ B=45以上、C=45未満。**正式なJRDBランクではありません。**
 <https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tka> /
 <https://jrdb-api.keiba.bigtime.world/docs/fields>。
 
+## 馬ごとの過去コース・距離照合（研究用・実接続前）
+
+追加した `scripts/jrdb_course_history.py` は、JRDB `/tze` の
+`race_back_N_racedate` と `race_back_N_racekey` を
+過去番組 `/dra` の `racedate`・`racekey` に**完全一致**で結合する
+非公開の照合エンジンです。日付の違う過去レースや不正なキーは拒否します。
+
+履歴が照合できた場合のみ、内部では各馬について
+「芝/ダートの種別一致」「距離差が200m以内」「同じ競馬場」「同じ回り」の
+観測数と、同じ芝ダートかつ近い距離での3着以内の**記録件数**を数えます。
+200mは研究用の比較幅であり、適性を保証する根拠ではありません。
+距離が未確認なら不一致と断定せず、未照合として扱います。
+
+ブラウザーへ出すための `summarize_course_history_observations` は、
+レース単位で「過去番組が結合できた走数」「照合できない走数」
+「比較できる走歴のある頭数」「2走以上ある頭数」の**合計のみ**を返します。
+馬番・馬ID・有料の過去走成績・レースキー・馬名は返しません。
+`courseSuitabilityAssessed` と `goingSuitabilityAssessed` は常に偽で、
+S/A/B/Cの自動付与や3連単・実戦記録への反映はありません。
+
+また、`scripts/jrdb_private.py` に `fetch_historical_race_program(racekey)`
+を追加。1回につき厳密な8文字レースキーで過去番組 `/dra` の
+**1レースだけ**を要求し、日付範囲の大量取得は許可しません。
+β版の認証情報がないので、実際のJRDB通信は行っていません。
+この呼出しは現時点で画面や自動実行フローにつないでおらず、
+予期しないAPI通信はありません。
+
+### 残る課題
+
+- 本人専用サーバーの安全な設置と、JRDB β専用の認証情報の発行
+- `/dra` の履歴データを**取得回数上限付きで**必要なレースに結ぶオーケストレーター
+- 過去開催の `/dka`（過去の馬場状態）による日付一致と、今回の馬場との比較
+- 出走取消・当日馬場の確認、相手レベルの補正、コース・距離のサンプル数と
+  評価基準のバックテスト。これらが終わるまで実戦の適性ランクは出さない
+
+公式仕様：
+<https://jrdb-api.keiba.bigtime.world/docs/endpoints/history/dra>
+<https://jrdb-api.keiba.bigtime.world/docs/endpoints/history/dka>。
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
