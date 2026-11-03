@@ -196,7 +196,7 @@ class PrivateServiceTests(unittest.TestCase):
         tokyo_time = next(x for x in prestart['races'] if x['track'] == '東京')
         self.assertEqual(tokyo_time['sourceGoingAgeStatus'], 'recent_reported')
         self.assertFalse(tokyo_time['jraPostTimeVerified'])
-        self.assertFalse(tokyo_time['candidateForManualJraReview'] is False)
+        self.assertTrue(tokyo_time['candidateForManualJraReview'])
         self.assertFalse(data['predictionReady'])
         self.assertFalse(data['bettingReady'])
         tokyo = next(x for x in data['races'] if x['track'] == '東京')
