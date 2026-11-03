@@ -67,6 +67,57 @@ class PrivateServiceTests(unittest.TestCase):
         for extra in [{'HTTP_SEC_FETCH_SITE': 'cross-site'}, {'HTTP_X_KEIBA_REQUEST': ''}]:
             self.assertTrue(call(self.app, '/api/research', 'POST', data=sample(), **extra)['status'].startswith('403'))
 
+    def test_setup_diagnostic_requires_owner_and_custom_header(self):
+        for auth in ('', 'Basic malformed'):
+            self.assertTrue(call(self.app, '/api/setup', auth=auth)['status'].startswith('401'))
+        self.assertTrue(call(self.app, '/api/setup', HTTP_X_KEIBA_REQUEST='')['status'].startswith('403'))
+
+    def test_setup_diagnostic_discloses_no_secrets_or_false_readiness(self):
+        out = call(self.app, '/api/setup')
+        self.assertEqual(out['status'], '200 OK')
+        data = json.loads(out['body'])
+        self.assertEqual(data['transport'], 'https')
+        self.assertFalse(data['jrdbConfigured'])
+        self.assertFalse(data['liveConnectionVerified'])
+        self.assertFalse(data['realPredictionEnabled'])
+        self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'].encode(), out['body'])
+        self.assertEqual(set(data), {'transport', 'jrdbConfigured',
+                                   'liveConnectionVerified', 'realPredictionEnabled',
+                                   'nextStep'})
+        self.assertIn('no-store', out['headers']['Cache-Control'])
+
+    def test_configured_setup_diagnostic_never_claims_live_api_success(self):
+        cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'synthetic-api-key-not-real',
+               'JRDB_AUTH_KEY': 'synthetic-auth-key-not-real'}
+        with patch('private_service.fetch_race_program') as fetch:
+            out = call(create_app(cfg), '/api/setup')
+        self.assertEqual(out['status'], '200 OK')
+        body = json.loads(out['body'])
+        self.assertTrue(body['jrdbConfigured'])
+        self.assertFalse(body['liveConnectionVerified'])
+        self.assertFalse(body['realPredictionEnabled'])
+        self.assertNotIn(cfg['JRDB_API_KEY'].encode(), out['body'])
+        self.assertNotIn(cfg['JRDB_AUTH_KEY'].encode(), out['body'])
+        fetch.assert_not_called()
+
+    def test_http_preview_cannot_enable_paid_jrdb_credentials(self):
+        with self.assertRaisesRegex(ValueError, 'HTTPS-only'):
+            create_app({**SETTINGS, 'KEIBA_ALLOW_LOCAL_HTTP': '1',
+                        'JRDB_PRIVATE_ENABLED': '1', 'JRDB_API_KEY': 'fake',
+                        'JRDB_AUTH_KEY': 'fake'})
+        local = create_app({**SETTINGS, 'KEIBA_ALLOW_LOCAL_HTTP': '1'})
+        info = json.loads(call(local, '/api/setup', **{'wsgi.url_scheme':'http'})['body'])
+        self.assertEqual(info['transport'], 'local-dev')
+        self.assertFalse(info['jrdbConfigured'])
+
+    def test_private_page_exposes_diagnostic_without_credentials(self):
+        html = call(self.app, '/')['body']
+        script = call(self.app, '/app.js')['body']
+        self.assertIn(b'id="diagnose"', html)
+        self.assertIn(b'/api/setup', script)
+        self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'].encode(), html + script)
+
     def test_live_connection_disabled_by_default(self):
         with patch('private_service.fetch_race_program') as fetch:
             self.assertTrue(call(self.app, '/api/jrdb/program', QUERY_STRING='date=20261027')['status'].startswith('503'))
