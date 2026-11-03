@@ -44,8 +44,9 @@ summary{cursor:pointer;color:#a7d5ff}
 </div>
 <label for="race">レース</label><select id="race" disabled><option value="">読み込み待ち</option></select>
 <div><button id="prev" class="secondary" type="button" disabled>前のレース</button><button id="next" class="secondary" type="button" disabled>次のレース</button></div>
-<div><button id="sendDraft" type="button" disabled>本体で暫定予想を確認（未保存）</button></div>
-<p class="muted">結果を端末内だけでメインアプリへ渡します。<strong>すべて検証用の暫定・見送りとして扱い、購入や正式な予想・収支には反映しません。</strong> 本体で内容を再検査し、本人が保存を選ぶまで登録されません。</p>
+<div><button id="sendDraft" type="button" disabled>本体で暫定予想を確認（未保存）</button>
+<button id="savePreview" class="secondary" type="button" disabled>検証用予想JSONを保存</button></div>
+<p class="muted">結果を端末内だけでメインアプリへ渡します。<strong>すべて検証用の暫定・見送りとして扱い、購入や正式な予想・収支には反映しません。</strong> 本体で内容を再検査し、本人が保存を選ぶまで登録されません。 JSON保存も検証用データだけを書き出し、元の根拠メモ全文や実戦記録は含めません。</p>
 <p id="summary" class="notice">まだレースデータはありません。</p>
 <div id="list" aria-label="レース一覧">読み込み後に日付と競馬場ごとのレース一覧が表示されます。</div>
 </section>
@@ -100,6 +101,7 @@ function resetOutputs(){
  }
  $('prev').disabled=true;$('next').disabled=true;
  $('sendDraft').disabled=true;
+ $('savePreview').disabled=true;
  $('summary').textContent='まだ検証済みのレースはありません。';
  $('list').textContent='読み込み後に一覧が表示されます。';
  $('detail').textContent='対象レースを選ぶと結果が表示されます。';
@@ -190,8 +192,27 @@ $('analyze').addEventListener('click',()=>{
   options($('track'),[['','全競馬場'],...result.tracks.map(t=>[t,t])],'競馬場なし');
   $('status').textContent='形式チェック完了：'+result.total+'R／参考 '+result.ready+'R／見送り '+result.skipped+'R（実在・利用許諾は未検証）';
   $('sendDraft').disabled=false;
+  $('savePreview').disabled=false;
   updateList();
  }catch(err){resetOutputs();$('status').textContent='検証NG：'+(err.message||'データの形式が不正です')}
+});
+$('savePreview').addEventListener('click',()=>{
+ try{
+  if(!result)throw Error('先に全Rチェックを実行してください');
+  if(!window.KeibaNinePreviewBridge)throw Error('出力プログラムが読み込めません');
+  const pack=window.KeibaNinePreviewBridge.toPortablePreview(JSON.parse($('raw').value));
+  if(pack.forecasts.length!==result.total)throw Error('データが変更されました。再検証してください');
+  const json=JSON.stringify(pack,null,2);
+  if(json.length>490000)throw Error('保存用JSONが大きすぎます。開催日・競馬場ごとにファイルを分けてください');
+  const blob=new Blob([json],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const first=pack.forecasts[0].date;
+  a.href=url;a.download='keiba-nine-test-preview-'+first+'.json';
+  document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  $('status').textContent='検証用の暫定予想JSONを書き出しました。iPhoneのファイルに保存できます。自動登録・実戦記録への反映はありません。';
+ }catch(err){$('status').textContent='JSONを保存できません：'+(err.message||'エラー')}
 });
 $('sendDraft').addEventListener('click',()=>{
  try{
