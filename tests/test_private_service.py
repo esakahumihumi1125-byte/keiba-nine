@@ -372,6 +372,52 @@ class PrivateServiceTests(unittest.TestCase):
             result = call(app, '/api/jrdb/program', QUERY_STRING='date=20261027')
             self.assertTrue(result['status'].startswith('502')); self.assertNotIn(b'secret-data', result['body'])
 
+    def test_research_preview_available_only_to_owner(self):
+        for path in ('/', '/app.js'):
+            blocked = call(self.app, path, auth='')
+            self.assertTrue(blocked['status'].startswith('401'))
+        html = call(self.app, '/')['body']
+        script = call(self.app, '/app.js')['body']
+        for label in (b'id="researchDemo"', b'id="researchInput"',
+                      b'id="researchRun"', b'id="researchFile"'):
+            self.assertIn(label, html)
+        for label in (b'function syntheticSample', b'async function runResearch',
+                      b"'/api/research'", b"recordType:'test'"):
+            self.assertIn(label, script)
+        self.assertIn(b'textContent', script)
+        self.assertNotIn(b'innerHTML', script)
+
+    def test_research_sandbox_rejects_real_provider_sources(self):
+        race = sample()
+        race['horses'][0]['assessments']['training']['evidence'][0]['sourceId'] = 'jrdb-tcy'
+        with patch('private_service.fetch_race_program') as fetch:
+            response = call(self.app, '/api/research', 'POST', data=race)
+        self.assertTrue(response['status'].startswith('400'))
+        self.assertNotIn(b'jrdb-tcy', response['body'])
+        fetch.assert_not_called()
+
+    def test_research_sandbox_rejects_bad_evidence_shapes(self):
+        for evidence in ('not-an-array', [{'sourceId': 'unknown'}],
+                         [{'sourceId': 'synthetic'}, None], {}):
+            with self.subTest(evidence=evidence):
+                race = sample()
+                race['horses'][0]['assessments']['recent']['evidence'] = evidence
+                result = call(self.app, '/api/research', 'POST', data=race)
+                self.assertTrue(result['status'].startswith('400'))
+
+    def test_synthetic_research_response_contains_rank_and_tickets_only_as_test(self):
+        result = call(self.app, '/api/research', 'POST', data=sample())
+        self.assertEqual(result['status'], '200 OK')
+        payload = json.loads(result['body'])
+        self.assertEqual(payload['recordType'], 'test')
+        self.assertFalse(payload['publishable'])
+        self.assertFalse(payload['validated'])
+        self.assertEqual(payload['researchDecision'], 'simulate')
+        self.assertTrue(len(payload['evaluation']['horses']) >= 2)
+        self.assertEqual(payload['points'], len(payload['tri']))
+        self.assertLessEqual(payload['points'], 40)
+        self.assertEqual(payload['stake'], payload['points'] * 100)
+
     def test_research_pipeline_end_to_end(self):
         result = call(self.app, '/api/research', 'POST', data=sample())
         self.assertTrue(result['status'].startswith('200'))
