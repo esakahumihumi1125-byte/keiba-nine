@@ -11,7 +11,7 @@ from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import (
     audit_evidence_coverage, HORSE_ID, NUMBER, KEY, _valid_date
 )
-from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError
+from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError, TRACKS
 from jrdb_going_history import (
     build_going_history_observations, summarize_going_history_observations
 )
@@ -65,6 +65,9 @@ def plan_bounded_history(programme, entries, previous, requested_date,
             if racekey is None or racekey == "":
                 continue  # Historical key unavailable; do not guess.
             if (not isinstance(racekey, str) or not KEY.fullmatch(racekey)
+                    or racekey[:2] not in TRACKS
+                    or not racekey[6:].isdigit()
+                    or not 1 <= int(racekey[6:]) <= 12
                     or racekey in current_keys):
                 raise CoverageError("Invalid historical racekey")
             if racekey in referenced and referenced[racekey] != date:
