@@ -192,7 +192,7 @@ el('raceday').onclick=async()=>{
    const ages={no_going_report:'馬場未確認',no_update_timestamp:'更新時刻未確認',
      timestamp_in_future:'更新時刻が未来',recent_reported:'更新記録60分以内',
      old_or_other_date_reported:'更新記録60分超または別日'};
-   if(!windows[timing.prestartWindow]&&!ages[timing.sourceGoingAgeStatus])
+   if(!windows[timing.prestartWindow]||!ages[timing.sourceGoingAgeStatus])
      throw Error('発走前情報の状態が不明です');
    const div=document.createElement('div');div.className='race';
    div.textContent=race.track+race.race+'R｜提供元の取消報告 '+race.providerWithdrawnCount
