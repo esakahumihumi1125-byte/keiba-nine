@@ -3640,6 +3640,8 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 </style>
 
 <!-- purchase-check integration 5.7 -->
+<script>(function(){document.addEventListener('click',function(e){const a=e.target.closest('#knPurchaseLink');if(!a)return;const panel=document.getElementById('forecastTickets65');if(!panel)return;const btn=panel.querySelector('#copyTicket63');if(!btn||btn.disabled)return;const entries=[...panel.querySelectorAll('.s52-bets .s55-bet')].map(el=>[...el.querySelectorAll('b')].map(b=>b.textContent.trim())).filter(x=>x.length===3&&x.every(n=>/^\d{1,2}$/.test(n)));if(!entries.length)return;const title=(document.querySelector('#simple52 .s55-heading')?.textContent||'').trim();try{sessionStorage.setItem('kn_purchase_import_v1',JSON.stringify({type:'3連単',race:document.querySelector('#simple52 h3')?.textContent?.trim()||'表示中のレース',entries,created:Date.now()}));}catch(err){return;}},true)})();</script>
+
 <style>#knPurchaseLink{display:block;margin:12px 0;padding:15px;border-radius:12px;background:#e6f0e8;border:1px solid #b1c9b8;color:#23553d;text-align:center;font-weight:800;text-decoration:none;font-size:16px;min-height:48px}</style>
 <script>(function(){function install(){if(document.getElementById('knPurchaseLink'))return;const target=document.getElementById('home')||document.getElementById('app');if(!target)return;const a=document.createElement('a');a.id='knPurchaseLink';a.href='./purchase-check.html';a.textContent='馬券の購入前チェックを開く →';a.setAttribute('aria-label','馬券の券種・馬番・金額を確認する');const panel=target.querySelector('#simple52');if(panel)panel.before(a);else target.prepend(a)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install()})();</script>
 </body></html>
