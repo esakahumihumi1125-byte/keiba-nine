@@ -46,7 +46,7 @@ summary{cursor:pointer;color:#a7d5ff}
 <div><button id="prev" class="secondary" type="button" disabled>前のレース</button><button id="next" class="secondary" type="button" disabled>次のレース</button></div>
 <div><button id="sendDraft" type="button" disabled>本体で暫定予想を確認（未保存）</button>
 <button id="savePreview" class="secondary" type="button" disabled>検証用予想JSONを保存</button></div>
-<p class="muted">結果を端末内だけでメインアプリへ渡します。<strong>すべて検証用の暫定・見送りとして扱い、購入や正式な予想・収支には反映しません。</strong> 本体で内容を再検査し、本人が保存を選ぶまで登録されません。 JSON保存も検証用データだけを書き出し、元の根拠メモ全文や実戦記録は含めません。</p>
+<p class="muted">結果を端末内だけでメインアプリへ渡します。<strong>すべて検証用の暫定・見送りとして扱い、購入や正式な予想・収支には反映しません。</strong> 本体で内容を再検査し、本人が保存を選ぶまで登録されません。 JSON保存も検証用データだけを書き出し、元の根拠メモ全文や実戦記録は含めません。 日付・競馬場を選んでいる場合は、表示中のレースだけを書き出します。</p>
 <p id="summary" class="notice">まだレースデータはありません。</p>
 <div id="list" aria-label="レース一覧">読み込み後に日付と競馬場ごとのレース一覧が表示されます。</div>
 </section>
@@ -200,15 +200,20 @@ $('savePreview').addEventListener('click',()=>{
  try{
   if(!result)throw Error('先に全Rチェックを実行してください');
   if(!window.KeibaNinePreviewBridge)throw Error('出力プログラムが読み込めません');
-  const pack=window.KeibaNinePreviewBridge.toPortablePreview(JSON.parse($('raw').value));
-  if(pack.forecasts.length!==result.total)throw Error('データが変更されました。再検証してください');
-  const json=JSON.stringify(pack); // Compact format fits the existing 500KB main-app import limit.
-  if(json.length>490000)throw Error('保存用JSONが大きすぎます。開催日・競馬場ごとにファイルを分けてください');
+  const fullPack=window.KeibaNinePreviewBridge.toPortablePreview(JSON.parse($('raw').value));
+  if(fullPack.forecasts.length!==result.total)throw Error('データが変更されました。再検証してください');
+  const selectedDate=$('date').value,selectedTrack=$('track').value;
+  const chosen=fullPack.forecasts.filter(r=>(!selectedDate||r.date===selectedDate)&&(!selectedTrack||r.track===selectedTrack));
+  if(!chosen.length)throw Error('選択中の条件に合うレースがありません');
+  const pack={...fullPack,forecasts:chosen};
+  const json=JSON.stringify(pack); // Compact form, compatible with the main-app JSON importer.
   const blob=new Blob([json],{type:'application/json;charset=utf-8'});
+  if(blob.size>490000)throw Error('この条件のJSONは500KBを超えます。日付や競馬場を選んでから保存してください');
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  const first=pack.forecasts[0].date;
-  a.href=url;a.download='keiba-nine-test-preview-'+first+'.json';
+  const first=chosen[0].date;
+  const suffix=selectedTrack?'-'+selectedTrack:'';
+  a.href=url;a.download='keiba-nine-test-preview-'+first+suffix+'.json';
   document.body.append(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),10000);
   $('status').textContent='検証用の暫定予想JSONを書き出しました。iPhoneのファイルに保存できます。自動登録・実戦記録への反映はありません。';
