@@ -254,7 +254,7 @@ class PrivateServiceTests(unittest.TestCase):
         for label in (b'trainingUnaccounted', b'lastWeekUnaccounted',
                       b'pastRunUnaccounted', b'gapRaceCount',
                       b'assessmentPreflight', b'sourceStatus',
-                      b'trainingHypothesis', b'gradeCounts'):
+                      b'trainingHypothesis', b'recentHypothesis', b'gradeCounts'):
             self.assertIn(label, script)
         self.assertNotIn(b'innerHTML', script)
 
@@ -348,6 +348,71 @@ class PrivateServiceTests(unittest.TestCase):
             result = call(app, '/api/jrdb/evidence', QUERY_STRING='date=20261027')
         self.assertTrue(result['status'].startswith('502'))
         self.assertNotIn(b'SECRET-PROVIDER-SCORE', result['body'])
+
+    def test_recent_hypothesis_is_redacted_and_not_a_live_prediction(self):
+        private = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        programme = [{'racekey': '05264b01', 'racedate': '20261027',
+                      'racecourse_cd': '05', 'post_time': '1010', 'headcount': 1}]
+        horses = [{'racekey': '05264b01', 'racedate': '20261027',
+                   'horse_number': '01', 'horse_id': '2328aaa95a05',
+                   'horse_name': 'SECRET-PAID-HORSE'}]
+        recent = [{
+            'racekey': '05264b01', 'racedate': '20261027',
+            'horse_number': '01', 'horse_id': '2328aaa95a05',
+            'race_back_1_racedate': '20261020',
+            'race_back_1_order_of_finish': 1,
+            'race_back_1_idm': 80, 'race_back_1_corner4_order': 2,
+            'race_back_1_later3f_time': 34.6,
+            'race_back_2_racedate': '20261010',
+            'race_back_2_order_of_finish': 2,
+            'race_back_2_idm': 75, 'race_back_2_corner4_order': 3,
+            'race_back_2_later3f_time': 35.0,
+            'race_back_1_confirmed_win_odds': 1000.0,
+        }]
+        with (
+            patch('private_service.fetch_race_program', return_value=programme),
+            patch('private_service.fetch_horse_entries', return_value=horses),
+            patch('private_service.fetch_training_analysis', return_value=[]),
+            patch('private_service.fetch_recent_runs', return_value=recent),
+        ):
+            result = call(private, '/api/jrdb/evidence',
+                          QUERY_STRING='date=20261027')
+        self.assertEqual(result['status'], '200 OK')
+        response = json.loads(result['body'])
+        recent_report = response['recentHypothesis']
+        self.assertEqual(recent_report['races'][0]['gradeCounts']['S'], 1)
+        self.assertEqual(recent_report['races'][0]['frontAtFourthObservations'], 2)
+        self.assertEqual(recent_report['races'][0]['late3fObservations'], 2)
+        self.assertFalse(recent_report['predictionReady'])
+        self.assertEqual(response['assessmentPreflight']['gradedFactors'], 0)
+        self.assertEqual(response['predictionsReady'], 0)
+        for raw in (b'2328aaa95a05', b'SECRET-PAID-HORSE', b'80',
+                    b'confirmed_win_odds', b'34.6'):
+            # Numeric literals may appear in other metadata; only forbid
+            # identifiable material and field names.
+            if raw not in (b'80',):
+                self.assertNotIn(raw, result['body'])
+
+    def test_bad_recent_history_is_rejected_without_provider_payload(self):
+        private = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        programme = [{'racekey': '05264b01', 'racedate': '20261027',
+                      'racecourse_cd': '05', 'post_time': '1010', 'headcount': 1}]
+        horses = [{'racekey': '05264b01', 'racedate': '20261027',
+                   'horse_number': '01', 'horse_id': '2328aaa95a05'}]
+        previous = [{'racekey': '05264b01', 'racedate': '20261027',
+                     'horse_number': '01', 'horse_id': '2328aaa95a05',
+                     'race_back_1_racedate': '20261020',
+                     'race_back_1_idm': 999, 'horse_name': 'SECRET-PAID-HORSE'}]
+        with (
+            patch('private_service.fetch_race_program', return_value=programme),
+            patch('private_service.fetch_horse_entries', return_value=horses),
+            patch('private_service.fetch_training_analysis', return_value=[]),
+            patch('private_service.fetch_recent_runs', return_value=previous),
+        ):
+            result = call(private, '/api/jrdb/evidence',
+                          QUERY_STRING='date=20261027')
+        self.assertTrue(result['status'].startswith('502'))
+        self.assertNotIn(b'SECRET-PAID-HORSE', result['body'])
 
     def test_evidence_endpoint_disabled_without_private_activation(self):
         with patch('private_service.fetch_race_program') as fetch:
