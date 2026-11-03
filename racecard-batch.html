@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>競馬ナイン｜全R一括データ検証</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif;background:#0c1422;color:#edf3fc;max-width:850px;margin:0 auto;padding:18px;line-height:1.6}
+h1{font-size:24px;margin:10px 0}h2{font-size:18px;margin:4px 0 12px}
+a{color:#9accff}
+.panel{background:#142338;border:1px solid #334865;border-radius:14px;padding:16px;margin:14px 0}
+label{display:block;color:#c6d9f0;font-weight:600;margin:10px 0 5px}
+textarea,select,input[type=file]{font:14px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;color:#f4f8ff;width:100%;border:1px solid #667d99;border-radius:8px;background:#0d1b2a;padding:11px}
+textarea{min-height:180px;resize:vertical;font-family:ui-monospace,monospace}
+button{font-size:15px;font-weight:600;background:#287bd5;color:#fff;border:0;border-radius:9px;padding:12px 16px;margin:9px 8px 5px 0;cursor:pointer}
+button.secondary{background:#344d6b}
+button:disabled{opacity:.45;cursor:not-allowed}
+.muted{color:#b9c9dd;font-size:14px}
+.notice{border-left:3px solid #819bbc;padding-left:11px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0b1929;padding:14px;border-radius:9px;font:13px/1.7 ui-monospace,monospace}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:460px){.grid{grid-template-columns:1fr}}
+#list{max-height:270px;overflow:auto;border:1px solid #314663;border-radius:9px;padding:10px;font-size:14px;white-space:pre-wrap}
+summary{cursor:pointer;color:#a7d5ff}
+</style>
+</head><body>
+<header><a href="./keiba-nine-beta51-feed-record.html">← 競馬ナイン本体</a>
+<h1>全レース一括チェック</h1>
+<p class="muted">出馬表と評価データを最大120レースまとめて検証するための<strong>端末内の準備ツール</strong>です。JRA/JRDBの自動取得、公式照合、AIによる根拠の作成、予想の公開や購入はしません。</p></header>
+<section class="panel">
+<h2>① データを読み込む</h2>
+<p class="muted">利用条件を確認したデータのみ使用してください。JSONを貼り付けるか、iPhoneの「ファイル」から選択できます。ファイル内容をGitHubなどへ送信・保存しません。</p>
+<label for="filePick">JSONファイル（任意）</label><input id="filePick" type="file" accept=".json,application/json">
+<label for="raw">一括出馬表JSON</label><textarea id="raw" spellcheck="false" placeholder="一括形式のJSONを貼り付けてください"></textarea>
+<button type="button" id="analyze">全Rの形式・評価をチェック</button>
+<button class="secondary" type="button" id="clear">クリア</button>
+<p id="status" role="status">未検証</p>
+</section>
+<section class="panel">
+<h2>② 開催日とレースを選ぶ</h2>
+<div class="grid">
+<div><label for="date">日付</label><select id="date" disabled><option value="">読み込み待ち</option></select></div>
+<div><label for="track">競馬場</label><select id="track" disabled><option value="">読み込み待ち</option></select></div>
+</div>
+<label for="race">レース</label><select id="race" disabled><option value="">読み込み待ち</option></select>
+<div><button id="prev" class="secondary" type="button" disabled>前のレース</button><button id="next" class="secondary" type="button" disabled>次のレース</button></div>
+<p id="summary" class="notice">まだレースデータはありません。</p>
+<div id="list" aria-label="レース一覧">読み込み後に日付と競馬場ごとのレース一覧が表示されます。</div>
+</section>
+<section class="panel">
+<h2>③ 暫定評価・参考フォーメーション</h2>
+<pre id="detail">対象レースを選ぶと結果が表示されます。</pre>
+<p class="muted">評価は入力に含まれるS/A/B/Cと根拠メモを固定加重で計算したものです。現実の勝率・回収率・馬券の購入推奨ではありません。調教や近走が不明な場合は見送りにします。</p>
+</section>
+<details class="panel"><summary>一括JSONの形式を見る</summary>
+<pre>{
+  "kind": "keiba-nine-racecards",
+  "schema": 1,
+  "source": "利用許諾を確認した提供元",
+  "licenseConfirmed": true,
+  "racecards": [
+    {
+      "date": "YYYY-MM-DD",
+      "track": "京都",
+      "race": 1,
+      "horses": [
+        {
+          "number": 1,
+          "name": "公式情報から転記した馬名",
+          "scratched": false,
+          "evaluations": {
+            "recent": {"grade":"A","note":"近走内容の具体的な根拠"},
+            "training": {"grade":"B","note":"調教時計など具体的な根拠"},
+            "course": {"grade":"A","note":"距離適性など具体的な根拠"},
+            "pedigree": {"grade":"B","note":"血統適性など具体的な根拠"},
+            "pace": {"grade":"B","note":"想定展開など具体的な根拠"}
+          }
+        }
+      ]
+    }
+  ]
+}</pre>
+<p class="muted">これは構造例であり実データではありません。各馬の評価と取消状況がすべてそろうまでは見送りとなります。提供元欄や利用許諾フラグは自己申告であり、利用権限を証明するものではありません。</p>
+</details>
+<script src="./racecard-engine.js"></script>
+<script src="./racecard-batch.js"></script>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const maxChars=2000000;
+let result=null,visible=[];
+function resetOutputs(){
+ result=null;visible=[];
+ for(const id of ['date','track','race']){
+  const sel=$(id);sel.replaceChildren();sel.add(new Option('読み込み待ち',''));sel.disabled=true;
+ }
+ $('prev').disabled=true;$('next').disabled=true;
+ $('summary').textContent='まだ検証済みのレースはありません。';
+ $('list').textContent='読み込み後に一覧が表示されます。';
+ $('detail').textContent='対象レースを選ぶと結果が表示されます。';
+}
+function options(select,items,empty){
+ select.replaceChildren();
+ for(const [value,label] of items)select.add(new Option(label,value));
+ if(!items.length)select.add(new Option(empty,''));
+ select.disabled=!items.length;
+}
+function renderRace(index){
+ const entry=visible[index];
+ $('prev').disabled=index<=0;
+ $('next').disabled=index<0||index>=visible.length-1;
+ if(!entry){$('detail').textContent='対象レースがありません。';return}
+ const a=entry.analysis;
+ const lines=[entry.date+' '+entry.track+' '+entry.race+'R','提供元：'+entry.source+'（利用許諾の真偽は未確認）','出走候補：'+a.active.length+'頭',''];
+ if(a.missing.length){
+  lines.push('【未取得の分析項目】');
+  for(const h of a.missing)lines.push(h.number+'番 '+h.name+'：'+h.missing.join('・'));
+  lines.push('');
+ }
+ if(a.ranked.length){
+  lines.push('【総合評価順（入力された評価を計算）】');
+  a.ranked.forEach((h,i)=>lines.push((i+1)+'位 '+h.number+' '+h.name+'｜'+h.overall+'（'+h.score.toFixed(2)+'）'));
+  lines.push('');
+ }
+ if(!a.ready){
+  lines.push('買い目：見送り');
+  lines.push(...a.reasons.map(t=>'理由：'+t));
+ }else{
+  const f=a.formation;
+  lines.push('【3連単・参考フォーメーション】');
+  lines.push('1着：'+f.first.join('・'));
+  lines.push('2着：'+f.second.join('・'));
+  lines.push('3着：'+f.third.join('・'));
+  lines.push('重複なし：'+a.combinations.length+'点／1点100円なら'+(a.combinations.length*100).toLocaleString('ja-JP')+'円');
+  lines.push('参考の組み合わせ：');
+  lines.push(a.combinations.map(c=>c.join('-')).join('、'));
+  const trio=new Set(a.combinations.map(c=>[...c].sort((x,y)=>x-y).join('-')));
+  lines.push('3連複参考候補：'+trio.size+'点（順不同へ変換した数）');
+ }
+ lines.push('','※公式出馬表・最新取消情報・馬場・許諾内容との照合は未実施。');
+ $('detail').textContent=lines.join('\n');
+}
+function updateRace(){
+ const selected=$('race').value;
+ const index=visible.findIndex(e=>e.date+'|'+e.track+'|'+e.race===selected);
+ renderRace(index);
+}
+function updateList(){
+ if(!result)return;
+ const date=$('date').value,track=$('track').value;
+ visible=result.entries.filter(e=>(!date||e.date===date)&&(!track||e.track===track));
+ options($('race'),visible.map(e=>[e.date+'|'+e.track+'|'+e.race,e.race+'R｜'+(e.analysis.ready?e.analysis.combinations.length+'点':'見送り')]),'対象レースなし');
+ const ready=visible.filter(e=>e.analysis.ready).length;
+ $('summary').textContent='表示中：'+visible.length+'R／参考フォーメーション '+ready+'R／見送り '+(visible.length-ready)+'R';
+ $('list').textContent=visible.map(e=>e.date+' '+e.track+e.race+'R｜'+(e.analysis.ready?'参考 '+e.analysis.combinations.length+'点':'見送り')).join('\n')||'対象レースなし';
+ updateRace();
+}
+$('date').addEventListener('change',updateList);
+$('track').addEventListener('change',updateList);
+$('race').addEventListener('change',updateRace);
+$('prev').addEventListener('click',()=>{const i=$('race').selectedIndex;if(i>0){$('race').selectedIndex=i-1;updateRace()}});
+$('next').addEventListener('click',()=>{const i=$('race').selectedIndex;if(i>=0&&i<$('race').options.length-1){$('race').selectedIndex=i+1;updateRace()}});
+$('raw').addEventListener('input',()=>{resetOutputs();$('status').textContent='内容が変更されました。再検証してください。'});
+$('filePick').addEventListener('change',async()=>{
+ const file=$('filePick').files?.[0];if(!file)return;
+ resetOutputs();
+ try{
+  if(file.size>maxChars||!/\.json$/i.test(file.name))throw Error('2MB以内の .json ファイルを選んでください');
+  const raw=await file.text();
+  if(raw.length>maxChars)throw Error('ファイルが大きすぎます');
+  JSON.parse(raw);
+  $('raw').value=raw;
+  $('status').textContent='ファイル読み込み完了。全Rチェックを押してください（未検証）';
+ }catch(err){$('status').textContent='読み込み失敗：'+(err.message||'形式エラー')}
+ finally{$('filePick').value=''}
+});
+$('analyze').addEventListener('click',()=>{
+ resetOutputs();
+ try{
+  if($('raw').value.length>maxChars)throw Error('入力は2MB以内にしてください');
+  if(!window.KeibaNineBatch)throw Error('一括検証プログラムが読めていません。画面を更新してください');
+  const data=JSON.parse($('raw').value);
+  result=window.KeibaNineBatch.analyzeBundle(data);
+  options($('date'),[['','全日付'],...result.dates.map(d=>[d,d])],'日付なし');
+  options($('track'),[['','全競馬場'],...result.tracks.map(t=>[t,t])],'競馬場なし');
+  $('status').textContent='形式チェック完了：'+result.total+'R／参考 '+result.ready+'R／見送り '+result.skipped+'R（実在・利用許諾は未検証）';
+  updateList();
+ }catch(err){resetOutputs();$('status').textContent='検証NG：'+(err.message||'データの形式が不正です')}
+});
+$('clear').addEventListener('click',()=>{$('raw').value='';$('filePick').value='';resetOutputs();$('status').textContent='未検証'});
+})();
+</script>
+</body></html>
