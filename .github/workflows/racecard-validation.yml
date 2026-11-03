@@ -8,6 +8,8 @@ on:
       - 'racecard-batch.js'
       - 'racecard-batch-tests.js'
       - 'racecard-batch.html'
+      - 'racecard-reference.js'
+      - 'racecard-reference-tests.js'
       - 'racecard-preview-bridge.js'
       - 'racecard-preview-bridge-tests.js'
       - 'scripts/check-racecard-main-import.cjs'
@@ -21,6 +23,8 @@ on:
       - 'racecard-batch.js'
       - 'racecard-batch-tests.js'
       - 'racecard-batch.html'
+      - 'racecard-reference.js'
+      - 'racecard-reference-tests.js'
       - 'racecard-preview-bridge.js'
       - 'racecard-preview-bridge-tests.js'
       - 'scripts/check-racecard-main-import.cjs'
@@ -46,6 +50,13 @@ jobs:
         run: |
           node --check racecard-preview-bridge.js
           node --check racecard-preview-bridge-tests.js
+      - name: Check independent reference JavaScript
+        run: |
+          node --check racecard-reference.js
+          node --check racecard-reference-tests.js
+      - name: Execute independent racecard comparison tests
+        run: |
+          node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-reference.js'); require('./racecard-reference-tests.js'); console.log('Reference tests passed:',global.KeibaNineReferenceTests.passed)"
       - name: Execute offline regression tests
         run: |
           node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-engine-tests.js'); console.log('Racecard tests passed:',global.KeibaNineRacecardTests.passed)"
