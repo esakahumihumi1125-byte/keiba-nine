@@ -217,6 +217,19 @@ def create_app(settings=None):
                 if len(raw) != length:
                     raise ValueError()
                 race = json.loads(raw)
+                # This sandbox must not accept JRDB or real provider records
+                # disguised with the ordinary "test" flag.
+                if not isinstance(race, dict) or race.get('recordType') != 'test':
+                    raise ValueError()
+                for horse in race.get('horses', []):
+                    if not isinstance(horse, dict):
+                        raise ValueError()
+                    for assessment in (horse.get('assessments') or {}).values():
+                        if not isinstance(assessment, dict):
+                            raise ValueError()
+                        for evidence in assessment.get('evidence', []):
+                            if not isinstance(evidence, dict) or evidence.get('sourceId') != 'synthetic':
+                                raise ValueError()
                 plan = plan_race(race)
             except (ValueError, TypeError, KeyError):
                 return response('400 Bad Request', {'error': '架空検証用の入力形式・根拠・時刻を確認してください。'})
