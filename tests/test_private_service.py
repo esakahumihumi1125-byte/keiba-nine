@@ -263,7 +263,8 @@ class PrivateServiceTests(unittest.TestCase):
                       b'pastRunUnaccounted', b'gapRaceCount',
                       b'assessmentPreflight', b'sourceStatus',
                       b'trainingHypothesis', b'recentHypothesis',
-                      b'dualFactorReadiness', b'gradeCounts'):
+                      b'dualFactorReadiness', b'positionObservations',
+                      b'gradeCounts'):
             self.assertIn(label, script)
         self.assertNotIn(b'innerHTML', script)
 
@@ -393,6 +394,11 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(recent_report['races'][0]['frontAtFourthObservations'], 2)
         self.assertEqual(recent_report['races'][0]['late3fObservations'], 2)
         self.assertFalse(recent_report['predictionReady'])
+        positions = response['positionObservations']
+        self.assertFalse(positions['paceForecastAvailable'])
+        self.assertFalse(positions['predictionReady'])
+        self.assertEqual(positions['races'][0]['observations']['frontObserved'], 1)
+        self.assertEqual(positions['races'][0]['observations']['insufficient'], 0)
         joint = response['dualFactorReadiness']['races'][0]
         self.assertEqual(joint['runnerCount'], 1)
         self.assertEqual(joint['recentOnly'], 1)
