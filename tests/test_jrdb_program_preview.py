@@ -10,7 +10,7 @@ def sample(**overrides):
         "racekey": "05264b11", "racedate": "20261101",
         "racecourse_cd": "05", "post_time": "1555",
         "distance": "2000", "track_type": "1", "headcount": 15,
-        "race_name": "架空テストレース",
+        "race_name": "架空テストレース", "turn_cd": "1",
     }
     row.update(overrides)
     return row
@@ -24,7 +24,7 @@ class PrivateProgramPreviewTests(unittest.TestCase):
         self.assertEqual(rows, [{
             "racekey": "05264b11", "racedate": "20261101",
             "track": "東京", "race": 11, "race_name": "架空テストレース",
-            "post_time": "15:55", "surface": "芝",
+            "post_time": "15:55", "surface": "芝", "turn": "右",
             "distance_m": 2000, "headcount": 15,
             "programmeOnly": True, "horsesVerified": False,
             "predictionStatus": "未作成",
@@ -40,14 +40,23 @@ class PrivateProgramPreviewTests(unittest.TestCase):
     def test_missing_optional_values_are_unknown(self):
         rows = normalize_program_rows([sample(
             post_time=None, distance=None, headcount="16",
-            track_type=None, race_name=None,
+            track_type=None, race_name=None, turn_cd=None,
         )], "20261101")
         row = rows[0]
         self.assertIsNone(row["post_time"])
         self.assertIsNone(row["distance_m"])
         self.assertIsNone(row["headcount"])
         self.assertIsNone(row["surface"])
+        self.assertIsNone(row["turn"])
         self.assertIsNone(row["race_name"])
+
+    def test_turn_codes_are_separate_from_surface(self):
+        for code, expected in (("1", "右"), ("2", "左"), ("9", "直線"),
+                               ("3", None), (None, None)):
+            with self.subTest(code=code):
+                row = normalize_program_rows([sample(turn_cd=code)], "20261101")[0]
+                self.assertEqual(row["turn"], expected)
+                self.assertEqual(row["surface"], "芝")
 
     def test_date_mismatch_fails_closed(self):
         with self.assertRaises(ProgrammeFormatError):
