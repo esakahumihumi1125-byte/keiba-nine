@@ -33,6 +33,7 @@ function analyzeRacecard(input){
   const missing=active.map(h=>({number:h.number,name:h.name,missing:axes.filter(a=>!h.evaluations?.[a.key]).map(a=>a.label)})).filter(h=>h.missing.length);
   const reasons=[];
   if(active.length<5)reasons.push('出走候補が5頭未満のため、参考フォーメーションは作りません');
+  if(x.horses.some(h=>typeof h.scratched!=='boolean'))reasons.push('全馬の出走取消確認が入力されていません（scratched: true/false）');
   if(missing.length)reasons.push('すべての出走候補に近走・調教・適性・血統・展開の根拠付き評価が必要です');
   if(reasons.length)return {ready:false,active,missing,reasons,ranked:[],formation:null,combinations:[]};
   const ranked=active.map(h=>{
@@ -42,6 +43,12 @@ function analyzeRacecard(input){
   }).sort((a,b)=>b.score-a.score||a.number-b.number);
   if(ranked[0].score-ranked[ranked.length-1].score<0.35){
     return {ready:false,active,missing:[],reasons:['全馬の評価差が小さく、馬番順の便宜的な順位で買い目を作らないため見送り'],ranked,formation:null,combinations:[]};
+  }
+  // Never break a tie at the inclusion boundary by arbitrary horse number.
+  for(const [index,label] of [[2,'1着候補'],[5,'2着候補'],[7,'3着候補']]){
+    if(ranked.length>index&&ranked[index-1].score===ranked[index].score){
+      return {ready:false,active,missing:[],reasons:[label+'の選定境界で同評価の馬がいます。馬番順で無理に切らず見送り'],ranked,formation:null,combinations:[]};
+    }
   }
   const first=ranked.slice(0,2).map(h=>h.number);
   const second=ranked.slice(0,5).map(h=>h.number);
