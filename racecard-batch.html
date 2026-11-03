@@ -44,6 +44,8 @@ summary{cursor:pointer;color:#a7d5ff}
 </div>
 <label for="race">レース</label><select id="race" disabled><option value="">読み込み待ち</option></select>
 <div><button id="prev" class="secondary" type="button" disabled>前のレース</button><button id="next" class="secondary" type="button" disabled>次のレース</button></div>
+<div><button id="sendDraft" type="button" disabled>本体で暫定予想を確認（未保存）</button></div>
+<p class="muted">結果を端末内だけでメインアプリへ渡します。<strong>すべて検証用の暫定・見送りとして扱い、購入や正式な予想・収支には反映しません。</strong> 本体で内容を再検査し、本人が保存を選ぶまで登録されません。</p>
 <p id="summary" class="notice">まだレースデータはありません。</p>
 <div id="list" aria-label="レース一覧">読み込み後に日付と競馬場ごとのレース一覧が表示されます。</div>
 </section>
@@ -84,6 +86,7 @@ summary{cursor:pointer;color:#a7d5ff}
 </details>
 <script src="./racecard-engine.js"></script>
 <script src="./racecard-batch.js"></script>
+<script src="./racecard-preview-bridge.js"></script>
 <script>
 (function(){
 'use strict';
@@ -96,6 +99,7 @@ function resetOutputs(){
   const sel=$(id);sel.replaceChildren();sel.add(new Option('読み込み待ち',''));sel.disabled=true;
  }
  $('prev').disabled=true;$('next').disabled=true;
+ $('sendDraft').disabled=true;
  $('summary').textContent='まだ検証済みのレースはありません。';
  $('list').textContent='読み込み後に一覧が表示されます。';
  $('detail').textContent='対象レースを選ぶと結果が表示されます。';
@@ -185,8 +189,22 @@ $('analyze').addEventListener('click',()=>{
   options($('date'),[['','全日付'],...result.dates.map(d=>[d,d])],'日付なし');
   options($('track'),[['','全競馬場'],...result.tracks.map(t=>[t,t])],'競馬場なし');
   $('status').textContent='形式チェック完了：'+result.total+'R／参考 '+result.ready+'R／見送り '+result.skipped+'R（実在・利用許諾は未検証）';
+  $('sendDraft').disabled=false;
   updateList();
  }catch(err){resetOutputs();$('status').textContent='検証NG：'+(err.message||'データの形式が不正です')}
+});
+$('sendDraft').addEventListener('click',()=>{
+ try{
+  if(!result)throw Error('先に全Rの形式・評価をチェックしてください');
+  const bridge=window.KeibaNinePreviewBridge;
+  if(!bridge)throw Error('本体への橋渡しプログラムが読み込めません');
+  const payload={kind:'keiba-nine-local-preview',schema:1,createdAt:Date.now(),forecasts:bridge.toDraftRows(JSON.parse($('raw').value))};
+  if(payload.forecasts.length!==result.total)throw Error('レース数が変わりました。再検証してください');
+  const serialized=JSON.stringify(payload);
+  if(serialized.length>490000)throw Error('一括データが大きすぎます。日付・競馬場ごとにファイルを分けてください');
+  sessionStorage.setItem(bridge.sessionKey,serialized);
+  location.assign('./keiba-nine-beta51-feed-record.html');
+ }catch(err){$('status').textContent='本体へ渡せません：'+(err.message||'連携エラー')}
 });
 $('clear').addEventListener('click',()=>{$('raw').value='';$('filePick').value='';resetOutputs();$('status').textContent='未検証'});
 })();
