@@ -2704,7 +2704,8 @@ async function reload42(){
   const isPast=obj.date<todayJst;
   const saved51=isPast?0:(raw===lastPayload72?0:window.receiveFeed51({...obj,forecasts:converted}));
   lastPayload72=raw;
-  const n=render42(converted);
+  const n=isPast?0:render42(converted);
+  if(isPast){list.innerHTML='<div class="empty"><strong>本日の予想は未配信です。</strong><p>公開ファイルは過去の日付です。古い予想はここに表示せず、日付選択から履歴を確認してください。</p></div>'}
   const when=new Date(obj.generatedAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   sync72(isPast?`過去の配信（${obj.date}）｜本日分の予想は未取得。過去データを今日の予想として保存しません`:`最終確認 ${new Date().toLocaleTimeString('ja-JP',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit'})}｜配信対象 ${obj.date}｜表示中は5分ごとに確認`);
   status.textContent=(isPast?'過去の配信・本日分ではありません｜':'')+`${obj.date}｜${converted.length}R取得（見送り以外${n}R）｜作成 ${when}｜新規保存 ${saved51}R（未購入・仮想検証）`;
