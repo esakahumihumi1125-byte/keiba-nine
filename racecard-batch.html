@@ -32,6 +32,30 @@ summary{cursor:pointer;color:#a7d5ff}
 <p class="muted">利用条件を確認したデータのみ使用してください。JSONを貼り付けるか、iPhoneの「ファイル」から選択できます。ファイル内容をGitHubなどへ送信・保存しません。</p>
 <label for="filePick">JSONファイル（任意）</label><input id="filePick" type="file" accept=".json,application/json">
 <label for="raw">一括出馬表JSON</label><textarea id="raw" spellcheck="false" placeholder="一括形式のJSONを貼り付けてください"></textarea>
+<details id="csvImporter" class="panel" style="margin-top:16px"><summary>汎用CSVから読み込む（iPhone対応）</summary>
+<p class="muted">許諾を確認した汎用CSVを、既存の出馬表JSONへ端末内で変換します。<strong>JRDB専用のCSVを直接読み込む機能ではありません。</strong> 不足している調教・近走などの評価は勝手に補いません。</p>
+<label for="csvSource">CSV提供元（必須）</label><input id="csvSource" type="text" maxlength="120" placeholder="データ提供元の名称">
+<label for="csvFile">CSVファイルを選ぶ（任意）</label><input id="csvFile" type="file" accept=".csv,text/csv,text/plain">
+<label for="csvInput">CSVテキストを貼り付け（またはファイル選択）</label>
+<textarea id="csvInput" spellcheck="false" style="min-height:110px" placeholder="date,track,race,number,name,scratched,..."></textarea>
+<label style="display:flex;align-items:flex-start;gap:10px;font-weight:normal">
+<input id="csvLicense" type="checkbox" style="width:19px;height:19px;margin:4px 0">
+<span>提供元の利用条件を確認し、個人用の端末内で扱えるデータであることを確認しました</span></label>
+<button id="csvConvert" class="secondary" type="button">CSVを変換して全Rチェック</button>
+<p id="csvStatus" role="status" class="muted">CSVは未読み込み</p>
+<details><summary>汎用CSVの列一覧</summary>
+<pre>必須：date,track,race,number,name,scratched
+任意（5項目それぞれ、両方そろえば使用）：
+recent_grade,recent_note
+training_grade,training_note
+course_grade,course_note
+pedigree_grade,pedigree_note
+pace_grade,pace_note
+scratched は true/false、1/0、出走/取消
+例：2026-11-07,京都,1,1,架空馬,false
+
+※CSVの1行が1頭に相当。上の例は書式を説明する架空データで、実際の出馬表ではありません。外部業者固有の列や配列は、その仕様が判明してから変換が必要です。</pre></details>
+</details>
 <button type="button" id="analyze">全Rの形式・評価をチェック</button>
 <button class="secondary" type="button" id="clear">クリア</button>
 <p id="status" role="status">未検証</p>
@@ -123,6 +147,7 @@ summary{cursor:pointer;color:#a7d5ff}
 </details>
 <script src="./racecard-engine.js"></script>
 <script src="./racecard-batch.js"></script>
+<script src="./racecard-csv.js"></script>
 <script src="./racecard-coverage.js"></script>
 <script src="./racecard-reference.js"></script>
 <script src="./racecard-preview-bridge.js"></script>
@@ -302,6 +327,32 @@ function updateCoverage(programBundle){
  lines.push('','※'+coverage.notice);
  $('coverageResult').textContent=lines.join('\n');
 }
+
+
+$('csvFile').addEventListener('change',async()=>{
+ const file=$('csvFile').files?.[0];if(!file)return;
+ try{
+  if(file.size>maxChars||!/\.csv$/i.test(file.name))throw Error('2MB以内のCSVファイルを選んでください');
+  const raw=await file.text();
+  if(raw.length>maxChars)throw Error('CSVが大きすぎます');
+  $('csvInput').value=raw;
+  $('csvStatus').textContent='CSVファイルを読み込みました。提供元と利用条件を確認して「CSVを変換」を押してください。';
+ }catch(err){$('csvStatus').textContent='CSV読み込み失敗：'+(err.message||'エラー')}
+ finally{$('csvFile').value=''}
+});
+$('csvConvert').addEventListener('click',()=>{
+ try{
+  if(!window.KeibaNineCSV)throw Error('汎用CSVの変換プログラムが読み込まれていません');
+  const bundle=window.KeibaNineCSV.convertCSV($('csvInput').value,{
+   source:$('csvSource').value,licenseConfirmed:$('csvLicense').checked
+  });
+  $('raw').value=JSON.stringify(bundle);
+  $('analyze').click();
+  $('csvStatus').textContent=$('status').textContent.startsWith('形式チェック完了')
+   ?'CSVから'+bundle.racecards.length+'Rを変換し、既存の検証処理に渡しました（実在・公式照合は未完了）'
+   :'CSVの変換後に追加の形式チェックが必要です：'+$('status').textContent;
+ }catch(err){$('csvStatus').textContent='CSVを変換できません：'+(err.message||'データエラー')}
+});
 
 $('date').addEventListener('change',updateList);
 $('track').addEventListener('change',updateList);
