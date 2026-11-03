@@ -125,7 +125,8 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(report['dkaCalls'], 2)
         self.assertFalse(report['predictionReady'])
         self.assertFalse(report['goingSuitabilityAssessed'])
-        self.assertEqual(report['goingSummary']['races'][0]['heavyComparableRuns'], 1)
+        tokyo = next(x for x in report['goingSummary']['races'] if x['track'] == '東京')
+        self.assertEqual(tokyo['heavyComparableRuns'], 1)
         self.assertEqual(dra.call_count, 3)
         self.assertEqual(dka.call_count, 2)
         for private_value in (b'PRIVATE-HORSE', b'PAID-SECRET', b'racekey',
