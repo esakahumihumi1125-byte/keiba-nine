@@ -346,7 +346,9 @@ $('csvConvert').addEventListener('click',()=>{
   const bundle=window.KeibaNineCSV.convertCSV($('csvInput').value,{
    source:$('csvSource').value,licenseConfirmed:$('csvLicense').checked
   });
-  $('raw').value=JSON.stringify(bundle);
+  const converted=JSON.stringify(bundle);
+  if(converted.length>maxChars)throw Error('変換後のJSONが2MBを超えます。日付・競馬場ごとにCSVを分けてください');
+  $('raw').value=converted;
   $('analyze').click();
   $('csvStatus').textContent=$('status').textContent.startsWith('形式チェック完了')
    ?'CSVから'+bundle.racecards.length+'Rを変換し、既存の検証処理に渡しました（実在・公式照合は未完了）'
