@@ -23,6 +23,10 @@ async function fetchMock(url, options) {
     selectedPastRaces:2,deferredPastRaces:1,
     unavailablePastProgrammes:0,unavailablePastConditions:1,
     predictionReady:false,goingSuitabilityAssessed:false,
+    evidenceQuality:{predictionReady:false,predictionConfidenceAssessed:false,
+      races:[{track:'東京',race:1,runnerCount:3,unlinkedPastRuns:1,
+        courseComparableSamples:{none:1,oneOrTwo:1,threePlus:1},
+        knownGoingComparableSamples:{none:2,oneOrTwo:1,threePlus:0}}]},
     goingSummary:{races:[
       {track:'東京',race:1,heavyComparableRuns:1,heavyTopThreeRuns:1,
        poorComparableRuns:0,poorTopThreeRuns:0,unknownComparableRuns:1}
@@ -56,9 +60,13 @@ async function settle(){
  assert.match(el('message').textContent,/照合 2件／残り 1件/);
  assert.match(el('message').textContent,/適性評価・予想は未実施/);
  assert.equal(el('races').children.length,1);
+ assert.match(el('races').children[0].textContent,/距離比較 3走以上 1頭/);
+ assert.match(el('races').children[0].textContent,/馬場比較 3走以上 0頭/);
+ assert.match(el('races').children[0].textContent,/過去番組の未照合 1走/);
+ assert.match(el('races').children[0].textContent,/予想信頼度：未算定/);
  assert.match(el('races').children[0].textContent,/馬場適性：未評価/);
  assert.equal(el('history').disabled,false);
  assert.ok(!script.includes('innerHTML'));
  assert.ok(!requests.some(r=>r.url.includes('api_key')));
- console.log('Manual private history UI: 15 checks passed');
+ console.log('Manual private history UI: 19 checks passed');
 })().catch(err=>{console.error(err);process.exitCode=1});
