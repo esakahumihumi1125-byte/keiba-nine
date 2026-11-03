@@ -123,9 +123,16 @@ def run_bounded_history_audit(programme, entries, previous,
     if not callable(fetch_dra) or not callable(fetch_dka):
         raise HistoryFetchError("Private source functions are required")
     plan = plan_bounded_history(programme, entries, previous, requested_date, limit)
+    # Reject malformed current conditions before any billable historical request.
+    try:
+        build_going_history_observations(
+            programme, entries, previous, [], [], current_conditions, requested_date
+        )
+    except (CoverageError, ValueError, TypeError, KeyError):
+        raise HistoryFetchError("Current evidence validation failed") from None
     historical, conditions = [], []
     seen_holdings = set()
-    dra_calls = dka_calls = missing = 0
+    dra_calls = dka_calls = missing = missing_going = 0
     for key, date in plan["privateSelected"]:
         try:
             dra_calls += 1
@@ -151,6 +158,8 @@ def run_bounded_history_audit(programme, entries, previous,
             raise HistoryFetchError("Private historical going lookup failed") from None
         if old_going is not None:
             conditions.append(old_going)
+        else:
+            missing_going += 1
     # Both auditors recheck all source-identity joins. Provider rows never
     # escape the scope of this function as a published response.
     try:
@@ -167,10 +176,11 @@ def run_bounded_history_audit(programme, entries, previous,
         "selectedPastRaces": plan["selectedCount"],
         "deferredPastRaces": plan["deferredCount"],
         "unavailablePastProgrammes": missing,
+        "unavailablePastConditions": missing_going,
         "draCalls": dra_calls,
         "dkaCalls": dka_calls,
         "maxTotalCalls": 2 * limit,
-        "historyComplete": plan["historyComplete"] and missing == 0,
+        "historyComplete": plan["historyComplete"] and missing == 0 and missing_going == 0,
         "goingSummary": safe_summary,
         "predictionReady": False,
         "goingSuitabilityAssessed": False,
