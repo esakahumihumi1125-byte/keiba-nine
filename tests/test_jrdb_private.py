@@ -9,7 +9,8 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs, fetch_venue_conditions,
-                          fetch_historical_race_program, JRDBError, _NoRedirect)
+                          fetch_historical_race_program, fetch_historical_venue_conditions,
+                          JRDBError, _NoRedirect)
 
 
 class PrivateClientTests(unittest.TestCase):
@@ -115,6 +116,32 @@ class PrivateClientTests(unittest.TestCase):
         del os.environ['JRDB_PRIVATE_ENABLED']
         with self.assertRaises(JRDBError):
             fetch_historical_race_program('05264b01')
+        self.mock.assert_not_called()
+
+    def test_single_historical_going_query_has_no_date_range(self):
+        self.assertEqual(fetch_historical_venue_conditions('05264a01'),
+                         [{'racekey': 'synthetic'}])
+        req = self.mock.return_value.open.call_args.args[0]
+        self.assertIn('/v1/dka?', req.full_url)
+        self.assertEqual(json.loads(req.data), {'racekey': '05264a01'})
+        self.assertNotIn('start_racedate', req.data.decode())
+        self.assertNotIn('end_racedate', req.data.decode())
+
+    def test_historical_going_rejects_invalid_keys_before_network(self):
+        for key in ('05264A01', '000', '05264a01&date=20261101',
+                    {'start_racedate': '20260101'}, 123, None):
+            with self.subTest(key=key), self.assertRaises(JRDBError):
+                fetch_historical_venue_conditions(key)
+        self.mock.assert_not_called()
+
+    def test_historical_going_is_disabled_for_actions_and_public_mode(self):
+        os.environ['GITHUB_ACTIONS'] = 'true'
+        with self.assertRaises(JRDBError):
+            fetch_historical_venue_conditions('05264a01')
+        del os.environ['GITHUB_ACTIONS']
+        del os.environ['JRDB_PRIVATE_ENABLED']
+        with self.assertRaises(JRDBError):
+            fetch_historical_venue_conditions('05264a01')
         self.mock.assert_not_called()
 
     def test_error_omits_secret_url_and_body(self):
