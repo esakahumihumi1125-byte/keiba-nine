@@ -417,6 +417,49 @@ https://www.jra.go.jp/faq/pop02/2_3.html
 将来は、利用条件を確認した独立データの取得・出所認証・
 記録時刻と変更履歴の検証・JRA公式との最終突合を別実装で追加する必要があります。
 
+## 1RずつのJRA画面・本人手入力照合（2026-11-04）
+
+本人専用 `POST /api/jrdb/compare-manual` を追加。ユーザーが独立して見た
+JRA公式の開催情報を **1Rだけ** 入力し、取得済みJRDBデータとの
+違いをレース単位の集計で確認できます。公式ページを自動取得したり
+スクレイピングしたりする機能ではありません。
+
+- iPhone向け本人用画面では開催日・競馬場・Rを選択。必要な項目だけ
+  発走予定時刻、芝・ダート、馬場、取消状態の馬番1頭を追加できる。
+- 取得前に入力の日付・形式・必要フィールドを厳格検査。
+  1回で1Rかつ1馬番のみ、`completeRoster=false` を強制する。
+- 実行時だけ `/tra` `/tky` `/tka` を読み、その場で集計。
+  元の入力・馬番・騎手コード・過去個別レコードを公開応答・ログ・
+  ストレージ・Googleバックアップへ保存しない。
+- 前回実行との「差分件数の変化」はiPhone画面内メモリだけで保持。
+  画面を閉じたら消える。手入力を変えても件数は変わるため、
+  データ元の改訂・JRA発表済みの変更と**同一視しない**。
+- 本人認証・HTTPS・カスタムヘッダに加え、
+  `JRDB_PRIVATE_ENABLED=1` / `KEIBA_MANUAL_REFERENCE_ENABLED=1`
+  / JRDBの非公開認証情報をすべて要求。GitHub Actionsでは有効化しない。
+  同一画面でも過去履歴の取得許可とは独立した設定。
+
+この経路の入力は本人による**転記**であり、JRA公式という出所を
+アプリが認証した訳ではありません。比較結果の差分0件でも
+`officialJraFinalVerification=false`、`predictionReady=false`、
+`bettingReady=false`。正式な最終出走馬確定・馬券購入機能ではありません。
+
+### 取得方法と許諾の現状
+
+JRA公式サイトの「今週の開催お知らせ」は開催当日の馬場状態を掲載。
+一方、JRA-VAN Data Lab.は出走取消・騎手変更・馬場の速報データを提供。
+ただし開発者向け2026年7月6日の案内によると、
+通常のData Lab.契約ではスマートフォンアプリ向けデータ再配布や
+商用配信はできず、商用利用には別途JRADB等の契約が必要。
+通常の個人契約を公開サービスの再配布許可と誤解しない。
+
+参考リンク：
+- https://www.jra.go.jp/keiba/
+- https://own.jra.jp/faq/pop02/2_3.html
+- https://jra-van.jp/dlb/ddata.html
+- https://developer.jra-van.jp/t/topic/899
+- https://developer.jra-van.jp/t/topic/45
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra

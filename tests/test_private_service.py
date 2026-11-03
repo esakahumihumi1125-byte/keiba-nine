@@ -54,10 +54,126 @@ class PrivateServiceTests(unittest.TestCase):
 
     def test_status_has_no_credentials(self):
         result = call(self.app, '/api/status')
-        self.assertEqual(json.loads(result['body']), {'jrdbConfigured': False, 'historyConfigured': False, 'livePredictionEnabled': False})
+        self.assertEqual(json.loads(result['body']), {'jrdbConfigured': False, 'historyConfigured': False, 'manualComparisonConfigured': False, 'livePredictionEnabled': False})
         self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'].encode(), result['body'])
         self.assertIn('no-store', result['headers']['Cache-Control'])
         self.assertNotIn('Access-Control-Allow-Origin', result['headers'])
+
+    @staticmethod
+    def manual_payload():
+        return {
+            'date': '20261101', 'source': 'operator_transcription',
+            'races': [{
+                'track': '東京', 'race': 1, 'completeRoster': False,
+                'postTime': '10:10', 'going': '稍重', 'surface': '芝',
+                'entries': [{
+                    'horseNumber': '01', 'status': 'withdrawn',
+                    'jockeyCode': None,
+                }],
+            }],
+        }
+
+    def test_manual_comparison_requires_separate_opt_in_and_owner(self):
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+                          'JRDB_API_KEY': 'fixture', 'JRDB_AUTH_KEY': 'fixture'})
+        self.assertFalse(json.loads(call(app, '/api/status')['body'])['manualComparisonConfigured'])
+        with patch('private_service.fetch_race_program') as provider:
+            out = call(app, '/api/jrdb/compare-manual', 'POST',
+                       data=self.manual_payload())
+            self.assertTrue(out['status'].startswith('503'))
+        provider.assert_not_called()
+        ready = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+                            'KEIBA_MANUAL_REFERENCE_ENABLED': '1',
+                            'JRDB_API_KEY': 'fixture', 'JRDB_AUTH_KEY': 'fixture'})
+        self.assertTrue(json.loads(call(ready, '/api/status')['body'])['manualComparisonConfigured'])
+        with patch('private_service.fetch_race_program') as provider:
+            for kw in ({'auth': ''},
+                       {'HTTP_X_KEIBA_REQUEST': ''},
+                       {'HTTP_SEC_FETCH_SITE': 'cross-site'},
+                       {'wsgi.url_scheme': 'http'}):
+                response = call(ready, '/api/jrdb/compare-manual', 'POST',
+                                data=self.manual_payload(), **kw)
+                self.assertTrue(response['status'].startswith(
+                    ('401', '403', '426')))
+        provider.assert_not_called()
+
+    def test_manual_comparison_rejects_bad_payload_before_provider_fetch(self):
+        ready = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+                            'KEIBA_MANUAL_REFERENCE_ENABLED': '1',
+                            'JRDB_API_KEY': 'fixture', 'JRDB_AUTH_KEY': 'fixture'})
+        from copy import deepcopy
+        cases = []
+        base = self.manual_payload()
+        def altered(fn):
+            p = deepcopy(base)
+            fn(p)
+            cases.append(p)
+        altered(lambda x: x.update(source='future_authorized_adapter'))
+        altered(lambda x: x.update(date='20260230'))
+        altered(lambda x: x['races'][0].update(completeRoster=True))
+        altered(lambda x: x['races'].append(deepcopy(x['races'][0])))
+        altered(lambda x: x['races'][0].update(track='札幌' * 100))
+        altered(lambda x: x['races'][0].update(entries=[{'horseNumber':'99',
+                             'status':'withdrawn','jockeyCode':None}]))
+        altered(lambda x: x['races'][0].update(entries=[{'horseNumber':'01',
+                             'status':'invalid','jockeyCode':None}]))
+        altered(lambda x: x['races'][0].update(postTime='19:70'))
+        altered(lambda x: x['races'][0].update(going='UNKNOWN-GOING'))
+        altered(lambda x: x['races'][0].update(extra='secret-source-row'))
+        altered(lambda x: x['races'][0].update(
+            entries=[], postTime=None, going=None, surface=None))
+        with patch('private_service.fetch_race_program') as provider:
+            for case in cases:
+                with self.subTest(case=str(case)[:60]):
+                    out = call(ready, '/api/jrdb/compare-manual',
+                               'POST', data=case)
+                    self.assertTrue(out['status'].startswith('400'))
+                    self.assertNotIn(b'secret-source-row', out['body'])
+            self.assertTrue(call(ready, '/api/jrdb/compare-manual', 'POST',
+                                 data=base, QUERY_STRING='debug=1')['status'].startswith('400'))
+        provider.assert_not_called()
+
+    def test_manual_one_race_comparison_reports_only_aggregate_differences(self):
+        from test_jrdb_race_day_gates import fixture
+        programme, entries, conditions = fixture()
+        raw = [{
+            'racekey': r['racekey'], 'racedate': '20261101',
+            'track_type': '1' if r['track'] == '東京' else '2',
+            'distance': str(r['distance_m']),
+            'turn_cd': '2' if r['turn'] == '左' else '1',
+            'headcount': r['headcount'], 'post_time': '1000'
+        } for r in programme]
+        ready = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+                            'KEIBA_MANUAL_REFERENCE_ENABLED': '1',
+                            'JRDB_API_KEY': 'fixture', 'JRDB_AUTH_KEY': 'fixture'})
+        with (
+            patch('private_service.fetch_race_program', return_value=raw) as p,
+            patch('private_service.fetch_horse_entries', return_value=entries) as e,
+            patch('private_service.fetch_venue_conditions', return_value=conditions) as c,
+        ):
+            out = call(ready, '/api/jrdb/compare-manual', 'POST',
+                       data=self.manual_payload())
+        self.assertEqual(out['status'], '200 OK')
+        report = json.loads(out['body'])
+        self.assertEqual(report['racesCompared'], 1)
+        self.assertEqual(report['racesMissingReference'], 1)
+        tokyo = next(x for x in report['races'] if x['track'] == '東京')
+        self.assertEqual(tokyo['differenceCategories']['postTime'], 1)
+        self.assertEqual(tokyo['differenceCategories']['going'], 1)
+        self.assertEqual(tokyo['differenceCategories']['withdrawal'], 1)
+        self.assertEqual(tokyo['differenceCount'], 3)
+        self.assertFalse(tokyo['independentSnapshotAuthenticated'])
+        self.assertFalse(report['officialJraFinalVerification'])
+        self.assertFalse(report['predictionReady'])
+        self.assertFalse(report['bettingReady'])
+        p.assert_called_once_with('20261101')
+        e.assert_called_once_with('20261101')
+        c.assert_called_once_with('20261101')
+        for forbidden in (b'LICENSED-HORSE-PRIVATE', b'LICENSED-GOING-PRIVATE',
+                          b'horse_number', b'horseNumber', b'jockey_code',
+                          b'racekey', b'2328aaa95a05'):
+            self.assertNotIn(forbidden, out['body'])
+        self.assertIn('no-store', out['headers']['Cache-Control'])
 
     def test_historical_check_requires_separate_opt_in_without_fetches(self):
         app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
