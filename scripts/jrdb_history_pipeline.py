@@ -15,6 +15,7 @@ from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError, T
 from jrdb_going_history import (
     build_going_history_observations, summarize_going_history_observations
 )
+from jrdb_history_evidence_quality import summarize_history_evidence_quality
 
 VERSION = "bounded-history-1"
 MAX_LOOKUPS_PER_RUN = 12
@@ -174,6 +175,7 @@ def run_bounded_history_audit(programme, entries, previous,
             current_conditions, requested_date
         )
         safe_summary = summarize_going_history_observations(observations)
+        quality_summary = summarize_history_evidence_quality(observations)
     except (CoverageError, ValueError, KeyError, TypeError):
         raise HistoryFetchError("Private historical evidence validation failed") from None
     return {
@@ -189,6 +191,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "maxTotalCalls": 2 * limit,
         "historyComplete": plan["historyComplete"] and missing == 0 and missing_going == 0,
         "goingSummary": safe_summary,
+        "evidenceQuality": quality_summary,
         "predictionReady": False,
         "goingSuitabilityAssessed": False,
         "note": ("本人専用の過去資料照合。取得上限内で参照できた履歴の集計のみ。"

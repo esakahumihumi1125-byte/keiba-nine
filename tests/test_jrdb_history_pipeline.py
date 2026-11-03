@@ -44,6 +44,14 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(bundle[5].call_count, 2)
         self.assertEqual(report["goingSummary"]["races"][0]["heavyComparableRuns"], 1)
         self.assertEqual(report["goingSummary"]["races"][0]["poorComparableRuns"], 1)
+        tokyo = next(x for x in report["evidenceQuality"]["races"]
+                     if x["track"] == "東京")
+        self.assertEqual(tokyo["runnerCount"], 2)
+        self.assertEqual(tokyo["courseComparableSamples"],
+                         {"none": 1, "oneOrTwo": 1, "threePlus": 0})
+        self.assertEqual(tokyo["knownGoingComparableSamples"]["oneOrTwo"], 1)
+        self.assertEqual(tokyo["materialStatus"], "番組履歴は照合")
+        self.assertFalse(report["evidenceQuality"]["predictionConfidenceAssessed"])
         self.assertFalse(report["predictionReady"])
         self.assertFalse(report["goingSuitabilityAssessed"])
 
@@ -55,6 +63,10 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(report["draCalls"], 1)
         self.assertLessEqual(report["dkaCalls"], 1)
         self.assertFalse(report["historyComplete"])
+        quality = next(x for x in report["evidenceQuality"]["races"]
+                       if x["track"] == "東京")
+        self.assertEqual(quality["runnersWithMissingPast"], 1)
+        self.assertEqual(quality["materialStatus"], "未照合あり")
         self.assertEqual(report["goingSummary"]["races"][0]["knownComparableRuns"], 0)
         self.assertFalse(report["predictionReady"])
 

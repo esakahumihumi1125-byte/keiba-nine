@@ -105,17 +105,29 @@ el('history').onclick=async()=>{
    body:JSON.stringify({date,limit:8})
   });
   const data=await reply.json();if(!reply.ok)throw Error(data.error||'照合できませんでした');
-  if(data.predictionReady!==false||data.goingSuitabilityAssessed!==false)
+  if(data.predictionReady!==false||data.goingSuitabilityAssessed!==false
+     ||data.evidenceQuality?.predictionReady!==false
+     ||data.evidenceQuality?.predictionConfidenceAssessed!==false)
    throw Error('安全な資料集計以外は表示できません');
   el('message').textContent='照合 '+data.selectedPastRaces+'件／残り '+data.deferredPastRaces
    +'件｜過去番組未取得 '+data.unavailablePastProgrammes
    +'件｜過去馬場未取得 '+data.unavailablePastConditions+'件（適性評価・予想は未実施）';
   for(const race of data.goingSummary.races){
+   const quality=data.evidenceQuality.races.find(r=>r.track===race.track&&r.race===race.race);
+   if(!quality)throw Error('資料充足度の照合結果が一致しません');
+   const c=quality.courseComparableSamples,g=quality.knownGoingComparableSamples;
+   const counts=[c.none,c.oneOrTwo,c.threePlus,g.none,g.oneOrTwo,g.threePlus];
+   if(!counts.every(n=>Number.isInteger(n)&&n>=0)
+      ||c.none+c.oneOrTwo+c.threePlus!==quality.runnerCount
+      ||g.none+g.oneOrTwo+g.threePlus!==quality.runnerCount)
+     throw Error('資料充足度の件数が一致しません');
    const div=document.createElement('div');div.className='race';
    div.textContent=race.track+race.race+'R｜重 '+race.heavyComparableRuns
       +'走（3着以内 '+race.heavyTopThreeRuns+'）／不良 '+race.poorComparableRuns
       +'走（3着以内 '+race.poorTopThreeRuns+'）／馬場未照合 '+race.unknownComparableRuns
-      +'走｜馬場適性：未評価';
+      +'走｜距離比較 3走以上 '+c.threePlus+'頭・1〜2走 '+c.oneOrTwo+'頭・0走 '+c.none
+      +'頭｜馬場比較 3走以上 '+g.threePlus+'頭・1〜2走 '+g.oneOrTwo+'頭・0走 '+g.none
+      +'頭｜過去番組の未照合 '+quality.unlinkedPastRuns+'走｜馬場適性：未評価／予想信頼度：未算定';
    el('races').append(div);
   }
  }catch(e){el('message').textContent=e.message;}
