@@ -73,6 +73,10 @@ class IndependentReferenceCompareTests(unittest.TestCase):
         self.assertFalse(tokyo["bettingReady"])
         self.assertEqual(out["racesCompared"], 2)
         self.assertEqual(out["racesWithDifferences"], 0)
+        kyoto = next(r for r in out["races"] if r["track"] == "京都")
+        self.assertEqual(kyoto["comparisonStatus"], "partial_or_unknown_reference")
+        self.assertGreater(kyoto["unknownComparisons"], 0)
+        self.assertFalse(out["referenceCollectionFreshnessVerified"])
 
     def test_categories_count_without_exposing_horse_numbers(self):
         snap = independent()
@@ -121,7 +125,7 @@ class IndependentReferenceCompareTests(unittest.TestCase):
         self.assertEqual(tokyo["differenceCategories"]["roster"], 1)
 
     def test_date_race_roster_and_duplicate_validation(self):
-        cases = ("date", "source", "other_track", "same_race", "duplicate_horse",
+        cases = ("date", "source", "source_unhashable", "other_track", "same_race", "duplicate_horse",
                  "unknown_status", "bad_jockey", "extra_field", "bool_race",
                  "unknown_surface", "bad_time", "bad_going")
         for case in cases:
@@ -130,6 +134,8 @@ class IndependentReferenceCompareTests(unittest.TestCase):
                 snap["date"] = "20261102"
             elif case == "source":
                 snap["source"] = "JRA_100pct_verified"
+            elif case == "source_unhashable":
+                snap["source"] = []
             elif case == "other_track":
                 snap["races"][0]["track"] = "札幌"
             elif case == "same_race":
