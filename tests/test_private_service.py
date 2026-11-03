@@ -54,10 +54,84 @@ class PrivateServiceTests(unittest.TestCase):
 
     def test_status_has_no_credentials(self):
         result = call(self.app, '/api/status')
-        self.assertEqual(json.loads(result['body']), {'jrdbConfigured': False, 'livePredictionEnabled': False})
+        self.assertEqual(json.loads(result['body']), {'jrdbConfigured': False, 'historyConfigured': False, 'livePredictionEnabled': False})
         self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'].encode(), result['body'])
         self.assertIn('no-store', result['headers']['Cache-Control'])
         self.assertNotIn('Access-Control-Allow-Origin', result['headers'])
+
+    def test_historical_check_requires_separate_opt_in_without_fetches(self):
+        app = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+                          'JRDB_API_KEY': 'synthetic-key', 'JRDB_AUTH_KEY': 'synthetic-user'})
+        status = json.loads(call(app, '/api/status')['body'])
+        self.assertTrue(status['jrdbConfigured'])
+        self.assertFalse(status['historyConfigured'])
+        with patch('private_service.fetch_race_program') as fetch:
+            denied = call(app, '/api/jrdb/history', 'POST',
+                          data={'date': '20261101', 'limit': 8})
+        self.assertTrue(denied['status'].startswith('503'))
+        fetch.assert_not_called()
+
+    def test_historical_check_rejects_invalid_or_cross_site_request(self):
+        config = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+                  'JRDB_API_KEY': 'synthetic-key', 'JRDB_AUTH_KEY': 'synthetic-user',
+                  'KEIBA_HISTORY_ENABLED': '1'}
+        app = create_app(config)
+        self.assertTrue(json.loads(call(app, '/api/status')['body'])['historyConfigured'])
+        with patch('private_service.fetch_race_program') as fetch:
+            for req in ({'date': '20261101', 'limit': 9},
+                        {'date': '20261101', 'limit': True},
+                        {'date': '20261301', 'limit': 1},
+                        {'date': '20261101', 'limit': 1, 'racekey': 'secret'}):
+                bad = call(app, '/api/jrdb/history', 'POST', data=req)
+                self.assertTrue(bad['status'].startswith('400'))
+            xsite = call(app, '/api/jrdb/history', 'POST',
+                         data={'date': '20261101'}, HTTP_SEC_FETCH_SITE='cross-site')
+            self.assertTrue(xsite['status'].startswith('403'))
+            noauth = call(app, '/api/jrdb/history', 'POST',
+                          data={'date': '20261101'}, auth='')
+            self.assertTrue(noauth['status'].startswith('401'))
+        fetch.assert_not_called()
+
+    def test_historical_check_uses_only_redacted_bounded_private_results(self):
+        from test_jrdb_going_history import sample_going
+        p, entries, previous, oldprogram, oldgoing, current = sample_going()
+        raw_program = [
+            {'racekey': x['racekey'], 'racedate': x['racedate'],
+             'post_time': '1010', 'headcount': x['headcount'],
+             'track_type': '1' if x['surface'] == '芝' else '2',
+             'distance': str(x['distance_m']),
+             'turn_cd': '2' if x['turn'] == '左' else '1'}
+            for x in p
+        ]
+        config = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+                  'JRDB_API_KEY': 'synthetic-key', 'JRDB_AUTH_KEY': 'synthetic-user',
+                  'KEIBA_HISTORY_ENABLED': '1'}
+        app = create_app(config)
+        with (
+            patch('private_service.fetch_race_program', return_value=raw_program),
+            patch('private_service.fetch_horse_entries', return_value=entries),
+            patch('private_service.fetch_recent_runs', return_value=previous),
+            patch('private_service.fetch_venue_conditions', return_value=current),
+            patch('private_service.fetch_historical_race_program',
+                  side_effect=lambda key: [x for x in oldprogram if x['racekey'] == key]) as dra,
+            patch('private_service.fetch_historical_venue_conditions',
+                  side_effect=lambda key: [x for x in oldgoing if x['holdingkey'] == key[:6]]) as dka,
+        ):
+            out = call(app, '/api/jrdb/history', 'POST',
+                       data={'date': '20261101', 'limit': 8})
+        self.assertEqual(out['status'], '200 OK')
+        report = json.loads(out['body'])
+        self.assertEqual(report['draCalls'], 3)
+        self.assertEqual(report['dkaCalls'], 2)
+        self.assertFalse(report['predictionReady'])
+        self.assertFalse(report['goingSuitabilityAssessed'])
+        tokyo = next(x for x in report['goingSummary']['races'] if x['track'] == '東京')
+        self.assertEqual(tokyo['heavyComparableRuns'], 1)
+        self.assertEqual(dra.call_count, 3)
+        self.assertEqual(dka.call_count, 2)
+        for private_value in (b'PRIVATE-HORSE', b'PAID-SECRET', b'racekey',
+                              b'horse_id', b'05264a01', b'byNumber'):
+            self.assertNotIn(private_value, out['body'])
 
     def test_no_directory_or_repo_file_serving(self):
         for path in ['/../.env', '/scripts/jrdb_private.py', '/keiba-nine-auto-feed.json']:
