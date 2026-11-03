@@ -114,6 +114,21 @@ B=45以上、C=45未満。**正式なJRDBランクではありません。**
 `race_back_N_idm`、`race_back_N_corner4_order`、
 `race_back_N_later3f_time`）。
 
+## 調教＋近走の両方がそろった馬の頭数
+
+`scripts/jrdb_dual_factor_readiness.py` は本人専用環境のメモリ内で、
+調教と近走の**暫定ランクが両方計算できたか**を同じ馬番に対して照合します。
+取得した日付・競馬場・レース・馬番に不一致があれば処理を停止します。
+
+ブラウザーに返す `dualFactorReadiness` はレース単位の
+`both`、`trainingOnly`、`recentOnly`、`neither`、`runnerCount`
+の頭数だけ。馬番、IDM、指数、元の着順は渡しません。
+本人用画面に「調教・近走の両方が暫定評価可能：○/○頭」と表示します。
+
+この段階で**まだ8項目の評価が未確認**であり、調教・近走の
+独自仮ランクを総合評価へ昇格させることも、実レースの
+3連単の買い目を作成することもしません。利用先は私用の準備診断のみです。
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
