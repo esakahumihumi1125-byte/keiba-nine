@@ -17,7 +17,7 @@ function toDraftRows(bundle){
      course:h.evaluations?.course?.grade||'未検証',
      pedigree:h.evaluations?.pedigree?.grade||'未検証',
      pace:h.evaluations?.pace?.grade||'未検証',
-     reason:ready?'根拠メモの原文は元のJSONで確認してください（本体には転送しません）':'評価根拠が不足しているため見送り'
+     // The main app can display ranks without duplicating per-horse source notes.
    }));
    return {
      date:entry.date,track:entry.track,race:entry.race,off:'',
