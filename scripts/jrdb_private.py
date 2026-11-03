@@ -20,23 +20,35 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def _fetch_day(endpoint, racedate):
-    """Return private source rows in memory for one strictly allowlisted endpoint.
+def _fetch_endpoint(endpoint, parameters):
+    """Private memory-only source retrieval for one strict allowlisted request.
 
     JRDB_PRIVATE_ENABLED is not owner authentication; HTTPS + owner gating is mandatory.
+    Historical requests must specify exactly one existing race key, never a
+    date range or an unconstrained search.
     """
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'dra'):
         raise JRDBError('Unsupported JRDB endpoint')
     if os.environ.get("JRDB_PRIVATE_ENABLED") != "1":
         raise JRDBError("Private JRDB integration is disabled")
     if os.environ.get("GITHUB_ACTIONS") == "true":
         raise JRDBError("JRDB retrieval is disabled in GitHub Actions")
-    if not isinstance(racedate, str) or len(racedate) != 8 or not racedate.isascii() or not racedate.isdigit():
-        raise JRDBError("Expected a YYYYMMDD date")
-    try:
-        datetime.datetime.strptime(racedate, "%Y%m%d")
-    except ValueError:
-        raise JRDBError("Invalid calendar date") from None
+    if not isinstance(parameters, dict):
+        raise JRDBError("Invalid JRDB request parameters")
+    if endpoint == 'dra':
+        racekey = parameters.get("racekey")
+        if (set(parameters) != {"racekey"} or not isinstance(racekey, str)
+                or len(racekey) != 8 or any(ch not in "0123456789abcdef" for ch in racekey)):
+            raise JRDBError("Expected one lowercase eight-character JRDB race key")
+    else:
+        racedate = parameters.get("racedate")
+        if (set(parameters) != {"racedate"} or not isinstance(racedate, str)
+                or len(racedate) != 8 or not racedate.isascii() or not racedate.isdigit()):
+            raise JRDBError("Expected a YYYYMMDD date")
+        try:
+            datetime.datetime.strptime(racedate, "%Y%m%d")
+        except ValueError:
+            raise JRDBError("Invalid calendar date") from None
     api_key = os.environ.get("JRDB_API_KEY", "").strip()
     auth_key = os.environ.get("JRDB_AUTH_KEY", "").strip()
     if not api_key or not auth_key:
@@ -44,7 +56,7 @@ def _fetch_day(endpoint, racedate):
     if any(ord(c) < 32 or ord(c) > 126 for c in auth_key):
         raise JRDBError("Invalid credential format")
     url = "https://dev.api.bigtime.world/v1/" + endpoint + "?" + urllib.parse.urlencode({"api_key": api_key})
-    request = urllib.request.Request(url, data=json.dumps({"racedate": racedate}).encode(),
+    request = urllib.request.Request(url, data=json.dumps(parameters).encode(),
         headers={"Content-Type": "application/json", "x-user-key": auth_key}, method="POST")
     try:
         with urllib.request.build_opener(_NoRedirect()).open(request, timeout=30) as response:
@@ -65,6 +77,19 @@ def _fetch_day(endpoint, racedate):
     if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
         raise JRDBError("Unexpected JRDB response format")
     return rows
+
+
+
+def _fetch_day(endpoint, racedate):
+    """Private current-week reader; historic endpoints cannot use this."""
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka'):
+        raise JRDBError("Unsupported current-day endpoint")
+    return _fetch_endpoint(endpoint, {"racedate": racedate})
+
+
+def fetch_historical_race_program(racekey):
+    """One private historical /dra race programme by exact racekey, no range."""
+    return _fetch_endpoint('dra', {"racekey": racekey})
 
 
 def fetch_race_program(racedate):
