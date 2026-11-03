@@ -5,6 +5,7 @@ const vm=require('node:vm');
 global.window=globalThis;
 require('../racecard-engine.js');
 require('../racecard-batch.js');
+require('../racecard-coverage.js');
 require('../racecard-preview-bridge.js');
 require('../racecard-reference.js');
 const html=fs.readFileSync('racecard-batch.html','utf8');
