@@ -3,8 +3,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from jrdb_evidence_readiness import audit_evidence_coverage
-from jrdb_coverage import CoverageError
+from jrdb_evidence_readiness import audit_evidence_coverage, CoverageError
+# Catch the exact exception exported by the audited module; distinct import paths
+# (jrdb_coverage vs scripts.jrdb_coverage) otherwise create different classes.
 
 
 def sample():
@@ -46,6 +47,9 @@ def sample():
 class EvidenceReadinessTests(unittest.TestCase):
     def audit(self, *args):
         return audit_evidence_coverage(*(args or sample()), "20261101")
+
+    def test_coverage_error_identity_is_consistent(self):
+        self.assertIs(CoverageError, audit_evidence_coverage.__globals__['CoverageError'])
 
     def test_evidence_counts_are_per_race(self):
         result = self.audit()
