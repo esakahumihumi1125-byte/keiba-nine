@@ -8,6 +8,8 @@ import hashlib
 import hmac
 import json
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs
 
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
@@ -25,10 +27,16 @@ from jrdb_coverage import audit_race_coverage, CoverageError
 from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError
 from jrdb_race_context import audit_race_context, RaceContextError
 from jrdb_race_day_gates import audit_race_day_checks
+from jrdb_prestart_freshness import audit_prestart_freshness, FreshnessError
 from research_planner import plan_race
 
+def _now_in_jst():
+    """Server-side time only; browser timestamps cannot claim freshness."""
+    return datetime.now(ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds')
+
+
 MAX_BODY = 131072
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用・データ接続確認</p><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>レース情報を取得</button><button id="context" disabled>コース・距離・馬場を確認</button><button id="raceday" disabled>出走取消・当日馬場の確認準備</button><button id="coverage" disabled>全場・全Rの取得状況を確認</button><button id="evidence" disabled>調教・近走の資料状況を確認</button><button id="history" disabled>過去の重・不良馬場を照合（最大8レース）</button><p class="muted">本人が実行した時だけ過去APIを最大16回照会します。実データ接続前は無効です。</p><p id="message" role="status"></p><div id="races"></div></section><section><h2>10項目の評価 → 総合ランク → 3連単</h2>
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用・データ接続確認</p><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>レース情報を取得</button><button id="context" disabled>コース・距離・馬場を確認</button><button id="raceday" disabled>出走取消・当日馬場・発走前の情報を確認</button><p class="muted">JRA公式の変更・出馬表・馬場は<a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式競馬メニュー</a>で別途確認（自動照合は未接続）。</p><button id="coverage" disabled>全場・全Rの取得状況を確認</button><button id="evidence" disabled>調教・近走の資料状況を確認</button><button id="history" disabled>過去の重・不良馬場を照合（最大8レース）</button><p class="muted">本人が実行した時だけ過去APIを最大16回照会します。実データ接続前は無効です。</p><p id="message" role="status"></p><div id="races"></div></section><section><h2>10項目の評価 → 総合ランク → 3連単</h2>
 <p class="muted">架空テスト専用の分析画面。実レース・JRDBの有料データ・購入には使用しません。計算は本人専用サーバー内だけで行い、保存や外部送信はしません。</p>
 <button id="researchDemo">架空8頭で動作確認</button>
 <label for="researchFile">検証用JSONファイル（任意）</label>
@@ -159,21 +167,39 @@ el('raceday').onclick=async()=>{
   if(!el('date').value)throw Error('開催日を選んでください');
   const date=el('date').value.replaceAll('-','');
   const data=await request('/api/jrdb/race-day?date='+encodeURIComponent(date));
+  const fresh=data.prestartFreshness;
   if(data.predictionReady!==false||data.bettingReady!==false
-     ||data.racesWithOfficialFinalCheck!==0)
+     ||data.racesWithOfficialFinalCheck!==0
+     ||fresh?.predictionReady!==false||fresh?.bettingReady!==false
+     ||fresh?.officiallyVerifiedRaces!==0)
     throw Error('資料確認の状態が不正です');
   el('message').textContent='JRDB資料：出走取消報告あり '+data.racesWithProviderWithdrawal
    +'R／取消フラグ不明あり '+data.racesWithUnknownFlags
-   +'R｜JRA公式での最終確認：全R未完了';
+   +'R｜発走2時間以内 '+fresh.racesWithinTwoHours
+   +'R（'+fresh.checkedAtJapan+'時点）｜JRA公式での最終確認：全R未完了';
   for(const race of data.races){
    if(race.finalRaceReady!==false||race.predictionReady!==false
       ||race.officialScratchesVerified!==false||race.officialGoingVerified!==false)
      throw Error('最終確認の状態が不正です');
+   const timing=fresh.races.find(x=>x.track===race.track&&x.race===race.race);
+   if(!timing||timing.jraOfficialDataFetched!==false
+      ||timing.jraScratchesVerified!==false||timing.jraGoingVerified!==false
+      ||timing.jraPostTimeVerified!==false||timing.bettingReady!==false)
+     throw Error('発走時刻と公式資料の確認が一致しません');
+   const windows={post_time_unknown:'発走予定不明',other_date:'別開催日',
+     post_time_passed:'発走予定時刻経過',within_two_hours:'発走2時間以内',
+     more_than_two_hours:'発走まで2時間超'};
+   const ages={no_going_report:'馬場未確認',no_update_timestamp:'更新時刻未確認',
+     timestamp_in_future:'更新時刻が未来',recent_reported:'更新記録60分以内',
+     old_or_other_date_reported:'更新記録60分超または別日'};
+   if(!windows[timing.prestartWindow]||!ages[timing.sourceGoingAgeStatus])
+     throw Error('発走前情報の状態が不明です');
    const div=document.createElement('div');div.className='race';
    div.textContent=race.track+race.race+'R｜提供元の取消報告 '+race.providerWithdrawnCount
     +'頭／フラグ不明 '+race.withdrawalFlagUnknownCount
     +'頭｜馬場 '+race.sourceGoing
-    +'（更新記録 '+(race.sourceGoingUpdateTimeRecorded?'あり':'未確認')+'）'
+    +'（'+(ages[timing.sourceGoingAgeStatus]||'更新状況不明')+'）'
+    +'｜発走前：'+(windows[timing.prestartWindow]||'時刻未確認')
     +'｜公式の取消・馬場・発走時刻：未確認｜馬券予想：未作成';
    el('races').append(div);
   }
@@ -294,7 +320,11 @@ def create_app(settings=None):
                 entries = fetch_horse_entries(date)
                 conditions = fetch_venue_conditions(date)
                 report = audit_race_day_checks(programme, entries, conditions, date)
-            except (JRDBError, ProgrammeFormatError, CoverageError, RaceContextError, ValueError):
+                report['prestartFreshness'] = audit_prestart_freshness(
+                    programme, conditions, date, _now_in_jst()
+                )
+            except (JRDBError, ProgrammeFormatError, CoverageError, RaceContextError,
+                    FreshnessError, ValueError):
                 return response('502 Bad Gateway', {
                     'error': '出走取消・馬場の資料が安全に照合できませんでした。'})
             return response('200 OK', report)

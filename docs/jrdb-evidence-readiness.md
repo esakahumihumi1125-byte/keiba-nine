@@ -352,6 +352,40 @@ https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tky
 https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tka
 https://jrdb-api.keiba.bigtime.world/docs/fields
 
+## 発走前の時刻・馬場更新の鮮度判定（2026-11-04）
+
+`scripts/jrdb_prestart_freshness.py` により、本人用サーバーの**日本時間**で
+発走予定までの時間と、JRDB `/tka` の更新日時（あれば）を比較します。
+検査の時計はサーバー内で作成し、スマートフォンの入力やURLパラメータを
+信用しません。日時はオフセット付きの ISO 8601 として検証します。
+
+- 開催日が当日か、発走予定時刻が過ぎていないか、発走まで2時間以内か、
+  2時間以上先か、発走時刻が未確認かを区別します。
+- `/tka.updated_at` が存在する場合は、その記録から何分経過したかを
+  数えます。**60分以内は画面を整理するための暫定区分**であり、
+  JRAの公式確定・最新の出走取消・馬場やその正確さを保証しません。
+- 更新時刻の記載がない、未来日時、違う開催日の馬場情報、馬場未確認は
+  それぞれ未確認・古い可能性のある資料として明示します。
+- 発走予定時刻が過ぎたレースを購入可能に戻したり、WIN5の締切後に
+  買い目変更を許す動作はありません。
+
+本人専用の `/api/jrdb/race-day` に `prestartFreshness` を追加し、
+レースごとの照合準備状況だけをiPhone向けの本人認証画面に表示します。
+JRA公式の出走取消・馬場状態・発走予定時刻は現段階で**自動取得していません**。
+そのため公式照合フラグは全Rで false、
+`officiallyVerifiedRaces=0`、`predictionReady=false`、
+`bettingReady=false` を必ず維持します。
+
+本人専用画面には [JRA公式の競馬メニュー](https://www.jra.go.jp/keiba/)
+への外部リンクを表示します。これは公式サイトを**人が確認するため**の
+リンクであり、リンク先を自動解析したり公式データを検証したものではありません。
+JRAのFAQでも当日の馬場情報は「今週の開催お知らせ」に掲載されると説明。
+https://www.jra.go.jp/faq/pop02/2_3.html
+
+次の開発課題は、利用が許可された独立データ取得手段の検討、
+取消・騎手変更・当日馬場・発走時刻の比較、変更後の再照合、
+取得タイミングの証跡管理。現段階の時刻分類では本番予想の有効性を主張しません。
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
