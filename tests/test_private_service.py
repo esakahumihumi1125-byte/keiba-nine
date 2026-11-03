@@ -249,6 +249,14 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertNotIn(b'2328aaa95a05', result['body'])
         self.assertNotIn(b'API_KEY', result['body'])
 
+    def test_course_ground_screen_uses_text_only_rendering(self):
+        html = call(self.app, '/')['body']
+        js = call(self.app, '/app.js')['body']
+        self.assertIn(b'id="context"', html)
+        self.assertIn(b'/api/jrdb/context', js)
+        self.assertIn(b'goingAvailableCount', js)
+        self.assertNotIn(b'innerHTML', js)
+
     def test_private_client_script_displays_missing_evidence_counts(self):
         script = call(self.app, '/app.js')['body']
         for label in (b'trainingUnaccounted', b'lastWeekUnaccounted',
@@ -420,6 +428,79 @@ class PrivateServiceTests(unittest.TestCase):
                           QUERY_STRING='date=20261027')
         self.assertTrue(result['status'].startswith('502'))
         self.assertNotIn(b'SECRET-PAID-HORSE', result['body'])
+
+    def test_course_going_context_is_owner_only_and_not_prediction(self):
+        private = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        race = [
+            {'racekey': '05264b01', 'racedate': '20261027',
+             'post_time': '1010', 'track_type': '1',
+             'turn_cd': '2', 'distance': '1600', 'headcount': 12},
+            {'racekey': '05264b02', 'racedate': '20261027',
+             'post_time': '1040', 'track_type': '2',
+             'turn_cd': '2', 'distance': '1400', 'headcount': 14},
+        ]
+        going = [{'holdingkey': '052648', 'racedate': '20261027',
+                  'turf_condition_cd': '04', 'dirt_condition_cd': '1',
+                  'horse_name': 'PRIVATE-HORSE-SECRET',
+                  'updated_at': '2026-10-27T07:30:00+09:00'}]
+        with (
+            patch('private_service.fetch_race_program', return_value=race) as program,
+            patch('private_service.fetch_venue_conditions', return_value=going) as source,
+        ):
+            rejected = call(private, '/api/jrdb/context', auth='',
+                            QUERY_STRING='date=20261027')
+            response = call(private, '/api/jrdb/context', QUERY_STRING='date=20261027')
+        self.assertTrue(rejected['status'].startswith('401'))
+        self.assertEqual(response['status'], '200 OK')
+        data = json.loads(response['body'])
+        self.assertEqual(data['raceCount'], 2)
+        self.assertEqual(data['courseInfoPresentCount'], 2)
+        self.assertEqual(data['goingAvailableCount'], 2)
+        turf, dirt = data['races']
+        self.assertEqual((turf['surface'], turf['distance_m'], turf['turn'],
+                          turf['going']), ('芝', 1600, '左', '不良'))
+        self.assertEqual(dirt['going'], '良')
+        self.assertFalse(data['predictionReady'])
+        self.assertFalse(turf['horseCourseSuitabilityAssessed'])
+        self.assertFalse(turf['horseGoingSuitabilityAssessed'])
+        self.assertEqual(program.call_count, 1)
+        self.assertEqual(source.call_count, 1)
+        self.assertNotIn(b'PRIVATE-HORSE-SECRET', response['body'])
+        self.assertNotIn(b'052648', response['body'])
+
+    def test_wrong_going_condition_stops_without_leaking_data(self):
+        private = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        race = [{'racekey': '05264b01', 'racedate': '20261027',
+                 'track_type': '1', 'distance': '1600', 'turn_cd': '2'}]
+        going = [{'holdingkey': '052648', 'racedate': '20261027',
+                  'turf_condition_cd': '99', 'private': 'SECRET-PAID-DATA'}]
+        with (
+            patch('private_service.fetch_race_program', return_value=race),
+            patch('private_service.fetch_venue_conditions', return_value=going),
+        ):
+            response = call(private, '/api/jrdb/context',
+                            QUERY_STRING='date=20261027')
+        self.assertTrue(response['status'].startswith('502'))
+        self.assertNotIn(b'SECRET-PAID-DATA', response['body'])
+
+    def test_course_ground_context_disabled_until_api_activation(self):
+        with patch('private_service.fetch_race_program') as programme, \\
+             patch('private_service.fetch_venue_conditions') as going:
+            result = call(self.app, '/api/jrdb/context',
+                          QUERY_STRING='date=20261027')
+        self.assertTrue(result['status'].startswith('503'))
+        programme.assert_not_called()
+        going.assert_not_called()
+
+    def test_bad_course_context_query_rejected_before_fetch(self):
+        private = create_app({**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1'})
+        with patch('private_service.fetch_venue_conditions') as going:
+            for query in ('', 'date=20261027&date=20261028',
+                          'limit=100', 'date=../../etc'):
+                with self.subTest(query=query):
+                    response = call(private, '/api/jrdb/context', QUERY_STRING=query)
+                    self.assertTrue(response['status'].startswith(('400', '502')))
+            going.assert_not_called()
 
     def test_evidence_endpoint_disabled_without_private_activation(self):
         with patch('private_service.fetch_race_program') as fetch:
