@@ -17,6 +17,7 @@ TRACKS = {
     "09": "阪神", "10": "小倉",
 }
 SURFACES = {"1": "芝", "2": "ダート", "3": "障害"}
+TURNS = {"1": "右", "2": "左", "9": "直線"}
 RACE_KEY = re.compile(r"[0-9a-f]{8}\Z", re.ASCII)
 POST_TIME = re.compile(r"[0-2][0-9][0-5][0-9]\Z", re.ASCII)
 RACE_DATE = re.compile(r"[0-9]{8}\Z", re.ASCII)
@@ -73,6 +74,7 @@ def normalize_program_rows(rows, requested_date):
         if type(count) is not int or not 0 <= count <= 18:
             count = None
         surface = SURFACES.get(row.get("track_type"))
+        turn = TURNS.get(row.get("turn_cd"))
         results.append({
             "racekey": key,
             "racedate": requested_date,
@@ -81,6 +83,7 @@ def normalize_program_rows(rows, requested_date):
             "race_name": name,
             "post_time": off,
             "surface": surface,
+            "turn": turn,
             "distance_m": distance,
             "headcount": count,
             "programmeOnly": True,
