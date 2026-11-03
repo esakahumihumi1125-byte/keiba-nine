@@ -107,7 +107,10 @@ el('history').onclick=async()=>{
   const data=await reply.json();if(!reply.ok)throw Error(data.error||'照合できませんでした');
   if(data.predictionReady!==false||data.goingSuitabilityAssessed!==false
      ||data.evidenceQuality?.predictionReady!==false
-     ||data.evidenceQuality?.predictionConfidenceAssessed!==false)
+     ||data.evidenceQuality?.predictionConfidenceAssessed!==false
+     ||data.tenFactorMaterials?.predictionReady!==false
+     ||data.tenFactorMaterials?.bettingReady!==false
+     ||data.tenFactorMaterials?.gradedFactors!==0)
    throw Error('安全な資料集計以外は表示できません');
   el('message').textContent='照合 '+data.selectedPastRaces+'件／残り '+data.deferredPastRaces
    +'件｜過去番組未取得 '+data.unavailablePastProgrammes
@@ -115,6 +118,14 @@ el('history').onclick=async()=>{
   for(const race of data.goingSummary.races){
    const quality=data.evidenceQuality.races.find(r=>r.track===race.track&&r.race===race.race);
    if(!quality)throw Error('資料充足度の照合結果が一致しません');
+   const materials=data.tenFactorMaterials.races.find(r=>r.track===race.track&&r.race===race.race);
+   if(!materials||materials.runnerCount!==quality.runnerCount
+      ||materials.predictionReady!==false||materials.bettingReady!==false
+      ||materials.gradedFactors!==0)throw Error('10項目の資料確認が一致しません');
+   const factors=materials.factors;
+   if(!factors||Object.keys(factors).length!==10
+      ||!Object.values(factors).every(x=>x.grade==='未評価'&&x.assessmentComplete===false))
+     throw Error('未評価以外の資料情報は表示できません');
    const c=quality.courseComparableSamples,g=quality.knownGoingComparableSamples;
    const counts=[c.none,c.oneOrTwo,c.threePlus,g.none,g.oneOrTwo,g.threePlus];
    if(!counts.every(n=>Number.isInteger(n)&&n>=0)
@@ -127,7 +138,12 @@ el('history').onclick=async()=>{
       +'走（3着以内 '+race.poorTopThreeRuns+'）／馬場未照合 '+race.unknownComparableRuns
       +'走｜距離比較 3走以上 '+c.threePlus+'頭・1〜2走 '+c.oneOrTwo+'頭・0走 '+c.none
       +'頭｜馬場比較 3走以上 '+g.threePlus+'頭・1〜2走 '+g.oneOrTwo+'頭・0走 '+g.none
-      +'頭｜過去番組の未照合 '+quality.unlinkedPastRuns+'走｜馬場適性：未評価／予想信頼度：未算定';
+      +'頭｜過去番組の未照合 '+quality.unlinkedPastRuns+'走'
+      +'｜10項目の資料：調教 '+factors.training.observedRunnerCount+'/'+materials.runnerCount
+      +'頭、近走 '+factors.recent.observedRunnerCount+'/'+materials.runnerCount
+      +'頭、距離 '+factors.course_distance.observedRunnerCount+'/'+materials.runnerCount
+      +'頭、馬場 '+factors.ground.observedRunnerCount+'/'+materials.runnerCount
+      +'頭、残り6項目は未接続｜全10項目：未評価／予想信頼度：未算定';
    el('races').append(div);
   }
  }catch(e){el('message').textContent=e.message;}
@@ -302,11 +318,13 @@ def create_app(settings=None):
                 programme = normalize_program_rows(fetch_race_program(date), date)
                 entries = fetch_horse_entries(date)
                 previous = fetch_recent_runs(date)
+                training = fetch_training_analysis(date)
                 current_conditions = fetch_venue_conditions(date)
                 preview = run_bounded_history_audit(
                     programme, entries, previous, current_conditions, date,
                     fetch_dra=fetch_historical_race_program,
-                    fetch_dka=fetch_historical_venue_conditions, limit=limit)
+                    fetch_dka=fetch_historical_venue_conditions, limit=limit,
+                    training=training)
             except (JRDBError, ProgrammeFormatError, CoverageError, HistoryFetchError, ValueError):
                 return response('502 Bad Gateway', {
                     'error': '過去馬場の照合に失敗しました。履歴や実接続を確認してください。'})
