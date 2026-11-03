@@ -7,6 +7,9 @@ on:
       - 'racecard-check.html'
       - 'racecard-batch.js'
       - 'racecard-batch-tests.js'
+      - 'racecard-coverage.js'
+      - 'racecard-coverage-tests.js'
+      - 'scripts/check-racecard-coverage-ui.cjs'
       - 'racecard-batch.html'
       - 'racecard-reference.js'
       - 'racecard-reference-tests.js'
@@ -23,6 +26,9 @@ on:
       - 'racecard-check.html'
       - 'racecard-batch.js'
       - 'racecard-batch-tests.js'
+      - 'racecard-coverage.js'
+      - 'racecard-coverage-tests.js'
+      - 'scripts/check-racecard-coverage-ui.cjs'
       - 'racecard-batch.html'
       - 'racecard-reference.js'
       - 'racecard-reference-tests.js'
@@ -65,6 +71,13 @@ jobs:
       - name: Execute batch regression tests
         run: |
           node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-batch-tests.js'); console.log('Batch tests passed:',global.KeibaNineBatchTests.passed)"
+      - name: Validate declared full-race program coverage
+        run: |
+          node --check racecard-coverage.js
+          node --check racecard-coverage-tests.js
+          node --check scripts/check-racecard-coverage-ui.cjs
+          node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-coverage.js'); require('./racecard-coverage-tests.js'); console.log('Coverage tests passed:',global.KeibaNineCoverageTests.passed)"
+          node scripts/check-racecard-coverage-ui.cjs
       - name: Execute preview bridge regression tests
         run: |
           node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-preview-bridge.js'); require('./racecard-preview-bridge-tests.js'); console.log('Preview bridge tests passed:',global.KeibaNinePreviewBridgeTests.passed)"
