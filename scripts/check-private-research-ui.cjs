@@ -3,6 +3,7 @@
 const fs=require('node:fs');
 const vm=require('node:vm');
 const assert=require('node:assert/strict');
+const {spawnSync}=require('node:child_process');
 const js=fs.readFileSync('/tmp/keiba-private-console.js','utf8');
 const elements=new Map(), requests=[];
 function el(id){
@@ -49,6 +50,19 @@ async function flush(){
  assert.equal(body.recordType,'test');
  assert.equal(body.track,'架空競馬場');
  assert.equal(body.horses.length,8);
+ const actual=spawnSync('python',['-c', [
+  'import sys,json',
+  "sys.path.insert(0,'scripts')",
+  'from research_planner import plan_race',
+  'plan=plan_race(json.load(sys.stdin))',
+  "assert plan['recordType']=='test' and plan['publishable'] is False",
+  "assert plan['researchDecision']=='simulate'",
+  "assert set(plan['first'])=={1,2}",
+  "assert 0<plan['points']<=40 and plan['points']==len(plan['tri'])",
+  "print('Synthetic JS fixture -> Python planner:',plan['points'],'tickets')",
+ ].join(';')],{input:JSON.stringify(body),encoding:'utf8'});
+ assert.equal(actual.status,0,actual.stderr);
+ assert.match(actual.stdout,/Synthetic JS fixture -> Python planner/);
  for(const horse of body.horses){
   assert.equal(Object.keys(horse.assessments).length,10);
   for(const axis of Object.values(horse.assessments))
