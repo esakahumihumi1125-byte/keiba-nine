@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
-                          fetch_training_analysis, fetch_recent_runs, JRDBError, _NoRedirect)
+                          fetch_training_analysis, fetch_recent_runs, fetch_venue_conditions, JRDBError, _NoRedirect)
 
 
 class PrivateClientTests(unittest.TestCase):
@@ -73,6 +73,17 @@ class PrivateClientTests(unittest.TestCase):
         for fn in (fetch_training_analysis, fetch_recent_runs):
             with self.assertRaises(JRDBError):
                 fn('20261026')
+
+    def test_venue_going_request_is_owner_only_and_no_credentials_in_response(self):
+        self.assertEqual(fetch_venue_conditions('20261026'), [{'racekey': 'synthetic'}])
+        req = self.mock.return_value.open.call_args.args[0]
+        self.assertEqual(req.method, 'POST')
+        self.assertEqual(json.loads(req.data), {'racedate': '20261026'})
+        self.assertIn('/v1/tka?', req.full_url)
+        self.assertEqual(req.get_header('X-user-key'), 'synthetic-user')
+        os.environ['GITHUB_ACTIONS'] = 'true'
+        with self.assertRaises(JRDBError):
+            fetch_venue_conditions('20261026')
 
     def test_error_omits_secret_url_and_body(self):
         self.mock.return_value.open.side_effect = urllib.error.HTTPError('https://example/?secret', 403, 'private-data', {}, io.BytesIO(b'private-data'))
