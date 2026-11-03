@@ -36,5 +36,13 @@ function toDraftRows(bundle){
    };
  });
 }
-root.KeibaNinePreviewBridge={toDraftRows,sessionKey:'kn_batch_preview_transfer_v1'};
+function toPortablePreview(bundle,createdAt){
+ const validated=root.KeibaNineBatch.validateBundle(bundle);
+ const forecasts=toDraftRows(validated);
+ if(!forecasts.every(r=>r.recordType==='test'&&['draft','skip'].includes(r.status)&&r.off===''))throw Error('検証用データ以外は書き出せません');
+ const timestamp=typeof createdAt==='string'?createdAt:new Date().toISOString();
+ if(!Number.isFinite(Date.parse(timestamp))||timestamp.length>35)throw Error('作成日時が不正です');
+ return {kind:'keiba-nine-test-preview',schema:1,generatedAt:timestamp,source:validated.source,forecasts};
+}
+root.KeibaNinePreviewBridge={toDraftRows,toPortablePreview,sessionKey:'kn_batch_preview_transfer_v1'};
 })(window);
