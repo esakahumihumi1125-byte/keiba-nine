@@ -84,6 +84,36 @@ B=45以上、C=45未満。**正式なJRDBランクではありません。**
 未評価のまま、`predictionsReady=0` のまま維持します。
 実際に使うにはβ版専用APIアカウントと、安全な非公開HTTPSサーバーが必要です。
 
+## 近走（/tze）の暫定S/A/B/C分析
+
+本人専用の `scripts/jrdb_recent_hypothesis.py` を追加し、
+`/tze` の直近最大5走データから、**着順と成績IDMが両方確認できる
+新しい順の最大3走**を暫定評価します。少なくとも2走必要です。
+新馬、近走の不足、IDMの欠損は「未評価」とし、未出走の成績を作りません。
+
+- 直近から順に3:2:1の重みでIDMを平均する。
+- S=70以上、A=55以上、B=40以上、それ未満Cは**競馬ナイン独自の未検証仮説**。
+  JRDB公式ランク・勝率・期待値を示す数値ではありません。
+- 4角通過順（4番手以内の回数）・上がり3Fは、直近の情報量として別途件数を示す。
+  違うコース・馬場の上がり時計を直接比較して強弱を断定しない。
+- /tzeの主要項目には**着差・対戦相手の実力を直接比較する数値が揃わない**。
+  現時点でこれらを補完して評価したことにはしない。
+- 人気順位・単勝オッズのフィールドは計算には使用しない。
+- 同じ馬の重複レコード、馬ID・馬番の矛盾、開催日より未来の過去走、
+  形式不正な数字は処理を拒否する。
+
+本人専用の `/api/jrdb/evidence` は新たに `recentHypothesis` を返します。
+これは日付・競馬場・レースごとの**各ランクの頭数と観測数だけ**。
+馬名・馬ID・着順・成績IDM・有料データをブラウザーへコピーしない。
+この部分だけでは馬場・距離適性・血統・展開・取消を評価できないため、
+`predictionsReady=0` のまま、総合S/A/B/Cや買い目には反映しません。
+
+利用したフィールド名の参照元：JRDB-API
+<https://jrdb-api.keiba.bigtime.world/docs/fields>
+（`race_back_N_racedate`、`race_back_N_order_of_finish`、
+`race_back_N_idm`、`race_back_N_corner4_order`、
+`race_back_N_later3f_time`）。
+
 ## Source documentation verified
 
 - https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
