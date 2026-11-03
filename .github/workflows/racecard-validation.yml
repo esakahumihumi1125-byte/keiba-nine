@@ -10,6 +10,7 @@ on:
       - 'racecard-batch.html'
       - 'racecard-preview-bridge.js'
       - 'racecard-preview-bridge-tests.js'
+      - 'scripts/check-racecard-main-import.cjs'
       - 'keiba-nine-beta51-feed-record.html'
       - '.github/workflows/racecard-validation.yml'
   pull_request:
@@ -22,6 +23,7 @@ on:
       - 'racecard-batch.html'
       - 'racecard-preview-bridge.js'
       - 'racecard-preview-bridge-tests.js'
+      - 'scripts/check-racecard-main-import.cjs'
       - 'keiba-nine-beta51-feed-record.html'
       - '.github/workflows/racecard-validation.yml'
   workflow_dispatch:
@@ -53,3 +55,5 @@ jobs:
       - name: Execute preview bridge regression tests
         run: |
           node -e "global.window=globalThis; require('./racecard-engine.js'); require('./racecard-batch.js'); require('./racecard-preview-bridge.js'); require('./racecard-preview-bridge-tests.js'); console.log('Preview bridge tests passed:',global.KeibaNinePreviewBridgeTests.passed)"
+      - name: Verify main app imports exported preview batches
+        run: node scripts/check-racecard-main-import.cjs
