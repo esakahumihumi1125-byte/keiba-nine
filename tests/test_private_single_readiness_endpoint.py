@@ -89,7 +89,13 @@ class PrivateSingleReadinessServiceTests(unittest.TestCase):
             self.assertFalse(payload["predictionReady"])
             self.assertFalse(payload["bettingReady"])
             self.assertFalse(payload["officialJraFinalVerification"])
-            self.assertEqual(payload["version"],"selected-race-readiness-2")
+            self.assertEqual(payload["version"],"selected-race-readiness-3")
+            bridge = payload["factorMaterials"]
+            self.assertEqual(bridge["unmappedFactors"],7)
+            self.assertEqual(bridge["observedFactors"],3)
+            self.assertEqual(sum(bridge["pastFourthCorner"].values()),2)
+            self.assertFalse(bridge["paceForecastAvailable"])
+            self.assertFalse(bridge["overallRankReady"])
             pair = payload["factorResearch"]
             self.assertTrue(pair["experimental"])
             self.assertEqual(pair["remainingFactors"],8)
