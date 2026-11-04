@@ -71,3 +71,13 @@ GitHubの改良が本体`main`に反映されたあと、Renderの
 [Render公式：手動デプロイ](https://render.com/docs/deploys#manual-deploys)
 
 この手順書が存在するだけでは、デプロイやiPhone実機接続を確認したことにはなりません。
+
+## 古い画面のままの場合：実際の配信版を確認
+
+再デプロイが成功しても「JRDB接続」が先頭のままなら、これ以上むやみにキャッシュ消去・パスワード変更・再デプロイを繰り返さないでください。
+
+本人ログイン済みの状態で [配信版の確認](https://keiba-nine-owner-preview-mvxz.onrender.com/ui-version) を開きます。最新版なら `uiVersion=iphone-rank-cards-20261104-v2`、`researchFirst=yes` が表示されます。Renderの提供するコミット番号があれば先頭12桁だけ確認できます。秘密キーは表示されません。
+
+続けて [別パスの新しい画面](https://keiba-nine-owner-preview-mvxz.onrender.com/preview-v2) を開きます。通常のトップページと同じ画面を、以前のURLとは別のパスから取得します。URLのクエリだけの変更とは異なります。
+
+`/ui-version` が404の場合、アクセス先で新しいコードが動いていない可能性があります。その場合はRenderダッシュボードの対象Webサービスとデプロイ履歴のSOURCEコミット番号を先に確認し、実際の提供URLとの食い違いを調べます。ログインが必要な本人専用機能であり、JRAやJRDBのデータ通信を増やしません。
