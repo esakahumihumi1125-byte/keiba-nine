@@ -185,3 +185,32 @@ Renderの公式仕様では、Blueprint内で定義した設定は同期時に�
 ログインパスワード、Googleシート連携、本人の実戦記録、有料JRDBの秘密キー、
 RenderのFreeプランは変更しません。Deploy HookのURLを他人に渡したり、
 GitHubに貼り付けたりしないでください。
+
+
+## 2026-11-05：iPhoneでパスワード後にログイン画面へ戻る場合
+
+iPhoneでログインフォームを送信した後に、エラー表示なしでログイン画面へ
+戻る現象に備えて、本人用の署名付きCookieを
+`Secure; HttpOnly; SameSite=Lax; Path=/` に変更しました。
+従来の `Strict` では外部アプリからSafariへ移るナビゲーションでCookieが
+送信されない場合があります。引き続き最長7日間・パスワード変更による失効、
+本人のみ、HTTPS必須、POST時のOrigin/Fetch Metadata確認を維持します。
+
+- パスワードが正しい時は `/login?session=check` を一度経由し、
+  Cookieが正常なら本人用トップへ遷移します。このクエリには秘密情報を入れません。
+- Cookieが失われた場合は、何も表示せずログインループする代わりに、
+  SafariでURLを直接開くこととCookie保存の確認を案内します。
+- 未ログインのJavaScript/CSSリクエストではBasic認証のポップアップを
+  繰り返し表示させず、401を返します。HTTP Basic認証自体は従来の
+  Authorizationヘッダーで引き続き利用できます。
+- **今回も既存のRender環境変数 `KEIBA_OWNER_PASSWORD` は変更しません。**
+  Renderの別サービス「keiba-nine-owner-preview-mvxz」のパスワードを
+  間違えて使っていないかも注意してください。
+- iPhone上ではSafariのアドレス欄に
+  `https://keiba-nine-owner-preview.onrender.com/login` を直接開き、
+  `owner` と現在の `KEIBA_OWNER_PASSWORD` を入力してください。
+  Cookieをブロックする設定・プライベートタブ・別ブラウザーの保存領域では
+  セッションが保持されないことがあります。
+
+以上はコードと自動テストによる予防策であり、本人のiPhoneで
+ログイン成功を確認するまでは、原因が確定・解消したとは断定しません。

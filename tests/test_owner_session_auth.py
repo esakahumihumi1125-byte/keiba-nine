@@ -53,7 +53,7 @@ class OwnerSessionTests(unittest.TestCase):
         self.assertFalse(owner_credentials_match("other", SETTINGS["KEIBA_OWNER_PASSWORD"],
                                                  self.expected, "owner"))
         token = session_cookie(self.expected, now=1800000000)
-        self.assertIn("Secure; SameSite=Strict", token)
+        self.assertIn("Secure; SameSite=Lax", token)
         self.assertIn("HttpOnly", token)
         self.assertTrue(token.startswith(COOKIE_NAME + "="))
         self.assertIn("Max-Age=604800", token)
@@ -92,11 +92,21 @@ class OwnerSessionTests(unittest.TestCase):
                 "username": "owner", "password": SETTINGS["KEIBA_OWNER_PASSWORD"]
             })
             self.assertEqual(result["status"], "303 See Other")
-            self.assertEqual(result["headers"]["Location"], "/")
+            self.assertEqual(result["headers"]["Location"], "/login?session=check")
             cookie = result["headers"]["Set-Cookie"]
-            self.assertIn("HttpOnly; Secure; SameSite=Strict", cookie)
+            self.assertIn("HttpOnly; Secure; SameSite=Lax", cookie)
             self.assertNotIn(SETTINGS["KEIBA_OWNER_PASSWORD"], cookie)
             header = cookie.split(";", 1)[0]
+            # The intermediate redirect distinguishes a valid password from
+            # browsers that block/drop cookies during the same navigation.
+            missing = call(self.app, "/login", auth="", QUERY_STRING="session=check")
+            self.assertEqual(missing["status"], "200 OK")
+            self.assertIn("認証情報がブラウザーに保存されていません", missing["body"].decode())
+            self.assertNotIn("Set-Cookie", missing["headers"])
+            with_cookie = call(self.app, "/login", auth="", HTTP_COOKIE=header,
+                               QUERY_STRING="session=check")
+            self.assertEqual(with_cookie["status"], "303 See Other")
+            self.assertEqual(with_cookie["headers"]["Location"], "/")
             home = call(self.app, "/", auth="", HTTP_COOKIE=header)
             self.assertEqual(home["status"], "200 OK")
             status = call(self.app, "/api/status", auth="", HTTP_COOKIE=header)
@@ -131,6 +141,12 @@ class OwnerSessionTests(unittest.TestCase):
                 self.assertNotIn(good["password"].encode(), result["body"])
             self.assertEqual(call(self.app, "/", auth=AUTH)["status"], "200 OK")
             self.assertTrue(call(self.app, "/app.js", auth="")["status"].startswith("401"))
+            for path in ("/app.js", "/app.css", "/my-tickets.js",
+                         "/my-tickets.css", "/my-purchases.js"):
+                asset = call(self.app, path, auth="")
+                self.assertEqual(asset["status"], "401 Unauthorized")
+                self.assertNotIn("WWW-Authenticate", asset["headers"],
+                                 "Browser assets must not trigger native login popups")
         provider.assert_not_called()
 
 

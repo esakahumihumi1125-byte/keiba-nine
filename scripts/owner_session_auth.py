@@ -1,6 +1,9 @@
 """Private owner login cookie: secure, signed, expiry-bounded; no session storage.
 
-Supports the existing Basic auth as a fallback. A cookie is valid only for
+Supports the existing Basic auth as a fallback.
+Lax permits iPhone Safari top-level navigation following cross-site opens and
+login redirects; cookies remain Secure/HttpOnly/host-only with POST origin and
+fetch-metadata checks at the login endpoint. A cookie is valid only for
 this deployment's password and is revoked by password rotation.
 """
 import hashlib
@@ -29,7 +32,7 @@ def session_cookie(expected, now=None):
     message = _SESSION_CONTEXT + str(expires).encode("ascii")
     signature = hmac.new(expected, message, hashlib.sha256).hexdigest()
     return (f"{COOKIE_NAME}={expires}.{signature}; Path=/; Max-Age={SESSION_SECONDS}; "
-            "HttpOnly; Secure; SameSite=Strict")
+            "HttpOnly; Secure; SameSite=Lax")
 
 
 def session_cookie_valid(header, expected, now=None):
@@ -55,4 +58,4 @@ def session_cookie_valid(header, expected, now=None):
 
 def clear_session_cookie():
     return (f"{COOKIE_NAME}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; "
-            "HttpOnly; Secure; SameSite=Strict")
+            "HttpOnly; Secure; SameSite=Lax")
