@@ -333,6 +333,13 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(tokyo_combined['verifiedFactorCount'], 0)
         self.assertFalse(tokyo_combined['overallRankReady'])
         self.assertFalse(complete['predictionReady'])
+        gate = report['realAssessmentPreflight']
+        self.assertEqual(gate['version'], 'real-assessment-preflight-1')
+        self.assertEqual(gate['raceCount'], 2)
+        self.assertFalse(gate['realGradeReady'])
+        self.assertFalse(gate['purchaseReady'])
+        self.assertTrue(all(not row['realPredictionReady']
+                            for row in gate['races']))
         tokyo = next(x for x in report['goingSummary']['races'] if x['track'] == '東京')
         self.assertEqual(tokyo['heavyComparableRuns'], 1)
         self.assertEqual(dra.call_count, 3)
