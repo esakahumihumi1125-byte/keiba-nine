@@ -56,7 +56,7 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertIn('function showSingleRaceReadiness(', script)
         self.assertIn('実戦予想はまだ作成できません', script)
         self.assertIn('/api/jrdb/selected-readiness?', script)
-        self.assertIn('/app.js?v=owner-entry-factors-20261104', page)
+        self.assertIn('/app.js?v=owner-factor-intake-20261104', page)
         self.assertIn('function loadOfflineProgrammeDemo()', script)
         self.assertIn("el('programmeDemo').onclick=loadOfflineProgrammeDemo", script)
         self.assertIn('架空3R', script)
@@ -82,7 +82,7 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertEqual(root['body'], separate['body'])
             page = separate['body'].decode('utf-8')
             self.assertIn('id="uiVersion"', page)
-            self.assertIn('iphone-rank-cards-20261104-v2', page)
+            self.assertIn('iphone-operator-factor-20261104-v3', page)
             self.assertLess(page.index('id="researchPanel"'),
                             page.index('<h2>JRDB接続</h2>'))
             version = call(self.app, '/ui-version',
@@ -91,7 +91,7 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertIn('text/plain', version['headers']['Content-Type'])
             self.assertIn('no-store', version['headers']['Cache-Control'])
             info = version['body'].decode('utf-8')
-            self.assertIn('uiVersion=iphone-rank-cards-20261104-v2', info)
+            self.assertIn('uiVersion=iphone-operator-factor-20261104-v3', info)
             self.assertIn('researchFirst=yes', info)
             self.assertIn('renderCommit=not-reported', info)
             self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'], info)
