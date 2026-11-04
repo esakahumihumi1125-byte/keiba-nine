@@ -349,12 +349,12 @@ function showSingleRaceReadiness(data,selected,day){
   more_than_two_hours:'発走まで2時間超'
  }[data.prestartWindow];
  return '【実戦予想はまだ作成できません】'+selected.track+selected.race+'R'
-  +'\n出走馬の資料 '+n+'頭｜'+source
-  +'\n調教不足・未対応 '+train+'頭／1週前 '+last+'頭／近走 '+past+'頭'
-  +'\n提供元の取消報告 '+withdrawn+'頭・取消状態不明 '+unknown+'頭'
-  +'\n提供元の馬場 '+data.sourceGoing+'｜'+timing
-  +'\n10項目評価：未実施｜JRA公式の取消・馬場・発走時刻：未照合'
-  +'\n独立したJRAデータ取得：未接続｜総合評価・3連単：未作成';
+  +'\\n出走馬の資料 '+n+'頭｜'+source
+  +'\\n調教不足・未対応 '+train+'頭／1週前 '+last+'頭／近走 '+past+'頭'
+  +'\\n提供元の取消報告 '+withdrawn+'頭・取消状態不明 '+unknown+'頭'
+  +'\\n提供元の馬場 '+data.sourceGoing+'｜'+timing
+  +'\\n10項目評価：未実施｜JRA公式の取消・馬場・発走時刻：未照合'
+  +'\\n独立したJRAデータ取得：未接続｜総合評価・3連単：未作成';
 }
 el('programmeReadiness').onclick=async()=>{
  const selected=chosenProgramme(),day=loadedProgrammeDate;
