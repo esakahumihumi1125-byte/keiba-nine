@@ -20,35 +20,25 @@ const programme=[{racedate:'20261107',track:'東京',race:1,race_name:'架空の
  post_time:'10:00',surface:'芝',distance_m:1600,headcount:8,
  programmeOnly:true,horsesVerified:false}];
 let badSource=false,slow=false,release=null;
-const evidence=()=>({date:'20261107',raceCount:1,predictionReady:false,
- races:[{track:'東京',race:1,observedEntries:8,
-  trainingUnaccounted:2,lastWeekUnaccounted:8,pastRunUnaccounted:3}],
- assessmentPreflight:{gradedFactors:0,readyForPrediction:0,races:[
-  {track:'東京',race:1,observedEntries:8,gradedFactors:0,readyForPrediction:false}
- ]}
-});
-const meeting=()=>({date:'20261107',raceCount:1,predictionReady:false,bettingReady:false,
- racesWithOfficialFinalCheck:0,
- races:[{track:'東京',race:1,finalRaceReady:false,predictionReady:false,
-  officialScratchesVerified:false,officialGoingVerified:false}],
- independentComparison:{officialJraFinalVerification:false,racesCompared:0,
-  races:[{track:'東京',race:1,independentReferenceProvided:false,
-   officialJraFinalVerification:badSource,comparisonStatus:'missing_reference'}]},
- prestartFreshness:{officiallyVerifiedRaces:0,
-  races:[{track:'東京',race:1,jraOfficialDataFetched:false,
-   jraScratchesVerified:false,jraGoingVerified:false,jraPostTimeVerified:false}]}
+const selected=()=>({version:'selected-race-readiness-1',
+ date:'20261107',track:'東京',race:1,
+ observedEntries:8,expectedRunners:8,entryCountMatchesSource:true,
+ trainingUnaccounted:2,lastWeekUnaccounted:8,pastRunUnaccounted:3,
+ providerWithdrawnCount:1,withdrawalFlagUnknownCount:0,
+ sourceGoing:'重',sourceGoingAgeStatus:'recent_reported',prestartWindow:'within_two_hours',
+ sourceSnapshotNotOfficial:true,independentJraConnected:false,
+ officialJraFinalVerification:badSource,gradedFactors:0,predictionReady:false,
+ bettingReady:false
 });
 async function mockFetch(url,opts){
  calls.push({url,opts});
  if(url==='/api/status')return {ok:true,json:async()=>({jrdbConfigured:true})};
  if(url==='/api/jrdb/program?date=20261107')
   return {ok:true,json:async()=>({programmeOnly:true,rows:programme})};
- if(url==='/api/jrdb/evidence?date=20261107')
-  return {ok:true,json:async()=>evidence()};
- if(url==='/api/jrdb/race-day?date=20261107')
+ if(url==='/api/jrdb/selected-readiness?date=20261107&track=%E6%9D%B1%E4%BA%AC&race=1')
   return {ok:true,json:async()=>{
    if(slow)await new Promise(resolve=>{release=resolve});
-   return meeting();
+   return selected();
   }};
  throw Error('Unexpected URL '+url);
 }
@@ -70,15 +60,15 @@ async function tick(){await new Promise(r=>setImmediate(r));await new Promise(r=
  el('programmeRace').value='1';el('programmeRace').onchange();
  assert.equal(el('programmeReadiness').disabled,false);
  await el('programmeReadiness').onclick();
- assert.equal(calls.length,4);
+ assert.equal(calls.length,3,'one click makes only one authenticated read');
  assert.deepEqual(calls.slice(2).map(x=>x.url),[
-  '/api/jrdb/evidence?date=20261107','/api/jrdb/race-day?date=20261107'
+  '/api/jrdb/selected-readiness?date=20261107&track=%E6%9D%B1%E4%BA%AC&race=1'
  ]);
  assert.ok(calls.slice(2).every(x=>x.opts.credentials==='same-origin'));
  assert.ok(calls.slice(2).every(x=>x.opts.headers['X-Keiba-Request']==='private'));
  assert.match(el('programmeReadinessResult').textContent,/実戦予想はまだ作成できません/);
  assert.match(el('programmeReadinessResult').textContent,/調教不足・未対応 2頭／1週前 8頭／近走 3頭/);
- assert.match(el('programmeReadinessResult').textContent,/10項目評価：全項目未評価/);
+ assert.match(el('programmeReadinessResult').textContent,/10項目評価：未実施/);
  assert.match(el('programmeReadinessResult').textContent,/独立したJRAデータ取得：未接続/);
  assert.equal(el('programmeReadiness').disabled,false,'re-enabled for manual retry');
  el('programmeRace').value='';el('programmeRace').onchange();
