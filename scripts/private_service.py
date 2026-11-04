@@ -33,15 +33,16 @@ from jrdb_prestart_freshness import audit_prestart_freshness, FreshnessError
 from jra_reference_compare import (compare_independent_race_snapshot,
                                    validate_single_manual_reference, ReferenceCompareError)
 from research_planner import plan_race
+from operator_factor_intake import validate_operator_factor_note
 
 def _now_in_jst():
     """Server-side time only; browser timestamps cannot claim freshness."""
     return datetime.now(ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds')
 
 
-UI_VERSION = 'iphone-rank-cards-20261104-v2'
+UI_VERSION = 'iphone-operator-factor-20261104-v3'
 MAX_BODY = 131072
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css?theme=gold-s-demo-picker-20261104"></head><body><main><h1>KEIBA NINE</h1><p>本人用プレビュー｜架空テスト</p><p class="muted" id="uiVersion">画面版：iphone-rank-cards-20261104-v2</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css?theme=gold-s-demo-picker-20261104"></head><body><main><h1>KEIBA NINE</h1><p>本人用プレビュー｜架空テスト</p><p class="muted" id="uiVersion">画面版：iphone-operator-factor-20261104-v3</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
 <p class="research-intro">見やすい予想画面の動作確認。<strong>架空8頭のテスト専用</strong>です。実レース・JRDB有料データ・購入には使えません。</p>
 <button id="researchDemo" class="primary-run">架空8頭で予想画面を確認</button>
 <p id="researchMessage" role="status">未検証。上のボタンで架空8頭の画面を表示できます。</p>
@@ -55,7 +56,7 @@ HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name=
 <textarea id="researchInput" spellcheck="false" placeholder="架空データ専用です。実データやAPIキーを貼らないでください。"></textarea>
 <button id="researchRun">入力した架空データで分析する</button></details>
 <p class="muted research-disclaimer">画面・データは研究用。保存・公開・外部送信・馬券購入は行いません。将来の本番予想とは完全に分離しています。</p>
-</section><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>開催日の出走表を取得</button><div id="programmePicker" class="programme-picker"><p class="muted">実データ接続前でも、架空レースで競馬場・レースの選択操作を試せます。実際の出走馬・予想・買い目は表示しません。</p><button id="programmeDemo" type="button">架空レースで選択操作を試す</button><p id="programmeDemoNotice" class="muted" role="status">架空テストは実在しない2099年の日付を使用します。</p><label for="programmeTrack">競馬場</label><select id="programmeTrack" disabled><option value="">出走表を取得してください</option></select><label for="programmeRace">レース</label><select id="programmeRace" disabled><option value="">競馬場を選択してください</option></select><p id="programmeSelected" class="muted" role="status">未選択・実戦予想は未接続</p><button id="programmeReadiness" type="button" disabled>選んだ1Rの資料をまとめて確認</button><p id="programmeReadinessResult" class="muted" role="status">出走表とレースを選ぶと、調教・近走・出走取消・馬場の確認状況をまとめて表示します。実データ未接続の間は利用できません。</p></div><button id="context" disabled>コース・距離・馬場を確認</button><button id="raceday" disabled>出走取消・当日馬場・発走前の情報を確認</button><p class="muted">JRA公式の変更・出馬表・馬場は<a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式競馬メニュー</a>で別途確認（自動照合は未接続）。</p><button id="coverage" disabled>全場・全Rの取得状況を確認</button><button id="evidence" disabled>調教・近走の資料状況を確認</button><button id="history" disabled>過去の重・不良馬場を照合（最大8レース）</button><p class="muted">本人が実行した時だけ過去APIを最大16回照会します。実データ接続前は無効です。</p><p id="message" role="status"></p><div id="races"></div></section><section><h2>JRA画面を見ながら1レースを手入力照合</h2><p class="muted">本人専用。上の開催日を選んで、JRA公式サイトで確認した項目だけ入力します。入力はこの照合で一度だけ使用し、保存しません。データの出所を自動認証できないため、差分ゼロでも「公式確認済み」にはなりません。</p><label for="manualTrack">競馬場</label><select id="manualTrack"><option value="">競馬場を選ぶ</option><option value="札幌">札幌</option><option value="函館">函館</option><option value="福島">福島</option><option value="新潟">新潟</option><option value="東京">東京</option><option value="中山">中山</option><option value="中京">中京</option><option value="京都">京都</option><option value="阪神">阪神</option><option value="小倉">小倉</option></select><label for="manualRace">レース</label><select id="manualRace"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option><option value="4">4R</option><option value="5">5R</option><option value="6">6R</option><option value="7">7R</option><option value="8">8R</option><option value="9">9R</option><option value="10">10R</option><option value="11">11R</option><option value="12">12R</option></select><label for="manualTime">JRAサイトで見た発走時刻（任意、HH:MM）</label><input id="manualTime" type="text" maxlength="5" inputmode="numeric" placeholder="例 10:05"><label for="manualSurface">芝・ダート（任意）</label><select id="manualSurface"><option value="">未入力</option><option>芝</option><option>ダート</option><option>障害</option></select><label for="manualGoing">馬場状態（任意）</label><select id="manualGoing"><option value="">未入力</option><option>良</option><option>稍重</option><option>重</option><option>不良</option></select><label for="manualHorse">取消を確認した馬番（任意・1頭ずつ）</label><select id="manualHorse"><option value="">対象馬なし</option><option value="01">1番</option><option value="02">2番</option><option value="03">3番</option><option value="04">4番</option><option value="05">5番</option><option value="06">6番</option><option value="07">7番</option><option value="08">8番</option><option value="09">9番</option><option value="10">10番</option><option value="11">11番</option><option value="12">12番</option><option value="13">13番</option><option value="14">14番</option><option value="15">15番</option><option value="16">16番</option><option value="17">17番</option><option value="18">18番</option></select><label for="manualStatus">その馬の状態</label><select id="manualStatus"><option value="unknown">未確認</option><option value="active">出走予定</option><option value="withdrawn">取消</option></select><button id="manualCompare" disabled>入力内容とJRDB資料を1回比較</button><p id="manualMessage" role="status">未実行。本人専用HTTPSとJRDB接続の設定が必要です。</p><div id="manualResults"></div><p class="muted">比較対象は最大1レース。JRA公式からの自動取得ではありません。再実行するとその時点の資料を取り直し、前回の差分件数と比較します（画面を閉じれば前回値は消えます）。</p></section><section><h2>接続準備の診断</h2><p class="muted">本人用の設定だけを確認します。JRDBへの通信や会員情報の確認、予想作成は行いません。</p><button id="diagnose">安全な設定診断を実行</button><p id="diagnostic" role="status">診断は未実施です。</p></section><p>この画面は接続確認用です。実データからのランク評価・買い目作成にはまだ接続していません。取得した内容は公開アプリやGoogleシートへ送信しません。</p></main><script src="/app.js?v=owner-entry-factors-20261104" defer></script></body></html>'''
+</section><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>開催日の出走表を取得</button><div id="programmePicker" class="programme-picker"><p class="muted">実データ接続前でも、架空レースで競馬場・レースの選択操作を試せます。実際の出走馬・予想・買い目は表示しません。</p><button id="programmeDemo" type="button">架空レースで選択操作を試す</button><p id="programmeDemoNotice" class="muted" role="status">架空テストは実在しない2099年の日付を使用します。</p><label for="programmeTrack">競馬場</label><select id="programmeTrack" disabled><option value="">出走表を取得してください</option></select><label for="programmeRace">レース</label><select id="programmeRace" disabled><option value="">競馬場を選択してください</option></select><p id="programmeSelected" class="muted" role="status">未選択・実戦予想は未接続</p><button id="programmeReadiness" type="button" disabled>選んだ1Rの資料をまとめて確認</button><p id="programmeReadinessResult" class="muted" role="status">出走表とレースを選ぶと、調教・近走・出走取消・馬場の確認状況をまとめて表示します。実データ未接続の間は利用できません。</p></div><button id="context" disabled>コース・距離・馬場を確認</button><button id="raceday" disabled>出走取消・当日馬場・発走前の情報を確認</button><p class="muted">JRA公式の変更・出馬表・馬場は<a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式競馬メニュー</a>で別途確認（自動照合は未接続）。</p><button id="coverage" disabled>全場・全Rの取得状況を確認</button><button id="evidence" disabled>調教・近走の資料状況を確認</button><button id="history" disabled>過去の重・不良馬場を照合（最大8レース）</button><p class="muted">本人が実行した時だけ過去APIを最大16回照会します。実データ接続前は無効です。</p><p id="message" role="status"></p><div id="races"></div></section><section id="operatorFactorPanel"><h2>本人用・評価資料の入力チェック</h2><p class="muted">上の「開催日」を選び、馬番と資料項目を選択。JRDB契約前でも利用できます。記録があるかの自己申告を形式確認するだけで、能力評価やJRA公式照合は行いません。画面を閉じると入力件数は消えます。</p><label for="noteTrack">競馬場</label><select id="noteTrack"><option value="">競馬場を選ぶ</option><option value="札幌">札幌</option><option value="函館">函館</option><option value="福島">福島</option><option value="新潟">新潟</option><option value="東京">東京</option><option value="中山">中山</option><option value="中京">中京</option><option value="京都">京都</option><option value="阪神">阪神</option><option value="小倉">小倉</option></select><label for="noteRace">レース</label><select id="noteRace"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option><option value="4">4R</option><option value="5">5R</option><option value="6">6R</option><option value="7">7R</option><option value="8">8R</option><option value="9">9R</option><option value="10">10R</option><option value="11">11R</option><option value="12">12R</option></select><label for="noteHorse">馬番</label><select id="noteHorse"><option value="01">1番</option><option value="02">2番</option><option value="03">3番</option><option value="04">4番</option><option value="05">5番</option><option value="06">6番</option><option value="07">7番</option><option value="08">8番</option><option value="09">9番</option><option value="10">10番</option><option value="11">11番</option><option value="12">12番</option><option value="13">13番</option><option value="14">14番</option><option value="15">15番</option><option value="16">16番</option><option value="17">17番</option><option value="18">18番</option></select><label for="noteFactor">確認する項目</label><select id="noteFactor"><option value="training">調教</option><option value="recent">近走</option><option value="course_distance">コース・距離</option><option value="pace">展開・脚質</option><option value="ground">馬場</option><option value="pedigree">血統</option><option value="draw_weight">枠・斤量</option><option value="jockey_stable">騎手・厩舎</option><option value="rotation">ローテ</option><option value="body_condition">馬体・状態</option></select><label for="noteState">資料の状態</label><select id="noteState"><option value="unknown">未確認</option><option value="noted">自分で資料を見た</option></select><label for="noteSource">資料の種類</label><select id="noteSource"><option value="none">未選択</option><option value="jra_page_viewed_by_operator">JRAページを自分で確認</option><option value="operator_observation">自分自身の観察</option></select><button id="noteRun" type="button">この1項目を入力チェック</button><p id="noteResult" class="muted" role="status">未実行。本人用画面の中だけで数え、保存・公開・予想生成はしません。</p><p class="muted">馬名・指数・有料資料の原文やパスワードは入力しないでください。ここでの「見た」は正式な資料検証ではありません。</p></section><section><h2>JRA画面を見ながら1レースを手入力照合</h2><p class="muted">本人専用。上の開催日を選んで、JRA公式サイトで確認した項目だけ入力します。入力はこの照合で一度だけ使用し、保存しません。データの出所を自動認証できないため、差分ゼロでも「公式確認済み」にはなりません。</p><label for="manualTrack">競馬場</label><select id="manualTrack"><option value="">競馬場を選ぶ</option><option value="札幌">札幌</option><option value="函館">函館</option><option value="福島">福島</option><option value="新潟">新潟</option><option value="東京">東京</option><option value="中山">中山</option><option value="中京">中京</option><option value="京都">京都</option><option value="阪神">阪神</option><option value="小倉">小倉</option></select><label for="manualRace">レース</label><select id="manualRace"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option><option value="4">4R</option><option value="5">5R</option><option value="6">6R</option><option value="7">7R</option><option value="8">8R</option><option value="9">9R</option><option value="10">10R</option><option value="11">11R</option><option value="12">12R</option></select><label for="manualTime">JRAサイトで見た発走時刻（任意、HH:MM）</label><input id="manualTime" type="text" maxlength="5" inputmode="numeric" placeholder="例 10:05"><label for="manualSurface">芝・ダート（任意）</label><select id="manualSurface"><option value="">未入力</option><option>芝</option><option>ダート</option><option>障害</option></select><label for="manualGoing">馬場状態（任意）</label><select id="manualGoing"><option value="">未入力</option><option>良</option><option>稍重</option><option>重</option><option>不良</option></select><label for="manualHorse">取消を確認した馬番（任意・1頭ずつ）</label><select id="manualHorse"><option value="">対象馬なし</option><option value="01">1番</option><option value="02">2番</option><option value="03">3番</option><option value="04">4番</option><option value="05">5番</option><option value="06">6番</option><option value="07">7番</option><option value="08">8番</option><option value="09">9番</option><option value="10">10番</option><option value="11">11番</option><option value="12">12番</option><option value="13">13番</option><option value="14">14番</option><option value="15">15番</option><option value="16">16番</option><option value="17">17番</option><option value="18">18番</option></select><label for="manualStatus">その馬の状態</label><select id="manualStatus"><option value="unknown">未確認</option><option value="active">出走予定</option><option value="withdrawn">取消</option></select><button id="manualCompare" disabled>入力内容とJRDB資料を1回比較</button><p id="manualMessage" role="status">未実行。本人専用HTTPSとJRDB接続の設定が必要です。</p><div id="manualResults"></div><p class="muted">比較対象は最大1レース。JRA公式からの自動取得ではありません。再実行するとその時点の資料を取り直し、前回の差分件数と比較します（画面を閉じれば前回値は消えます）。</p></section><section><h2>接続準備の診断</h2><p class="muted">本人用の設定だけを確認します。JRDBへの通信や会員情報の確認、予想作成は行いません。</p><button id="diagnose">安全な設定診断を実行</button><p id="diagnostic" role="status">診断は未実施です。</p></section><p>この画面は接続確認用です。実データからのランク評価・買い目作成にはまだ接続していません。取得した内容は公開アプリやGoogleシートへ送信しません。</p></main><script src="/app.js?v=owner-factor-intake-20261104" defer></script></body></html>'''
 CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.7 system-ui,sans-serif}main{max-width:680px;margin:auto;padding:24px}h1{color:#efc66b}section{background:#172d48;padding:20px;border-radius:18px;margin:12px 0}.muted{font-size:14px;color:#c5d3e5}label{display:block}input,button,select{box-sizing:border-box;font:inherit;padding:12px;width:100%;margin:8px 0;border-radius:10px;border:1px solid #8b9eb7}button{background:#efc66b;color:#10213b;font-weight:700}button:disabled{opacity:.5}.race{border-bottom:1px solid #415878;padding:12px 0}p{overflow-wrap:anywhere}textarea{box-sizing:border-box;width:100%;min-height:120px;background:#0a2035;color:#edf3fa;border:1px solid #829bbb;border-radius:9px;padding:12px;font:14px/1.5 ui-monospace,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;background:#0a2035;padding:12px;border-radius:9px}
 .research-panel{background:linear-gradient(170deg,#1b3552,#10263f 72%);border:1px solid #4c6b8d}
 .research-panel h2{font-size:26px;line-height:1.25;margin:8px 0 12px}
@@ -681,6 +682,49 @@ el('history').onclick=async()=>{
  }catch(e){el('message').textContent=e.message;}
  finally{b.disabled=!historyEnabled;}
 };
+const operatorNotes=new Map();
+el('noteRun').onclick=async()=>{
+ const b=el('noteRun');b.disabled=true;
+ try{
+  if(!el('date').value)throw Error('開催日を選んでください');
+  const date=el('date').value.replaceAll('-',''),track=el('noteTrack').value;
+  if(!track)throw Error('競馬場を選んでください');
+  const race=Number(el('noteRace').value),horseNumber=el('noteHorse').value;
+  const factor=el('noteFactor').value,state=el('noteState').value,source=el('noteSource').value;
+  if(state==='noted'&&source==='none')
+   throw Error('見た資料の種類を選んでください');
+  if(state==='unknown'&&source!=='none')
+   throw Error('未確認のときは資料の種類を「未選択」にしてください');
+  const payload={recordType:'operator_factor_note',date,track,race,
+                 horseNumber,factor,state,source};
+  const r=await fetch('/api/operator/factor-note',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'Content-Type':'application/json','X-Keiba-Request':'private'},
+   body:JSON.stringify(payload)
+  });
+  const data=await r.json();
+  if(!r.ok)throw Error(data.error||'入力の確認に失敗しました');
+  if(data.version!=='operator-factor-intake-1'
+     ||data.recordType!=='operator_factor_note'
+     ||data.date!==date||data.track!==track||data.race!==race
+     ||data.factor!==factor||data.state!==state||data.sourceKind!==source
+     ||data.submittedByOperator!==true||data.saved!==false
+     ||data.sourceAuthenticated!==false||data.verifiedBeforePostTime!==false
+     ||data.jraOfficialFinalVerification!==false
+     ||data.grade!=='未評価'||data.gradedFactorCount!==0
+     ||data.predictionReady!==false||data.bettingReady!==false)
+    throw Error('未検証の入力として確認できません');
+  const key=[date,track,race,horseNumber].join('|');
+  const notes=operatorNotes.get(key)||new Map();
+  notes.set(factor,state);
+  operatorNotes.set(key,notes);
+  const viewed=[...notes.values()].filter(v=>v==='noted').length;
+  el('noteResult').textContent=track+race+'R・'+Number(horseNumber)+'番｜'
+      +'本人が入力した項目 '+notes.size+'/10（資料を見た '+viewed+'／未確認 '
+      +(notes.size-viewed)+'）｜保存なし／能力ランク未評価／公式照合未実施';
+ }catch(e){el('noteResult').textContent=e.message;}
+ finally{b.disabled=false;}
+};
 let previousManualComparison=null;
 el('manualCompare').onclick=async()=>{
  const button=el('manualCompare');button.disabled=true;
@@ -949,6 +993,24 @@ def create_app(settings=None):
                 return response('502 Bad Gateway', {
                     'error': '出走取消・馬場の資料が安全に照合できませんでした。'})
             return response('200 OK', report)
+        if method == 'POST' and path == '/api/operator/factor-note':
+            # Own enumerated manual input only; no JRDB request, storage, or
+            # evaluation. Keep the route behind the existing owner auth.
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower() != 'application/json'):
+                return response('400 Bad Request', {'error': '本人入力の形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < size <= 350:
+                    raise ValueError()
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise ValueError()
+                result = validate_operator_factor_note(json.loads(raw), _now_in_jst())
+            except (ValueError, TypeError, KeyError, UnicodeError):
+                return response('400 Bad Request', {
+                    'error': '開催日・競馬場・レース・馬番・資料項目を確認してください。'})
+            return response('200 OK', result)
         if method == 'POST' and path == '/api/jrdb/compare-manual':
             # One owner-entered race only, no storage and no claiming JRA
             # authenticity. Validate the entire input BEFORE any provider call.
