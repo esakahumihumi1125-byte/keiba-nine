@@ -40,7 +40,19 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         self.assertFalse(result["predictionReady"])
         self.assertFalse(result["bettingReady"])
         self.assertEqual(result["gradedFactors"], 0)
-        self.assertEqual(result["version"], "selected-race-readiness-3")
+        self.assertEqual(result["version"], "selected-race-readiness-4")
+        entry = result["entryMaterials"]
+        self.assertEqual(entry["observedFactorSlots"], 6)
+        self.assertEqual(entry["unmappedFactors"], 4)
+        self.assertEqual(entry["verifiedFactorCount"], 0)
+        self.assertFalse(entry["pedigreeAptitudeAssessed"])
+        self.assertFalse(entry["drawWeightEffectAssessed"])
+        self.assertFalse(entry["rotationEffectAssessed"])
+        self.assertEqual(sum(entry["rotationIntervals"].values()), 2)
+        self.assertEqual(entry["rotationIntervals"]["under14Days"], 0)
+        self.assertEqual(entry["rotationIntervals"]["days14to55"], 1)
+        self.assertEqual(entry["rotationIntervals"]["unknown"], 1)
+        self.assertEqual(entry["entryObservations"]["bothPedigreeRecorded"], 0)
         pair = result["factorResearch"]
         bridge = result["factorMaterials"]
         self.assertEqual(bridge["unmappedFactors"], 7)
