@@ -142,6 +142,21 @@ class OwnerSessionTests(unittest.TestCase):
                          HTTP_ORIGIN="")
         self.assertEqual(rejected["status"], "401 Unauthorized")
 
+    def test_public_origin_setting_survives_render_proxy_host_mismatch(self):
+        good = {"username": "owner", "password": SETTINGS["KEIBA_OWNER_PASSWORD"]}
+        app = create_app({**SETTINGS, "RENDER": "true",
+                          "KEIBA_OWNER_PUBLIC_ORIGIN":
+                          "https://keiba-nine-owner-preview.onrender.com"})
+        proxy = {"HTTP_HOST": "render-internal:10000",
+                 "HTTP_SEC_FETCH_SITE": "same-site"}
+        accepted = login(app, good, **proxy)
+        self.assertEqual(accepted["status"], "303 See Other")
+        denied = login(app, good, HTTP_ORIGIN="https://unrelated.example", **proxy)
+        self.assertEqual(denied["status"], "401 Unauthorized")
+        self.assertIn(b"R3", denied["body"])
+        missing_origin = login(app, good, HTTP_ORIGIN="", **proxy)
+        self.assertEqual(missing_origin["status"], "401 Unauthorized")
+
     def test_failed_form_does_not_leak_password_or_issue_cookie(self):
         good = {"username": "owner", "password": SETTINGS["KEIBA_OWNER_PASSWORD"]}
         with patch("private_service.fetch_race_program") as provider:
