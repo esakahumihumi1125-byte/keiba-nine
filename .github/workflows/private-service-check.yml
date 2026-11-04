@@ -1,17 +1,12 @@
 name: Private service checks
+# Render's checksPass deploy gate needs a CI result on every main commit.
+# Do not add path filters: documentation, HTML, JSON, and render.yaml updates
+# must also run the same validation before Render is allowed to deploy.
 on:
   push:
-    paths:
-      - 'scripts/**'
-      - 'tests/test_*.py'
-      - 'deploy/**'
-      - '.github/workflows/private-service-check.yml'
+    branches: [main]
   pull_request:
-    paths:
-      - 'scripts/**'
-      - 'tests/test_*.py'
-      - 'deploy/**'
-      - '.github/workflows/private-service-check.yml'
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
