@@ -2,6 +2,7 @@
 import hashlib
 import io
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -18,7 +19,22 @@ from test_private_service import SETTINGS, AUTH, call
 
 
 def login(app, fields, **changes):
-    raw = urlencode(fields).encode()
+    # Obtain the real browser-bound form nonce and its host-only cookie.
+    get_env = {
+        "wsgi.url_scheme": "https",
+        "REMOTE_ADDR": "127.0.0.1",
+        "PATH_INFO": "/login",
+        "REQUEST_METHOD": "GET",
+        "HTTP_AUTHORIZATION": "",
+        "wsgi.input": io.BytesIO(b""),
+    }
+    page = {}
+    def page_start(status, headers):
+        page.update(status=status, headers=dict(headers))
+    html = b"".join(app(get_env, page_start)).decode()
+    token = re.search(r'name="login_csrf" value="([A-Za-z0-9_-]+)"', html).group(1)
+    cookie = page["headers"]["Set-Cookie"].split(";", 1)[0]
+    raw = urlencode({**fields, "login_csrf": token}).encode()
     environ = {
         "wsgi.url_scheme": "https",
         "REMOTE_ADDR": "127.0.0.1",
@@ -26,6 +42,7 @@ def login(app, fields, **changes):
         "REQUEST_METHOD": "POST",
         "HTTP_HOST": "keiba-nine-owner-preview.onrender.com",
         "HTTP_ORIGIN": "https://keiba-nine-owner-preview.onrender.com",
+        "HTTP_COOKIE": cookie,
         "CONTENT_TYPE": "application/x-www-form-urlencoded",
         "CONTENT_LENGTH": str(len(raw)),
         "HTTP_AUTHORIZATION": "",
@@ -37,7 +54,6 @@ def login(app, fields, **changes):
         response.update(status=status, headers=dict(headers))
     response["body"] = b"".join(app(environ, start))
     return response
-
 
 class OwnerSessionTests(unittest.TestCase):
     def setUp(self):
@@ -80,6 +96,8 @@ class OwnerSessionTests(unittest.TestCase):
             self.assertIn(b'type="password"', html["body"])
             self.assertIn(b'name="username"', html["body"])
             self.assertNotIn(SETTINGS["KEIBA_OWNER_PASSWORD"].encode(), html["body"])
+            self.assertIn(b'name="login_csrf"', html["body"])
+            self.assertIn("__Host-keiba-login-form=", html["headers"]["Set-Cookie"])
             self.assertEqual(call(self.app, "/login.css", auth="")["status"], "200 OK")
             self.assertTrue(call(self.app, "/api/status", auth="")["status"].startswith("401"))
             self.assertTrue(call(self.app, "/ui-version", auth="")["status"].startswith("401"))
@@ -102,7 +120,8 @@ class OwnerSessionTests(unittest.TestCase):
             missing = call(self.app, "/login", auth="", QUERY_STRING="session=check")
             self.assertEqual(missing["status"], "200 OK")
             self.assertIn("認証情報がブラウザーに保存されていません", missing["body"].decode())
-            self.assertNotIn("Set-Cookie", missing["headers"])
+            self.assertIn("__Host-keiba-login-form=", missing["headers"]["Set-Cookie"])
+            self.assertNotIn("__Host-keiba-session=", missing["headers"]["Set-Cookie"])
             with_cookie = call(self.app, "/login", auth="", HTTP_COOKIE=header,
                                QUERY_STRING="session=check")
             self.assertEqual(with_cookie["status"], "303 See Other")
@@ -133,34 +152,37 @@ class OwnerSessionTests(unittest.TestCase):
         proxy = login(app, good, HTTP_HOST="render-internal:10000",
                       HTTP_SEC_FETCH_SITE="same-site")
         self.assertEqual(proxy["status"], "303 See Other")
-        rejected = login(app, good, HTTP_SEC_FETCH_SITE="same-site",
-                         HTTP_ORIGIN="https://unrelated.example")
-        self.assertEqual(rejected["status"], "401 Unauthorized")
+        # An unusual Origin is harmless if this browser has its own secret
+        # CSRF cookie+form token; only a real cross-site request is rejected.
+        accepted = login(app, good, HTTP_SEC_FETCH_SITE="same-site",
+                         HTTP_ORIGIN="null")
+        self.assertEqual(accepted["status"], "303 See Other")
         rejected = login(app, good, HTTP_SEC_FETCH_SITE="cross-site")
         self.assertEqual(rejected["status"], "401 Unauthorized")
-        rejected = login(app, good, HTTP_SEC_FETCH_SITE="same-site",
+        accepted = login(app, good, HTTP_SEC_FETCH_SITE="same-site",
                          HTTP_ORIGIN="")
-        self.assertEqual(rejected["status"], "401 Unauthorized")
+        self.assertEqual(accepted["status"], "303 See Other")
 
-    def test_public_origin_setting_survives_render_proxy_host_mismatch(self):
+    def test_browser_bound_login_survives_unexpected_origin(self):
         good = {"username": "owner", "password": SETTINGS["KEIBA_OWNER_PASSWORD"]}
         app = create_app({**SETTINGS, "RENDER": "true",
                           "KEIBA_OWNER_PUBLIC_ORIGIN":
                           "https://keiba-nine-owner-preview.onrender.com"})
         proxy = {"HTTP_HOST": "render-internal:10000",
-                 "HTTP_SEC_FETCH_SITE": "same-site"}
-        accepted = login(app, good, **proxy)
+                 "HTTP_SEC_FETCH_SITE": "same-origin"}
+        accepted = login(app, good, HTTP_ORIGIN="null", **proxy)
         self.assertEqual(accepted["status"], "303 See Other")
-        denied = login(app, good, HTTP_ORIGIN="https://unrelated.example", **proxy)
-        self.assertEqual(denied["status"], "401 Unauthorized")
-        self.assertIn(b"R2", denied["body"])
-        mismatch = login(app, good, HTTP_ORIGIN="https://unrelated.example",
-                         HTTP_HOST="render-internal:10000",
-                         HTTP_SEC_FETCH_SITE="same-origin")
-        self.assertEqual(mismatch["status"], "401 Unauthorized")
-        self.assertIn(b"R3", mismatch["body"])
-        missing_origin = login(app, good, HTTP_ORIGIN="", **proxy)
-        self.assertEqual(missing_origin["status"], "401 Unauthorized")
+        accepted = login(app, good, HTTP_ORIGIN="https://browser-oddity.example", **proxy)
+        self.assertEqual(accepted["status"], "303 See Other")
+        rejected = login(app, good, HTTP_ORIGIN="https://unrelated.example",
+                         HTTP_SEC_FETCH_SITE="cross-site",
+                         HTTP_HOST="render-internal:10000")
+        self.assertEqual(rejected["status"], "401 Unauthorized")
+        # An attacker cannot read the host-only random form token and cannot
+        # send the victim's matching cookie from an unrelated origin.
+        rejected = login(app, good, HTTP_COOKIE="", **proxy)
+        self.assertEqual(rejected["status"], "401 Unauthorized")
+        self.assertIn(b"R3", rejected["body"])
 
     def test_failed_form_does_not_leak_password_or_issue_cookie(self):
         good = {"username": "owner", "password": SETTINGS["KEIBA_OWNER_PASSWORD"]}
@@ -177,7 +199,8 @@ class OwnerSessionTests(unittest.TestCase):
             for fields, headers in cases:
                 result = login(self.app, fields, **headers)
                 self.assertEqual(result["status"], "401 Unauthorized")
-                self.assertNotIn("Set-Cookie", result["headers"])
+                self.assertIn("__Host-keiba-login-form=", result["headers"]["Set-Cookie"])
+                self.assertNotIn("__Host-keiba-session=", result["headers"]["Set-Cookie"])
                 self.assertNotIn("WWW-Authenticate", result["headers"])
                 self.assertNotIn(good["password"].encode(), result["body"])
             self.assertEqual(call(self.app, "/", auth=AUTH)["status"], "200 OK")
