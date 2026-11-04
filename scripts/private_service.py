@@ -40,7 +40,7 @@ def _now_in_jst():
 
 UI_VERSION = 'iphone-rank-cards-20261104-v2'
 MAX_BODY = 131072
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用プレビュー｜架空テスト</p><p class="muted" id="uiVersion">画面版：iphone-rank-cards-20261104-v2</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css?theme=gold-s-20261104"></head><body><main><h1>KEIBA NINE</h1><p>本人用プレビュー｜架空テスト</p><p class="muted" id="uiVersion">画面版：iphone-rank-cards-20261104-v2</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
 <p class="research-intro">見やすい予想画面の動作確認。<strong>架空8頭のテスト専用</strong>です。実レース・JRDB有料データ・購入には使えません。</p>
 <button id="researchDemo" class="primary-run">架空8頭で予想画面を確認</button>
 <p id="researchMessage" role="status">未検証。上のボタンで架空8頭の画面を表示できます。</p>
