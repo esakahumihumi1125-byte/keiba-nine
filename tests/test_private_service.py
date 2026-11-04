@@ -967,6 +967,23 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(payload['points'], len(payload['tri']))
         self.assertLessEqual(payload['points'], 40)
         self.assertEqual(payload['stake'], payload['points'] * 100)
+        self.assertEqual(payload['snapshotGate']['version'],
+                         'research-cutoff-snapshot-1')
+        self.assertTrue(payload['snapshotGate']['cutoffChecked'])
+        self.assertFalse(payload['snapshotGate']['verifiedSourceAuthenticity'])
+        self.assertFalse(payload['snapshotGate']['bettingReady'])
+        self.assertEqual(len(payload['snapshotGate']['snapshotSha256']), 64)
+
+    def test_research_api_rejects_evidence_from_after_cutoff(self):
+        race = sample()
+        race['horses'][0]['assessments']['recent']['evidence'][0]['availableAt'] = (
+            race['offAt']
+        )
+        with patch('private_service.fetch_race_program') as source:
+            result = call(self.app, '/api/research', 'POST', data=race)
+        self.assertEqual(result['status'], '400 Bad Request')
+        self.assertNotIn(b'finish', result['body'])
+        source.assert_not_called()
 
     def test_research_pipeline_end_to_end(self):
         result = call(self.app, '/api/research', 'POST', data=sample())

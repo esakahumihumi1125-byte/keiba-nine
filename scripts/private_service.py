@@ -208,9 +208,18 @@ async function runResearch(){
   renderResearchSummary(data,input);
   const label={simulate:'参考買い目を計算',hold:'保留',skip:'見送り'}[data.researchDecision]||'要確認';
   el('researchMessage').textContent='架空テスト成功：'+label+'｜'+data.points+'点・'+data.stake.toLocaleString('ja-JP')+'円（実レース・購入には使えません）';
+  const snapshot=data.snapshotGate;
+  if(snapshot&&(snapshot.version!=='research-cutoff-snapshot-1'
+     ||snapshot.cutoffChecked!==true||snapshot.futureEvidenceRejected!==true
+     ||snapshot.predictionReady!==false||snapshot.bettingReady!==false
+     ||snapshot.verifiedSourceAuthenticity!==false
+     ||snapshot.immutableExternalRecord!==false
+     ||!/^[0-9a-f]{64}$/.test(snapshot.snapshotSha256)))
+    throw Error('予想前の資料時刻検査の状態が不正です');
   const lines=['【総合評価順：架空の評価入力に基づく計算】'];
   for(const h of data.evaluation.horses)
    lines.push((h.rank??'-')+'位  '+h.number+'番  '+h.overall+'  調教：'+h.grades.training+'／近走：'+h.grades.recent+'／コース：'+h.grades.course_distance+'  根拠 '+h.coverage+'%');
+  if(snapshot)lines.push('','【資料時刻検査：架空テスト】','予想時刻以前の根拠のみ・入力の指紋 '+snapshot.snapshotSha256.slice(0,12)+'…','※時刻は自己申告で、実際の記録時刻や提供元の真正性を証明しません');
   lines.push('','【1着候補】'+(data.first.length?data.first.join('・'):'保留・見送り'),
              '【3連単参考】'+(data.tri.length?data.tri.map(t=>t.join('-')).join('、'):'買い目なし'),
              '','理由：'+data.reason,'※架空の動作確認専用。実戦予想・JRA公式との照合・購入・保存は行っていません。');

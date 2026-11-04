@@ -1,6 +1,7 @@
 """Provisional synthetic-only trifecta planner; no purchasing or publishing."""
 from collections import defaultdict
 from evaluation_policy import evaluate_race
+from research_snapshot_guard import audit_research_snapshot
 
 PLANNER_VERSION = 'research-plan-1'
 
@@ -20,13 +21,14 @@ def _whole_score_groups(tickets, limit):
 
 
 def plan_race(race):
+    snapshot = audit_research_snapshot(race)
     evaluation = evaluate_race(race)
     result = {
         'policyVersion': evaluation['policyVersion'], 'plannerVersion': PLANNER_VERSION,
         'recordType': 'test', 'status': 'draft', 'publishable': False,
         'validated': False, 'researchDecision': 'hold', 'reason': '',
         'first': [], 'tri': [], 'points': 0, 'stake': 0, 'unit': 100,
-        'evaluation': evaluation,
+        'evaluation': evaluation, 'snapshotGate': snapshot,
     }
 
     def stop(reason, decision='hold'):
