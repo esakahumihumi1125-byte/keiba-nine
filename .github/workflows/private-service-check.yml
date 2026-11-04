@@ -39,6 +39,7 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from private_service import JS; from pathlib import Path; Path('/tmp/keiba-private-console.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-private-console.js
           node scripts/check-private-research-ui.cjs
+          node scripts/check-private-program-picker-ui.cjs
           node scripts/check-private-course-ui.cjs
           node scripts/check-private-history-ui.cjs
           node scripts/check-private-raceday-ui.cjs
