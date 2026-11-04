@@ -79,7 +79,7 @@ CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.7 system-ui,
 .horse-rank{font-size:13px;color:#cad7e6;flex:0 0 31px;text-align:center}
 .horse-number{font-size:23px;font-weight:800;flex:0 0 50px;text-align:center}
 .grade-tag{font-size:14px;font-weight:900;border-radius:7px;padding:4px 10px;min-width:27px;text-align:center;color:white}
-.grade-s{background:#117c64}.grade-a{background:#c6374c}.grade-b{background:#385cbd}.grade-c{background:#5a6270}.grade-unknown{background:#59677b}
+.grade-s{background:#D4AF37;color:#0B2343;border:1px solid #E6C75A}.grade-a{background:#c6374c}.grade-b{background:#385cbd}.grade-c{background:#5a6270}.grade-unknown{background:#59677b}
 .horse-meta{font-size:11px;color:#c5d3e5;line-height:1.5;min-width:0;overflow-wrap:anywhere;flex:1}
 .formation-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .formation-col{min-width:0;background:#0a2034;border:1px solid #45627c;padding:9px 6px;border-radius:10px;text-align:center}
