@@ -73,6 +73,7 @@ assert.equal($('mSaved').children.length,1,'reset cannot delete a saved record')
 const second=boot(),get=second.el;
 get('mDate').value='2026-11-07';get('mDate').onchange();
 get('mTrack').value='東京';get('mTrack').onchange();
+get('mRace').value='1';get('mRace').onchange();
 assert.equal(get('mCount').textContent,'36点','same storage restores across reload');
 assert.ok(writes.length>=1);
 assert.ok(!js.includes('fetch('),'must not call paid or public APIs');
