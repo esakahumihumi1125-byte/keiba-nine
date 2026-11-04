@@ -190,7 +190,7 @@ class OwnerSessionTests(unittest.TestCase):
             cases = [
                 ({**good, "password": "wrong"}, {}),
                 ({**good, "username": "other"}, {}),
-                (good, {"HTTP_ORIGIN": "https://other.example"}),
+                (good, {"HTTP_COOKIE": ""}),
                 (good, {"HTTP_SEC_FETCH_SITE": "cross-site"}),
                 (good, {"CONTENT_TYPE": "application/json"}),
                 (good, {"QUERY_STRING": "debug=1"}),
