@@ -42,6 +42,23 @@ class PrivateServiceTests(unittest.TestCase):
                     self.assertTrue(call(self.app, path=path, auth=auth)['status'].startswith('401'))
             fetch.assert_not_called()
 
+    def test_private_selectors_are_read_only_without_paid_credentials(self):
+        page = call(self.app, '/')['body'].decode('utf-8')
+        script = call(self.app, '/app.js')['body'].decode('utf-8')
+        self.assertIn('id="programmeTrack" disabled', page)
+        self.assertIn('id="programmeRace" disabled', page)
+        self.assertIn('id="programmeSelected"', page)
+        self.assertIn('function loadProgrammePicker(rows,day)', script)
+        self.assertIn('function showProgrammeSelection()', script)
+        self.assertIn('selectedProgramme=[];loadedProgrammeDate', script)
+        self.assertIn('実戦予想は未接続', script)
+        self.assertNotIn('innerHTML', script)
+        with patch('private_service.fetch_race_program') as provider:
+            failed = call(self.app, '/api/jrdb/program',
+                          QUERY_STRING='date=20261107')
+            self.assertTrue(failed['status'].startswith('503'))
+            provider.assert_not_called()
+
     def test_owner_ui_diagnostics_report_actual_served_layout(self):
         with patch('private_service.fetch_race_program') as provider:
             root = call(self.app, '/')
