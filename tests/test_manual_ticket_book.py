@@ -41,7 +41,6 @@ class PrivateManualNotebookTests(unittest.TestCase):
                     "mCost", "mSave", "mSaved", "mExport"):
             self.assertIn('id="' + id_ + '"', HTML)
         self.assertIn("AI予想・JRAの出走確定・購入履歴ではありません", HTML)
-        self.assertIn("同じ", "同じ")
         self.assertIn("localStorage.setItem", JS)
         self.assertIn("keiba-nine-owner-ticket-drafts-v1", JS)
         self.assertIn("ticketsFor(first,second,third)", JS)
