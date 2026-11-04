@@ -71,8 +71,11 @@ def main():
         status, _ = _request(url, {})
         assert status == 426, "HTTP without verified edge scheme must be refused"
         forwarded = {"X-Forwarded-Proto": "https"}
-        status, _ = _request(url, forwarded)
-        assert status == 401, "Unauthenticated HTTPS-forwarded visit must be denied"
+        # Public owner sign-in is served, but private app content is not.
+        # urllib automatically follows the unauthenticated / -> /login redirect.
+        status, login_html = _request(url, forwarded)
+        assert status == 200 and b'name="password"' in login_html
+        assert b'id="researchPanel"' not in login_html
         credentials = base64.b64encode(
             ("owner:" + env["KEIBA_OWNER_PASSWORD"]).encode()).decode()
         headers = {**forwarded, "Authorization": "Basic " + credentials}
