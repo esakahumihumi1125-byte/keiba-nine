@@ -6,7 +6,8 @@ services:
     runtime: python
     plan: free
     branch: main
-    autoDeployTrigger: "off"
+    # Only auto-deploy a tested revision on main.
+    autoDeployTrigger: "checksPass"
     buildCommand: pip install -r deploy/render-requirements.txt
     startCommand: gunicorn --config deploy/render-gunicorn.py
     envVars:
