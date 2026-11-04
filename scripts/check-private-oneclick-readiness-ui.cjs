@@ -20,7 +20,7 @@ const programme=[{racedate:'20261107',track:'東京',race:1,race_name:'架空の
  post_time:'10:00',surface:'芝',distance_m:1600,headcount:8,
  programmeOnly:true,horsesVerified:false}];
 let badSource=false,slow=false,release=null;
-const selected=()=>({version:'selected-race-readiness-2',
+const selected=()=>({version:'selected-race-readiness-3',
  date:'20261107',track:'東京',race:1,
  observedEntries:8,expectedRunners:8,entryCountMatchesSource:true,
  trainingUnaccounted:2,lastWeekUnaccounted:8,pastRunUnaccounted:3,
@@ -29,6 +29,10 @@ const selected=()=>({version:'selected-race-readiness-2',
  factorResearch:{bothGraded:3,trainingOnly:2,recentOnly:1,neither:2,
   sameGrade:1,trainingHigher:1,recentHigher:1,largeDisagreement:1,bothHigh:1,
   remainingFactors:8,experimental:true,predictionReady:false},
+ factorMaterials:{pastFourthCorner:{frontObserved:3,backObserved:1,
+  mixedObserved:2,insufficient:2},trainingProvisional:5,recentProvisional:4,
+  observedFactors:3,verifiedFactorCount:0,unmappedFactors:7,
+  paceForecastAvailable:false,overallRankReady:false,predictionReady:false},
  sourceSnapshotNotOfficial:true,independentJraConnected:false,
  officialJraFinalVerification:badSource,gradedFactors:0,predictionReady:false,
  bettingReady:false
@@ -74,6 +78,8 @@ async function tick(){await new Promise(r=>setImmediate(r));await new Promise(r=
  assert.match(el('programmeReadinessResult').textContent,/調教と近走の暫定評価：両方あり 3頭/);
  assert.match(el('programmeReadinessResult').textContent,/評価差が大きい馬 1頭/);
  assert.match(el('programmeReadinessResult').textContent,/勝ち馬候補ではありません/);
+ assert.match(el('programmeReadinessResult').textContent,/過去4角位置（展開の材料のみ）：前方観測 3頭/);
+ assert.match(el('programmeReadinessResult').textContent,/残り7項目は未接続/);
  assert.match(el('programmeReadinessResult').textContent,/10項目評価：未実施/);
  assert.match(el('programmeReadinessResult').textContent,/独立したJRAデータ取得：未接続/);
  assert.equal(el('programmeReadiness').disabled,false,'re-enabled for manual retry');
