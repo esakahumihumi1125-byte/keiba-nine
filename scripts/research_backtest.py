@@ -91,7 +91,9 @@ def backtest(races, outcomes, split_at):
         else:
             raise ValueError('A race crosses the split boundary; use a boundary between prediction windows')
         rows.append({'raceId': race['raceId'], 'partition': partition,
-                     'plan': plan, 'predictionHash': fingerprint, 'settlement': settlement})
+                     'plan': plan, 'predictionHash': fingerprint,
+                     'snapshotSha256': plan['snapshotGate']['snapshotSha256'],
+                     'settlement': settlement})
     return {'recordType': 'test', 'validated': False, 'splitAt': split_at, 'rows': rows,
             'summary': _summary(rows),
             'development': _summary([r for r in rows if r['partition'] == 'development']),
