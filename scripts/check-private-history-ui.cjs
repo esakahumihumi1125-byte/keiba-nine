@@ -32,6 +32,18 @@ async function fetchMock(url, options) {
     tenFactorMaterials:{predictionReady:false,bettingReady:false,gradedFactors:0,
       races:[{track:'東京',race:1,runnerCount:3,predictionReady:false,bettingReady:false,
               gradedFactors:0,factors:materialsFactors}]},
+    privateHistoryFactors:{
+      version:'private-course-ground-materials-1',
+      raceCount:1,predictionReady:false,bettingReady:false,
+      races:[{track:'東京',race:1,runnerCount:3,
+       runnersWithComparableCourse:2,runnersWithKnownGoingComparable:1,
+       runnersWithWetComparable:1,runnersMatchingCurrentGoing:1,
+       runnersWithIncompleteHistory:1,unknownComparableGoingRuns:1,
+       runnersWithCurrentGoingUnknown:0,
+       observationOnlyFactors:['pace','course_distance','ground'],
+       unmappedFactorCount:5,verifiedFactorCount:0,suitabilityAssessed:false,
+       overallRankReady:false,predictionReady:false,bettingReady:false}]
+    },
     evidenceQuality:{predictionReady:false,predictionConfidenceAssessed:false,
       races:[{track:'東京',race:1,runnerCount:3,unlinkedPastRuns:1,
         courseComparableSamples:{none:1,oneOrTwo:1,threePlus:1},
@@ -76,6 +88,10 @@ async function settle(){
  assert.match(el('races').children[0].textContent,/10項目の資料：調教 2\/3頭/);
  assert.match(el('races').children[0].textContent,/距離 2\/3頭、馬場 1\/3頭/);
  assert.match(el('races').children[0].textContent,/残り6項目は未接続/);
+ assert.match(el('races').children[0].textContent,/コース比較あり 2頭/);
+ assert.match(el('races').children[0].textContent,/馬場比較あり 1頭/);
+ assert.match(el('races').children[0].textContent,/履歴未完成 1頭/);
+ assert.match(el('races').children[0].textContent,/5項目は未マップ/);
  assert.match(el('races').children[0].textContent,/全10項目：未評価/);
  assert.equal(el('history').disabled,false);
  assert.ok(!script.includes('innerHTML'));
