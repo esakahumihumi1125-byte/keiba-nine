@@ -7,7 +7,7 @@
 - Render FreeのWeb ServiceはHTTPSの**公開URL**を持ちます。Basic認証で画面を守りますが、インターネットから認証画面にはアクセス可能であり、Renderの内部限定Private Serviceとは異なります。
 - **架空8頭の10項目評価・3連単テスト・設定診断のみ**を利用します。有料JRDBのAPIキー、JRDB生データ、本人の馬券記録は入れないでください。
 - JRDB_PRIVATE_ENABLED=0、KEIBA_HISTORY_ENABLED=0、KEIBA_MANUAL_REFERENCE_ENABLED=0。起動設定が有効化やJRDBの秘密キーの存在を検出したら**起動を拒否**します。
-- Freeは15分間アクセスしないと休止し、再起動に時間がかかることがあります。永続ファイル保存なし。無料枠の時間・帯域・ビルド時間等に制限があります。自動デプロイも無効です。
+- Freeは15分間アクセスしないと休止し、再起動に時間がかかることがあります。永続ファイル保存なし。無料枠の時間・帯域・ビルド時間等に制限があります。自動デプロイは **GitHubのCIチェック成功後に有効** となる設定です。ただし既存サービスがBlueprintと同期されていなければRender側の設定変更も必要です。
 
 ## Safariからの準備手順
 
@@ -24,7 +24,7 @@
 - Basic認証はSafariに資格情報が残る場合があり、独立したログアウト・多要素認証はありません。Renderアカウントには二段階認証を使い、パスワードを使い回さないでください。
 - URLを知る第三者も認証画面には到達できます。秘密が漏れた場合、RenderのEnvironmentで直ちにパスワードを更新してください。
 - このGunicorn設定は、RenderのTLSエッジが届く場合に限り転送プロトコルを信用します。**直接ポートへ外部から接続できるVPSには流用しないでください。**
-- Renderは自動デプロイを無効にしています。GitHubの更新を確認せずにRenderへ反映しません。
+- RenderはGitHubの自動テスト成功後に自動デプロイする設定です。既存サービスではRender側の設定と整合しているか確認してください。
 - WSGIアクセスログを無効にしていますが、Render側で保持されるプラットフォームログや試行制限の詳細までは保証しません。
 - paid APIを使いたい場合は、利用条件・秘密情報管理・出走データの取り扱いを別の非公開環境で見直します。このプレビューへ課金APIの認証情報を登録しないでください。
 
@@ -59,7 +59,7 @@
 - 長いJSON入力欄・ファイル選択は「開発者向け」詳細内に格納。架空テスト表示は常に明記。
 - 計算・実レース、公開予想、馬券購入、記録・Googleバックアップは分離したまま。
 
-**Render側の更新について：** このPreviewは自動デプロイをOFFにしています。
+**Render側の更新について：** 以下は自動デプロイ有効化前の手順です。
 GitHubの改良が本体`main`に反映されたあと、Renderの
 [keiba-nine-owner-preview-mvxz](https://keiba-nine-owner-preview-mvxz.onrender.com)
 を管理画面から開き、**Manual Deploy → Deploy latest commit** を1回実行してください。
@@ -91,9 +91,31 @@ GitHubの改良が本体`main`に反映されたあと、Renderの
 Sランクのゴールド・Aランクの赤、架空８頭テスト、手入力資料チェック、
 JRDBボタンの安全な無効化、Basic認証は変更していません。
 
-この修正をGitHubの `main` に反映しても、**Renderの自動デプロイはOFF**なので
+この修正をGitHubの `main` に反映しても、**Render側の既存設定がOFFなら**
 実機の画面はまだ変わりません。Renderダッシュボードの対象サービス
 `keiba-nine-owner-preview` を開き、**Manual Deploy → Deploy latest commit**
 を選択すると、同じ環境変数とパスワードのままコードを更新できます。
 更新後に配信版確認 `/ui-version` で
 `uiVersion=iphone-mobile-navigation-20261104-v4` を確認してください。
+
+
+## 2026-11-04：自動デプロイを有効化
+
+ユーザーの希望により、`render.yaml` の `autoDeployTrigger` を
+`checksPass` に変更しました。GitHubの `main` が更新され、
+GitHub Actions等の CI チェックがすべて成功した場合に限り
+Renderが自動デプロイを開始する設定です。設定は `commit` より安全で、
+テスト失敗時の自動反映を防ぎます。
+
+**既存のRenderサービスでの適用は別途確認が必要です。**
+このGitHub変更だけで、すでに存在するRenderサービスの Settings が
+切り替わったとは限りません。Render Dashboard のサービス
+`keiba-nine-owner-preview` → **Settings → Auto-Deploy → After CI Checks Pass**
+を選んで保存してください。Blueprint管理のサービスならBlueprint syncで
+設定を同期できます。Render側の実設定はGitHubから読み取れません。
+
+**認証について**：自動デプロイはBasic認証を省略する機能ではありません。
+`KEIBA_OWNER_PASSWORD` はRenderのEnvironmentに保存する設定で、
+`render.yaml` の `generateValue: true` は変更していません。
+認証の問題が解消するとは限らず、パスワードをGitHubやChatGPTへ
+貼り付けないでください。月額課金データの接続や本番予想も無効のままです。
