@@ -6,13 +6,19 @@ const assert=require('node:assert/strict');
 const {spawnSync}=require('node:child_process');
 const js=fs.readFileSync('/tmp/keiba-private-console.js','utf8');
 const elements=new Map(), requests=[];
+function makeElement(){
+ return {value:'',disabled:false,textContent:'',className:'',files:[],children:[],
+  replaceChildren(...nodes){this.children=[...nodes];},
+  append(...nodes){this.children.push(...nodes);},
+  onclick:null,onchange:null};
+}
 function el(id){
- if(!elements.has(id))elements.set(id,{
-  value:'',disabled:false,textContent:'',files:[],
-  replaceChildren(){},append(){},onclick:null,onchange:null
- });
+ if(!elements.has(id))elements.set(id,makeElement());
  return elements.get(id);
 }
+function collect(node){return [node,...(node.children||[]).flatMap(collect)];}
+function screenText(node){return collect(node).map(n=>n.textContent||'').join(' ');}
+let forceBadResult=false;
 const sampleResponse={
  recordType:'test',status:'draft',publishable:false,validated:false,
  researchDecision:'simulate',points:1,stake:100,first:[1],
@@ -23,11 +29,11 @@ const sampleResponse={
 async function fetchMock(path,options={}){
  requests.push({path,options});
  if(path==='/api/status')return {ok:true,json:async()=>({jrdbConfigured:false})};
- if(path==='/api/research')return {ok:true,json:async()=>sampleResponse};
+ if(path==='/api/research')return {ok:true,json:async()=>
+  forceBadResult?{...sampleResponse,points:2}:sampleResponse};
  throw Error('Unexpected URL '+path);
 }
-const scope={document:{getElementById:el,createElement:()=>({
- className:'',textContent:'',append(){}})},fetch:fetchMock,
+const scope={document:{getElementById:el,createElement:()=>makeElement()},fetch:fetchMock,
  Date,console,encodeURIComponent,JSON};
 vm.runInNewContext(js,scope);
 async function flush(){
@@ -72,10 +78,31 @@ async function flush(){
  assert.match(el('researchMessage').textContent,/1点/);
  assert.match(el('researchOutput').textContent,/総合評価順/);
  assert.match(el('researchOutput').textContent,/1-2-3/);
+ const host=el('researchSummary');
+ assert.equal(host.children.length,4,'summary shows four sections with no raw JSON');
+ const prose=screenText(host);
+ assert.match(prose,/架空テスト/);
+ assert.match(prose,/1点/);
+ assert.match(prose,/100円/);
+ assert.match(prose,/総合評価順/);
+ assert.match(prose,/1番/);
+ assert.match(prose,/各着順の候補/);
+ assert.match(prose,/全組み合わせが買い目とは限りません/);
+ const badges=collect(host).filter(n=>n.className.includes('grade-tag'));
+ assert.equal(badges.length,1);
+ assert.equal(badges[0].className,'grade-tag grade-s');
+ assert.equal(el('researchOutput').textContent.includes('1-2-3'),true);
+
  const before=requests.length;
  el('researchInput').value=JSON.stringify({...body,recordType:'live'});
  await el('researchRun').onclick();
  assert.equal(requests.length,before,'live data should not hit research endpoint');
  assert.match(el('researchMessage').textContent,/検証できません/);
- console.log('Private research iPhone DOM mock: 13 key checks passed');
+ assert.equal(host.children.length,0,'invalid input clears stale prior result');
+ forceBadResult=true;
+ el('researchInput').value=JSON.stringify(body);
+ await el('researchRun').onclick();
+ assert.match(el('researchMessage').textContent,/検証できません/);
+ assert.equal(host.children.length,0,'malformed returned ticket counts must not display');
+ console.log('Private research iPhone DOM mock: ranking cards, summary and safety checks passed');
 })().catch(e=>{console.error(e);process.exitCode=1});
