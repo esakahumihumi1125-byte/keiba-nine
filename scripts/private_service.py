@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs
@@ -37,8 +38,9 @@ def _now_in_jst():
     return datetime.now(ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds')
 
 
+UI_VERSION = 'iphone-rank-cards-20261104-v2'
 MAX_BODY = 131072
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用プレビュー｜架空テスト</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用プレビュー｜架空テスト</p><p class="muted" id="uiVersion">画面版：iphone-rank-cards-20261104-v2</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
 <p class="research-intro">見やすい予想画面の動作確認。<strong>架空8頭のテスト専用</strong>です。実レース・JRDB有料データ・購入には使えません。</p>
 <button id="researchDemo" class="primary-run">架空8頭で予想画面を確認</button>
 <p id="researchMessage" role="status">未検証。上のボタンで架空8頭の画面を表示できます。</p>
@@ -446,9 +448,25 @@ def create_app(settings=None):
             # Custom header stops cross-origin form submissions; no CORS is granted.
             if environ.get('HTTP_X_KEIBA_REQUEST') != 'private' or environ.get('HTTP_SEC_FETCH_SITE') == 'cross-site':
                 return response('403 Forbidden', {'error': '本人用画面から操作してください。'})
-        if method == 'GET' and path in ('/', '/app.js', '/app.css'):
-            text, mime = {'/': (HTML, 'text/html; charset=utf-8'), '/app.js': (JS, 'text/javascript; charset=utf-8'), '/app.css': (CSS, 'text/css; charset=utf-8')}[path]
+        if method == 'GET' and path in ('/', '/preview-v2', '/app.js', '/app.css'):
+            text, mime = {'/': (HTML, 'text/html; charset=utf-8'),
+                          '/preview-v2': (HTML, 'text/html; charset=utf-8'),
+                          '/app.js': (JS, 'text/javascript; charset=utf-8'),
+                          '/app.css': (CSS, 'text/css; charset=utf-8')}[path]
             return response('200 OK', text, mime)
+        if method == 'GET' and path == '/ui-version':
+            # Authenticated, no-cache diagnostic. Never expose secret values.
+            raw_sha = settings.get('RENDER_GIT_COMMIT', '')
+            sha = raw_sha[:12] if isinstance(raw_sha, str) and re.fullmatch(
+                r'[0-9a-fA-F]{7,64}', raw_sha) else 'not-reported'
+            research_first = HTML.index('id="researchPanel"') < HTML.index('<h2>JRDB接続</h2>')
+            return response('200 OK', (
+                'KEIBA NINE\n'
+                'uiVersion=' + UI_VERSION + '\n'
+                'researchFirst=' + ('yes' if research_first else 'no') + '\n'
+                'renderCommit=' + sha + '\n'
+                'note=認証済みの配信コードの識別情報。JRDBやレースの実データは取得しません。'
+            ), 'text/plain; charset=utf-8')
         if method == 'GET' and path == '/api/status':
             ready = settings.get('JRDB_PRIVATE_ENABLED') == '1' and all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY')) and settings.get('GITHUB_ACTIONS') != 'true'
             return response('200 OK', {'jrdbConfigured': ready,
