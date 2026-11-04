@@ -82,7 +82,7 @@ class OperatorFactorEndpointTests(unittest.TestCase):
         js = call(self.app, "/app.js")["body"].decode()
         for item in ('id="operatorFactorPanel"', 'id="noteTrack"',
                      'id="noteRace"', 'id="noteHorse"', 'id="noteFactor"',
-                     'id="noteStatus"', 'id="noteSource"', 'id="noteRun"',
+                     'id="noteState"', 'id="noteSource"', 'id="noteRun"',
                      'id="noteResult"'):
             self.assertIn(item, html)
         self.assertIn("el('noteRun').onclick=async()=>", js)
