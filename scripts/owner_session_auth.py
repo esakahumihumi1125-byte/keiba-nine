@@ -2,18 +2,45 @@
 
 Supports the existing Basic auth as a fallback.
 Lax permits iPhone Safari top-level navigation following cross-site opens and
-login redirects; cookies remain Secure/HttpOnly/host-only with POST origin and
-fetch-metadata checks at the login endpoint. A cookie is valid only for
+login redirects; cookies remain Secure/HttpOnly/host-only with a random
+browser-bound login form token and fetch-metadata checks. A cookie is valid only for
 this deployment's password and is revoked by password rotation.
 """
 import hashlib
 import hmac
 import re
+import secrets
 import time
 
 COOKIE_NAME = "__Host-keiba-session"
 SESSION_SECONDS = 7 * 24 * 60 * 60
 _SESSION_CONTEXT = b"keiba-nine-private-session-v1:"
+
+
+
+# A separate short-lived, random browser-bound form token prevents login CSRF
+# without relying on Origin headers rewritten by Render / mobile browsers.
+# The form token does not grant access; password verification is still required.
+LOGIN_CSRF_COOKIE_NAME = "__Host-keiba-login-form"
+LOGIN_CSRF_SECONDS = 30 * 60
+
+
+def new_login_form_csrf():
+    token = secrets.token_urlsafe(32)
+    cookie = (f"{LOGIN_CSRF_COOKIE_NAME}={token}; Path=/; "
+              f"Max-Age={LOGIN_CSRF_SECONDS}; HttpOnly; Secure; SameSite=Lax")
+    return token, cookie
+
+
+def login_form_csrf_valid(header, supplied):
+    if not isinstance(supplied, str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", supplied):
+        return False
+    if not isinstance(header, str) or len(header) > 4096:
+        return False
+    values = [part.strip()[len(LOGIN_CSRF_COOKIE_NAME) + 1:]
+              for part in header.split(";")
+              if part.strip().startswith(LOGIN_CSRF_COOKIE_NAME + "=")]
+    return len(values) == 1 and hmac.compare_digest(values[0], supplied)
 
 
 def owner_credentials_match(username, password, expected, configured_username):
