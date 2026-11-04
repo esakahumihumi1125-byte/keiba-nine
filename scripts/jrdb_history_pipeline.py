@@ -17,6 +17,12 @@ from jrdb_going_history import (
     build_going_history_observations, summarize_going_history_observations
 )
 from jrdb_history_evidence_quality import summarize_history_evidence_quality
+from jrdb_training_hypothesis import build_training_hints
+from jrdb_recent_hypothesis import build_recent_hints
+from jrdb_private_factor_bridge import build_private_factor_matrix
+from jrdb_course_ground_factor_bridge import (
+    enrich_course_ground_matrix, summarize_course_ground_matrix,
+)
 
 VERSION = "bounded-history-1"
 MAX_LOOKUPS_PER_RUN = 12
@@ -194,6 +200,36 @@ def run_bounded_history_audit(programme, entries, previous,
             sources, quality_summary,
             bounded_history_complete=is_history_complete
         )
+        private_matrix = build_private_factor_matrix(
+            build_training_hints(
+                programme, entries, [] if training is None else training,
+                requested_date,
+            ),
+            build_recent_hints(programme, entries, previous, requested_date),
+        )
+        history_factor_summary = summarize_course_ground_matrix(
+            enrich_course_ground_matrix(
+                private_matrix, observations, history_complete=is_history_complete
+            )
+        )
+        if (history_factor_summary["raceCount"] != materials["raceCount"]
+                or history_factor_summary["raceCount"] != quality_summary["raceCount"]
+                or any(
+                    not any(
+                        row["track"] == grade["track"]
+                        and row["race"] == grade["race"]
+                        and row["runnerCount"] == grade["runnerCount"]
+                        and row["runnersWithComparableCourse"]
+                            == grade["courseComparableSamples"]["oneOrTwo"]
+                            + grade["courseComparableSamples"]["threePlus"]
+                        and row["runnersWithKnownGoingComparable"]
+                            == grade["knownGoingComparableSamples"]["oneOrTwo"]
+                            + grade["knownGoingComparableSamples"]["threePlus"]
+                        for grade in quality_summary["races"]
+                    )
+                    for row in history_factor_summary["races"]
+                )):
+            raise HistoryFetchError("Historical factor summaries disagree")
     except (CoverageError, ValueError, KeyError, TypeError):
         raise HistoryFetchError("Private historical evidence validation failed") from None
     return {
@@ -211,6 +247,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "goingSummary": safe_summary,
         "evidenceQuality": quality_summary,
         "tenFactorMaterials": materials,
+        "privateHistoryFactors": history_factor_summary,
         "predictionReady": False,
         "goingSuitabilityAssessed": False,
         "note": ("本人専用の過去資料照合。取得上限内で参照できた履歴の集計のみ。"
