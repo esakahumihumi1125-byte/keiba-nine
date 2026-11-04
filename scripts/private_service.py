@@ -517,7 +517,11 @@ el('history').onclick=async()=>{
      ||data.privateHistoryFactors?.version!=='private-course-ground-materials-1'
      ||data.privateHistoryFactors?.predictionReady!==false
      ||data.privateHistoryFactors?.bettingReady!==false
-     ||data.privateHistoryFactors?.raceCount!==data.goingSummary?.races?.length)
+     ||data.privateHistoryFactors?.raceCount!==data.goingSummary?.races?.length
+     ||data.allTenFactorSources?.version!=='combined-ten-factor-observations-1'
+     ||data.allTenFactorSources?.raceCount!==data.goingSummary?.races?.length
+     ||data.allTenFactorSources?.predictionReady!==false
+     ||data.allTenFactorSources?.bettingReady!==false)
    throw Error('安全な資料集計以外は表示できません');
   el('message').textContent='照合 '+data.selectedPastRaces+'件／残り '+data.deferredPastRaces
    +'件｜過去番組未取得 '+data.unavailablePastProgrammes
@@ -537,6 +541,10 @@ el('history').onclick=async()=>{
      r=>r.track===race.track&&r.race===race.race);
    if(privateFactors.length!==1)throw Error('コース・馬場の評価資料が一致しません');
    const linked=privateFactors[0];
+   const combined=data.allTenFactorSources.races.filter(
+     r=>r.track===race.track&&r.race===race.race);
+   if(combined.length!==1)throw Error('10項目の資料結合が一致しません');
+   const total=combined[0];
    const n=quality.runnerCount;
    const headcounts=['runnerCount','runnersWithComparableCourse',
      'runnersWithKnownGoingComparable','runnersWithWetComparable',
@@ -555,6 +563,24 @@ el('history').onclick=async()=>{
       ||linked.unknownComparableGoingRuns>5*n
       ||linked.runnersWithKnownGoingComparable>linked.runnersWithComparableCourse)
      throw Error('コース・馬場の資料件数が一致しません');
+   if(total.runnerCount!==n||total.sourceMaterialSlots!==10
+      ||total.provisionalFactorSlots!==2||total.observationOnlySlots!==8
+      ||total.unmappedFactorCount!==0||total.verifiedFactorCount!==0
+      ||total.raceDayBodyWeightFetched!==false
+      ||total.historySuitabilityAssessed!==false
+      ||total.jockeyTrainerPerformanceAssessed!==false
+      ||total.bodyConditionAssessed!==false
+      ||total.officialJraFinalVerification!==false
+      ||total.overallRankReady!==false||total.predictionReady!==false
+      ||total.bettingReady!==false
+      ||!['runnersWithComparableCourse','runnersWithKnownGoingComparable',
+           'runnersWithIncompleteHistory','runnersWithBothPersonnelNames',
+           'runnersWithConformationCodes'].every(k=>
+              Number.isInteger(total[k])&&total[k]>=0&&total[k]<=n)
+      ||total.runnersWithComparableCourse!==linked.runnersWithComparableCourse
+      ||total.runnersWithKnownGoingComparable!==linked.runnersWithKnownGoingComparable
+      ||total.runnersWithIncompleteHistory!==linked.runnersWithIncompleteHistory)
+     throw Error('10項目の資料結合に未確認の状態があります');
    const c=quality.courseComparableSamples,g=quality.knownGoingComparableSamples;
    const counts=[c.none,c.oneOrTwo,c.threePlus,g.none,g.oneOrTwo,g.threePlus];
    if(!counts.every(n=>Number.isInteger(n)&&n>=0)
@@ -580,8 +606,10 @@ el('history').onclick=async()=>{
       +'・馬場比較あり '+linked.runnersWithKnownGoingComparable+'頭'
       +'・履歴未完成 '+linked.runnersWithIncompleteHistory+'頭'
       +'・馬場未確認 '+linked.runnersWithCurrentGoingUnknown+'頭'
-      +'｜5項目は未マップ、展開・距離・馬場は観測のみ'
-      +'｜全10項目：未評価／予想信頼度：未算定';
+      +'｜10項目の資料枠：10/10接続（調教・近走は未検証の暫定基準、残り8項目は観測のみ）'
+      +'・騎手・厩舎の両名あり '+total.runnersWithBothPersonnelNames+'頭'
+      +'・馬体形状コードあり '+total.runnersWithConformationCodes+'頭（当日の馬体重・増減は未取得）'
+      +'｜確定評価 0項目／総合S/A/B/C未作成／予想信頼度：未算定';
    el('races').append(div);
   }
  }catch(e){el('message').textContent=e.message;}
