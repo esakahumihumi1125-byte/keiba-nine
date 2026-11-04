@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "deploy" / "render-gunicorn.py"
 MANIFEST = ROOT / "render.yaml"
 REQUIREMENTS = ROOT / "deploy" / "render-requirements.txt"
+WORKFLOW = ROOT / ".github" / "workflows" / "private-service-check.yml"
 
 
 class RenderPreviewSafetyTests(unittest.TestCase):
@@ -77,6 +78,17 @@ class RenderPreviewSafetyTests(unittest.TestCase):
                           "KEIBA_OWNER_PASSWORD\n        sync: false",
                           "KEIBA_ALLOW_LOCAL_HTTP\n        value: \"1\""):
             self.assertNotIn(forbidden, content)
+
+    def test_main_ci_is_not_path_filtered(self):
+        # Render's checksPass gate should receive a result even when only
+        # documentation, metadata, or the Blueprint itself changes.
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        triggers = workflow.split("permissions:", 1)[0]
+        self.assertIn("  push:\n    branches: [main]", triggers)
+        self.assertIn("  pull_request:\n    branches: [main]", triggers)
+        self.assertIn("  workflow_dispatch:", triggers)
+        self.assertNotIn("    paths:", triggers)
+        self.assertNotIn("    paths-ignore:", triggers)
 
     def test_only_pinned_single_wsgi_requirement(self):
         packages = REQUIREMENTS.read_text(encoding="utf-8").strip().splitlines()
