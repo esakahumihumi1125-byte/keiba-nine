@@ -42,6 +42,45 @@ class PrivateServiceTests(unittest.TestCase):
                     self.assertTrue(call(self.app, path=path, auth=auth)['status'].startswith('401'))
             fetch.assert_not_called()
 
+    def test_owner_ui_diagnostics_report_actual_served_layout(self):
+        with patch('private_service.fetch_race_program') as provider:
+            root = call(self.app, '/')
+            separate = call(self.app, '/preview-v2',
+                            HTTP_X_KEIBA_REQUEST='')
+            self.assertEqual(root['status'], '200 OK')
+            self.assertEqual(separate['status'], '200 OK')
+            self.assertEqual(root['body'], separate['body'])
+            page = separate['body'].decode('utf-8')
+            self.assertIn('id="uiVersion"', page)
+            self.assertIn('iphone-rank-cards-20261104-v2', page)
+            self.assertLess(page.index('id="researchPanel"'),
+                            page.index('<h2>JRDB接続</h2>'))
+            version = call(self.app, '/ui-version',
+                           HTTP_X_KEIBA_REQUEST='')
+            self.assertEqual(version['status'], '200 OK')
+            self.assertIn('text/plain', version['headers']['Content-Type'])
+            self.assertIn('no-store', version['headers']['Cache-Control'])
+            info = version['body'].decode('utf-8')
+            self.assertIn('uiVersion=iphone-rank-cards-20261104-v2', info)
+            self.assertIn('researchFirst=yes', info)
+            self.assertIn('renderCommit=not-reported', info)
+            self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'], info)
+            for path in ('/ui-version', '/preview-v2'):
+                denied = call(self.app, path, auth='')
+                self.assertTrue(denied['status'].startswith('401'))
+        provider.assert_not_called()
+
+    def test_owner_ui_diagnostic_uses_sanitized_git_revision(self):
+        preview = create_app({**SETTINGS,
+                              'RENDER_GIT_COMMIT': 'a239d5b33ff2e5a6d37757125e7128b4c2b8df53'})
+        version = call(preview, '/ui-version')['body'].decode('utf-8')
+        self.assertIn('renderCommit=a239d5b33ff2', version)
+        bad = create_app({**SETTINGS,
+                          'RENDER_GIT_COMMIT': 'malicious-value-with-secret'})
+        bad_version = call(bad, '/ui-version')['body'].decode('utf-8')
+        self.assertIn('renderCommit=not-reported', bad_version)
+        self.assertNotIn('malicious-value-with-secret', bad_version)
+
     def test_http_and_spoofed_forwarded_header_rejected(self):
         result = call(self.app, **{'wsgi.url_scheme': 'http', 'HTTP_X_FORWARDED_PROTO': 'https'})
         self.assertTrue(result['status'].startswith('426'))
