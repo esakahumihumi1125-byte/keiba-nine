@@ -408,6 +408,26 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(info['transport'], 'local-dev')
         self.assertFalse(info['jrdbConfigured'])
 
+    def test_synthetic_research_page_has_readable_cards_and_folded_json(self):
+        page = call(self.app, '/')['body'].decode('utf-8')
+        stylesheet = call(self.app, '/app.css')['body'].decode('utf-8')
+        script = call(self.app, '/app.js')['body'].decode('utf-8')
+        self.assertIn('id="researchDemo"', page)
+        self.assertIn('id="researchSummary"', page)
+        self.assertIn('id="researchMessage" role="status"', page)
+        self.assertIn('<details id="researchAdvanced"', page)
+        self.assertIn('<details id="researchDetails"', page)
+        self.assertIn('id="researchOutput"', page)
+        self.assertNotIn('<details id="researchAdvanced" open', page)
+        self.assertIn('架空8頭', page)
+        self.assertIn('grade-a{background:#c6374c}', stylesheet)
+        self.assertIn('formation-columns', stylesheet)
+        self.assertIn('function renderResearchSummary(data,input)', script)
+        self.assertIn('全組み合わせが買い目とは限りません', script)
+        self.assertNotIn('innerHTML', script)
+        self.assertNotIn('JRDB_API_KEY', page)
+        self.assertIn('no-store', call(self.app, '/')['headers']['Cache-Control'])
+
     def test_private_page_exposes_diagnostic_without_credentials(self):
         html = call(self.app, '/')['body']
         script = call(self.app, '/app.js')['body']
