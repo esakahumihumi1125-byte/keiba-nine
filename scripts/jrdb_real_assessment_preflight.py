@@ -81,6 +81,8 @@ def audit_real_evaluation_preflight(combined, quality, *, history_complete):
                 or r.get("observationOnlySlots") != 8
                 or r.get("unmappedFactorCount") != 0
                 or r.get("verifiedFactorCount") != 0
+                or any(k in r for k in (
+                    "realGradeReady", "realPredictionReady", "purchaseReady"))
                 or any(r.get(k) is not False for k in (
                     "historySuitabilityAssessed", "jockeyTrainerPerformanceAssessed",
                     "bodyConditionAssessed", "raceDayBodyWeightFetched",
