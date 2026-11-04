@@ -46,4 +46,28 @@
 [環境変数](https://render.com/docs/configure-environment-variables)、
 [Gunicornプロキシ設定](https://gunicorn.org/reference/settings/)。
 
+## 2026-11-04：本人用プレビューの実機確認と画面改良
+
+本人のiPhoneからRenderのサービスがLiveであること、`owner`認証で本人用画面を開けたこと、架空8頭の計算で36点／3,600円が表示されたことを確認しています。
+これは**実レース予想や有料JRDB接続の成功ではありません**。
+
+架空データの研究画面は、日常のiPhone操作向けに次を改善しました。
+
+- 総合評価順を一頭ずつ読みやすいカード形式で表示。**Aランクは赤**、S/B/Cも区別。
+- 1着・2着・3着の候補、3連単の点数・100円ずつの金額を先に表示。
+- 各着順に表示した馬のすべての掛け合わせが実際の買い目とは限りません。**本当に生成した買い目だけを折りたたみ詳細で確認**。
+- 長いJSON入力欄・ファイル選択は「開発者向け」詳細内に格納。架空テスト表示は常に明記。
+- 計算・実レース、公開予想、馬券購入、記録・Googleバックアップは分離したまま。
+
+**Render側の更新について：** このPreviewは自動デプロイをOFFにしています。
+GitHubの改良が本体`main`に反映されたあと、Renderの
+[keiba-nine-owner-preview-mvxz](https://keiba-nine-owner-preview-mvxz.onrender.com)
+を管理画面から開き、**Manual Deploy → Deploy latest commit** を1回実行してください。
+最新のデプロイがLiveになったらSafariでページをリロードします。
+「Restart service」では最新コードになりません。
+パスワードやRenderの環境変数を再入力する必要はありません。
+勝手に有料プランへ変更したり、実データのキーを設定したりしないでください。
+
+[Render公式：手動デプロイ](https://render.com/docs/deploys#manual-deploys)
+
 この手順書が存在するだけでは、デプロイやiPhone実機接続を確認したことにはなりません。
