@@ -65,7 +65,7 @@ class RenderPreviewSafetyTests(unittest.TestCase):
         content = MANIFEST.read_text(encoding="utf-8")
         self.assertIn('plan: free', content)
         self.assertIn('runtime: python', content)
-        self.assertIn('autoDeployTrigger: "off"', content)
+        self.assertIn('autoDeployTrigger: "checksPass"', content)
         self.assertIn('gunicorn --config deploy/render-gunicorn.py', content)
         self.assertIn('key: KEIBA_OWNER_PASSWORD\n        generateValue: true', content)
         self.assertIn('key: JRDB_PRIVATE_ENABLED\n        value: "0"', content)
