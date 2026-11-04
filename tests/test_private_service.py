@@ -96,7 +96,7 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertIn('id="ownerManualSection"', page)
             self.assertIn('本人用：手動の3連単下書きが使えます', page)
             self.assertIn('実馬のAI予想・馬券購入は未接続', page)
-            self.assertIn('iphone-manual-trifecta-20261104-v6', page)
+            self.assertIn('iphone-purchase-ledger-20261104-v7', page)
             self.assertLess(page.index('id="researchPanel"'),
                             page.index('<h2>JRDB接続</h2>'))
             version = call(self.app, '/ui-version',
@@ -105,7 +105,7 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertIn('text/plain', version['headers']['Content-Type'])
             self.assertIn('no-store', version['headers']['Cache-Control'])
             info = version['body'].decode('utf-8')
-            self.assertIn('uiVersion=iphone-manual-trifecta-20261104-v6', info)
+            self.assertIn('uiVersion=iphone-purchase-ledger-20261104-v7', info)
             self.assertIn('researchFirst=yes', info)
             self.assertIn('renderCommit=not-reported', info)
             self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'], info)
