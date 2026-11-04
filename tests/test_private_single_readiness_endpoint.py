@@ -89,7 +89,12 @@ class PrivateSingleReadinessServiceTests(unittest.TestCase):
             self.assertFalse(payload["predictionReady"])
             self.assertFalse(payload["bettingReady"])
             self.assertFalse(payload["officialJraFinalVerification"])
-            self.assertEqual(payload["version"],"selected-race-readiness-4")
+            self.assertEqual(payload["version"],"selected-race-readiness-5")
+            person=payload["personnelBodyMaterials"]
+            self.assertEqual(person["observedFactorSlots"],8)
+            self.assertEqual(person["unmappedFactors"],2)
+            self.assertFalse(person["raceDayBodyWeightFetched"])
+            self.assertFalse(person["predictionReady"])
             observation = payload["entryMaterials"]
             self.assertEqual(observation["observedFactorSlots"],6)
             self.assertEqual(observation["unmappedFactors"],4)
@@ -150,6 +155,30 @@ class PrivateSingleReadinessServiceTests(unittest.TestCase):
                           "weight_to_carry", "mare_sire_name", "horse_id",
                           "racekey", "56.0"):
             self.assertNotIn(forbidden, repr(payload))
+
+    def test_owner_only_jockey_and_body_aggregates_exclude_source_values(self):
+        p, e, t, z, h = source()
+        e[0].update(jockey_name="PRIVATE-JOCKEY",
+                    jockey_cd="00123", trainer_name="PRIVATE-TRAINER",
+                    trainer_cd="00456", bodytype="222222")
+        app = authorized()
+        with (patch("private_service.fetch_race_program", return_value=p),
+              patch("private_service.fetch_horse_entries", return_value=e),
+              patch("private_service.fetch_training_analysis", return_value=t),
+              patch("private_service.fetch_recent_runs", return_value=z),
+              patch("private_service.fetch_venue_conditions", return_value=h),
+              patch("private_service._now_in_jst",
+                    return_value="2026-11-01T09:30:00+09:00")):
+            result = call(app, PATH, QUERY_STRING=QUERY)
+        self.assertEqual(result["status"], "200 OK")
+        payload = json.loads(result["body"])
+        counts = payload["personnelBodyMaterials"]["recorded"]
+        self.assertEqual(counts["jockeyNameRecorded"], 1)
+        self.assertEqual(counts["trainerNameRecorded"], 1)
+        self.assertEqual(counts["anyConformationRecorded"], 1)
+        self.assertFalse(payload["personnelBodyMaterials"]["bodyConditionAssessed"])
+        for secret in ("PRIVATE-JOCKEY", "PRIVATE-TRAINER", "222222", "00123"):
+            self.assertNotIn(secret, repr(payload))
 
     def test_wrong_race_is_error_not_another_races_data(self):
         p,e,t,z,h=source()
