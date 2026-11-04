@@ -6,7 +6,7 @@ const js=fs.readFileSync('/tmp/keiba-private-console.js','utf8');
 const nodes=new Map(),requests=[];
 function el(id){
  if(!nodes.has(id))nodes.set(id,{
-  id,value:'',disabled:false,textContent:'',children:[],files:[],
+  id,value:'',disabled:(id==='programmeTrack'||id==='programmeRace'),textContent:'',children:[],files:[],
   replaceChildren(...c){this.children=[...c];},append(...c){this.children.push(...c)},
   onclick:null,onchange:null,
  });
