@@ -39,7 +39,12 @@ class PrivateServiceTests(unittest.TestCase):
         with patch('private_service.fetch_race_program') as fetch:
             for path in ['/', '/app.js', '/app.css', '/api/status', '/api/jrdb/program', '/api/research']:
                 for auth in ['', 'Basic invalid', 'Basic ' + base64.b64encode(b'other:password').decode()]:
-                    self.assertTrue(call(self.app, path=path, auth=auth)['status'].startswith('401'))
+                    result = call(self.app, path=path, auth=auth)
+                    if path == '/':
+                        self.assertEqual(result['status'], '303 See Other')
+                        self.assertEqual(result['headers']['Location'], '/login')
+                    else:
+                        self.assertTrue(result['status'].startswith('401'))
             fetch.assert_not_called()
 
     def test_private_selectors_are_read_only_without_paid_credentials(self):
@@ -90,7 +95,7 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertIn('id="ownerManualSection"', page)
             self.assertIn('現在：架空レースの画面テスト', page)
             self.assertIn('実レース予想・馬券購入は未接続', page)
-            self.assertIn('iphone-mobile-navigation-20261104-v4', page)
+            self.assertIn('iphone-persistent-owner-login-20261104-v5', page)
             self.assertLess(page.index('id="researchPanel"'),
                             page.index('<h2>JRDB接続</h2>'))
             version = call(self.app, '/ui-version',
@@ -99,13 +104,17 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertIn('text/plain', version['headers']['Content-Type'])
             self.assertIn('no-store', version['headers']['Cache-Control'])
             info = version['body'].decode('utf-8')
-            self.assertIn('uiVersion=iphone-mobile-navigation-20261104-v4', info)
+            self.assertIn('uiVersion=iphone-persistent-owner-login-20261104-v5', info)
             self.assertIn('researchFirst=yes', info)
             self.assertIn('renderCommit=not-reported', info)
             self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'], info)
             for path in ('/ui-version', '/preview-v2'):
                 denied = call(self.app, path, auth='')
-                self.assertTrue(denied['status'].startswith('401'))
+                if path == '/preview-v2':
+                    self.assertEqual(denied['status'], '303 See Other')
+                    self.assertEqual(denied['headers']['Location'], '/login')
+                else:
+                    self.assertTrue(denied['status'].startswith('401'))
         provider.assert_not_called()
 
     def test_owner_ui_diagnostic_uses_sanitized_git_revision(self):
@@ -947,7 +956,8 @@ class PrivateServiceTests(unittest.TestCase):
     def test_research_preview_available_only_to_owner(self):
         for path in ('/', '/app.js'):
             blocked = call(self.app, path, auth='')
-            self.assertTrue(blocked['status'].startswith('401'))
+            self.assertEqual(blocked['status'], '303 See Other' if path == '/' else
+                             '401 Unauthorized')
         html = call(self.app, '/')['body']
         script = call(self.app, '/app.js')['body']
         for label in (b'id="researchDemo"', b'id="researchInput"',
