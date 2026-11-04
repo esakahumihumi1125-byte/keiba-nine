@@ -359,9 +359,9 @@ function summarizeSelectedReadiness(evidence,meeting,track,race){
  const last=countForReadiness(a.lastWeekUnaccounted,n);
  const recent=countForReadiness(a.pastRunUnaccounted,n);
  return '【実戦予想はまだ作成できません】'+track+race+'R'
-  +'\n出走馬の資料 '+n+'頭｜調教不足・未対応 '+train+'頭／1週前 '+last+'頭／近走 '+recent+'頭'
-  +'\n10項目評価：全項目未評価｜公式の出走取消・馬場・発走時刻：未照合'
-  +'\n独立したJRAデータ取得：未接続｜総合評価・3連単：未作成。';
+  +'\\n出走馬の資料 '+n+'頭｜調教不足・未対応 '+train+'頭／1週前 '+last+'頭／近走 '+recent+'頭'
+  +'\\n10項目評価：全項目未評価｜公式の出走取消・馬場・発走時刻：未照合'
+  +'\\n独立したJRAデータ取得：未接続｜総合評価・3連単：未作成。';
 }
 el('programmeReadiness').onclick=async()=>{
  const race=chosenProgramme(),day=loadedProgrammeDate;
