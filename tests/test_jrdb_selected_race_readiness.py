@@ -40,7 +40,13 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         self.assertFalse(result["predictionReady"])
         self.assertFalse(result["bettingReady"])
         self.assertEqual(result["gradedFactors"], 0)
-        self.assertEqual(result["version"], "selected-race-readiness-1")
+        self.assertEqual(result["version"], "selected-race-readiness-2")
+        pair = result["factorResearch"]
+        self.assertEqual(pair["bothGraded"] + pair["trainingOnly"] +
+                         pair["recentOnly"] + pair["neither"], 2)
+        self.assertTrue(pair["experimental"])
+        self.assertEqual(pair["remainingFactors"], 8)
+        self.assertFalse(pair["predictionReady"])
         self.assertNotIn("races", result, "response should contain just the selected race")
 
     def test_second_race_is_isolated_and_uncertainty_remains(self):
