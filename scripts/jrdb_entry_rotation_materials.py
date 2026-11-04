@@ -90,7 +90,8 @@ def _previous_index(entries, previous):
         key, num, horse_id = row["racekey"], row.get("horse_number"), row.get("horse_id")
         direct = num if isinstance(num, str) and NUMBER.fullmatch(num) and (key, num) in roster else None
         via_id = ids.get((key, horse_id)) if isinstance(horse_id, str) and HORSE_ID.fullmatch(horse_id) else None
-        if direct and via_id and direct != via_id:
+        if (via_id and num is not None and num != via_id) or (
+                direct and via_id and direct != via_id):
             raise CoverageError("Previous runner identity conflict")
         number = via_id or direct
         if number is None:
