@@ -512,7 +512,7 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertIn('id="researchOutput"', page)
         self.assertNotIn('<details id="researchAdvanced" open', page)
         self.assertIn('架空8頭', page)
-        self.assertIn('href="/app.css?theme=gold-s-demo-picker-20261104"', page)
+        self.assertIn('href="/app.css?theme=owner-mobile-nav-20261104"', page)
         self.assertIn('grade-s{background:#D4AF37;color:#0B2343;border:1px solid #E6C75A}', stylesheet)
         self.assertIn('grade-a{background:#c6374c}', stylesheet)
         self.assertIn('formation-columns', stylesheet)
