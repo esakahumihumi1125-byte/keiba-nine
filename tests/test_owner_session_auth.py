@@ -121,6 +121,27 @@ class OwnerSessionTests(unittest.TestCase):
         programme.assert_not_called()
         entries.assert_not_called()
 
+    def test_same_site_iphone_form_with_verified_origin_and_render_proxy(self):
+        # Safari may label the navigation same-site even for the owner form.
+        # A verified exact Origin must still be required.
+        good = {"username": "owner", "password": SETTINGS["KEIBA_OWNER_PASSWORD"]}
+        app = create_app({**SETTINGS, "RENDER": "true",
+                          "RENDER_EXTERNAL_HOSTNAME":
+                          "keiba-nine-owner-preview.onrender.com"})
+        normal = login(app, good, HTTP_SEC_FETCH_SITE="same-site")
+        self.assertEqual(normal["status"], "303 See Other")
+        proxy = login(app, good, HTTP_HOST="render-internal:10000",
+                      HTTP_SEC_FETCH_SITE="same-site")
+        self.assertEqual(proxy["status"], "303 See Other")
+        rejected = login(app, good, HTTP_SEC_FETCH_SITE="same-site",
+                         HTTP_ORIGIN="https://unrelated.example")
+        self.assertEqual(rejected["status"], "401 Unauthorized")
+        rejected = login(app, good, HTTP_SEC_FETCH_SITE="cross-site")
+        self.assertEqual(rejected["status"], "401 Unauthorized")
+        rejected = login(app, good, HTTP_SEC_FETCH_SITE="same-site",
+                         HTTP_ORIGIN="")
+        self.assertEqual(rejected["status"], "401 Unauthorized")
+
     def test_failed_form_does_not_leak_password_or_issue_cookie(self):
         good = {"username": "owner", "password": SETTINGS["KEIBA_OWNER_PASSWORD"]}
         with patch("private_service.fetch_race_program") as provider:
