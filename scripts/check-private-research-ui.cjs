@@ -70,17 +70,6 @@ async function flush(){
  ].join(';')],{input:JSON.stringify(body),encoding:'utf8'});
  assert.equal(actual.status,0,actual.stderr);
  assert.match(actual.stdout,/Synthetic JS fixture -> Python planner/);
- const fullPlan=JSON.parse(actual.stdout.trim().split(String.fromCharCode(10)).pop());
- assert.equal(fullPlan.points,36,'synthetic eight-horse fixture yields 36 tickets');
- assert.equal(fullPlan.stake,3600);
- assert.equal(typeof scope.renderResearchSummary,'function');
- scope.renderResearchSummary(fullPlan,body);
- const realSummary=screenText(host);
- assert.match(realSummary,/36点/);
- assert.match(realSummary,/3,600円/);
- assert.equal(collect(host).filter(x=>x.className==='horse-row').length,8);
- assert.equal(collect(host).filter(x=>x.className==='grade-tag grade-a').length,2,
-   'A class is red and shown for synthetic A-tier runners');
  for(const horse of body.horses){
   assert.equal(Object.keys(horse.assessments).length,10);
   for(const axis of Object.values(horse.assessments))
@@ -104,6 +93,18 @@ async function flush(){
  assert.equal(badges.length,1);
  assert.equal(badges[0].className,'grade-tag grade-s');
  assert.equal(el('researchOutput').textContent.includes('1-2-3'),true);
+ const fullPlan=JSON.parse(actual.stdout.trim().split(String.fromCharCode(10)).pop());
+ assert.equal(fullPlan.points,36,'synthetic eight-horse fixture yields 36 tickets');
+ assert.equal(fullPlan.stake,3600);
+ assert.equal(typeof scope.renderResearchSummary,'function');
+ scope.renderResearchSummary(fullPlan,body);
+ const realSummary=screenText(host);
+ assert.match(realSummary,/36点/);
+ assert.match(realSummary,/3,600円/);
+ assert.equal(collect(host).filter(x=>x.className==='horse-row').length,8);
+ assert.equal(collect(host).filter(x=>x.className==='grade-tag grade-a').length,2,
+   'A class is red and shown for synthetic A-tier runners');
+
 
  const before=requests.length;
  el('researchInput').value=JSON.stringify({...body,recordType:'live'});
