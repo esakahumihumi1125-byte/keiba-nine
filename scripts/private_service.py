@@ -162,7 +162,7 @@ function renderResearchSummary(data,input){
   row.append(researchNode('span','grade-tag grade-'+(grade==='—'?'unknown':grade.toLowerCase()),grade));
   const grades=h.grades||{};
   const labels=['training','recent','course_distance'].map(k=>RESEARCH_AXIS_JP[k]+' '+(grades[k]||'—'));
-  row.append(researchNode('span','horse-meta',labels.join(' / ')+'\n根拠 '+(h.coverage??'—')+'%'));
+  row.append(researchNode('span','horse-meta',labels.join(' / ')+' ｜ 根拠 '+(h.coverage??'—')+'%'));
   rankings.append(row);
  }
  host.append(rankings);
