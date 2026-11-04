@@ -414,6 +414,7 @@ class PrivateServiceTests(unittest.TestCase):
         script = call(self.app, '/app.js')['body'].decode('utf-8')
         self.assertIn('id="researchDemo"', page)
         self.assertIn('id="researchSummary"', page)
+        self.assertLess(page.index('id="researchPanel"'), page.index('id="raceday"'))
         self.assertIn('id="researchMessage" role="status"', page)
         self.assertIn('<details id="researchAdvanced"', page)
         self.assertIn('<details id="researchDetails"', page)
