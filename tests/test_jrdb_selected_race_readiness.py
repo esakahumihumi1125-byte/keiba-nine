@@ -40,7 +40,7 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         self.assertFalse(result["predictionReady"])
         self.assertFalse(result["bettingReady"])
         self.assertEqual(result["gradedFactors"], 0)
-        self.assertEqual(result["version"], "selected-race-readiness-4")
+        self.assertEqual(result["version"], "selected-race-readiness-5")
         entry = result["entryMaterials"]
         self.assertEqual(entry["observedFactorSlots"], 6)
         self.assertEqual(entry["unmappedFactors"], 4)
@@ -53,6 +53,14 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         self.assertEqual(entry["rotationIntervals"]["days14to55"], 1)
         self.assertEqual(entry["rotationIntervals"]["unknown"], 1)
         self.assertEqual(entry["entryObservations"]["bothPedigreeRecorded"], 0)
+        personnel = result["personnelBodyMaterials"]
+        self.assertEqual(personnel["observedFactorSlots"], 8)
+        self.assertEqual(personnel["unmappedFactors"], 2)
+        self.assertEqual(personnel["recorded"]["jockeyNameRecorded"], 0)
+        self.assertEqual(personnel["recorded"]["anyConformationRecorded"], 0)
+        self.assertFalse(personnel["bodyConditionAssessed"])
+        self.assertFalse(personnel["raceDayBodyWeightFetched"])
+        self.assertFalse(personnel["predictionReady"])
         pair = result["factorResearch"]
         bridge = result["factorMaterials"]
         self.assertEqual(bridge["unmappedFactors"], 7)
@@ -71,6 +79,20 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         self.assertEqual(pair["remainingFactors"], 8)
         self.assertFalse(pair["predictionReady"])
         self.assertNotIn("races", result, "response should contain just the selected race")
+
+    def test_jockey_and_body_presence_is_redacted(self):
+        p, e, t, z, h = records()
+        e[0].update(jockey_name="PRIVATE-JOCKEY",
+                    jockey_cd="00123", trainer_name="PRIVATE-TRAINER",
+                    trainer_cd="00456", bodytype="222222")
+        result = self.check(p, e, t, z, h)
+        counts = result["personnelBodyMaterials"]["recorded"]
+        self.assertEqual(counts["bothPersonnelNamesRecorded"], 1)
+        self.assertEqual(counts["anyConformationRecorded"], 1)
+        self.assertFalse(result["personnelBodyMaterials"]["bodyConditionAssessed"])
+        self.assertFalse(result["predictionReady"])
+        for secret in ("PRIVATE-JOCKEY", "PRIVATE-TRAINER", "222222", "00123"):
+            self.assertNotIn(secret, repr(result))
 
     def test_second_race_is_isolated_and_uncertainty_remains(self):
         result = self.check(track="京都")

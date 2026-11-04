@@ -16,8 +16,11 @@ from jrdb_private_factor_bridge import build_private_factor_matrix, summarize_fa
 from jrdb_entry_rotation_materials import (
     enrich_entry_materials_matrix, summarize_entry_materials_matrix,
 )
+from jrdb_personnel_body_materials import (
+    enrich_personnel_body_matrix, summarize_personnel_body_matrix,
+)
 
-VERSION = "selected-race-readiness-4"
+VERSION = "selected-race-readiness-5"
 
 
 def _only(rows, track, race):
@@ -45,16 +48,21 @@ def selected_race_readiness(
     paired = summarize_dual_factor_readiness(training_hints, recent_hints)
     factor_matrix = build_private_factor_matrix(training_hints, recent_hints)
     factors = summarize_factor_materials(factor_matrix)
-    entry_materials = summarize_entry_materials_matrix(
-        enrich_entry_materials_matrix(
-            factor_matrix, programme, entries, previous, date
-        )
+    entry_matrix = enrich_entry_materials_matrix(
+        factor_matrix, programme, entries, previous, date
+    )
+    entry_materials = summarize_entry_materials_matrix(entry_matrix)
+    personnel_body = summarize_personnel_body_matrix(
+        enrich_personnel_body_matrix(entry_matrix, programme, entries, date)
     )
     if (evidence["raceCount"] != day["raceCount"]
             or evidence["raceCount"] != freshness["raceCount"]
             or evidence["raceCount"] != len(paired["races"])
             or evidence["raceCount"] != factors["raceCount"]
             or evidence["raceCount"] != entry_materials["raceCount"]
+            or evidence["raceCount"] != personnel_body["raceCount"]
+            or personnel_body["predictionReady"] is not False
+            or personnel_body["bettingReady"] is not False
             or entry_materials["predictionReady"] is not False
             or entry_materials["bettingReady"] is not False
             or paired["predictionReady"] is not False
@@ -67,6 +75,7 @@ def selected_race_readiness(
     d = _only(paired["races"], track, race)
     e = _only(factors["races"], track, race)
     f = _only(entry_materials["races"], track, race)
+    g = _only(personnel_body["races"], track, race)
     n = a["observedEntries"]
     if (type(n) is not int or not 0 <= n <= 18
             or d["runnerCount"] != n or d["predictionReady"] is not False
@@ -74,6 +83,16 @@ def selected_race_readiness(
             or d["remainingFactors"] != 8
             or e["runnerCount"] != n
             or f["runnerCount"] != n
+            or g["runnerCount"] != n
+            or g["observedFactorSlots"] != 8
+            or g["unmappedFactorCount"] != 2
+            or g["verifiedFactorCount"] != 0
+            or g["jockeyTrainerPerformanceAssessed"] is not False
+            or g["bodyConditionAssessed"] is not False
+            or g["raceDayBodyWeightFetched"] is not False
+            or g["overallRankReady"] is not False
+            or g["predictionReady"] is not False
+            or g["bettingReady"] is not False
             or f["observedFactorSlots"] != 6
             or f["unmappedFactorCount"] != 4
             or f["verifiedFactorCount"] != 0
@@ -156,6 +175,21 @@ def selected_race_readiness(
             or entry_counts["drawAndWeightRecorded"]
                > min(entry_counts["bracketRecorded"], entry_counts["weightRecorded"])):
         raise CoverageError("Documented entry/rotation coverage is inconsistent")
+    pc = g["recorded"]
+    pc_keys = (
+        "jockeyNameRecorded", "jockeyCodeRecorded", "trainerNameRecorded",
+        "trainerCodeRecorded", "bothPersonnelNamesRecorded",
+        "bodyTypeRecorded", "integrationCodeRecorded", "anyConformationRecorded",
+    )
+    if (not isinstance(pc, dict) or set(pc) != set(pc_keys)
+            or any(type(pc[k]) is not int or not 0 <= pc[k] <= n for k in pc_keys)
+            or pc["bothPersonnelNamesRecorded"] >
+               min(pc["jockeyNameRecorded"], pc["trainerNameRecorded"])
+            or pc["anyConformationRecorded"] <
+               max(pc["bodyTypeRecorded"], pc["integrationCodeRecorded"])
+            or pc["anyConformationRecorded"] >
+               pc["bodyTypeRecorded"] + pc["integrationCodeRecorded"]):
+        raise CoverageError("Personnel/body record presence counts are inconsistent")
     if c["prestartWindow"] not in (
         "post_time_unknown", "other_date", "post_time_passed",
         "within_two_hours", "more_than_two_hours",
@@ -220,6 +254,16 @@ def selected_race_readiness(
             "overallRankReady": False,
             "predictionReady": False,
         },
+        "personnelBodyMaterials": {
+            "recorded": pc,
+            "observedFactorSlots": 8, "unmappedFactors": 2,
+            "verifiedFactorCount": 0,
+            "jockeyTrainerPerformanceAssessed": False,
+            "bodyConditionAssessed": False,
+            "raceDayBodyWeightFetched": False,
+            "overallRankReady": False,
+            "predictionReady": False,
+        },
         "sourceSnapshotNotOfficial": True,
         "independentJraConnected": False,
         "officialJraFinalVerification": False,
@@ -230,7 +274,8 @@ def selected_race_readiness(
             "提供元の件数・取消報告・馬場の資料状態と調教・近走の"
             "暫定評価が一致・不一致の頭数を1R分まとめました。"
             "過去4角位置も展開材料として集計するが脚質・ペースは未予測。"
-            "父・母父・枠・斤量の記録有無と前走間隔も未評価の材料として接続。"
+            "父・母父・枠・斤量・前走間隔に加えて騎手・厩舎・馬体形状の"
+            "記録有無も接続（馬体重と当日の状態は未取得）。"
             "調教と近走の閾値は未検証で、残り8項目も未評価。"
             "JRA公式の出走馬・取消・馬場・発走時刻は独立照合していません。"
             "10項目の総合評価や3連単・馬券購入には利用できません。"

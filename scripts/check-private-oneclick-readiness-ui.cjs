@@ -20,7 +20,7 @@ const programme=[{racedate:'20261107',track:'東京',race:1,race_name:'架空の
  post_time:'10:00',surface:'芝',distance_m:1600,headcount:8,
  programmeOnly:true,horsesVerified:false}];
 let badSource=false,slow=false,release=null;
-const selected=()=>({version:'selected-race-readiness-4',
+const selected=()=>({version:'selected-race-readiness-5',
  date:'20261107',track:'東京',race:1,
  observedEntries:8,expectedRunners:8,entryCountMatchesSource:true,
  trainingUnaccounted:2,lastWeekUnaccounted:8,pastRunUnaccounted:3,
@@ -41,6 +41,14 @@ const selected=()=>({version:'selected-race-readiness-4',
   observedFactorSlots:6,unmappedFactors:4,verifiedFactorCount:0,
   pedigreeAptitudeAssessed:false,drawWeightEffectAssessed:false,
   rotationEffectAssessed:false,overallRankReady:false,predictionReady:false
+ },
+ personnelBodyMaterials:{
+  recorded:{jockeyNameRecorded:7,jockeyCodeRecorded:6,trainerNameRecorded:8,
+    trainerCodeRecorded:7,bothPersonnelNamesRecorded:7,bodyTypeRecorded:4,
+    integrationCodeRecorded:3,anyConformationRecorded:5},
+  observedFactorSlots:8,unmappedFactors:2,verifiedFactorCount:0,
+  jockeyTrainerPerformanceAssessed:false,bodyConditionAssessed:false,
+  raceDayBodyWeightFetched:false,overallRankReady:false,predictionReady:false
  },
  sourceSnapshotNotOfficial:true,independentJraConnected:false,
  officialJraFinalVerification:badSource,gradedFactors:0,predictionReady:false,
@@ -91,7 +99,10 @@ async function tick(){await new Promise(r=>setImmediate(r));await new Promise(r=
  assert.match(el('programmeReadinessResult').textContent,/血統資料：父 6頭／母父 5頭／両方 4頭/);
  assert.match(el('programmeReadinessResult').textContent,/枠・斤量：枠 8頭／斤量 8頭／両方 8頭/);
  assert.match(el('programmeReadinessResult').textContent,/前走間隔：14日未満 2頭／14〜55日 3頭／56日以上 1頭／不明 2頭/);
- assert.match(el('programmeReadinessResult').textContent,/残り4項目は未接続/);
+ assert.match(el('programmeReadinessResult').textContent,/騎手・厩舎資料：騎手名 7頭／騎手コード 6頭／調教師名 8頭/);
+ assert.match(el('programmeReadinessResult').textContent,/馬体形状資料：体型コード 4頭／総合コード 3頭／どちらか 5頭/);
+ assert.match(el('programmeReadinessResult').textContent,/当日の馬体重・増減は未取得/);
+ assert.match(el('programmeReadinessResult').textContent,/残り2項目/);
  assert.match(el('programmeReadinessResult').textContent,/10項目評価：未実施/);
  assert.match(el('programmeReadinessResult').textContent,/独立したJRAデータ取得：未接続/);
  assert.equal(el('programmeReadiness').disabled,false,'re-enabled for manual retry');
