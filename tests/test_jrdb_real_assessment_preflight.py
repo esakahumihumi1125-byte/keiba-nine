@@ -46,7 +46,7 @@ class RealAssessmentPreflightTests(unittest.TestCase):
         for race in report["races"]:
             self.assertIn("history_lookup_incomplete", race["blockerCodes"])
         self.assertFalse(report["realGradeReady"])
-        self.assertNotIn("C", str(report["races"]))
+        self.assertTrue(all(r["verifiedFactorCount"] == 0 for r in report["races"]))
 
     def test_aggregates_are_redacted(self):
         material, quality, complete = fixtures()
