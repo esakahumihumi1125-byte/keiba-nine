@@ -943,6 +943,12 @@ def create_app(settings=None):
             render_hostname = settings.get('RENDER_EXTERNAL_HOSTNAME', '')
             if settings.get('RENDER') == 'true' and render_hostname:
                 origins.add('https://' + render_hostname)
+            # Render can forward a different internal Host while the iPhone
+            # sends the correct public Origin. Pin a known exact public Origin
+            # from deployment configuration, never from request headers.
+            public_origin = settings.get('KEIBA_OWNER_PUBLIC_ORIGIN', '')
+            if settings.get('RENDER') == 'true' and public_origin:
+                origins.add(public_origin)
             origin_ok = not origin or origin in origins
             # Some iPhone browsers report "same-site" rather than "same-origin"
             # for a valid same-origin form navigation. Only accept that when
