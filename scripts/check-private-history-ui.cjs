@@ -26,12 +26,30 @@ async function fetchMock(url, options) {
   return {ok:true,json:async()=>({jrdbConfigured:true,historyConfigured:true})};
  if (url === '/api/jrdb/history')
   return {ok:true,json:async()=>({
-    selectedPastRaces:2,deferredPastRaces:1,
+    selectedPastRaces:2,deferredPastRaces:1,historyComplete:false,
     unavailablePastProgrammes:0,unavailablePastConditions:1,
     predictionReady:false,goingSuitabilityAssessed:false,
     tenFactorMaterials:{predictionReady:false,bettingReady:false,gradedFactors:0,
       races:[{track:'東京',race:1,runnerCount:3,predictionReady:false,bettingReady:false,
               gradedFactors:0,factors:materialsFactors}]},
+    realAssessmentPreflight:{
+      version:'real-assessment-preflight-1',raceCount:1,
+      realGradeReady:false,realPredictionReady:false,purchaseReady:false,
+      races:[{track:'東京',race:1,runnerCount:3,observedTenSlotStructure:true,
+        verifiedFactorCount:0,unverifiedRunnerHistory:1,
+        runnersWithoutCourseComparables:1,runnersWithoutGoingComparables:2,
+        runnersWithoutPersonnelNames:1,runnersWithoutConformationCodes:2,
+        runnersWithoutRecordedPast:1,
+        blockerCodes:[
+         'source_use_rights_not_verified',
+         'independent_jra_final_not_verified',
+         'real_factor_assessments_not_validated',
+         'race_day_body_condition_not_verified',
+         'history_lookup_incomplete','course_comparables_missing',
+         'going_comparables_missing','personnel_records_partial',
+         'conformation_codes_partial','past_run_records_absent'
+        ],realGradeReady:false,realPredictionReady:false,purchaseReady:false}]
+    },
     allTenFactorSources:{
       version:'combined-ten-factor-observations-1',
       raceCount:1,predictionReady:false,bettingReady:false,
@@ -59,7 +77,7 @@ async function fetchMock(url, options) {
        overallRankReady:false,predictionReady:false,bettingReady:false}]
     },
     evidenceQuality:{predictionReady:false,predictionConfidenceAssessed:false,
-      races:[{track:'東京',race:1,runnerCount:3,unlinkedPastRuns:1,
+      races:[{track:'東京',race:1,runnerCount:3,runnersNoRecordedPast:1,unlinkedPastRuns:1,
         courseComparableSamples:{none:1,oneOrTwo:1,threePlus:1},
         knownGoingComparableSamples:{none:2,oneOrTwo:1,threePlus:0}}]},
     goingSummary:{races:[
@@ -112,6 +130,8 @@ async function settle(){
  assert.match(el('races').children[0].textContent,/確定評価 0項目/);
  assert.match(el('races').children[0].textContent,/総合S\/A\/B\/C未作成/);
  assert.equal(el('history').disabled,false);
+ assert.match(el('races').children[0].textContent,/実馬評価前の必須確認/);
+ assert.match(el('races').children[0].textContent,/不足資料：履歴 1頭／距離 1頭／馬場 2頭／騎手厩舎 1頭／馬体形状 2頭／過去走 1頭/);
  assert.ok(!script.includes('innerHTML'));
  assert.ok(!requests.some(r=>r.url.includes('api_key')));
  console.log('Manual private history UI: 22 checks passed');

@@ -88,6 +88,15 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertFalse(combined["officialJraFinalVerification"])
         self.assertFalse(full["predictionReady"])
         self.assertFalse(full["bettingReady"])
+        gate = report["realAssessmentPreflight"]
+        self.assertEqual(gate["raceCount"], full["raceCount"])
+        self.assertFalse(gate["realGradeReady"])
+        self.assertFalse(gate["realPredictionReady"])
+        self.assertFalse(gate["purchaseReady"])
+        for row in gate["races"]:
+            self.assertEqual(row["verifiedFactorCount"], 0)
+            self.assertFalse(row["realGradeReady"])
+            self.assertIn("independent_jra_final_not_verified", row["blockerCodes"])
 
     def test_training_source_evidence_from_same_day_is_counted_only(self):
         from test_jrdb_evidence_readiness import sample
@@ -127,6 +136,10 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(combined["sourceMaterialSlots"], 10)
         self.assertGreaterEqual(combined["runnersWithIncompleteHistory"], 1)
         self.assertFalse(combined["predictionReady"])
+        gate = next(x for x in report["realAssessmentPreflight"]["races"]
+                    if x["track"] == "東京")
+        self.assertIn("history_lookup_incomplete", gate["blockerCodes"])
+        self.assertFalse(gate["realPredictionReady"])
         quality = next(x for x in report["evidenceQuality"]["races"]
                        if x["track"] == "東京")
         self.assertEqual(quality["runnersWithMissingPast"], 1)
