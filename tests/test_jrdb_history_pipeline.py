@@ -61,6 +61,19 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertFalse(material["predictionReady"])
         self.assertFalse(report["predictionReady"])
         self.assertFalse(report["goingSuitabilityAssessed"])
+        self.assertEqual(report["privateHistoryFactors"]["version"],
+                         "private-course-ground-materials-1")
+        tokyo_history = next(x for x in report["privateHistoryFactors"]["races"]
+                             if x["track"] == "東京")
+        self.assertEqual(tokyo_history["runnersWithComparableCourse"], 1)
+        self.assertEqual(tokyo_history["runnersWithKnownGoingComparable"], 1)
+        self.assertEqual(tokyo_history["runnersWithWetComparable"], 1)
+        self.assertEqual(tokyo_history["runnersMatchingCurrentGoing"], 1)
+        self.assertEqual(tokyo_history["unmappedFactorCount"], 5)
+        self.assertEqual(tokyo_history["verifiedFactorCount"], 0)
+        self.assertFalse(tokyo_history["suitabilityAssessed"])
+        self.assertFalse(report["privateHistoryFactors"]["predictionReady"])
+        self.assertFalse(report["privateHistoryFactors"]["bettingReady"])
 
     def test_training_source_evidence_from_same_day_is_counted_only(self):
         from test_jrdb_evidence_readiness import sample
@@ -91,6 +104,10 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(report["draCalls"], 1)
         self.assertLessEqual(report["dkaCalls"], 1)
         self.assertFalse(report["historyComplete"])
+        tokyo_hist = next(x for x in report["privateHistoryFactors"]["races"]
+                          if x["track"] == "東京")
+        self.assertGreaterEqual(tokyo_hist["runnersWithIncompleteHistory"], 1)
+        self.assertFalse(tokyo_hist["predictionReady"])
         quality = next(x for x in report["evidenceQuality"]["races"]
                        if x["track"] == "東京")
         self.assertEqual(quality["runnersWithMissingPast"], 1)
@@ -238,6 +255,7 @@ class BoundedHistoryTests(unittest.TestCase):
 
     def test_return_never_contains_raw_racekeys_or_horses(self):
         report = run_case(context())
+        self.assertEqual(report["privateHistoryFactors"]["raceCount"], 2)
         for secret in ("racekey", "byNumber", "horse_id", "horse_number",
                        "05264a01", "PRIVATE-HORSE", "PAID-SECRET"):
             self.assertNotIn(secret, repr(report))
