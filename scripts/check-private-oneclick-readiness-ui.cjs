@@ -20,7 +20,7 @@ const programme=[{racedate:'20261107',track:'東京',race:1,race_name:'架空の
  post_time:'10:00',surface:'芝',distance_m:1600,headcount:8,
  programmeOnly:true,horsesVerified:false}];
 let badSource=false,slow=false,release=null;
-const selected=()=>({version:'selected-race-readiness-3',
+const selected=()=>({version:'selected-race-readiness-4',
  date:'20261107',track:'東京',race:1,
  observedEntries:8,expectedRunners:8,entryCountMatchesSource:true,
  trainingUnaccounted:2,lastWeekUnaccounted:8,pastRunUnaccounted:3,
@@ -33,6 +33,15 @@ const selected=()=>({version:'selected-race-readiness-3',
   mixedObserved:2,insufficient:2},trainingProvisional:5,recentProvisional:4,
   observedFactors:3,verifiedFactorCount:0,unmappedFactors:7,
   paceForecastAvailable:false,overallRankReady:false,predictionReady:false},
+ entryMaterials:{
+  entryObservations:{sireRecorded:6,maternalSireRecorded:5,
+    bothPedigreeRecorded:4,bracketRecorded:8,weightRecorded:8,
+    drawAndWeightRecorded:8},
+  rotationIntervals:{under14Days:2,days14to55:3,days56plus:1,unknown:2},
+  observedFactorSlots:6,unmappedFactors:4,verifiedFactorCount:0,
+  pedigreeAptitudeAssessed:false,drawWeightEffectAssessed:false,
+  rotationEffectAssessed:false,overallRankReady:false,predictionReady:false
+ },
  sourceSnapshotNotOfficial:true,independentJraConnected:false,
  officialJraFinalVerification:badSource,gradedFactors:0,predictionReady:false,
  bettingReady:false
@@ -79,7 +88,10 @@ async function tick(){await new Promise(r=>setImmediate(r));await new Promise(r=
  assert.match(el('programmeReadinessResult').textContent,/評価差が大きい馬 1頭/);
  assert.match(el('programmeReadinessResult').textContent,/勝ち馬候補ではありません/);
  assert.match(el('programmeReadinessResult').textContent,/過去4角位置（展開の材料のみ）：前方観測 3頭/);
- assert.match(el('programmeReadinessResult').textContent,/残り7項目は未接続/);
+ assert.match(el('programmeReadinessResult').textContent,/血統資料：父 6頭／母父 5頭／両方 4頭/);
+ assert.match(el('programmeReadinessResult').textContent,/枠・斤量：枠 8頭／斤量 8頭／両方 8頭/);
+ assert.match(el('programmeReadinessResult').textContent,/前走間隔：14日未満 2頭／14〜55日 3頭／56日以上 1頭／不明 2頭/);
+ assert.match(el('programmeReadinessResult').textContent,/残り4項目は未接続/);
  assert.match(el('programmeReadinessResult').textContent,/10項目評価：未実施/);
  assert.match(el('programmeReadinessResult').textContent,/独立したJRAデータ取得：未接続/);
  assert.equal(el('programmeReadiness').disabled,false,'re-enabled for manual retry');

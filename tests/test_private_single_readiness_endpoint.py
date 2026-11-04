@@ -89,7 +89,14 @@ class PrivateSingleReadinessServiceTests(unittest.TestCase):
             self.assertFalse(payload["predictionReady"])
             self.assertFalse(payload["bettingReady"])
             self.assertFalse(payload["officialJraFinalVerification"])
-            self.assertEqual(payload["version"],"selected-race-readiness-3")
+            self.assertEqual(payload["version"],"selected-race-readiness-4")
+            observation = payload["entryMaterials"]
+            self.assertEqual(observation["observedFactorSlots"],6)
+            self.assertEqual(observation["unmappedFactors"],4)
+            self.assertEqual(sum(observation["rotationIntervals"].values()),2)
+            self.assertEqual(observation["entryObservations"]["bracketRecorded"],0)
+            self.assertFalse(observation["predictionReady"])
+            self.assertFalse(observation["pedigreeAptitudeAssessed"])
             bridge = payload["factorMaterials"]
             self.assertEqual(bridge["unmappedFactors"],7)
             self.assertEqual(bridge["observedFactors"],3)
@@ -110,6 +117,39 @@ class PrivateSingleReadinessServiceTests(unittest.TestCase):
                          "LICENSED-HORSE-PRIVATE","2328aaa95a05",
                          "fake-private-test-key","fake-private-test-auth"):
                 self.assertNotIn(word,repr(payload))
+
+    def test_owner_api_counts_entry_materials_without_leaking_private_source(self):
+        p, e, t, z, h = source()
+        e[0].update(bracket_number="2", weight_to_carry="56.0",
+                    sire_name="PRIVATE-SIRE-ONLY", mare_sire_name="PRIVATE-DAM-SIRE")
+        e[1].update(bracket_number="3", weight_to_carry=None)
+        app = authorized()
+        with (patch("private_service.fetch_race_program", return_value=p),
+              patch("private_service.fetch_horse_entries", return_value=e),
+              patch("private_service.fetch_training_analysis", return_value=t),
+              patch("private_service.fetch_recent_runs", return_value=z),
+              patch("private_service.fetch_venue_conditions", return_value=h),
+              patch("private_service._now_in_jst",
+                    return_value="2026-11-01T09:30:00+09:00")):
+            result = call(app, PATH, QUERY_STRING=QUERY)
+        self.assertEqual(result["status"], "200 OK")
+        payload = json.loads(result["body"])
+        materials = payload["entryMaterials"]
+        entry = materials["entryObservations"]
+        rotation = materials["rotationIntervals"]
+        self.assertEqual(entry["bothPedigreeRecorded"], 1)
+        self.assertEqual(entry["bracketRecorded"], 2)
+        self.assertEqual(entry["weightRecorded"], 1)
+        self.assertEqual(entry["drawAndWeightRecorded"], 1)
+        self.assertEqual(rotation["days14to55"], 1)
+        self.assertEqual(rotation["unknown"], 1)
+        self.assertFalse(materials["pedigreeAptitudeAssessed"])
+        self.assertFalse(materials["overallRankReady"])
+        self.assertFalse(payload["bettingReady"])
+        for forbidden in ("PRIVATE-SIRE-ONLY", "PRIVATE-DAM-SIRE",
+                          "weight_to_carry", "mare_sire_name", "horse_id",
+                          "racekey", "56.0"):
+            self.assertNotIn(forbidden, repr(payload))
 
     def test_wrong_race_is_error_not_another_races_data(self):
         p,e,t,z,h=source()
