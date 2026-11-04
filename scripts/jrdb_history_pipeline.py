@@ -23,6 +23,9 @@ from jrdb_private_factor_bridge import build_private_factor_matrix
 from jrdb_course_ground_factor_bridge import (
     enrich_course_ground_matrix, summarize_course_ground_matrix,
 )
+from jrdb_entry_rotation_materials import enrich_entry_materials_matrix
+from jrdb_personnel_body_materials import enrich_personnel_body_matrix
+from jrdb_complete_factor_materials import combine_ten_factor_observations
 
 VERSION = "bounded-history-1"
 MAX_LOOKUPS_PER_RUN = 12
@@ -207,13 +210,37 @@ def run_bounded_history_audit(programme, entries, previous,
             ),
             build_recent_hints(programme, entries, previous, requested_date),
         )
-        history_factor_summary = summarize_course_ground_matrix(
-            enrich_course_ground_matrix(
-                private_matrix, observations, history_complete=is_history_complete
-            )
+        course_matrix = enrich_course_ground_matrix(
+            private_matrix, observations, history_complete=is_history_complete
+        )
+        history_factor_summary = summarize_course_ground_matrix(course_matrix)
+        entry_matrix = enrich_entry_materials_matrix(
+            private_matrix, programme, entries, previous, requested_date
+        )
+        personnel_matrix = enrich_personnel_body_matrix(
+            entry_matrix, programme, entries, requested_date
+        )
+        all_factor_materials = combine_ten_factor_observations(
+            course_matrix, personnel_matrix
         )
         if (history_factor_summary["raceCount"] != materials["raceCount"]
                 or history_factor_summary["raceCount"] != quality_summary["raceCount"]
+                or all_factor_materials["raceCount"] != materials["raceCount"]
+                or all_factor_materials["predictionReady"] is not False
+                or all_factor_materials["bettingReady"] is not False
+                or any(
+                    not any(
+                        combined["track"] == history["track"]
+                        and combined["race"] == history["race"]
+                        and combined["runnerCount"] == history["runnerCount"]
+                        and combined["runnersWithComparableCourse"]
+                            == history["runnersWithComparableCourse"]
+                        and combined["runnersWithKnownGoingComparable"]
+                            == history["runnersWithKnownGoingComparable"]
+                        for history in history_factor_summary["races"]
+                    )
+                    for combined in all_factor_materials["races"]
+                )
                 or any(
                     not any(
                         row["track"] == grade["track"]
@@ -248,8 +275,10 @@ def run_bounded_history_audit(programme, entries, previous,
         "evidenceQuality": quality_summary,
         "tenFactorMaterials": materials,
         "privateHistoryFactors": history_factor_summary,
+        "allTenFactorSources": all_factor_materials,
         "predictionReady": False,
         "goingSuitabilityAssessed": False,
         "note": ("本人専用の過去資料照合。取得上限内で参照できた履歴の集計のみ。"
-                 "残りの過去走・未提供馬場は不明。適性S/A/Bや馬券は作成していません。"),
+                 "残りの過去走・未提供馬場は不明。10項目の資料枠を"
+                 "結合しても適性S/A/Bや馬券は作成していません。"),
     }

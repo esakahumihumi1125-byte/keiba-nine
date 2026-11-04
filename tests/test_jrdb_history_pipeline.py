@@ -74,6 +74,20 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertFalse(tokyo_history["suitabilityAssessed"])
         self.assertFalse(report["privateHistoryFactors"]["predictionReady"])
         self.assertFalse(report["privateHistoryFactors"]["bettingReady"])
+        full = report["allTenFactorSources"]
+        self.assertEqual(full["version"], "combined-ten-factor-observations-1")
+        self.assertEqual(full["raceCount"], 2)
+        combined = next(x for x in full["races"] if x["track"] == "東京")
+        self.assertEqual(combined["sourceMaterialSlots"], 10)
+        self.assertEqual(combined["unmappedFactorCount"], 0)
+        self.assertEqual(combined["verifiedFactorCount"], 0)
+        self.assertEqual(combined["runnersWithComparableCourse"], 1)
+        self.assertEqual(combined["runnersWithKnownGoingComparable"], 1)
+        self.assertEqual(combined["runnersWithBothPersonnelNames"], 0)
+        self.assertEqual(combined["runnersWithConformationCodes"], 0)
+        self.assertFalse(combined["officialJraFinalVerification"])
+        self.assertFalse(full["predictionReady"])
+        self.assertFalse(full["bettingReady"])
 
     def test_training_source_evidence_from_same_day_is_counted_only(self):
         from test_jrdb_evidence_readiness import sample
@@ -108,6 +122,11 @@ class BoundedHistoryTests(unittest.TestCase):
                           if x["track"] == "東京")
         self.assertGreaterEqual(tokyo_hist["runnersWithIncompleteHistory"], 1)
         self.assertFalse(tokyo_hist["predictionReady"])
+        combined = next(x for x in report["allTenFactorSources"]["races"]
+                        if x["track"] == "東京")
+        self.assertEqual(combined["sourceMaterialSlots"], 10)
+        self.assertGreaterEqual(combined["runnersWithIncompleteHistory"], 1)
+        self.assertFalse(combined["predictionReady"])
         quality = next(x for x in report["evidenceQuality"]["races"]
                        if x["track"] == "東京")
         self.assertEqual(quality["runnersWithMissingPast"], 1)
@@ -144,6 +163,23 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertFalse(output["predictionReady"])
         self.assertEqual(output["unavailablePastConditions"], 2)
         self.assertFalse(output["historyComplete"])
+
+    def test_personnel_counts_join_same_day_without_historical_extra_calls(self):
+        bundle = context()
+        bundle[1][0].update(jockey_name="LICENSED-JOCKEY",
+                            trainer_name="LICENSED-TRAINER",
+                            bodytype="LICENSED-CONFORMATION")
+        report = run_case(bundle)
+        tokyo = next(x for x in report["allTenFactorSources"]["races"]
+                     if x["track"] == "東京")
+        self.assertEqual(tokyo["runnersWithBothPersonnelNames"], 1)
+        self.assertEqual(tokyo["runnersWithConformationCodes"], 1)
+        self.assertEqual(report["draCalls"], 3)
+        self.assertEqual(report["dkaCalls"], 2)
+        self.assertFalse(tokyo["bodyConditionAssessed"])
+        for secret in ("LICENSED-JOCKEY", "LICENSED-TRAINER",
+                       "LICENSED-CONFORMATION"):
+            self.assertNotIn(secret, repr(report))
 
     def test_no_past_keys_never_calls_private_provider(self):
         bundle = context()
