@@ -197,7 +197,7 @@ async function runResearch(){
    throw Error('検証用以外の予想結果は表示できません');
   renderResearchSummary(data,input);
   const label={simulate:'参考買い目を計算',hold:'保留',skip:'見送り'}[data.researchDecision]||'要確認';
-  el('researchMessage').textContent='架空テスト成功：'+label+'（実レース・購入には使えません）';
+  el('researchMessage').textContent='架空テスト成功：'+label+'｜'+data.points+'点・'+data.stake.toLocaleString('ja-JP')+'円（実レース・購入には使えません）';
   const lines=['【総合評価順：架空の評価入力に基づく計算】'];
   for(const h of data.evaluation.horses)
    lines.push((h.rank??'-')+'位  '+h.number+'番  '+h.overall+'  調教：'+h.grades.training+'／近走：'+h.grades.recent+'／コース：'+h.grades.course_distance+'  根拠 '+h.coverage+'%');
