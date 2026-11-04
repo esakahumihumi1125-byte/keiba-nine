@@ -66,9 +66,21 @@ async function flush(){
   "assert set(plan['first'])=={1,2}",
   "assert 0<plan['points']<=40 and plan['points']==len(plan['tri'])",
   "print('Synthetic JS fixture -> Python planner:',plan['points'],'tickets')",
+  'print(json.dumps(plan,ensure_ascii=False))',
  ].join(';')],{input:JSON.stringify(body),encoding:'utf8'});
  assert.equal(actual.status,0,actual.stderr);
  assert.match(actual.stdout,/Synthetic JS fixture -> Python planner/);
+ const fullPlan=JSON.parse(actual.stdout.trim().split('\\n').pop());
+ assert.equal(fullPlan.points,36,'synthetic eight-horse fixture yields 36 tickets');
+ assert.equal(fullPlan.stake,3600);
+ assert.equal(typeof scope.renderResearchSummary,'function');
+ scope.renderResearchSummary(fullPlan,body);
+ const realSummary=screenText(host);
+ assert.match(realSummary,/36点/);
+ assert.match(realSummary,/3,600円/);
+ assert.equal(collect(host).filter(x=>x.className==='horse-row').length,8);
+ assert.equal(collect(host).filter(x=>x.className==='grade-tag grade-a').length,2,
+   'A class is red and shown for synthetic A-tier runners');
  for(const horse of body.horses){
   assert.equal(Object.keys(horse.assessments).length,10);
   for(const axis of Object.values(horse.assessments))
