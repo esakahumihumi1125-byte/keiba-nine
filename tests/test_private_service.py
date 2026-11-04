@@ -56,7 +56,7 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertIn('function showSingleRaceReadiness(', script)
         self.assertIn('実戦予想はまだ作成できません', script)
         self.assertIn('/api/jrdb/selected-readiness?', script)
-        self.assertIn('/app.js?v=owner-twofactor-check-20261104', page)
+        self.assertIn('/app.js?v=owner-pace-evidence-20261104', page)
         self.assertIn('function loadOfflineProgrammeDemo()', script)
         self.assertIn("el('programmeDemo').onclick=loadOfflineProgrammeDemo", script)
         self.assertIn('架空3R', script)

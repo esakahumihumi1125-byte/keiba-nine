@@ -40,8 +40,19 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         self.assertFalse(result["predictionReady"])
         self.assertFalse(result["bettingReady"])
         self.assertEqual(result["gradedFactors"], 0)
-        self.assertEqual(result["version"], "selected-race-readiness-2")
+        self.assertEqual(result["version"], "selected-race-readiness-3")
         pair = result["factorResearch"]
+        bridge = result["factorMaterials"]
+        self.assertEqual(bridge["unmappedFactors"], 7)
+        self.assertEqual(bridge["observedFactors"], 3)
+        self.assertFalse(bridge["paceForecastAvailable"])
+        self.assertFalse(bridge["overallRankReady"])
+        self.assertFalse(bridge["predictionReady"])
+        self.assertEqual(sum(bridge["pastFourthCorner"].values()), 2)
+        self.assertEqual(bridge["trainingProvisional"],
+                         pair["bothGraded"] + pair["trainingOnly"])
+        self.assertEqual(bridge["recentProvisional"],
+                         pair["bothGraded"] + pair["recentOnly"])
         self.assertEqual(pair["bothGraded"] + pair["trainingOnly"] +
                          pair["recentOnly"] + pair["neither"], 2)
         self.assertTrue(pair["experimental"])
