@@ -932,17 +932,34 @@ def create_app(settings=None):
             # cross-site login, or Basic challenge on a failed form submission.
             origin = environ.get('HTTP_ORIGIN', '')
             host = environ.get('HTTP_HOST', '')
-            form_ok = (
-                not environ.get('QUERY_STRING', '')
-                and environ.get('HTTP_SEC_FETCH_SITE') not in ('cross-site', 'same-site')
-                and (not origin or origin == ('https://' if secure else 'http://') + host)
-                and environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
-                    == 'application/x-www-form-urlencoded'
-            )
-            # Distinguish an invalid browser request from a mismatch in the
-            # configured username/password without logging or exposing either.
-            # Never indicate whether a particular username exists.
+            fetch_site = environ.get('HTTP_SEC_FETCH_SITE', '')
+            # Render terminates TLS and supplies its canonical public hostname.
+            # The proxy's Host header can differ from the browser's Origin.
+            # Always compare against a trusted exact public Origin; never
+            # accept an arbitrary cross-site Origin or Fetch Metadata request.
+            origins = set()
+            if host:
+                origins.add(('https://' if secure else 'http://') + host)
+            render_hostname = settings.get('RENDER_EXTERNAL_HOSTNAME', '')
+            if settings.get('RENDER') == 'true' and render_hostname:
+                origins.add('https://' + render_hostname)
+            origin_ok = not origin or origin in origins
+            # Some iPhone browsers report "same-site" rather than "same-origin"
+            # for a valid same-origin form navigation. Only accept that when
+            # the browser also supplies a verified exact Origin.
+            fetch_ok = (fetch_site not in ('cross-site', 'same-site')
+                        or (fetch_site == 'same-site' and bool(origin) and origin_ok))
+            type_ok = (environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                       == 'application/x-www-form-urlencoded')
+            query_ok = not environ.get('QUERY_STRING', '')
+            form_ok = query_ok and fetch_ok and origin_ok and type_ok
+            # Diagnostics only reveal a coarse rejection category. Neither
+            # usernames, passwords, nor request headers are logged or stored.
             rejection_kind = 'request'
+            rejection_code = ('R1' if not query_ok else
+                              'R2' if not fetch_ok else
+                              'R3' if not origin_ok else
+                              'R4' if not type_ok else 'R5')
             try:
                 size = int(environ.get('CONTENT_LENGTH', '0'))
                 if not form_ok or not 0 < size <= 4096:
@@ -950,6 +967,7 @@ def create_app(settings=None):
                 body = environ['wsgi.input'].read(size)
                 if len(body) != size:
                     raise ValueError()
+                rejection_code = 'R6'
                 fields = parse_qs(body.decode('utf-8', errors='strict'),
                                   keep_blank_values=True, strict_parsing=True,
                                   max_num_fields=2, errors='strict')
@@ -960,14 +978,16 @@ def create_app(settings=None):
                                                expected, username):
                     raise ValueError()
             except (ValueError, KeyError, TypeError, UnicodeError):
-                # Keep details out of URLs, cookies, logs and persistent storage.
+                # Expose the code for support, not any secret values. No
+                # credentials ever enter a URL, diagnostic, or response header.
                 detail = (
-                    'ブラウザーからのログイン送信を確認できませんでした。Safariで直接開いてください。'
+                    'ログイン送信の検証で止まりました（診断コード：' +
+                    rejection_code + '）。アプリの送信処理を確認します。'
                     if rejection_kind == 'request' else
                     'ユーザー名とパスワードが一致しません。RenderのEnvironmentに保存された値を直接コピーしてください。'
                 )
                 return response('401 Unauthorized', LOGIN_HTML.replace(
-                    '__ERROR__', 'ログインできませんでした。入力内容とRenderの設定を確認してください。' + detail),
+                    '__ERROR__', 'ログインできませんでした。' + detail),
                     'text/html; charset=utf-8')
             return response('303 See Other', '', 'text/plain; charset=utf-8',
                             extra=[('Location', '/login?session=check'),
