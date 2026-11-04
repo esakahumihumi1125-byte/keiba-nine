@@ -18,6 +18,7 @@ from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_venue_conditions, fetch_historical_race_program,
                           fetch_historical_venue_conditions, JRDBError)
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
+from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
 from jrdb_factor_preflight import audit_assessment_preflight
 from jrdb_training_hypothesis import build_training_hints, summarize_training_hints
@@ -785,6 +786,40 @@ def create_app(settings=None):
             except (JRDBError, ProgrammeFormatError, CoverageError):
                 return response('502 Bad Gateway', {'error': '全レースの照合ができませんでした。API接続・開催日・データ形式を確認してください。'})
             return response('200 OK', coverage)
+        if method == 'GET' and path == '/api/jrdb/selected-readiness':
+            # Single owner-triggered request with one /tra /tky /tcy /tze /tka
+            # read each; only a selected race's redacted counts leave the server.
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': '実データの安全な本人用接続がまだ有効ではありません。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date', 'track', 'race'}
+                    or any(len(values) != 1 for values in query.values())):
+                return response('400 Bad Request', {
+                    'error': '開催日・競馬場・レースを1つずつ選んでください。'})
+            date, track, number = (query['date'][0], query['track'][0], query['race'][0])
+            valid_tracks = {
+                '札幌', '函館', '福島', '新潟', '東京',
+                '中山', '中京', '京都', '阪神', '小倉',
+            }
+            if (not _valid_date(date) or track not in valid_tracks
+                    or number not in {str(i) for i in range(1, 13)}):
+                return response('400 Bad Request', {'error': '指定された開催日・競馬場・Rが不正です。'})
+            try:
+                programme = normalize_program_rows(fetch_race_program(date), date)
+                report = selected_race_readiness(
+                    programme, fetch_horse_entries(date),
+                    fetch_training_analysis(date), fetch_recent_runs(date),
+                    fetch_venue_conditions(date), date, track, int(number),
+                    _now_in_jst()
+                )
+            except (JRDBError, ProgrammeFormatError, CoverageError,
+                    RaceContextError, FreshnessError, ValueError, KeyError, TypeError):
+                return response('502 Bad Gateway', {
+                    'error': '対象レースの資料を安全に照合できませんでした。'})
+            return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/evidence':
             if settings.get('JRDB_PRIVATE_ENABLED') != '1' or settings.get('GITHUB_ACTIONS') == 'true':
                 return response('503 Service Unavailable', {'error': 'JRDB接続はまだ有効になっていません。'})
