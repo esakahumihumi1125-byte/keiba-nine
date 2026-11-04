@@ -38,18 +38,59 @@ def _now_in_jst():
 
 
 MAX_BODY = 131072
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用・データ接続確認</p><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>レース情報を取得</button><button id="context" disabled>コース・距離・馬場を確認</button><button id="raceday" disabled>出走取消・当日馬場・発走前の情報を確認</button><p class="muted">JRA公式の変更・出馬表・馬場は<a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式競馬メニュー</a>で別途確認（自動照合は未接続）。</p><button id="coverage" disabled>全場・全Rの取得状況を確認</button><button id="evidence" disabled>調教・近走の資料状況を確認</button><button id="history" disabled>過去の重・不良馬場を照合（最大8レース）</button><p class="muted">本人が実行した時だけ過去APIを最大16回照会します。実データ接続前は無効です。</p><p id="message" role="status"></p><div id="races"></div></section><section><h2>JRA画面を見ながら1レースを手入力照合</h2><p class="muted">本人専用。上の開催日を選んで、JRA公式サイトで確認した項目だけ入力します。入力はこの照合で一度だけ使用し、保存しません。データの出所を自動認証できないため、差分ゼロでも「公式確認済み」にはなりません。</p><label for="manualTrack">競馬場</label><select id="manualTrack"><option value="">競馬場を選ぶ</option><option value="札幌">札幌</option><option value="函館">函館</option><option value="福島">福島</option><option value="新潟">新潟</option><option value="東京">東京</option><option value="中山">中山</option><option value="中京">中京</option><option value="京都">京都</option><option value="阪神">阪神</option><option value="小倉">小倉</option></select><label for="manualRace">レース</label><select id="manualRace"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option><option value="4">4R</option><option value="5">5R</option><option value="6">6R</option><option value="7">7R</option><option value="8">8R</option><option value="9">9R</option><option value="10">10R</option><option value="11">11R</option><option value="12">12R</option></select><label for="manualTime">JRAサイトで見た発走時刻（任意、HH:MM）</label><input id="manualTime" type="text" maxlength="5" inputmode="numeric" placeholder="例 10:05"><label for="manualSurface">芝・ダート（任意）</label><select id="manualSurface"><option value="">未入力</option><option>芝</option><option>ダート</option><option>障害</option></select><label for="manualGoing">馬場状態（任意）</label><select id="manualGoing"><option value="">未入力</option><option>良</option><option>稍重</option><option>重</option><option>不良</option></select><label for="manualHorse">取消を確認した馬番（任意・1頭ずつ）</label><select id="manualHorse"><option value="">対象馬なし</option><option value="01">1番</option><option value="02">2番</option><option value="03">3番</option><option value="04">4番</option><option value="05">5番</option><option value="06">6番</option><option value="07">7番</option><option value="08">8番</option><option value="09">9番</option><option value="10">10番</option><option value="11">11番</option><option value="12">12番</option><option value="13">13番</option><option value="14">14番</option><option value="15">15番</option><option value="16">16番</option><option value="17">17番</option><option value="18">18番</option></select><label for="manualStatus">その馬の状態</label><select id="manualStatus"><option value="unknown">未確認</option><option value="active">出走予定</option><option value="withdrawn">取消</option></select><button id="manualCompare" disabled>入力内容とJRDB資料を1回比較</button><p id="manualMessage" role="status">未実行。本人専用HTTPSとJRDB接続の設定が必要です。</p><div id="manualResults"></div><p class="muted">比較対象は最大1レース。JRA公式からの自動取得ではありません。再実行するとその時点の資料を取り直し、前回の差分件数と比較します（画面を閉じれば前回値は消えます）。</p></section><section><h2>10項目の評価 → 総合ランク → 3連単</h2>
-<p class="muted">架空テスト専用の分析画面。実レース・JRDBの有料データ・購入には使用しません。計算は本人専用サーバー内だけで行い、保存や外部送信はしません。</p>
-<button id="researchDemo">架空8頭で動作確認</button>
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css"></head><body><main><h1>KEIBA NINE</h1><p>本人用プレビュー｜架空テスト</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
+<p class="research-intro">見やすい予想画面の動作確認。<strong>架空8頭のテスト専用</strong>です。実レース・JRDB有料データ・購入には使えません。</p>
+<button id="researchDemo" class="primary-run">架空8頭で予想画面を確認</button>
+<p id="researchMessage" role="status">未検証。上のボタンで架空8頭の画面を表示できます。</p>
+<div id="researchSummary" class="research-summary" role="region" aria-label="架空の評価結果"><p class="muted">動作確認後、総合評価順・各着順候補・点数・金額がここに表示されます。</p></div>
+<details id="researchDetails" class="research-expand"><summary>全買い目・評価の詳細を見る</summary><pre id="researchOutput">架空8頭を実行すると詳細が表示されます。</pre></details>
+<details id="researchAdvanced" class="research-expand"><summary>開発者向け：検証用JSONの入力・読み込み</summary>
+<p class="muted">架空データの研究用。実データやAPIキーを貼らないでください。</p>
 <label for="researchFile">検証用JSONファイル（任意）</label>
 <input id="researchFile" type="file" accept=".json,application/json">
 <label for="researchInput">検証用の根拠付き10項目JSON</label>
 <textarea id="researchInput" spellcheck="false" placeholder="架空データ専用です。実データやAPIキーを貼らないでください。"></textarea>
-<button id="researchRun">10項目を分析して3連単を確認</button>
-<p id="researchMessage" role="status">未検証。架空8頭の動作確認ボタンから試せます。</p>
-<pre id="researchOutput">研究用の検証結果だけを表示します。</pre>
-</section><section><h2>接続準備の診断</h2><p class="muted">本人用の設定だけを確認します。JRDBへの通信や会員情報の確認、予想作成は行いません。</p><button id="diagnose">安全な設定診断を実行</button><p id="diagnostic" role="status">診断は未実施です。</p></section><p>この画面は接続確認用です。実データからのランク評価・買い目作成にはまだ接続していません。取得した内容は公開アプリやGoogleシートへ送信しません。</p></main><script src="/app.js" defer></script></body></html>'''
-CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.7 system-ui,sans-serif}main{max-width:680px;margin:auto;padding:24px}h1{color:#efc66b}section{background:#172d48;padding:20px;border-radius:18px;margin:12px 0}.muted{font-size:14px;color:#c5d3e5}label{display:block}input,button,select{box-sizing:border-box;font:inherit;padding:12px;width:100%;margin:8px 0;border-radius:10px;border:1px solid #8b9eb7}button{background:#efc66b;color:#10213b;font-weight:700}button:disabled{opacity:.5}.race{border-bottom:1px solid #415878;padding:12px 0}p{overflow-wrap:anywhere}textarea{box-sizing:border-box;width:100%;min-height:120px;background:#0a2035;color:#edf3fa;border:1px solid #829bbb;border-radius:9px;padding:12px;font:14px/1.5 ui-monospace,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;background:#0a2035;padding:12px;border-radius:9px}'''
+<button id="researchRun">入力した架空データで分析する</button></details>
+<p class="muted research-disclaimer">画面・データは研究用。保存・公開・外部送信・馬券購入は行いません。将来の本番予想とは完全に分離しています。</p>
+</section><section><h2>JRDB接続</h2><p id="status" role="status">設定を確認中…</p><label for="date">開催日</label><input id="date" type="date"><button id="load" disabled>レース情報を取得</button><button id="context" disabled>コース・距離・馬場を確認</button><button id="raceday" disabled>出走取消・当日馬場・発走前の情報を確認</button><p class="muted">JRA公式の変更・出馬表・馬場は<a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式競馬メニュー</a>で別途確認（自動照合は未接続）。</p><button id="coverage" disabled>全場・全Rの取得状況を確認</button><button id="evidence" disabled>調教・近走の資料状況を確認</button><button id="history" disabled>過去の重・不良馬場を照合（最大8レース）</button><p class="muted">本人が実行した時だけ過去APIを最大16回照会します。実データ接続前は無効です。</p><p id="message" role="status"></p><div id="races"></div></section><section><h2>JRA画面を見ながら1レースを手入力照合</h2><p class="muted">本人専用。上の開催日を選んで、JRA公式サイトで確認した項目だけ入力します。入力はこの照合で一度だけ使用し、保存しません。データの出所を自動認証できないため、差分ゼロでも「公式確認済み」にはなりません。</p><label for="manualTrack">競馬場</label><select id="manualTrack"><option value="">競馬場を選ぶ</option><option value="札幌">札幌</option><option value="函館">函館</option><option value="福島">福島</option><option value="新潟">新潟</option><option value="東京">東京</option><option value="中山">中山</option><option value="中京">中京</option><option value="京都">京都</option><option value="阪神">阪神</option><option value="小倉">小倉</option></select><label for="manualRace">レース</label><select id="manualRace"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option><option value="4">4R</option><option value="5">5R</option><option value="6">6R</option><option value="7">7R</option><option value="8">8R</option><option value="9">9R</option><option value="10">10R</option><option value="11">11R</option><option value="12">12R</option></select><label for="manualTime">JRAサイトで見た発走時刻（任意、HH:MM）</label><input id="manualTime" type="text" maxlength="5" inputmode="numeric" placeholder="例 10:05"><label for="manualSurface">芝・ダート（任意）</label><select id="manualSurface"><option value="">未入力</option><option>芝</option><option>ダート</option><option>障害</option></select><label for="manualGoing">馬場状態（任意）</label><select id="manualGoing"><option value="">未入力</option><option>良</option><option>稍重</option><option>重</option><option>不良</option></select><label for="manualHorse">取消を確認した馬番（任意・1頭ずつ）</label><select id="manualHorse"><option value="">対象馬なし</option><option value="01">1番</option><option value="02">2番</option><option value="03">3番</option><option value="04">4番</option><option value="05">5番</option><option value="06">6番</option><option value="07">7番</option><option value="08">8番</option><option value="09">9番</option><option value="10">10番</option><option value="11">11番</option><option value="12">12番</option><option value="13">13番</option><option value="14">14番</option><option value="15">15番</option><option value="16">16番</option><option value="17">17番</option><option value="18">18番</option></select><label for="manualStatus">その馬の状態</label><select id="manualStatus"><option value="unknown">未確認</option><option value="active">出走予定</option><option value="withdrawn">取消</option></select><button id="manualCompare" disabled>入力内容とJRDB資料を1回比較</button><p id="manualMessage" role="status">未実行。本人専用HTTPSとJRDB接続の設定が必要です。</p><div id="manualResults"></div><p class="muted">比較対象は最大1レース。JRA公式からの自動取得ではありません。再実行するとその時点の資料を取り直し、前回の差分件数と比較します（画面を閉じれば前回値は消えます）。</p></section><section><h2>接続準備の診断</h2><p class="muted">本人用の設定だけを確認します。JRDBへの通信や会員情報の確認、予想作成は行いません。</p><button id="diagnose">安全な設定診断を実行</button><p id="diagnostic" role="status">診断は未実施です。</p></section><p>この画面は接続確認用です。実データからのランク評価・買い目作成にはまだ接続していません。取得した内容は公開アプリやGoogleシートへ送信しません。</p></main><script src="/app.js" defer></script></body></html>'''
+CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.7 system-ui,sans-serif}main{max-width:680px;margin:auto;padding:24px}h1{color:#efc66b}section{background:#172d48;padding:20px;border-radius:18px;margin:12px 0}.muted{font-size:14px;color:#c5d3e5}label{display:block}input,button,select{box-sizing:border-box;font:inherit;padding:12px;width:100%;margin:8px 0;border-radius:10px;border:1px solid #8b9eb7}button{background:#efc66b;color:#10213b;font-weight:700}button:disabled{opacity:.5}.race{border-bottom:1px solid #415878;padding:12px 0}p{overflow-wrap:anywhere}textarea{box-sizing:border-box;width:100%;min-height:120px;background:#0a2035;color:#edf3fa;border:1px solid #829bbb;border-radius:9px;padding:12px;font:14px/1.5 ui-monospace,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;background:#0a2035;padding:12px;border-radius:9px}
+.research-panel{background:linear-gradient(170deg,#1b3552,#10263f 72%);border:1px solid #4c6b8d}
+.research-panel h2{font-size:26px;line-height:1.25;margin:8px 0 12px}
+.research-kicker{font-size:11px;letter-spacing:.13em;font-weight:800;color:#f3d18a;margin:0}
+.research-intro{color:#dbe6f4;font-size:14px;line-height:1.6;margin:0 0 15px}
+.research-intro strong{color:#f6d07d}
+.primary-run{background:#edc86f;min-height:55px;font-size:17px;letter-spacing:.02em}
+.research-summary{margin:15px 0}
+.research-summary:empty{display:none}
+.preview-race-head{padding:15px 14px;border:1px solid #587490;border-radius:12px;margin-bottom:13px;background:#0e2339}
+.preview-kicker{font-weight:800;font-size:11px;letter-spacing:.1em;color:#f4d17a}
+.preview-race-name{font-size:19px;font-weight:800;line-height:1.4;margin-top:5px}
+.preview-race-meta{font-size:12px;color:#c5d3e5;margin-top:5px}
+.research-card{background:#112b46;border:1px solid #45637f;border-radius:13px;padding:14px;margin-top:12px}
+.research-card h3{font-size:17px;margin:0 0 11px;line-height:1.35;color:#f1f6ff}
+.stake-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.stake-cell{background:#0b2035;border:1px solid #47637c;border-radius:10px;padding:11px 9px}
+.stake-label{font-size:12px;color:#c3d0df}
+.stake-value{font-size:25px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}
+.horse-row{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #354d66}
+.horse-row:last-child{border-bottom:0}
+.horse-rank{font-size:13px;color:#cad7e6;flex:0 0 31px;text-align:center}
+.horse-number{font-size:23px;font-weight:800;flex:0 0 50px;text-align:center}
+.grade-tag{font-size:14px;font-weight:900;border-radius:7px;padding:4px 10px;min-width:27px;text-align:center;color:white}
+.grade-s{background:#117c64}.grade-a{background:#c6374c}.grade-b{background:#385cbd}.grade-c{background:#5a6270}.grade-unknown{background:#59677b}
+.horse-meta{font-size:11px;color:#c5d3e5;line-height:1.5;min-width:0;overflow-wrap:anywhere;flex:1}
+.formation-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.formation-col{min-width:0;background:#0a2034;border:1px solid #45627c;padding:9px 6px;border-radius:10px;text-align:center}
+.formation-title{font-size:12px;color:#cad8e8}
+.formation-numbers{font-size:18px;font-weight:800;line-height:1.7;overflow-wrap:anywhere;margin-top:5px}
+.research-note{font-size:12px;color:#ccdaeb;margin-top:10px;line-height:1.6}
+.research-expand{border:1px solid #506e8b;border-radius:10px;margin-top:12px;padding:11px 13px;background:#10253c}
+.research-expand summary{font-size:14px;font-weight:750;cursor:pointer;min-height:27px}
+.research-expand pre{margin:10px 0 0;max-height:360px;overflow:auto;white-space:pre-wrap;font-size:12px;line-height:1.6}
+.research-expand textarea{margin-top:7px}
+.research-disclaimer{margin:14px 0 0}
+@media(max-width:380px){.research-card{padding:11px}.horse-row{gap:7px}.horse-number{flex-basis:40px}.grade-tag{padding:4px 7px}.formation-numbers{font-size:16px}.stake-value{font-size:22px}}
+'''
 JS = ''''use strict';
 const el=id=>document.getElementById(id);
 async function request(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{'X-Keiba-Request':'private'}});const data=await r.json();if(!r.ok)throw Error(data.error||'取得できませんでした');return data;}
@@ -70,8 +111,76 @@ function syntheticSample(){
                    availableAt:date+'T08:00:00+09:00'}]}]))};
  })};
 }
+const RESEARCH_AXIS_JP={training:'調教',recent:'近走',course_distance:'コース',pace:'展開',ground:'馬場',pedigree:'血統',draw_weight:'枠斤量',jockey_stable:'騎手厩舎',rotation:'ローテ',body_condition:'馬体'};
+function researchNode(tag,cls,value){
+ const node=document.createElement(tag);node.className=cls||'';
+ if(value!==undefined)node.textContent=String(value);
+ return node;
+}
+function researchSection(label){
+ const card=researchNode('div','research-card');
+ card.append(researchNode('h3','',label));return card;
+}
+function renderResearchSummary(data,input){
+ // Keep all untrusted strings in textContent; do not interpret as HTML.
+ const host=el('researchSummary');host.replaceChildren();
+ const rows=data.evaluation?.horses;
+ if(!Array.isArray(rows)||!Array.isArray(data.tri)
+    ||!Number.isInteger(data.points)||data.points<0||data.points>40
+    ||data.points!==data.tri.length
+    ||!Number.isInteger(data.stake)||data.stake!==data.points*100
+    ||!data.tri.every(t=>Array.isArray(t)&&t.length===3
+       &&t.every(x=>Number.isInteger(x)&&x>0&&x<=18)
+       &&new Set(t).size===3))
+  throw Error('架空テストの買い目データが不正です');
+ const unique=new Set(data.tri.map(t=>t.join('-')));
+ if(unique.size!==data.tri.length)throw Error('買い目が重複しています');
+ const head=researchNode('div','preview-race-head');
+ head.append(researchNode('div','preview-kicker','架空テスト • 実際のレースではありません'));
+ head.append(researchNode('div','preview-race-name','架空8頭｜分析結果'));
+ head.append(researchNode('div','preview-race-meta','総合評価は架空の根拠入力から計算・データ保存なし'));
+ host.append(head);
+ const stats=researchSection('3連単参考買い目');
+ const statgrid=researchNode('div','stake-grid');
+ for(const item of [['買い目',data.points+'点'],['1点100円の場合',data.stake.toLocaleString('ja-JP')+'円']]){
+  const cell=researchNode('div','stake-cell');
+  cell.append(researchNode('div','stake-label',item[0]));
+  cell.append(researchNode('div','stake-value',item[1]));statgrid.append(cell);
+ }
+ stats.append(statgrid);
+ const label={simulate:'参考買い目を生成',hold:'保留',skip:'見送り'}[data.researchDecision]||'判定要確認';
+ stats.append(researchNode('p','research-note',label+'（実際の購入・投票はできません）'));
+ host.append(stats);
+ const rankings=researchSection('総合評価順');
+ for(const h of rows){
+  if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18)
+   throw Error('馬番の形式が不正です');
+  const row=researchNode('div','horse-row');
+  row.append(researchNode('span','horse-rank',(h.rank??'-')+'位'));
+  row.append(researchNode('span','horse-number',h.number+'番'));
+  const grade=['S','A','B','C'].includes(h.overall)?h.overall:'—';
+  row.append(researchNode('span','grade-tag grade-'+(grade==='—'?'unknown':grade.toLowerCase()),grade));
+  const grades=h.grades||{};
+  const labels=['training','recent','course_distance'].map(k=>RESEARCH_AXIS_JP[k]+' '+(grades[k]||'—'));
+  row.append(researchNode('span','horse-meta',labels.join(' / ')+' ｜ 根拠 '+(h.coverage??'—')+'%'));
+  rankings.append(row);
+ }
+ host.append(rankings);
+ const formation=researchSection('各着順の候補');
+ const opts=[0,1,2].map(k=>[...new Set(data.tri.map(t=>t[k]))].sort((a,b)=>a-b));
+ const cols=researchNode('div','formation-columns');
+ for(let i=0;i<3;i++){
+  const col=researchNode('div','formation-col');
+  col.append(researchNode('div','formation-title',(i+1)+'着'));
+  col.append(researchNode('div','formation-numbers',opts[i].length?opts[i].map(x=>x+'番').join(' ') : '—'));
+  cols.append(col);
+ }
+ formation.append(cols);
+ formation.append(researchNode('p','research-note','着順ごとの候補です。全組み合わせが買い目とは限りません。実際に生成した全'+data.points+'点は「全買い目・評価の詳細」を確認してください。'));
+ host.append(formation);
+}
 async function runResearch(){
- const button=el('researchRun');button.disabled=true;el('researchMessage').textContent='研究用データを検査しています…';el('researchOutput').textContent='';
+ const button=el('researchRun');button.disabled=true;el('researchMessage').textContent='研究用データを検査しています…';el('researchOutput').textContent='';el('researchSummary').replaceChildren();
  try{
   const raw=el('researchInput').value;
   if(raw.length>100000)throw Error('検証用JSONは100KB以内にしてください');
@@ -86,8 +195,9 @@ async function runResearch(){
   const data=await response.json();if(!response.ok)throw Error(data.error||'評価できませんでした');
   if(data.recordType!=='test'||data.publishable!==false||data.validated!==false)
    throw Error('検証用以外の予想結果は表示できません');
+  renderResearchSummary(data,input);
   const label={simulate:'参考買い目を計算',hold:'保留',skip:'見送り'}[data.researchDecision]||'要確認';
-  el('researchMessage').textContent='架空テスト：'+label+'｜'+data.points+'点／1点100円なら'+data.stake+'円（実際の購入ではありません）';
+  el('researchMessage').textContent='架空テスト成功：'+label+'｜'+data.points+'点・'+data.stake.toLocaleString('ja-JP')+'円（実レース・購入には使えません）';
   const lines=['【総合評価順：架空の評価入力に基づく計算】'];
   for(const h of data.evaluation.horses)
    lines.push((h.rank??'-')+'位  '+h.number+'番  '+h.overall+'  調教：'+h.grades.training+'／近走：'+h.grades.recent+'／コース：'+h.grades.course_distance+'  根拠 '+h.coverage+'%');
@@ -95,7 +205,7 @@ async function runResearch(){
              '【3連単参考】'+(data.tri.length?data.tri.map(t=>t.join('-')).join('、'):'買い目なし'),
              '','理由：'+data.reason,'※架空の動作確認専用。実戦予想・JRA公式との照合・購入・保存は行っていません。');
   el('researchOutput').textContent=lines.join('\\n');
- }catch(e){el('researchMessage').textContent='検証できません：'+e.message;el('researchOutput').textContent='根拠付きの架空データと日時を確認してください。';}
+ }catch(e){el('researchSummary').replaceChildren();el('researchMessage').textContent='検証できません：'+e.message;el('researchOutput').textContent='根拠付きの架空データと日時を確認してください。';}
  finally{button.disabled=false}
 }
 el('researchDemo').onclick=()=>{el('researchInput').value=JSON.stringify(syntheticSample());runResearch();};
