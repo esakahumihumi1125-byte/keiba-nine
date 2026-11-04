@@ -153,7 +153,12 @@ class OwnerSessionTests(unittest.TestCase):
         self.assertEqual(accepted["status"], "303 See Other")
         denied = login(app, good, HTTP_ORIGIN="https://unrelated.example", **proxy)
         self.assertEqual(denied["status"], "401 Unauthorized")
-        self.assertIn(b"R3", denied["body"])
+        self.assertIn(b"R2", denied["body"])
+        mismatch = login(app, good, HTTP_ORIGIN="https://unrelated.example",
+                         HTTP_HOST="render-internal:10000",
+                         HTTP_SEC_FETCH_SITE="same-origin")
+        self.assertEqual(mismatch["status"], "401 Unauthorized")
+        self.assertIn(b"R3", mismatch["body"])
         missing_origin = login(app, good, HTTP_ORIGIN="", **proxy)
         self.assertEqual(missing_origin["status"], "401 Unauthorized")
 
