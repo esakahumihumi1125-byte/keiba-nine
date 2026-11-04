@@ -334,7 +334,7 @@ function safeReadinessCount(n,max){
  return n;
 }
 function showSingleRaceReadiness(data,selected,day){
- if(!data||data.version!=='selected-race-readiness-4'
+ if(!data||data.version!=='selected-race-readiness-5'
     ||data.date!==day||data.track!==selected.track||data.race!==selected.race
     ||data.sourceSnapshotNotOfficial!==true||data.independentJraConnected!==false
     ||data.officialJraFinalVerification!==false||data.predictionReady!==false
@@ -401,6 +401,29 @@ function showSingleRaceReadiness(data,selected,day){
  if(bothParent>Math.min(sire,maternal)||bothDraw>Math.min(bracket,weight)
     ||under14+days14to55+days56plus+intervalUnknown!==n)
   throw Error('血統・枠・斤量・ローテの資料件数が一致しません');
+ const personnel=data.personnelBodyMaterials;
+ if(!personnel||personnel.observedFactorSlots!==8
+    ||personnel.unmappedFactors!==2||personnel.verifiedFactorCount!==0
+    ||personnel.jockeyTrainerPerformanceAssessed!==false
+    ||personnel.bodyConditionAssessed!==false
+    ||personnel.raceDayBodyWeightFetched!==false
+    ||personnel.overallRankReady!==false
+    ||personnel.predictionReady!==false)
+   throw Error('騎手・厩舎・馬体資料の確認状態が不正です');
+ const pr=personnel.recorded,pk=[
+   'jockeyNameRecorded','jockeyCodeRecorded','trainerNameRecorded',
+   'trainerCodeRecorded','bothPersonnelNamesRecorded','bodyTypeRecorded',
+   'integrationCodeRecorded','anyConformationRecorded'
+ ];
+ if(!pr||Object.keys(pr).length!==pk.length
+    ||!pk.every(k=>Object.prototype.hasOwnProperty.call(pr,k)))
+   throw Error('騎手・厩舎・馬体資料の件数情報が不足しています');
+ const [jockeyName,jockeyCode,trainerName,trainerCode,bothPeople,
+    bodyType,bodyCode,anyBody]=pk.map(k=>safeReadinessCount(pr[k],n));
+ if(bothPeople>Math.min(jockeyName,trainerName)
+    ||anyBody<Math.max(bodyType,bodyCode)
+    ||anyBody>bodyType+bodyCode)
+   throw Error('騎手・厩舎・馬体資料の件数が一致しません');
  if(withdrawn+unknown>n||typeof data.entryCountMatchesSource!=='boolean'
     ||!['良','稍重','重','不良','未確認'].includes(data.sourceGoing)
     ||!['post_time_unknown','other_date','post_time_passed',
@@ -423,7 +446,9 @@ function showSingleRaceReadiness(data,selected,day){
   +'\\n血統資料：父 '+sire+'頭／母父 '+maternal+'頭／両方 '+bothParent+'頭（適性未評価）'
   +'\\n枠・斤量：枠 '+bracket+'頭／斤量 '+weight+'頭／両方 '+bothDraw+'頭（有利不利は未評価）'
   +'\\n前走間隔：14日未満 '+under14+'頭／14〜55日 '+days14to55+'頭／56日以上 '+days56plus+'頭／不明 '+intervalUnknown+'頭'
-  +'\\n10項目の資料：調教・近走の暫定評価＋4角位置・血統・枠斤量・ローテの観測を接続、残り4項目は未接続（総合ランクは未完成）'
+  +'\\n騎手・厩舎資料：騎手名 '+jockeyName+'頭／騎手コード '+jockeyCode+'頭／調教師名 '+trainerName+'頭／調教師コード '+trainerCode+'頭／両名 '+bothPeople+'頭'
+  +'\\n馬体形状資料：体型コード '+bodyType+'頭／総合コード '+bodyCode+'頭／どちらか '+anyBody+'頭（当日の馬体重・増減は未取得）'
+  +'\\n10項目の資料：調教・近走の仮評価＋6項目の観測に接続、残り2項目（距離・馬場）はこの確認では未接続（総合ランク未完成）'
   +'\\n10項目評価：未実施｜JRA公式の取消・馬場・発走時刻：未照合'
   +'\\n独立したJRAデータ取得：未接続｜総合評価・3連単：未作成';
 }
