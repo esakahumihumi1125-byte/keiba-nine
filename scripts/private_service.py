@@ -12,7 +12,8 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs
-from owner_session_auth import (owner_credentials_match, session_cookie, session_cookie_valid)
+from owner_session_auth import (owner_credentials_match, session_cookie, session_cookie_valid,
+                                new_login_form_csrf, login_form_csrf_valid)
 
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs,
@@ -45,7 +46,7 @@ def _now_in_jst():
 
 UI_VERSION = 'iphone-login-recovery-20261105-v9'
 MAX_BODY = 131072
-LOGIN_HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>競馬ナイン｜本人ログイン</title><link rel="stylesheet" href="/login.css"></head><body><main><h1>KEIBA NINE</h1><p class="subtitle">本人用プレビューへのログイン</p><p class="notice">予想デモは架空データ用です。実戦予想・馬券購入は未接続。</p><form action="/login" method="post"><label for="loginUser">ユーザー名</label><input id="loginUser" name="username" autocomplete="username" value="owner" maxlength="128" required><label for="loginPassword">パスワード</label><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><button type="submit">ログイン</button></form><p id="loginError" class="error">__ERROR__</p><p class="help">ログイン後に同じ画面へ戻る場合は、ChatGPT内のブラウザーではなくSafariでこのURLを直接開いてください。アプリのパスワードはRenderのEnvironmentに設定した値です。</p><p class="help">Renderのサービス <strong>keiba-nine-owner-preview</strong> の Environment にある <code>KEIBA_OWNER_PASSWORD</code> を使います。RenderやGitHubのログインパスワードとは別です。</p><p class="help">正しくログインできると、このiPhoneでは最長7日間ログイン状態を保持します。パスワードを変更すると再ログインが必要です。</p><p class="help">パスワードはこのチャットやGitHubに貼らないでください。</p></main></body></html>'''
+LOGIN_HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>競馬ナイン｜本人ログイン</title><link rel="stylesheet" href="/login.css"></head><body><main><h1>KEIBA NINE</h1><p class="subtitle">本人用プレビューへのログイン</p><p class="notice">予想デモは架空データ用です。実戦予想・馬券購入は未接続。</p><form action="/login" method="post"><label for="loginUser">ユーザー名</label><input id="loginUser" name="username" autocomplete="username" value="owner" maxlength="128" required><label for="loginPassword">パスワード</label><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><input type="hidden" name="login_csrf" value="__CSRF__"><button type="submit">ログイン</button></form><p id="loginError" class="error">__ERROR__</p><p class="help">ログイン後に同じ画面へ戻る場合は、ChatGPT内のブラウザーではなくSafariでこのURLを直接開いてください。アプリのパスワードはRenderのEnvironmentに設定した値です。</p><p class="help">Renderのサービス <strong>keiba-nine-owner-preview</strong> の Environment にある <code>KEIBA_OWNER_PASSWORD</code> を使います。RenderやGitHubのログインパスワードとは別です。</p><p class="help">正しくログインできると、このiPhoneでは最長7日間ログイン状態を保持します。パスワードを変更すると再ログインが必要です。</p><p class="help">パスワードはこのチャットやGitHubに貼らないでください。</p></main></body></html>'''
 LOGIN_CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.65 system-ui,sans-serif}main{max-width:440px;padding:28px 22px;margin:36px auto}h1{color:#edca70;margin:0;font-size:32px}.subtitle{color:#d6e1f0;margin:0 0 24px}.notice,.help{color:#d0deee;font-size:14px}.notice{background:#142e48;border-radius:10px;padding:12px}form{background:#172d48;border:1px solid #405e7b;border-radius:16px;padding:20px}label{display:block;font-weight:700;margin:14px 0 5px}input,button{box-sizing:border-box;width:100%;padding:13px;border-radius:10px;font:inherit}input{background:#f8fbff;color:#10213b;border:1px solid #8b9eb7}button{margin-top:23px;background:#edca70;border:0;color:#12243a;font-weight:800;min-height:50px}.error{color:#ffbec4;font-weight:700}.error:empty{display:none}code{overflow-wrap:anywhere}'''
 HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css?theme=owner-mobile-nav-20261104"></head><body><main><h1>KEIBA NINE</h1><p class="top-lead">競馬ナイン｜本人用プレビュー</p><div class="preview-mode"><strong>本人用：手動の3連単下書きが使えます</strong><span>実馬のAI予想・馬券購入は未接続</span></div><nav class="jump-nav" aria-label="画面内メニュー"><a href="/my-tickets">自分の3連単を作る（手動）</a><a href="#researchPanel">予想デモ</a><a href="#jrdbSection">レース選択</a><a href="#operatorFactorPanel">資料チェック</a><a href="#ownerTools">接続・設定</a></nav><p class="muted" id="uiVersion">画面版：iphone-login-recovery-20261105-v9</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
 <p class="research-intro">見やすい予想画面の動作確認。<strong>架空8頭のテスト専用</strong>です。実レース・JRDB有料データ・購入には使えません。</p>
@@ -914,6 +915,14 @@ def create_app(settings=None):
         valid = valid_basic or valid_cookie
         if method == 'GET' and path == '/login.css':
             return response('200 OK', LOGIN_CSS, 'text/css; charset=utf-8')
+        def login_page(error=''):
+            # Fresh token for each login page; never expose the password or
+            # session secret. The token must match a host-only HttpOnly cookie.
+            csrf_token, csrf_cookie = new_login_form_csrf()
+            html = LOGIN_HTML.replace('__ERROR__', error).replace('__CSRF__', csrf_token)
+            return response('200 OK', html, 'text/html; charset=utf-8',
+                            extra=[('Set-Cookie', csrf_cookie)])
+
         if method == 'GET' and path == '/login':
             if valid:
                 return response('303 See Other', '', 'text/plain; charset=utf-8',
@@ -925,50 +934,25 @@ def create_app(settings=None):
                 'iPhoneのSafariでURLを直接開いて、Cookieを許可して再度お試しください。'
                 if environ.get('QUERY_STRING', '') == 'session=check' else ''
             )
-            return response('200 OK', LOGIN_HTML.replace('__ERROR__', session_error),
-                            'text/html; charset=utf-8')
+            return login_page(session_error)
         if method == 'POST' and path == '/login':
             # No paid data reads and no logs, storage, URL password parameters,
             # cross-site login, or Basic challenge on a failed form submission.
-            origin = environ.get('HTTP_ORIGIN', '')
-            host = environ.get('HTTP_HOST', '')
+            # The browser-bound CSRF token authenticates a same-browser form
+            # submission even when Render or iPhone Safari alters Origin.
+            # Still reject explicit cross-site Fetch Metadata unconditionally.
             fetch_site = environ.get('HTTP_SEC_FETCH_SITE', '')
-            # Render terminates TLS and supplies its canonical public hostname.
-            # The proxy's Host header can differ from the browser's Origin.
-            # Always compare against a trusted exact public Origin; never
-            # accept an arbitrary cross-site Origin or Fetch Metadata request.
-            origins = set()
-            if host:
-                origins.add(('https://' if secure else 'http://') + host)
-            render_hostname = settings.get('RENDER_EXTERNAL_HOSTNAME', '')
-            if settings.get('RENDER') == 'true' and render_hostname:
-                origins.add('https://' + render_hostname)
-            # Render can forward a different internal Host while the iPhone
-            # sends the correct public Origin. Pin a known exact public Origin
-            # from deployment configuration, never from request headers.
-            public_origin = settings.get('KEIBA_OWNER_PUBLIC_ORIGIN', '')
-            if settings.get('RENDER') == 'true' and public_origin:
-                origins.add(public_origin)
-            origin_ok = not origin or origin in origins
-            # Some iPhone browsers report "same-site" rather than "same-origin"
-            # for a valid same-origin form navigation. Only accept that when
-            # the browser also supplies a verified exact Origin.
-            fetch_ok = (fetch_site not in ('cross-site', 'same-site')
-                        or (fetch_site == 'same-site' and bool(origin) and origin_ok))
+            fetch_ok = fetch_site != 'cross-site'
             type_ok = (environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
                        == 'application/x-www-form-urlencoded')
             query_ok = not environ.get('QUERY_STRING', '')
-            form_ok = query_ok and fetch_ok and origin_ok and type_ok
-            # Diagnostics only reveal a coarse rejection category. Neither
-            # usernames, passwords, nor request headers are logged or stored.
             rejection_kind = 'request'
             rejection_code = ('R1' if not query_ok else
                               'R2' if not fetch_ok else
-                              'R3' if not origin_ok else
                               'R4' if not type_ok else 'R5')
             try:
                 size = int(environ.get('CONTENT_LENGTH', '0'))
-                if not form_ok or not 0 < size <= 4096:
+                if not query_ok or not fetch_ok or not type_ok or not 0 < size <= 4096:
                     raise ValueError()
                 body = environ['wsgi.input'].read(size)
                 if len(body) != size:
@@ -976,24 +960,26 @@ def create_app(settings=None):
                 rejection_code = 'R6'
                 fields = parse_qs(body.decode('utf-8', errors='strict'),
                                   keep_blank_values=True, strict_parsing=True,
-                                  max_num_fields=2, errors='strict')
-                if set(fields) != {'username', 'password'} or any(len(v) != 1 for v in fields.values()):
+                                  max_num_fields=3, errors='strict')
+                if set(fields) != {'username', 'password', 'login_csrf'} or any(len(v) != 1 for v in fields.values()):
+                    raise ValueError()
+                rejection_code = 'R3'
+                if not login_form_csrf_valid(environ.get('HTTP_COOKIE', ''), fields['login_csrf'][0]):
                     raise ValueError()
                 rejection_kind = 'credentials'
                 if not owner_credentials_match(fields['username'][0], fields['password'][0],
                                                expected, username):
                     raise ValueError()
             except (ValueError, KeyError, TypeError, UnicodeError):
-                # Expose the code for support, not any secret values. No
-                # credentials ever enter a URL, diagnostic, or response header.
                 detail = (
-                    'ログイン送信の検証で止まりました（診断コード：' +
-                    rejection_code + '）。アプリの送信処理を確認します。'
+                    'ログインフォームの検証で止まりました（診断コード：' +
+                    rejection_code + '）。このページを再読み込みして試してください。'
                     if rejection_kind == 'request' else
                     'ユーザー名とパスワードが一致しません。RenderのEnvironmentに保存された値を直接コピーしてください。'
                 )
-                return response('401 Unauthorized', LOGIN_HTML.replace(
-                    '__ERROR__', 'ログインできませんでした。' + detail),
+                return login_page('ログインできませんでした。' + detail) if rejection_kind == 'request' else response(
+                    '401 Unauthorized',
+                    LOGIN_HTML.replace('__ERROR__', 'ログインできませんでした。' + detail).replace('__CSRF__', ''),
                     'text/html; charset=utf-8')
             return response('303 See Other', '', 'text/plain; charset=utf-8',
                             extra=[('Location', '/login?session=check'),
