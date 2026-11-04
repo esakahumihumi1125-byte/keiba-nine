@@ -326,6 +326,13 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertFalse(report['tenFactorMaterials']['bettingReady'])
         self.assertFalse(report['predictionReady'])
         self.assertFalse(report['goingSuitabilityAssessed'])
+        complete = report['allTenFactorSources']
+        self.assertEqual(complete['raceCount'], 2)
+        tokyo_combined = next(x for x in complete['races'] if x['track'] == '東京')
+        self.assertEqual(tokyo_combined['sourceMaterialSlots'], 10)
+        self.assertEqual(tokyo_combined['verifiedFactorCount'], 0)
+        self.assertFalse(tokyo_combined['overallRankReady'])
+        self.assertFalse(complete['predictionReady'])
         tokyo = next(x for x in report['goingSummary']['races'] if x['track'] == '東京')
         self.assertEqual(tokyo['heavyComparableRuns'], 1)
         self.assertEqual(dra.call_count, 3)
