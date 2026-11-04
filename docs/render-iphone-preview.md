@@ -76,8 +76,24 @@ GitHubの改良が本体`main`に反映されたあと、Renderの
 
 再デプロイが成功しても「JRDB接続」が先頭のままなら、これ以上むやみにキャッシュ消去・パスワード変更・再デプロイを繰り返さないでください。
 
-本人ログイン済みの状態で [配信版の確認](https://keiba-nine-owner-preview-mvxz.onrender.com/ui-version) を開きます。最新版なら `uiVersion=iphone-rank-cards-20261104-v2`、`researchFirst=yes` が表示されます。Renderの提供するコミット番号があれば先頭12桁だけ確認できます。秘密キーは表示されません。
+本人ログイン済みの状態で [配信版の確認](https://keiba-nine-owner-preview-mvxz.onrender.com/ui-version) を開きます。最新版なら `uiVersion=iphone-mobile-navigation-20261104-v4`、`researchFirst=yes` が表示されます。Renderの提供するコミット番号があれば先頭12桁だけ確認できます。秘密キーは表示されません。
 
 続けて [別パスの新しい画面](https://keiba-nine-owner-preview-mvxz.onrender.com/preview-v2) を開きます。通常のトップページと同じ画面を、以前のURLとは別のパスから取得します。URLのクエリだけの変更とは異なります。
 
 `/ui-version` が404の場合、アクセス先で新しいコードが動いていない可能性があります。その場合はRenderダッシュボードの対象Webサービスとデプロイ履歴のSOURCEコミット番号を先に確認し、実際の提供URLとの食い違いを調べます。ログインが必要な本人専用機能であり、JRAやJRDBのデータ通信を増やしません。
+
+
+## 2026-11-04：iPhone用の最上部ナビゲーション
+
+本人用画面の先頭に **予想デモ／レース選択／資料チェック／接続・設定**
+の４つのジャンプ項目を追加し、実戦データ未接続の状態を常時明示します。
+画面の下方にある複数の開発用ツールへ何度も長くスクロールせず移れます。
+Sランクのゴールド・Aランクの赤、架空８頭テスト、手入力資料チェック、
+JRDBボタンの安全な無効化、Basic認証は変更していません。
+
+この修正をGitHubの `main` に反映しても、**Renderの自動デプロイはOFF**なので
+実機の画面はまだ変わりません。Renderダッシュボードの対象サービス
+`keiba-nine-owner-preview` を開き、**Manual Deploy → Deploy latest commit**
+を選択すると、同じ環境変数とパスワードのままコードを更新できます。
+更新後に配信版確認 `/ui-version` で
+`uiVersion=iphone-mobile-navigation-20261104-v4` を確認してください。
