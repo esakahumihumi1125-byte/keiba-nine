@@ -41,6 +41,38 @@ class DualFactorReadinessTests(unittest.TestCase):
         self.assertTrue(tokyo["coreFactorsStillUnverified"])
         self.assertEqual(tokyo["remainingFactors"], 8)
 
+    def test_agreement_and_disagreement_counts_without_horse_picks(self):
+        training, recent = data()
+        # First runner is S (training) versus A (recent).
+        tokyo = summarize_dual_factor_readiness(training, recent)["races"][0]
+        self.assertEqual(tokyo["both"], 1)
+        self.assertEqual(tokyo["trainingHigher"], 1)
+        self.assertEqual(tokyo["largeDisagreement"], 0)
+        self.assertEqual(tokyo["bothHigh"], 1)
+        self.assertEqual(tokyo["sameGrade"], 0)
+        # Deliberate conflict: S vs C is a difference of three grades.
+        recent[0]["byNumber"]["01"]["grade"] = "C"
+        tokyo = summarize_dual_factor_readiness(training, recent)["races"][0]
+        self.assertEqual(tokyo["trainingHigher"], 1)
+        self.assertEqual(tokyo["largeDisagreement"], 1)
+        self.assertEqual(tokyo["bothHigh"], 0)
+        self.assertEqual(tokyo["recentHigher"], 0)
+        # Opposite conflict: C vs S.
+        training[0]["gradesByNumber"]["01"] = "C"
+        recent[0]["byNumber"]["01"]["grade"] = "S"
+        tokyo = summarize_dual_factor_readiness(training, recent)["races"][0]
+        self.assertEqual(tokyo["recentHigher"], 1)
+        self.assertEqual(tokyo["largeDisagreement"], 1)
+        self.assertEqual(tokyo["trainingHigher"], 0)
+        self.assertFalse(tokyo["predictionReady"])
+        self.assertEqual(tokyo["remainingFactors"], 8)
+        # Both equal C still does not imply race assessment.
+        training[0]["gradesByNumber"]["01"] = "C"
+        recent[0]["byNumber"]["01"]["grade"] = "C"
+        tokyo = summarize_dual_factor_readiness(training, recent)["races"][0]
+        self.assertEqual(tokyo["sameGrade"], 1)
+        self.assertEqual(tokyo["largeDisagreement"], 0)
+
     def test_training_missing_recent_only(self):
         train, past = data()
         train[0]["gradesByNumber"]["01"] = "未評価"
