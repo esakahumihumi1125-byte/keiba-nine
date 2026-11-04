@@ -151,3 +151,37 @@ Render側でパスワードを更新すると古いCookieは無効になりま�
 
 **反映確認**： GitHubのPR統合とCI成功だけでは、Renderへの最新版配信は
 確認できません。Renderサービスで最新コミットのLiveを確認してください。
+
+
+## 2026-11-04：CI成功後の自動デプロイが動かないとき
+
+GitHub側の `render.yaml` は `autoDeployTrigger: "checksPass"`、
+ブランチは `main` と設定済み。自動デプロイを動かすには、**Render側の
+実際のサービス設定**も同じになっている必要があります。
+
+本人が共有したRenderのサービス画面は **Blueprint managed** でした。
+Renderの公式仕様では、Blueprint内で定義した設定は同期時にダッシュボードの
+同項目の手動変更を上書きすることがあります。
+
+- Render Dashboardの既存サービス `keiba-nine-owner-preview` →
+  **Settings → Auto-Deploy** で **After CI Checks Pass** と表示されているか
+  確認します。設定が合っていなければRender側の設定を直します。
+- **Blueprints** からこの既存サービスを管理するBlueprintを探し、
+  **Auto Sync** と **最後のSync結果**を確認します。
+  Auto SyncがOFFなら、`render.yaml` にある設定を反映するための
+  **Manual Sync** が一度必要な場合があります。新規Blueprint作成はしません。
+- `Deploys` の各デプロイの `Trigger` が
+  GitHub pushなどの自動デプロイなのか、`Manually deployed` なのか確認。
+  GitHub Checksが成功しても、Renderのデプロイまで成功したとは言いません。
+- `Private service checks` のGitHub Actionsは、従来は特定パスの変更のみ
+  実行していました。今回 **mainのすべてのコミットでCIを実行** するように
+  修正し、ドキュメント・HTML・JSON・Blueprint変更でも最低1件の
+  CIチェックが残るようにしました。
+- 自動デプロイの`checksPass`設定は、CIチェックがない変更や失敗した変更では
+  デプロイを開始しないことがあります。今回の変更はこのうち
+  「チェックがない」ケースを防ぎますが、**Blueprint同期やRender側の設定
+  食い違いまでをGitHubだけから修正するものではありません**。
+
+ログインパスワード、Googleシート連携、本人の実戦記録、有料JRDBの秘密キー、
+RenderのFreeプランは変更しません。Deploy HookのURLを他人に渡したり、
+GitHubに貼り付けたりしないでください。
