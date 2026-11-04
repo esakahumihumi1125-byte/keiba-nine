@@ -20,7 +20,7 @@ class OwnerRealPurchaseLedgerTests(unittest.TestCase):
             self.assertIn("text/html", page["headers"]["Content-Type"])
             self.assertIn("no-store", page["headers"]["Cache-Control"])
             self.assertIn("id=\"actualPurchasePanel\"", page["body"].decode())
-            self.assertIn("/my-purchases.js?v=ledger-v1", page["body"].decode())
+            self.assertIn("/my-purchases.js?v=ledger-v2", page["body"].decode())
             script = call(self.app, "/my-purchases.js")
             self.assertEqual(script["status"], "200 OK")
             self.assertIn("text/javascript", script["headers"]["Content-Type"])
@@ -40,7 +40,7 @@ class OwnerRealPurchaseLedgerTests(unittest.TestCase):
     def test_ledger_is_explicit_owner_entry_only_and_not_live_prediction(self):
         for element in ("realUnit", "realAdd", "realInvest", "realReturn",
                         "realROI", "realProfit", "realPending", "realList",
-                        "realMessage", "realExport"):
+                        "realMessage", "realExport", "realImport"):
             self.assertIn('id="' + element + '"', HTML)
         self.assertIn("実際に購入した分だけ", HTML)
         self.assertIn("払戻未確定", HTML)
@@ -50,6 +50,9 @@ class OwnerRealPurchaseLedgerTests(unittest.TestCase):
         self.assertIn("real.length>=500", JS)
         self.assertIn("if(!confirm(explain))return", JS)
         self.assertIn("payout:null", JS)
+        self.assertIn("keiba-nine-real-3rentan-v1", JS)
+        self.assertIn("raw.every(validRecord)", JS)
+        self.assertIn("new Set(raw.map(r=>r.id))", JS)
         self.assertNotIn("fetch(", JS)
         self.assertNotIn("innerHTML", JS)
         self.assertNotIn("JRDB_API_KEY", JS + HTML + CSS)

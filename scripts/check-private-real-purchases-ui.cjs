@@ -109,4 +109,68 @@ assert.equal(get('mCount').textContent,'36点','deleting purchase never deletes 
 assert.ok(writes.some(x=>x===ledgerKey));
 assert.ok(!manual.includes('fetch(')&&!ledger.includes('fetch('));
 assert.ok(!ledger.includes('innerHTML'));
-console.log('Private 3連単 actual purchase ledger: confirm, ROI, payout, filter, reload, backup passed');
+
+(async()=>{
+ const draftKey='keiba-nine-owner-ticket-drafts-v1';
+ const originalDrafts=storage.get(draftKey),originalPurchases=storage.get(ledgerKey);
+ const base=JSON.parse(originalDrafts)[0];
+ const secondDay={...base,date:'2026-11-08',track:'京都',race:3};
+ const draftBackup={format:'keiba-nine-owner-drafts-1',
+  exportedAt:'2026-11-05T00:00:00.000Z',records:[base,secondDay]};
+ const mkFile=x=>{
+  const content=typeof x==='string'?x:JSON.stringify(x);
+  return {size:content.length,text:async()=>content};
+ };
+ const useFile=async(id,value)=>{
+  get(id).files=[mkFile(value)];
+  return get(id).onchange();
+ };
+ await useFile('mImport',{...draftBackup,format:'keiba-nine-real-3rentan-v1'});
+ assert.equal(storage.get(draftKey),originalDrafts,'wrong backup type must not replace drafts');
+ assert.match(get('mMsg').textContent,/復元できません/);
+ await useFile('mImport',{...draftBackup,records:[{...base,first:[1,1]}]});
+ assert.equal(storage.get(draftKey),originalDrafts,'bad form must not replace drafts');
+ await useFile('mImport',{...draftBackup,records:[base,base]});
+ assert.equal(storage.get(draftKey),originalDrafts,'duplicate race must be rejected');
+ approve=false;await useFile('mImport',draftBackup);approve=true;
+ assert.equal(storage.get(draftKey),originalDrafts,'cancelled restore must not overwrite');
+ await useFile('mImport',draftBackup);
+ assert.equal(JSON.parse(storage.get(draftKey)).length,2);
+ assert.equal(get('mCount').textContent,'36点');
+ assert.equal(get('realAdd').disabled,false,'real purchase button refreshes after draft restore');
+ assert.match(get('mMsg').textContent,/2件を復元/);
+ assert.equal(get('mImport').value,'','reselecting same file must be allowed');
+ await useFile('realImport',draftBackup);
+ assert.equal(storage.get(ledgerKey),originalPurchases,'drafts file cannot be used as purchase file');
+ const restoredPurchase={...base,id:'purchase-restore-test',unit:200,stake:7200,
+  payout:12000,purchasedAt:'2026-11-05T00:00:00.000Z'};
+ const realBackup={format:'keiba-nine-real-3rentan-v1',
+  exportedAt:'2026-11-05T00:00:00.000Z',records:[restoredPurchase]};
+ await useFile('realImport',{...realBackup,records:[{...restoredPurchase,stake:999}]});
+ assert.equal(storage.get(ledgerKey),originalPurchases,'tampered stake must be rejected');
+ await useFile('realImport',{...realBackup,records:[restoredPurchase,restoredPurchase]});
+ assert.equal(storage.get(ledgerKey),originalPurchases,'duplicate purchase id must be rejected');
+ get('realImport').files=[{size:1024*1024+1,text:async()=>JSON.stringify(realBackup)}];
+ await get('realImport').onchange();
+ assert.equal(storage.get(ledgerKey),originalPurchases,'oversized files must be rejected');
+ approve=false;await useFile('realImport',realBackup);approve=true;
+ assert.equal(storage.get(ledgerKey),originalPurchases,'cancelled purchase restore must not overwrite');
+ await useFile('realImport',realBackup);
+ const imported=JSON.parse(storage.get(ledgerKey));
+ assert.equal(imported.length,1);
+ assert.equal(imported[0].payout,12000);
+ assert.equal(get('realInvest').textContent,'7,200円');
+ assert.equal(get('realReturn').textContent,'12,000円');
+ assert.equal(get('realROI').textContent,'166.7%');
+ assert.match(get('realMessage').textContent,/1件を復元/);
+ assert.equal(get('realImport').value,'');
+ const reload=boot(),r=reload.$;
+ assert.equal(r('realROI').textContent,'166.7%','restored purchase persists across reload');
+ r('mDate').value='2026-11-08';r('mDate').onchange();
+ r('mTrack').value='京都';r('mTrack').onchange();
+ r('mRace').value='3';r('mRace').onchange();
+ assert.equal(r('mCount').textContent,'36点','draft for another date restores');
+ assert.ok(!manual.includes('fetch(')&&!ledger.includes('fetch('));
+ console.log('Private owner JSON restore: validated drafts and purchases, cancellation, duplicates, wrong type, reload, ROI passed');
+})().catch(err=>{console.error(err);process.exitCode=1});
+

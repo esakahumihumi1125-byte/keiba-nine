@@ -38,13 +38,16 @@ class PrivateManualNotebookTests(unittest.TestCase):
         self.assertIn('id="mTrack"', HTML)
         self.assertIn('id="mRace"', HTML)
         for id_ in ("mFirst", "mSecond", "mThird", "mCount",
-                    "mCost", "mSave", "mSaved", "mExport"):
+                    "mCost", "mSave", "mSaved", "mExport", "mImport"):
             self.assertIn('id="' + id_ + '"', HTML)
         self.assertIn("AI予想・JRAの出走確定・購入履歴ではありません", HTML)
         self.assertIn("localStorage.setItem", JS)
         self.assertIn("keiba-nine-owner-ticket-drafts-v1", JS)
         self.assertIn("ticketsFor(first,second,third)", JS)
         self.assertIn("MAX_SAVED=300", JS)
+        self.assertIn("keiba-nine-owner-drafts-1", JS)
+        self.assertIn("picker.files", JS)
+        self.assertIn("raw.every(validRecord)", JS)
         self.assertIn("LIMIT=48", JS)
         self.assertNotIn("fetch(", JS)
         self.assertNotIn("innerHTML", JS)
