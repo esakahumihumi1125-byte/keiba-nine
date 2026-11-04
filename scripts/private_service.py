@@ -939,6 +939,10 @@ def create_app(settings=None):
                 and environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
                     == 'application/x-www-form-urlencoded'
             )
+            # Distinguish an invalid browser request from a mismatch in the
+            # configured username/password without logging or exposing either.
+            # Never indicate whether a particular username exists.
+            rejection_kind = 'request'
             try:
                 size = int(environ.get('CONTENT_LENGTH', '0'))
                 if not form_ok or not 0 < size <= 4096:
@@ -951,12 +955,19 @@ def create_app(settings=None):
                                   max_num_fields=2, errors='strict')
                 if set(fields) != {'username', 'password'} or any(len(v) != 1 for v in fields.values()):
                     raise ValueError()
+                rejection_kind = 'credentials'
                 if not owner_credentials_match(fields['username'][0], fields['password'][0],
                                                expected, username):
                     raise ValueError()
             except (ValueError, KeyError, TypeError, UnicodeError):
+                # Keep details out of URLs, cookies, logs and persistent storage.
+                detail = (
+                    'ブラウザーからのログイン送信を確認できませんでした。Safariで直接開いてください。'
+                    if rejection_kind == 'request' else
+                    'ユーザー名とパスワードが一致しません。RenderのEnvironmentに保存された値を直接コピーしてください。'
+                )
                 return response('401 Unauthorized', LOGIN_HTML.replace(
-                    '__ERROR__', 'ログインできませんでした。入力内容とRenderの設定を確認してください。'),
+                    '__ERROR__', 'ログインできませんでした。入力内容とRenderの設定を確認してください。' + detail),
                     'text/html; charset=utf-8')
             return response('303 See Other', '', 'text/plain; charset=utf-8',
                             extra=[('Location', '/login?session=check'),
