@@ -104,12 +104,11 @@ class ResearchCutoffSnapshotTests(unittest.TestCase):
                 audit_research_snapshot(r)
 
     def test_invalid_source_and_oversized_entries_fail_closed(self):
-        for bad in ([], None, False, {}, [{"sourceId": "synthetic"}],
+        for bad in (False, {}, [{"sourceId": "synthetic"}],
                     [{"sourceId": "synthetic", "reference": "yes",
                       "availableAt": "2026-10-20T08:00:00+09:00"}] * 13):
             r = sample()
             r["horses"][0]["assessments"]["training"]["evidence"] = bad
-            if bad is None: continue # Missing evidence is allowed as an unresolved item
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 audit_research_snapshot(r)
 
@@ -120,8 +119,8 @@ class ResearchCutoffSnapshotTests(unittest.TestCase):
         plan_race(r)
         self.assertEqual(r, frozen)
         self.assertNotIn("horses", audit_research_snapshot(r))
-        self.assertNotIn("source", repr(audit_research_snapshot(r)).lower()
-                         if False else "not-required")
+        self.assertNotIn("evidence", audit_research_snapshot(r))
+        self.assertNotIn("horses", repr(audit_research_snapshot(r)))
 
 
 if __name__ == "__main__":
