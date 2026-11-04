@@ -915,12 +915,12 @@ def create_app(settings=None):
         valid = valid_basic or valid_cookie
         if method == 'GET' and path == '/login.css':
             return response('200 OK', LOGIN_CSS, 'text/css; charset=utf-8')
-        def login_page(error=''):
+        def login_page(error='', status='200 OK'):
             # Fresh token for each login page; never expose the password or
             # session secret. The token must match a host-only HttpOnly cookie.
             csrf_token, csrf_cookie = new_login_form_csrf()
             html = LOGIN_HTML.replace('__ERROR__', error).replace('__CSRF__', csrf_token)
-            return response('200 OK', html, 'text/html; charset=utf-8',
+            return response(status, html, 'text/html; charset=utf-8',
                             extra=[('Set-Cookie', csrf_cookie)])
 
         if method == 'GET' and path == '/login':
@@ -977,10 +977,8 @@ def create_app(settings=None):
                     if rejection_kind == 'request' else
                     'ユーザー名とパスワードが一致しません。RenderのEnvironmentに保存された値を直接コピーしてください。'
                 )
-                return login_page('ログインできませんでした。' + detail) if rejection_kind == 'request' else response(
-                    '401 Unauthorized',
-                    LOGIN_HTML.replace('__ERROR__', 'ログインできませんでした。' + detail).replace('__CSRF__', ''),
-                    'text/html; charset=utf-8')
+                return login_page('ログインできませんでした。' + detail,
+                                  status='401 Unauthorized')
             return response('303 See Other', '', 'text/plain; charset=utf-8',
                             extra=[('Location', '/login?session=check'),
                                    ('Set-Cookie', session_cookie(expected))])
