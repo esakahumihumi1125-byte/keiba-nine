@@ -70,6 +70,17 @@ assert.equal(JSON.parse(storage.get(key))[0].third.length,8,'oversized entry did
 $('mReset').onclick();
 assert.equal($('mCount').textContent,'0点');
 assert.equal($('mSaved').children.length,1,'reset cannot delete a saved record');
+// Exact upper limit: two first picks, five second picks, eight third picks.
+choose('mFirst',1);choose('mFirst',2);
+for(let n=1;n<=5;n++)choose('mSecond',n);
+for(let n=1;n<=8;n++)choose('mThird',n);
+assert.equal($('mCount').textContent,'48点');
+assert.equal($('mCost').textContent,'4,800円');
+assert.equal($('mSave').disabled,false,'48 points is valid');
+choose('mThird',9);
+assert.equal($('mCount').textContent,'56点');
+assert.equal($('mSave').disabled,true,'56 points is invalid');
+$('mReset').onclick();
 const second=boot(),get=second.el;
 get('mDate').value='2026-11-07';get('mDate').onchange();
 get('mTrack').value='東京';get('mTrack').onchange();
