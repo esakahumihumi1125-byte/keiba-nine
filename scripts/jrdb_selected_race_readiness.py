@@ -13,8 +13,11 @@ from jrdb_training_hypothesis import build_training_hints
 from jrdb_recent_hypothesis import build_recent_hints
 from jrdb_dual_factor_readiness import summarize_dual_factor_readiness
 from jrdb_private_factor_bridge import build_private_factor_matrix, summarize_factor_materials
+from jrdb_entry_rotation_materials import (
+    enrich_entry_materials_matrix, summarize_entry_materials_matrix,
+)
 
-VERSION = "selected-race-readiness-3"
+VERSION = "selected-race-readiness-4"
 
 
 def _only(rows, track, race):
@@ -40,13 +43,20 @@ def selected_race_readiness(
     training_hints = build_training_hints(programme, entries, training, date)
     recent_hints = build_recent_hints(programme, entries, previous, date)
     paired = summarize_dual_factor_readiness(training_hints, recent_hints)
-    factors = summarize_factor_materials(
-        build_private_factor_matrix(training_hints, recent_hints)
+    factor_matrix = build_private_factor_matrix(training_hints, recent_hints)
+    factors = summarize_factor_materials(factor_matrix)
+    entry_materials = summarize_entry_materials_matrix(
+        enrich_entry_materials_matrix(
+            factor_matrix, programme, entries, previous, date
+        )
     )
     if (evidence["raceCount"] != day["raceCount"]
             or evidence["raceCount"] != freshness["raceCount"]
             or evidence["raceCount"] != len(paired["races"])
             or evidence["raceCount"] != factors["raceCount"]
+            or evidence["raceCount"] != entry_materials["raceCount"]
+            or entry_materials["predictionReady"] is not False
+            or entry_materials["bettingReady"] is not False
             or paired["predictionReady"] is not False
             or factors["predictionReady"] is not False
             or factors["bettingReady"] is not False):
@@ -56,12 +66,23 @@ def selected_race_readiness(
     c = _only(freshness["races"], track, race)
     d = _only(paired["races"], track, race)
     e = _only(factors["races"], track, race)
+    f = _only(entry_materials["races"], track, race)
     n = a["observedEntries"]
     if (type(n) is not int or not 0 <= n <= 18
             or d["runnerCount"] != n or d["predictionReady"] is not False
             or d["coreFactorsStillUnverified"] is not True
             or d["remainingFactors"] != 8
             or e["runnerCount"] != n
+            or f["runnerCount"] != n
+            or f["observedFactorSlots"] != 6
+            or f["unmappedFactorCount"] != 4
+            or f["verifiedFactorCount"] != 0
+            or f["pedigreeAptitudeAssessed"] is not False
+            or f["drawWeightEffectAssessed"] is not False
+            or f["rotationEffectAssessed"] is not False
+            or f["overallRankReady"] is not False
+            or f["predictionReady"] is not False
+            or f["bettingReady"] is not False
             or e["verifiedFactorCount"] != 0
             or e["unmappedFactorCount"] != 7
             or e["paceForecastAvailable"] is not False
@@ -119,6 +140,22 @@ def selected_race_readiness(
             or e["provisionalGradeCounts"].get("recentProvisional")
             != d["both"] + d["recentOnly"]):
         raise CoverageError("Factor-grade inputs differ between research summaries")
+    entry_counts = f["entryObservations"]
+    interval_counts = f["rotationIntervals"]
+    nkeys = ("sireRecorded", "maternalSireRecorded", "bothPedigreeRecorded",
+             "bracketRecorded", "weightRecorded", "drawAndWeightRecorded")
+    buckets = ("under14Days", "days14to55", "days56plus", "unknown")
+    if (set(entry_counts) != set(nkeys) or set(interval_counts) != set(buckets)
+            or any(type(entry_counts[k]) is not int or not 0 <= entry_counts[k] <= n
+                   for k in nkeys)
+            or any(type(interval_counts[k]) is not int
+                   or not 0 <= interval_counts[k] <= n for k in buckets)
+            or sum(interval_counts.values()) != n
+            or entry_counts["bothPedigreeRecorded"]
+               > min(entry_counts["sireRecorded"], entry_counts["maternalSireRecorded"])
+            or entry_counts["drawAndWeightRecorded"]
+               > min(entry_counts["bracketRecorded"], entry_counts["weightRecorded"])):
+        raise CoverageError("Documented entry/rotation coverage is inconsistent")
     if c["prestartWindow"] not in (
         "post_time_unknown", "other_date", "post_time_passed",
         "within_two_hours", "more_than_two_hours",
@@ -171,6 +208,18 @@ def selected_race_readiness(
             "overallRankReady": False,
             "predictionReady": False,
         },
+        "entryMaterials": {
+            "entryObservations": entry_counts,
+            "rotationIntervals": interval_counts,
+            "observedFactorSlots": 6,
+            "unmappedFactors": 4,
+            "verifiedFactorCount": 0,
+            "pedigreeAptitudeAssessed": False,
+            "drawWeightEffectAssessed": False,
+            "rotationEffectAssessed": False,
+            "overallRankReady": False,
+            "predictionReady": False,
+        },
         "sourceSnapshotNotOfficial": True,
         "independentJraConnected": False,
         "officialJraFinalVerification": False,
@@ -181,6 +230,7 @@ def selected_race_readiness(
             "提供元の件数・取消報告・馬場の資料状態と調教・近走の"
             "暫定評価が一致・不一致の頭数を1R分まとめました。"
             "過去4角位置も展開材料として集計するが脚質・ペースは未予測。"
+            "父・母父・枠・斤量の記録有無と前走間隔も未評価の材料として接続。"
             "調教と近走の閾値は未検証で、残り8項目も未評価。"
             "JRA公式の出走馬・取消・馬場・発走時刻は独立照合していません。"
             "10項目の総合評価や3連単・馬券購入には利用できません。"
