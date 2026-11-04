@@ -70,7 +70,7 @@ async function flush(){
  ].join(';')],{input:JSON.stringify(body),encoding:'utf8'});
  assert.equal(actual.status,0,actual.stderr);
  assert.match(actual.stdout,/Synthetic JS fixture -> Python planner/);
- const fullPlan=JSON.parse(actual.stdout.trim().split('\\n').pop());
+ const fullPlan=JSON.parse(actual.stdout.trim().split(String.fromCharCode(10)).pop());
  assert.equal(fullPlan.points,36,'synthetic eight-horse fixture yields 36 tickets');
  assert.equal(fullPlan.stake,3600);
  assert.equal(typeof scope.renderResearchSummary,'function');
