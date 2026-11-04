@@ -32,6 +32,20 @@ async function fetchMock(url, options) {
     tenFactorMaterials:{predictionReady:false,bettingReady:false,gradedFactors:0,
       races:[{track:'東京',race:1,runnerCount:3,predictionReady:false,bettingReady:false,
               gradedFactors:0,factors:materialsFactors}]},
+    allTenFactorSources:{
+      version:'combined-ten-factor-observations-1',
+      raceCount:1,predictionReady:false,bettingReady:false,
+      races:[{track:'東京',race:1,runnerCount:3,
+        sourceMaterialSlots:10,provisionalFactorSlots:2,
+        observationOnlySlots:8,unmappedFactorCount:0,
+        verifiedFactorCount:0,runnersWithComparableCourse:2,
+        runnersWithKnownGoingComparable:1,runnersWithIncompleteHistory:1,
+        runnersWithBothPersonnelNames:2,runnersWithConformationCodes:1,
+        historySuitabilityAssessed:false,jockeyTrainerPerformanceAssessed:false,
+        bodyConditionAssessed:false,raceDayBodyWeightFetched:false,
+        officialJraFinalVerification:false,overallRankReady:false,
+        predictionReady:false,bettingReady:false}]
+    },
     privateHistoryFactors:{
       version:'private-course-ground-materials-1',
       raceCount:1,predictionReady:false,bettingReady:false,
@@ -91,8 +105,12 @@ async function settle(){
  assert.match(el('races').children[0].textContent,/コース比較あり 2頭/);
  assert.match(el('races').children[0].textContent,/馬場比較あり 1頭/);
  assert.match(el('races').children[0].textContent,/履歴未完成 1頭/);
- assert.match(el('races').children[0].textContent,/5項目は未マップ/);
- assert.match(el('races').children[0].textContent,/全10項目：未評価/);
+ assert.match(el('races').children[0].textContent,/10項目の資料枠：10\/10接続/);
+ assert.match(el('races').children[0].textContent,/騎手・厩舎の両名あり 2頭/);
+ assert.match(el('races').children[0].textContent,/馬体形状コードあり 1頭/);
+ assert.match(el('races').children[0].textContent,/当日の馬体重・増減は未取得/);
+ assert.match(el('races').children[0].textContent,/確定評価 0項目/);
+ assert.match(el('races').children[0].textContent,/総合S\/A\/B\/C未作成/);
  assert.equal(el('history').disabled,false);
  assert.ok(!script.includes('innerHTML'));
  assert.ok(!requests.some(r=>r.url.includes('api_key')));
