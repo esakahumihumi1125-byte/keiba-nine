@@ -118,7 +118,8 @@ class EntryRotationMaterialsTests(unittest.TestCase):
                     calculate(data)
 
     def test_missing_mixed_identity_or_future_race_rejected(self):
-        for invalid in ("future", "duplicate", "horse_id", "entry_racedate", "runner"):
+        for invalid in ("future", "duplicate", "horse_id", "wrong_number",
+                        "entry_racedate", "runner"):
             data = sample_data()
             if invalid == "future":
                 data[3][0]["race_back_1_racedate"] = "20261102"
@@ -126,6 +127,9 @@ class EntryRotationMaterialsTests(unittest.TestCase):
                 data[3].append(copy.deepcopy(data[3][0]))
             elif invalid == "horse_id":
                 data[3][0]["horse_id"] = data[2][1]["horse_id"]
+            elif invalid == "wrong_number":
+                # Number belongs to no entrant, even though the horse ID resolves.
+                data[3][0]["horse_number"] = "18"
             elif invalid == "entry_racedate":
                 data[2][0]["racedate"] = "20261001"
             else:
