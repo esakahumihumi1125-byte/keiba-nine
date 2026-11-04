@@ -61,7 +61,7 @@
 
 **Render側の更新について：** 以下は自動デプロイ有効化前の手順です。
 GitHubの改良が本体`main`に反映されたあと、Renderの
-[keiba-nine-owner-preview-mvxz](https://keiba-nine-owner-preview-mvxz.onrender.com)
+[keiba-nine-owner-preview-mvxz](https://keiba-nine-owner-preview.onrender.com)
 を管理画面から開き、**Manual Deploy → Deploy latest commit** を1回実行してください。
 最新のデプロイがLiveになったらSafariでページをリロードします。
 「Restart service」では最新コードになりません。
@@ -76,9 +76,9 @@ GitHubの改良が本体`main`に反映されたあと、Renderの
 
 再デプロイが成功しても「JRDB接続」が先頭のままなら、これ以上むやみにキャッシュ消去・パスワード変更・再デプロイを繰り返さないでください。
 
-本人ログイン済みの状態で [配信版の確認](https://keiba-nine-owner-preview-mvxz.onrender.com/ui-version) を開きます。最新版なら `uiVersion=iphone-mobile-navigation-20261104-v4`、`researchFirst=yes` が表示されます。Renderの提供するコミット番号があれば先頭12桁だけ確認できます。秘密キーは表示されません。
+本人ログイン済みの状態で [配信版の確認](https://keiba-nine-owner-preview.onrender.com/ui-version) を開きます。最新版なら `uiVersion=iphone-mobile-navigation-20261104-v4`、`researchFirst=yes` が表示されます。Renderの提供するコミット番号があれば先頭12桁だけ確認できます。秘密キーは表示されません。
 
-続けて [別パスの新しい画面](https://keiba-nine-owner-preview-mvxz.onrender.com/preview-v2) を開きます。通常のトップページと同じ画面を、以前のURLとは別のパスから取得します。URLのクエリだけの変更とは異なります。
+続けて [別パスの新しい画面](https://keiba-nine-owner-preview.onrender.com/preview-v2) を開きます。通常のトップページと同じ画面を、以前のURLとは別のパスから取得します。URLのクエリだけの変更とは異なります。
 
 `/ui-version` が404の場合、アクセス先で新しいコードが動いていない可能性があります。その場合はRenderダッシュボードの対象Webサービスとデプロイ履歴のSOURCEコミット番号を先に確認し、実際の提供URLとの食い違いを調べます。ログインが必要な本人専用機能であり、JRAやJRDBのデータ通信を増やしません。
 
@@ -119,3 +119,35 @@ Renderが自動デプロイを開始する設定です。設定は `commit` よ�
 `render.yaml` の `generateValue: true` は変更していません。
 認証の問題が解消するとは限らず、パスワードをGitHubやChatGPTへ
 貼り付けないでください。月額課金データの接続や本番予想も無効のままです。
+
+
+## 2026-11-04：本人用ログイン画面と正しいサービスURL
+
+2026年11月4日に本人が共有した Render の Web Service 管理画面には
+`keiba-nine-owner-preview` のURLとして
+`https://keiba-nine-owner-preview.onrender.com` と表示されています。
+以前の `-mvxz` 付きリンクは別サービスURLの可能性があるため、
+本人が確認したリンクに統一しました。**URLの食い違いは認証失敗の可能性が
+ありますが、原因を断定できるものではありません。**
+
+本人用プレビューは新しい `/login` ページから
+`KEIBA_OWNER_USERNAME`（既定 `owner`）と
+**既存の** `KEIBA_OWNER_PASSWORD` を入力できるようになりました。
+パスワードそのものは変更していません。
+RenderのログインパスワードやGitHubログインとは別です。
+
+ログイン成功後は、HttpOnly / Secure / SameSite=Strict の
+署名付きCookieで最長7日間セッションを保持します。別のiPhone、
+プライベートブラウズ終了、Cookie削除、7日経過では再ログインが必要です。
+Render側でパスワードを更新すると古いCookieは無効になります。
+旧Basic認証はAPIや既存の互換クライアント向けに残します。
+
+- 入力したパスワードはGitHub、公開Pages、Cookie、URLやレースデータへ記録しません。
+- 401が続く場合は **正しいサービスのRender Environmentで**
+  `KEIBA_OWNER_PASSWORD` の設定状態を確認します。値をスクショ・チャットへ
+  送らないでください。自動デプロイ設定を変えてもパスワードは変わりません。
+- Cookieは個人端末のSafariにのみ保持されます。共有端末では使用しないでください。
+- 公開URLの認証画面が表示されても、実戦予想・JRDB有料APIは有効になりません。
+
+**反映確認**： GitHubのPR統合とCI成功だけでは、Renderへの最新版配信は
+確認できません。Renderサービスで最新コミットのLiveを確認してください。
