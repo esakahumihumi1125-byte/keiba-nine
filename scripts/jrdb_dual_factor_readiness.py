@@ -5,8 +5,10 @@ no horse number, horse ID, raw index, previous result, or buy recommendation.
 """
 from jrdb_coverage import CoverageError
 
-VERSION = "dual-factor-readiness-1"
+VERSION = "dual-factor-readiness-2"
 KNOWN = {"S", "A", "B", "C", "未評価"}
+GRADE_LEVEL = {"S": 4, "A": 3, "B": 2, "C": 1}
+HIGH = {"S", "A"}
 
 
 def summarize_dual_factor_readiness(training_hints, recent_hints):
@@ -41,6 +43,10 @@ def summarize_dual_factor_readiness(training_hints, recent_hints):
         if set(train) != set(past):
             raise CoverageError("Factors refer to different runner lists")
         counts = {"both": 0, "trainingOnly": 0, "recentOnly": 0, "neither": 0}
+        comparison = {
+            "sameGrade": 0, "trainingHigher": 0, "recentHigher": 0,
+            "largeDisagreement": 0, "bothHigh": 0,
+        }
         for num in train:
             grade_a = train[num]
             past_stat = past[num]
@@ -54,15 +60,35 @@ def summarize_dual_factor_readiness(training_hints, recent_hints):
                     "trainingOnly" if a else
                     "recentOnly" if b else "neither")
             counts[name] += 1
+            if a and b:
+                diff = GRADE_LEVEL[grade_a] - GRADE_LEVEL[grade_b]
+                if diff == 0:
+                    comparison["sameGrade"] += 1
+                elif diff > 0:
+                    comparison["trainingHigher"] += 1
+                else:
+                    comparison["recentHigher"] += 1
+                if abs(diff) >= 2:
+                    comparison["largeDisagreement"] += 1
+                if grade_a in HIGH and grade_b in HIGH:
+                    comparison["bothHigh"] += 1
+        if (sum(counts.values()) != len(train)
+                or (comparison["sameGrade"] + comparison["trainingHigher"]
+                    + comparison["recentHigher"] != counts["both"])
+                or comparison["largeDisagreement"] > counts["both"]
+                or comparison["bothHigh"] > counts["both"]):
+            raise CoverageError("Inconsistent paired factor counts")
         result.append({
             "track": race["track"], "race": race["race"],
-            "runnerCount": len(train), **counts,
+            "runnerCount": len(train), **counts, **comparison,
             "remainingFactors": 8,
             "coreFactorsStillUnverified": True, "predictionReady": False
         })
     return {
         "version": VERSION, "races": result, "predictionReady": False,
-        "note": ("調教・近走の独立した暫定評価が両方ある頭数を集計。"
-                 "それぞれの指数の妥当性、馬場・距離・展開・取消、"
-                 "残り8項目は未確認。総合評価・予想・買い目ではありません。")
+        "note": ("調教・近走の独立した暫定評価が両方ある頭数と"
+                 "評価方向の食い違いを数える。差2段階以上は再検討対象。"
+                 "指数から付けたランクの妥当性は未検証であり、"
+                 "馬場・距離・展開・取消と残り8項目は未確認。"
+                 "総合評価・予想・買い目ではありません。")
     }

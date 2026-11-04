@@ -89,7 +89,13 @@ class PrivateSingleReadinessServiceTests(unittest.TestCase):
             self.assertFalse(payload["predictionReady"])
             self.assertFalse(payload["bettingReady"])
             self.assertFalse(payload["officialJraFinalVerification"])
-            self.assertEqual(payload["version"],"selected-race-readiness-1")
+            self.assertEqual(payload["version"],"selected-race-readiness-2")
+            pair = payload["factorResearch"]
+            self.assertTrue(pair["experimental"])
+            self.assertEqual(pair["remainingFactors"],8)
+            self.assertEqual(pair["bothGraded"] + pair["trainingOnly"] +
+                             pair["recentOnly"] + pair["neither"],2)
+            self.assertFalse(pair["predictionReady"])
             self.assertNotIn("races",payload)
             self.assertIn("no-store",reply["headers"]["Cache-Control"])
             for item in (program,entries,training,previous,holding):

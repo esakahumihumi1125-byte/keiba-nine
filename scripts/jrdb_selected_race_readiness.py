@@ -9,8 +9,11 @@ from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
 from jrdb_race_day_gates import audit_race_day_checks
 from jrdb_prestart_freshness import audit_prestart_freshness
 from jrdb_program_preview import TRACKS
+from jrdb_training_hypothesis import build_training_hints
+from jrdb_recent_hypothesis import build_recent_hints
+from jrdb_dual_factor_readiness import summarize_dual_factor_readiness
 
-VERSION = "selected-race-readiness-1"
+VERSION = "selected-race-readiness-2"
 
 
 def _only(rows, track, race):
@@ -33,13 +36,24 @@ def selected_race_readiness(
     evidence = audit_evidence_coverage(programme, entries, training, previous, date)
     day = audit_race_day_checks(programme, entries, holding, date)
     freshness = audit_prestart_freshness(programme, holding, date, checked_at)
-    if evidence["raceCount"] != day["raceCount"] or evidence["raceCount"] != freshness["raceCount"]:
+    paired = summarize_dual_factor_readiness(
+        build_training_hints(programme, entries, training, date),
+        build_recent_hints(programme, entries, previous, date),
+    )
+    if (evidence["raceCount"] != day["raceCount"]
+            or evidence["raceCount"] != freshness["raceCount"]
+            or evidence["raceCount"] != len(paired["races"])
+            or paired["predictionReady"] is not False):
         raise CoverageError("Cross-source race count mismatch")
     a = _only(evidence["races"], track, race)
     b = _only(day["races"], track, race)
     c = _only(freshness["races"], track, race)
+    d = _only(paired["races"], track, race)
     n = a["observedEntries"]
     if (type(n) is not int or not 0 <= n <= 18
+            or d["runnerCount"] != n or d["predictionReady"] is not False
+            or d["coreFactorsStillUnverified"] is not True
+            or d["remainingFactors"] != 8
             or b["observedEntries"] != n
             or a["rosterVerified"] is not False
             or a["predictionsReady"] is not False
@@ -63,6 +77,18 @@ def selected_race_readiness(
             raise CoverageError("Invalid provider withdrawal aggregate")
     if b["providerWithdrawnCount"] + b["withdrawalFlagUnknownCount"] > n:
         raise CoverageError("Provider withdrawal totals exceed entries")
+    counts = (
+        "both", "trainingOnly", "recentOnly", "neither",
+        "sameGrade", "trainingHigher", "recentHigher",
+        "largeDisagreement", "bothHigh",
+    )
+    if any(type(d[name]) is not int or not 0 <= d[name] <= n for name in counts):
+        raise CoverageError("Invalid research factor comparison counts")
+    if (sum(d[name] for name in ("both", "trainingOnly", "recentOnly", "neither")) != n
+            or d["sameGrade"] + d["trainingHigher"] + d["recentHigher"] != d["both"]
+            or d["largeDisagreement"] > d["both"]
+            or d["bothHigh"] > d["both"]):
+        raise CoverageError("Inconsistent paired research coverage")
     if c["prestartWindow"] not in (
         "post_time_unknown", "other_date", "post_time_passed",
         "within_two_hours", "more_than_two_hours",
@@ -90,6 +116,20 @@ def selected_race_readiness(
         "sourceGoing": going,
         "sourceGoingAgeStatus": c["sourceGoingAgeStatus"],
         "prestartWindow": c["prestartWindow"],
+        "factorResearch": {
+            "bothGraded": d["both"],
+            "trainingOnly": d["trainingOnly"],
+            "recentOnly": d["recentOnly"],
+            "neither": d["neither"],
+            "sameGrade": d["sameGrade"],
+            "trainingHigher": d["trainingHigher"],
+            "recentHigher": d["recentHigher"],
+            "largeDisagreement": d["largeDisagreement"],
+            "bothHigh": d["bothHigh"],
+            "remainingFactors": 8,
+            "experimental": True,
+            "predictionReady": False,
+        },
         "sourceSnapshotNotOfficial": True,
         "independentJraConnected": False,
         "officialJraFinalVerification": False,
@@ -97,7 +137,9 @@ def selected_race_readiness(
         "predictionReady": False,
         "bettingReady": False,
         "note": (
-            "提供元の件数・取消報告・馬場の資料状態だけを1R分まとめました。"
+            "提供元の件数・取消報告・馬場の資料状態と調教・近走の"
+            "暫定評価が一致・不一致の頭数を1R分まとめました。"
+            "調教と近走の閾値は未検証で、残り8項目も未評価。"
             "JRA公式の出走馬・取消・馬場・発走時刻は独立照合していません。"
             "10項目の総合評価や3連単・馬券購入には利用できません。"
         ),
