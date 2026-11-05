@@ -47,6 +47,8 @@ from operator_factor_intake import validate_operator_factor_note
 from manual_ticket_book import HTML as TICKET_HTML, JS as TICKET_JS, CSS as TICKET_CSS
 from jrdb_mail_local_import import HTML as MAIL_HTML, JS as MAIL_JS, CSS as MAIL_CSS
 from jrdb_final_numbers_manual import HTML as NUMBERS_HTML, JS as NUMBERS_JS, CSS as NUMBERS_CSS
+from jra_official_pdf_ui import HTML as JRA_PDF_HTML, JS as JRA_PDF_JS, CSS as JRA_PDF_CSS
+from jra_official_pdf_discovery import discover_official_pdf_links, JRAIndexError
 from owner_ticket_handoff import JS as TICKET_HANDOFF_JS
 from manual_purchase_book import HTML as PURCHASE_HTML, JS as PURCHASE_JS, CSS as PURCHASE_CSS
 
@@ -1004,7 +1006,7 @@ def create_app(settings=None):
                 '/app.js', '/app.css', '/my-tickets.js',
                 '/my-tickets.css', '/my-purchases.js', '/research-batch-demo.css',
                 '/day-pipeline.css', '/day-pipeline.js',
-                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js'
+                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/jra-official-pdf.js'
             ):
                 return response('401 Unauthorized', {'error': 'ログインが必要です。'})
             return response('401 Unauthorized', {'error': '本人認証が必要です。'},
@@ -1037,18 +1039,19 @@ def create_app(settings=None):
             }[path]
             return response('200 OK', content, mime)
         if method == 'GET' and path in ('/jrdb-mail-local', '/jrdb-mail-local.js',
-                                        '/jrdb-mail-local.css', '/jrdb-manual-numbers.js'):
+                                        '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/jra-official-pdf.js'):
             # Static code only. Neither licensed mail nor manual JRA numbers
             # transit this service or repository. Separate browser storage.
             page = MAIL_HTML.replace(
-                '<section><button id="clearAll"', NUMBERS_HTML + '<section><button id="clearAll"')
+                '<section><button id="clearAll"', JRA_PDF_HTML + NUMBERS_HTML + '<section><button id="clearAll"')
             page = page.replace(
-                '</body>', '<script src="/jrdb-manual-numbers.js" defer></script></body>')
+                '</body>', '<script src="/jrdb-manual-numbers.js" defer></script><script src="/jra-official-pdf.js" defer></script></body>')
             source, mime = {
                 '/jrdb-mail-local': (page, 'text/html; charset=utf-8'),
                 '/jrdb-mail-local.js': (MAIL_JS, 'text/javascript; charset=utf-8'),
-                '/jrdb-mail-local.css': (MAIL_CSS + NUMBERS_CSS, 'text/css; charset=utf-8'),
+                '/jrdb-mail-local.css': (MAIL_CSS + NUMBERS_CSS + JRA_PDF_CSS, 'text/css; charset=utf-8'),
                 '/jrdb-manual-numbers.js': (NUMBERS_JS, 'text/javascript; charset=utf-8'),
+                '/jra-official-pdf.js': (JRA_PDF_JS, 'text/javascript; charset=utf-8'),
             }[path]
             return response('200 OK', source, mime)
         if method == 'GET' and path == '/research-validation-demo':
@@ -1106,6 +1109,19 @@ def create_app(settings=None):
                 'nextStep': ('本人専用のHTTPS環境でJRDB実接続を検証する' if configured
                              else 'β版の専用API認証情報と本人専用HTTPS環境を準備する'),
             })
+        if method == 'GET' and path == '/api/jra/official-pdf-links':
+            # One on-demand visit to the fixed JRA HTML index. Only PDF links
+            # are discovered: no PDF download, runner mapping or verification.
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if set(query) != {'date'} or len(query['date']) != 1:
+                return response('400 Bad Request', {'error': '開催日を1つ指定してください。'})
+            try:
+                result = discover_official_pdf_links(query['date'][0])
+            except JRAIndexError as exc:
+                if 'Date' in str(exc) or 'date' in str(exc):
+                    return response('400 Bad Request', {'error': '開催日の形式・掲載期間を確認してください。'})
+                return response('502 Bad Gateway', {'error': 'JRA公式PDF一覧へ接続・解析できませんでした。後ほどJRA公式ページで確認してください。'})
+            return response('200 OK', result)
         if method == 'GET' and path == '/api/jrdb/program':
             if settings.get('JRDB_PRIVATE_ENABLED') != '1' or settings.get('GITHUB_ACTIONS') == 'true':
                 return response('503 Service Unavailable', {'error': 'JRDB接続はまだ有効になっていません。'})
