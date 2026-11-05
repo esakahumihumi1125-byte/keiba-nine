@@ -407,4 +407,52 @@ assert.equal(storage.get(key),beforeStale,'read-only coverage did not mutate dra
 assert.equal(writes.length,staleWrites,'mail coverage views never write draft or purchase data');
 assert.ok(!js.includes('fetch('),'aggregate cannot transmit licensed member data');
 
+
+// Rank helper: user-supplied S/A/B is only an operator formation tool, not a prediction.
+const rankPage=boot(),rank=rankPage.el;
+rank('mDate').value='2026-11-14';rank('mDate').onchange();
+rank('mTrack').value='福島';rank('mTrack').onchange();
+rank('mRace').value='8';rank('mRace').onchange();
+rank('mRankS').value='①②';
+rank('mRankA').value='③④';
+rank('mRankB').value='⑤⑥⑦⑧';
+const beforeRanks=storage.get(key),beforeRankWrites=writes.length;
+rank('mRankBuild').onclick();
+assert.equal(rank('mCount').textContent,'36点','2 S + 2 A + 4 B should build 36 tickets');
+assert.match(rank('mRankStatus').textContent,/30〜40点の目安内/);
+assert.equal(rank('mCost').textContent,'3,600円');
+assert.equal(rank('mTickets').children.length,36,'all generated combinations are reviewable');
+assert.equal(new Set(rank('mTickets').children.map(x=>x.textContent)).size,36);
+assert.equal(rank('mSave').disabled,false,'user may save generated selection explicitly');
+assert.equal(storage.get(key),beforeRanks,'rank helper never persists drafts');
+assert.equal(writes.length,beforeRankWrites,'rank helper never writes purchase/draft data');
+const good36=rank('mTickets').children.map(x=>x.textContent).join(',');
+for(const invalid of [
+ {s:'①②③',a:'④',b:'⑤'},
+ {s:'①②',a:'②③',b:'④'},
+ {s:'①',a:'A',b:'③'},
+ {s:'⑲',a:'②',b:'③'},
+ {s:'①',a:'②',b:''}
+]){
+ rank('mRankS').value=invalid.s;rank('mRankA').value=invalid.a;rank('mRankB').value=invalid.b;
+ rank('mRankBuild').onclick();
+ assert.match(rank('mRankStatus').textContent,/編成できません/,'bad input rejected');
+ assert.equal(rank('mTickets').children.map(x=>x.textContent).join(','),good36,'failed rank helper keeps previous selections');
+}
+rank('mRankS').value='①';rank('mRankA').value='②';rank('mRankB').value='③';
+rank('mRankBuild').onclick();
+assert.equal(rank('mCount').textContent,'1点','small inputs do not inflate to 30-40');
+assert.match(rank('mRankStatus').textContent,/30〜40点には届かない/);
+assert.equal(storage.get(key),beforeRanks);
+const cancelledRanks=boot(false),cr=cancelledRanks.el;
+cr('mDate').value='2026-11-14';cr('mDate').onchange();
+cr('mTrack').value='福島';cr('mTrack').onchange();
+cr('mRace').value='9';cr('mRace').onchange();
+cr('mFirst').children[0].onclick();cr('mSecond').children[1].onclick();cr('mThird').children[2].onclick();
+cr('mRankS').value='④⑤';cr('mRankA').value='⑥⑦';cr('mRankB').value='⑧⑨⑩⑪';
+cr('mRankBuild').onclick();
+assert.equal(cr('mCount').textContent,'1点','cancel keeps already edited formation');
+assert.equal(storage.get(key),beforeRanks,'cancel does not persist');
+assert.ok(!js.includes('fetch('),'rank helper performs no remote analyses or transfers');
+
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
