@@ -22,3 +22,14 @@
 関連ソース：`scripts/jrdb_day_pipeline.py`、`scripts/jrdb_day_pipeline_ui.py`、`tests/test_jrdb_day_pipeline.py`、`tests/test_jrdb_day_pipeline_ui.py`。
 
 JRDBの公開API仕様：https://jrdb-api.keiba.bigtime.world/docs/request-response
+
+## 発走直前のチェック（API接続後に任意で有効化）
+
+- `/api/jrdb/day-pipeline` の5種類の資料照合では、サーバー時刻から発走予定までの残り時間、提供元の馬場報告日時を合わせた `reviewQueue` を返します。これは **JRA公式照合を優先する順番**で、当日・発走前の出走確定や買い目の判定ではありません。時刻を過ぎたら購入対象外と明記します。
+- `/day-pipeline` の本人用画面に、当日だけ使える直前資料チェックを別ボタンとして用意しました。未認証では非表示ではなく **無効** のままで、勝手に取得しません。
+- JRDB公式が定義する `POST /tpd` は馬体重、馬体重増減、パドック指数、馬体コードなどを含みます。将来、β版の専用認証を受け、利用条件と保管条件を確認できた場合だけ、本人専用サーバーで `JRDB_PRIVATE_ENABLED=1` と **追加の明示 opt-in** `KEIBA_PRESTART_BODY_ENABLED=1` を設定して、認証済みの `GET /api/jrdb/prestart-body?date=YYYYMMDD` を使用できます。
+- そのリクエストは **日本時間の当日のみ** 有効です。番組 `/tra`、登録馬 `/tky`、直前情報 `/tpd` をそれぞれ1回取得します。馬名・馬番・馬体重の数値・パドック指数値・オッズ・認証情報は返しません。0kg、null、身元が一致しない資料は測定値として採用しません。
+- **オッズ・人気は評価しません。** `win_odds`、`place_odds`、`odds_index` は読み取り件数の評価にも使用しません。 `updated_at` もそのまま「最新の計測」と断定しません。
+- 新機能は未接続のまま。現在のレンダープレビューで実データが取得できた、またはその資料から総合S/A/B/Cや実際の3連単が生成された、という意味ではありません。
+
+実装：`scripts/jrdb_prestart_body.py`、`tests/test_jrdb_prestart_body.py`。公式仕様：https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tpd
