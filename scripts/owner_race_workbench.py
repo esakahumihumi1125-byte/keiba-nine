@@ -30,7 +30,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section><h2>実戦で必要な確認</h2>
 <p class="hint">1Rの枠をタップすると、端末内にある資料の段階と、評価・3連単画面へのリンクが出るで。URLには日付・競馬場・Rだけを引き継ぐ。本人の馬名・JRDB本文・買い目・購入情報は送らない。</p>
 <div class="quick"><a href="/jrdb-mail-local">JRDB想定メール・馬番メモの取込</a>
-<a href="/owner-backup">5種類の記録をバックアップ</a><a href="/my-tickets#actualPurchasePanel">結果の振り返りを開く</a></div>
+<a href="/owner-backup">5種類の記録をバックアップ</a><a href="/owner-review">着順別の予想振り返り</a><a href="/my-tickets#actualPurchasePanel">購入した馬券の結果を入力</a></div>
 <p class="warning">発走時刻、出走取消、馬場、馬番、購入締切はJRA公式で別途確認。実購入記録は本人が登録した記録であり、投票・購入の完了確認ではありません。</p>
 <a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表を確認</a>
 </section>
