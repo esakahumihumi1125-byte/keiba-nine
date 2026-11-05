@@ -29,7 +29,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#eef3fc;font:16px/1.6 system-ui,sans-serif}main{max-width:670px;padding:20px 14px 50px;margin:auto}h1{font-size:25px}h2{font-size:19px;margin:0 0 8px}a{color:#f3d17e}section{background:#162d49;border:1px solid #47637f;border-radius:15px;padding:16px;margin:16px 0}.warning{padding:12px;background:#322c23;border:1px solid #aa8952;color:#ffeba9;border-radius:10px;font-size:13px}.hint{font-size:13px;color:#ccdbeb}button{width:100%;margin:12px 0;min-height:48px;background:#edca70;color:#14253b;font:inherit;font-weight:800;border:0;border-radius:10px}button:disabled{opacity:.45}input{width:100%;min-height:46px;padding:10px;margin:8px 0;border:1px solid #8096aa;border-radius:10px;color:#fff;background:#0a2037}label{display:block;font-weight:700}"""
 
 JS = r"""(()=>{'use strict';
-/* Local-only backup; no fetch(), no XHR, no upload or telemetry. */
+/* Local-only backup: browser storage + user-selected private files, no upload. */
 const KEYS=[
  'keiba-nine-owner-ticket-drafts-v1',
  'keiba-nine-owner-real-purchases-v1',
