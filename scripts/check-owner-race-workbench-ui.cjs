@@ -1,0 +1,127 @@
+/* Offline cross-course owner race dashboard tests: no external member data. */
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const js=fs.readFileSync('/tmp/keiba-owner-race-workbench.js','utf8');
+const keys={
+ mail:'keiba-nine-jrdb-personal-mail-v1',
+ memo:'keiba-nine-owner-manual-numbers-v1',
+ score:'keiba-nine-owner-factor-notes-v1',
+ ticket:'keiba-nine-owner-ticket-drafts-v1',
+ purchase:'keiba-nine-owner-real-purchases-v1'
+};
+const date='2099-01-09';
+function source(race,postTime='09:55'){
+ return {race,postTime,expected:3,horses:['架空A','架空B','架空C']};
+}
+const marks=JSON.stringify(['09:55',3,['架空A','架空B','架空C']]);
+function mkMail(track){return {kind:'jrdb-provisional',date,track,races:[source(1),source(2,'10:25')]}}
+function mkMemo(track,race=1,sourceMark=marks){return {date,track,race,sourceMark,rows:[
+ {number:1,name:'架空A'},{number:2,name:'架空B'},{number:3,name:'架空C'}]}}
+const finished='1 架空A S A B A S\n2 架空B A A B C B\n3 架空C B B B C A';
+function fixtures(){
+ return {
+  [keys.mail]:[mkMail('東京'),mkMail('京都'),mkMail('福島')],
+  [keys.memo]:[mkMemo('東京'),mkMemo('京都',2,'old-source')],
+  [keys.score]:[
+   {date,track:'東京',race:1,text:finished,savedAt:'2099-01-08T18:00:00+09:00',sourceMark:marks},
+   {date,track:'京都',race:2,text:finished,savedAt:'2099-01-08T18:00:00+09:00',sourceMark:'old-source'},
+   {date,track:'福島',race:1,text:'1 架空A A ? ? ? ?',savedAt:'2099-01-08T18:00:00+09:00',sourceMark:null}
+  ],
+  [keys.ticket]:[{date,track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T18:00:00+09:00'}],
+  [keys.purchase]:[{date,track:'東京',race:1,id:'unit-01',first:[1],second:[2],third:[3],stake:100,payout:null,unit:100,purchasedAt:'2099-01-09T09:00:00+09:00'}]
+ };
+}
+function boot(initial=fixtures()){
+ const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
+ const nodes=new Map(),writes=[],links=[];
+ function element(tag='div'){
+  return {tag,value:'',textContent:'',className:'',children:[],
+   dataset:{},disabled:false,onclick:null,onchange:null,type:'',href:'',
+   attrs:{},setAttribute(k,v){this.attrs[k]=v},
+   append(...args){this.children.push(...args)},
+   replaceChildren(...args){this.children=[...args]}};
+ }
+ function el(id){if(!nodes.has(id))nodes.set(id,element());return nodes.get(id)}
+ const ctx={
+  document:{getElementById:el,createElement:element},
+  localStorage:{getItem:k=>storage.get(k)||null,setItem(k,v){writes.push(k);throw Error('Dashboard writes forbidden')}},
+  Date,JSON,String,Number,Set,Map,URLSearchParams,Error,console
+ };
+ vm.runInNewContext(js,ctx);
+ return {el,storage,writes,links};
+}
+const page=boot(),e=page.el;
+assert.equal(e('workDate').value,date,'readiness defaults to upcoming saved date');
+assert.match(e('workStatus').textContent,/2099-01-09/);
+assert.equal(e('workMeetings').children.length,3,'3 racecourses grouped');
+assert.equal(e('workMeetings').children.reduce((n,x)=>n+x.children[1].children.length,0),36,'all 36R accessible');
+assert.match(e('workSummary').textContent,/36R表示/);
+assert.match(e('workSummary').textContent,/JRDB想定6R/);
+assert.match(e('workSummary').textContent,/馬番メモ一致1R/);
+assert.match(e('workSummary').textContent,/評価入力完了1R/);
+assert.match(e('workSummary').textContent,/3連単下書き1R/);
+assert.match(e('workSummary').textContent,/実購入記録1R/);
+assert.match(e('workSummary').textContent,/元資料要再確認1R/);
+const tokyo=e('workMeetings').children.find(v=>v.children[0].textContent.startsWith('東京'));
+const kyoto=e('workMeetings').children.find(v=>v.children[0].textContent.startsWith('京都'));
+const fukushima=e('workMeetings').children.find(v=>v.children[0].textContent.startsWith('福島'));
+assert.ok(tokyo&&kyoto&&fukushima);
+const t1=tokyo.children[1].children[0];
+assert.equal(t1.dataset.stage,'actual');
+assert.match(t1.attrs['aria-label'],/購入記録/);
+assert.equal(kyoto.children[1].children[1].dataset.stage,'stale');
+assert.equal(fukushima.children[1].children[0].dataset.stage,'partial');
+assert.equal(tokyo.children[1].children[1].dataset.stage,'mail');
+assert.equal(tokyo.children[1].children[2].dataset.stage,'empty');
+t1.onclick();
+const detail=tokyo.children[2];
+assert.match(detail.children[1].textContent,/JRA公式照合ではない/);
+assert.match(detail.children[1].textContent,/本人入力 1件/);
+assert.equal(t1.attrs['aria-pressed'],'true');
+const buttons=detail.children[3].children;
+assert.equal(buttons.length,3);
+assert.ok(buttons[0].href.startsWith('/my-scorecard#select=v1&'));
+assert.ok(buttons[1].href.startsWith('/my-tickets#select=v1&'));
+assert.equal(buttons[2].href,'/jrdb-mail-local');
+const params=new URLSearchParams(buttons[0].href.split('#')[1]);
+assert.equal(params.get('date'),date);
+assert.equal(params.get('track'),'東京');
+assert.equal(params.get('race'),'1');
+assert.equal(params.size,4,'only date, track, race sent as fragment');
+assert.ok(!buttons[0].href.includes('架空A'));
+assert.ok(!buttons[1].href.includes('架空A'));
+assert.equal(page.writes.length,0,'dashboard never saves or purchases anything');
+kyoto.children[1].children[1].onclick();
+assert.match(kyoto.children[2].children[1].textContent,/元資料との不一致/);
+assert.match(kyoto.children[2].children[1].textContent,/元資料を再確認/);
+// No incoming mail: status must not imply race is confirmed or AI-grade was performed.
+const noMail=boot({
+ [keys.mail]:[],[keys.memo]:[],[keys.score]:[],
+ [keys.ticket]:[{date,track:'京都',race:4,first:[1],second:[2],third:[3]}],
+ [keys.purchase]:[]
+});
+assert.equal(noMail.el('workMeetings').children.length,1);
+const k=noMail.el('workMeetings').children[0].children[1].children[3];
+assert.equal(k.dataset.stage,'draft');
+k.onclick();
+assert.match(noMail.el('workMeetings').children[0].children[2].children[1].textContent,/未取込/);
+assert.match(noMail.el('workMeetings').children[0].children[2].children[1].textContent,/3連単下書き：1点/);
+// Corrupt browser data must not be silently treated as an empty or complete race.
+page.storage.set(keys.mail,'{');
+e('workDate').onchange();
+assert.equal(e('workMeetings').children.length,0);
+assert.match(e('workStatus').textContent,/読み込めません/);
+assert.match(e('workSummary').textContent,/不正な記録/);
+// Missing race date: manually add one course; don't claim a fictitious meeting exists.
+const empty=boot({[keys.mail]:[],[keys.memo]:[],[keys.score]:[],
+ [keys.ticket]:[],[keys.purchase]:[]});
+empty.el('workDate').value='2099-02-02';empty.el('workDate').onchange();
+assert.equal(empty.el('workMeetings').children.length,0);
+empty.el('workExtraTrack').value='中山';empty.el('workAddTrack').onclick();
+assert.equal(empty.el('workMeetings').children.length,1);
+assert.match(empty.el('workSummary').textContent,/12R表示／JRDB想定0R/);
+assert.ok(!js.includes('fetch('),'no data transmitted');
+assert.ok(!js.includes('XMLHttpRequest'),'no data transmitted');
+assert.ok(!js.includes('localStorage.setItem'),'read-only');
+assert.ok(!js.includes('innerHTML'),'never inject member names as HTML');
+console.log('Owner 36R local dashboard PASS: 3 venues, stale sources, progress, privacy and deep links');
