@@ -519,4 +519,69 @@ sp('mScorecardOpen').onclick();
 assert.equal(stopPage.navigation.length,0,'unsaved 3連単 must not be lost via scorecard jump');
 assert.equal(sp('mCount').textContent,'1点');
 
+
+// Owner-entered factor grades appear on the same day's all-R board, without being
+// misrepresented as AI predictions or official runner verification.
+const scoreKey='keiba-nine-owner-factor-notes-v1';
+const mailKey='keiba-nine-jrdb-personal-mail-v1';
+const memoKey='keiba-nine-owner-manual-numbers-v1';
+const dateScore='2099-02-03',horseNames=['架空A','架空B','架空C'];
+const sourceRace={race:1,postTime:'10:10',expected:3,horses:horseNames};
+const sourceMark=JSON.stringify([sourceRace.postTime,sourceRace.expected,sourceRace.horses]);
+const scoreMail={kind:'jrdb-provisional',date:dateScore,track:'東京',races:[sourceRace]};
+const scoredMemo={date:dateScore,track:'東京',race:1,sourceMark,
+ rows:horseNames.map((name,i)=>({number:i+1,name}))};
+const completeScore='1 架空A S A B A B\n2 架空B A A S B A\n3 架空C B B A C B';
+const scoreNotes=[
+ {date:dateScore,track:'東京',race:1,text:completeScore,sourceMark,
+  savedAt:'2099-02-02T10:00:00Z'},
+ {date:dateScore,track:'東京',race:2,text:'1 S A B ? A',sourceMark:null,
+  savedAt:'2099-02-02T10:00:00Z'},
+ {date:dateScore,track:'東京',race:3,text:completeScore,sourceMark:'old-memo',
+  savedAt:'2099-02-02T10:00:00Z'}
+];
+storage.set(mailKey,JSON.stringify([scoreMail]));
+storage.set(memoKey,JSON.stringify([scoredMemo]));
+storage.set(scoreKey,JSON.stringify(scoreNotes));
+const boardScore=boot(),sc=boardScore.el;
+sc('mDate').value=dateScore;sc('mDate').onchange();
+sc('mTrack').value='東京';sc('mTrack').onchange();
+sc('mRace').value='1';sc('mRace').onchange();
+assert.equal(sc('mRaceBoard').children.length,12);
+assert.equal(sc('mRaceBoard').children[0].children[3].textContent,'本人採点済');
+assert.equal(sc('mRaceBoard').children[1].children[3].textContent,'採点途中');
+assert.equal(sc('mRaceBoard').children[2].children[3].textContent,'要再確認');
+assert.equal(sc('mRaceBoard').children[3].children[3].textContent,'採点未着手');
+assert.match(sc('mRaceBoard').children[0].className,/has-factor-score/);
+assert.match(sc('mRaceBoardStatus').textContent,/本人の5項目採点 済1R／途中1R／要再確認1R/);
+assert.equal(sc('mDayCoverage').children.length,1);
+assert.match(sc('mDayCoverage').children[0].children[1].textContent,/本人採点済1R・途中1R・要再確認1R/);
+assert.match(sc('mDayCoverageSummary').textContent,/本人の5項目採点：済1R／途中1R／再確認1R/);
+const originalFactorWrites=writes.length;
+sc('mRaceBoard').children[1].onclick();
+assert.equal(writes.length,originalFactorWrites,'board navigation never writes factor scores');
+// If source data changes, the old scored memo must no longer appear complete.
+const altered={...sourceRace,postTime:'10:15'};
+storage.set(mailKey,JSON.stringify([{...scoreMail,races:[altered]}]));
+sc('mRace').onchange();
+assert.equal(sc('mRaceBoard').children[0].children[3].textContent,'要再確認');
+assert.match(sc('mDayCoverageSummary').textContent,/再確認2R/);
+// Corrupt score-note storage cannot be presented as zero or as approved ranking.
+storage.set(scoreKey,JSON.stringify([{...scoreNotes[0],race:13}]));
+sc('mRace').onchange();
+assert.equal(sc('mRaceBoard').children[0].children[3].textContent,'採点メモ要確認');
+assert.match(sc('mDayCoverageSummary').textContent,/保存した採点メモの形式が不正/);
+storage.set(scoreKey,JSON.stringify(scoreNotes));
+storage.set(mailKey,JSON.stringify([scoreMail]));
+// A standalone private score note makes a venue visible even without JRDB mail.
+const standalone={date:'2099-02-10',track:'京都',race:7,
+ text:completeScore,sourceMark:null,savedAt:'2099-02-09T12:00:00Z'};
+storage.set(scoreKey,JSON.stringify([standalone]));
+const onlyScore=boot(),on=onlyScore.el;
+on('mDate').value='2099-02-10';on('mDate').onchange();
+assert.equal(on('mDayCoverage').children.length,1,'independent private score note surfaces the venue');
+assert.equal(on('mDayCoverage').children[0].children[0].textContent,'京都');
+assert.match(on('mDayCoverage').children[0].children[1].textContent,/本人採点済1R/);
+assert.equal(on('mRaceBoard').children.length,0,'a venue is not invented as selected');
+
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
