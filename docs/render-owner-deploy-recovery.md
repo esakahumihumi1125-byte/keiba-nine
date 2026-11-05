@@ -44,3 +44,12 @@ Render上で `Auto-Deploy: On Commit` と表示されていても、GitHubの複
 - Deploy Hookは本人が知る人だけが持つ秘密。万一漏れたらRenderでRegenerate Hookし、GitHubのSecretを新しい値へ更新する。
 
 参考：[Render Deploy Hooks](https://render.com/docs/deploy-hooks)。
+
+## Deploy Hook 登録後の動作検証（2026-11-06）
+
+本人が GitHub リポジトリ Secret の追加完了画面を確認後、次回の `main` コミットで `Private service checks` と `Owner Render deploy after private checks` を実行し、最新SHAがRenderで `live` になったことを確認する。**GitHub上の秘密設定の登録成功だけでは、正常な自動デプロイは保証しない。**
+
+- `Private service checks` の成功 → 後段ワークフローの **実行ログ** に `Render deploy hook accepted the request` が実行結果として表示される（ソースコード表示やechoコマンド表示ではなく実行結果を確認）。
+- 次に Render の最新デプロイ `status=live` とGitHub HEADのコミットSHAが一致するかを確認する。ビルド失敗・キャンセル時は成功と報告しない。
+- 不要な二重デプロイを避けるため、Renderネイティブの自動更新が後で復旧した場合は標準のGitHub連携かGitHub Actions Deploy Hookのどちらか一方に統一する。
+- Deploy HookのURL、JRDBなどの会員情報、サービスのログイン情報はリポジトリ・CI出力・チャットに表示しない。
