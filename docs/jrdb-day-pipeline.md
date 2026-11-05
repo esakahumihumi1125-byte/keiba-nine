@@ -45,3 +45,17 @@ JRDBの公開API仕様：https://jrdb-api.keiba.bigtime.world/docs/request-respo
 - 開催日を変更すると以前の資料・暫定評価を非表示にします。変更前の通信が後から返っても、別日の資料を再表示しない仕組みです。
 
 関連：`scripts/jrdb_day_factor_progress.py`、`tests/test_jrdb_day_factor_progress.py`、`scripts/check-private-day-pipeline-ui.cjs`。
+
+## 当日5資料からの8項目観測枠（新機能）
+
+`/api/jrdb/day-pipeline` の1回の本人用リクエストに `sourceMaterials`（`private-eight-materials-1`）を追加。すでに取得した `/tra`、`/tky`、`/tcy`、`/tze` の資料を再利用し、**追加のJRDBリクエストなし**で以下を集計します。
+
+- 暫定研究ランク（調教・近走の2項目）：正式な評価ではなく、指標と着順の仮基準による未検証値
+- 観測材料のみ（展開、血統、枠・斤量、前走間隔、騎手・厩舎、馬体形状の6項目）：過去4角位置・父母父の記載有無・枠と負担重量の記載有無・前走日付・騎手/調教師名・馬体形状コードの記載有無。**適性や能力は推定しない**
+- 未接続（距離・コース適性、馬場適性の2項目）：過去出走レースの限定照合が必要なため、今回の当日5資料だけから**埋めない**
+
+画面は本人専用 `/day-pipeline` に折りたたみ表示。馬名、馬番、騎手名、血統名、指数、馬体数値、生データはブラウザーへ返しません。レース単位の非個人カウントだけを返します。
+
+**重要：10項目の資料欄の8/10を接続しても、実戦の総合ランクは0/10、実レース予想0、購入0のまま。** 使用条件、JRA最終出走・馬場・時刻照合、評価基準の検証は残っています。現状はAPI認証情報未設定につき全て実データ未取得です。
+
+実装：`scripts/jrdb_day_materials_progress.py`、`tests/test_jrdb_day_materials_progress.py`。既存の `jrdb_private_factor_bridge.py`、`jrdb_entry_rotation_materials.py`、`jrdb_personnel_body_materials.py` の安全なマトリックスを流用。
