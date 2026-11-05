@@ -7,7 +7,7 @@ const localStorage={
  getItem:k=>storage.get(k)||null,
  setItem(k,v){writes.push(k);storage.set(k,v)}
 };
-function boot(){
+function boot(confirmDecision=true){
  const nodes=new Map();
  function element(tag='div'){
   return {tag,value:'',textContent:'',className:'',disabled:false,children:[],
@@ -22,7 +22,7 @@ function boot(){
  const urls=[];
  const URL={createObjectURL(x){urls.push(x);return 'blob:synthetic'},revokeObjectURL(x){urls.push(x)}};
  vm.runInNewContext(js,{document:{getElementById:el,createElement:element},
-  localStorage,Date,Set,Number,String,JSON,Blob,URL,confirm:()=>true,console});
+  localStorage,Date,Set,Number,String,JSON,Blob,URL,confirm:()=>confirmDecision,console});
  return {el,nodes,urls};
 }
 const first=boot(),$=first.el;
@@ -217,4 +217,55 @@ m('mFirst').children[0].onclick();
 assert.equal(m('mFirstNames').textContent,'選択中：1番','stale name must not appear on selected horse');
 
 assert.equal(writes.length,beforeMemoWrites,'read-only memo viewing must never write localStorage');
+
+// Saturday 2026-11-07: batch-copy multiple already-authored formations.
+// Preview and rejected input never write drafts/purchases, and save is atomic.
+const batch=boot(),b=batch.el;
+assert.equal(typeof b('mBulkReview').onclick,'function');
+assert.equal(b('mBulkApply').disabled,true);
+const batchInput='2026-11-07 東京1R\n1着：①②\n2着：①②③④\n3着：①②③④⑤⑥⑦⑧\n\n2026-11-07 京都1R\n1着：①\n2着：②③\n3着：②③④';
+b('mBulkPaste').value=batchInput;
+const beforeBatch=storage.get(key),writesBeforeBatch=writes.length;
+b('mBulkReview').onclick();
+assert.equal(b('mBulkPreview').children.length,2,'two races preview separately');
+assert.match(b('mBulkPreview').children[0].textContent,/東京1R：36点/);
+assert.match(b('mBulkPreview').children[0].textContent,/既存を上書き/);
+assert.match(b('mBulkPreview').children[1].textContent,/京都1R：4点/);
+assert.equal(b('mBulkApply').disabled,false);
+assert.equal(storage.get(key),beforeBatch,'preview never saves anything');
+assert.equal(writes.length,writesBeforeBatch);
+b('mBulkApply').onclick();
+let afterBatch=JSON.parse(storage.get(key));
+assert.equal(afterBatch.some(r=>r.date==='2026-11-07'&&r.track==='京都'&&r.race===1),true);
+assert.equal(afterBatch.filter(r=>r.date==='2026-11-07'&&r.track==='東京'&&r.race===1).length,1,
+ 'reimport updates the same race instead of duplicating it');
+assert.equal(b('mBulkPaste').value,'','successful batch clears textarea');
+assert.match(b('mBulkStatus').textContent,/2レースの下書き/);
+assert.equal(b('mBulkApply').disabled,true);
+const locked=storage.get(key),writesBeforeErrors=writes.length;
+for(const bad of [
+ '2026-11-07 東京1R\n1着：①\n2着：②\n3着：③\n余計な行',
+ '2026-11-07 東京1R\n1着：①\n2着：②\n3着：③\n\n2026-11-07 東京1R\n1着：①\n2着：②\n3着：③',
+ '2026-11-31 東京1R\n1着：①\n2着：②\n3着：③',
+ '2026-11-07 東京1R\n1着：①②\n2着：①②③④⑤\n3着：①②③④⑤⑥⑦⑧⑨',
+]){
+ b('mBulkPaste').value=bad;b('mBulkReview').onclick();
+ assert.equal(b('mBulkApply').disabled,true,'bad batch cannot save');
+ assert.match(b('mBulkStatus').textContent,/一括検査できません/);
+}
+assert.equal(storage.get(key),locked);
+assert.equal(writes.length,writesBeforeErrors,'invalid batch does not touch storage');
+const canceled=boot(false),c=canceled.el;
+c('mBulkPaste').value='2026-11-08 京都2R\n1着：①\n2着：②\n3着：③';
+c('mBulkReview').onclick();
+const beforeCancel=storage.get(key);
+c('mBulkApply').onclick();
+assert.equal(storage.get(key),beforeCancel,'cancel rejects batch without writes');
+c('mBulkPaste').value=batchInput;c('mBulkReview').onclick();
+c('mBulkPaste').value=batchInput+'\n';
+c('mBulkApply').onclick();
+assert.equal(storage.get(key),beforeCancel,'changed input needs a fresh preview');
+assert.equal(c('mBulkApply').disabled,true);
+assert.ok(!js.includes('fetch('),'batch import must not upload to any API');
+
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
