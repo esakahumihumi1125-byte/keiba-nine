@@ -33,10 +33,10 @@ function fixtures(){
 }
 function boot(initial=fixtures()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
- const nodes=new Map(),writes=[],links=[];
+ const nodes=new Map(),writes=[],links=[],events={};
  function element(tag='div'){
   return {tag,value:'',textContent:'',className:'',children:[],
-   dataset:{},disabled:false,onclick:null,onchange:null,type:'',href:'',
+   dataset:{},hidden:false,disabled:false,onclick:null,onchange:null,type:'',href:'',
    attrs:{},setAttribute(k,v){this.attrs[k]=v},
    append(...args){this.children.push(...args)},
    replaceChildren(...args){this.children=[...args]}};
@@ -44,11 +44,12 @@ function boot(initial=fixtures()){
  function el(id){if(!nodes.has(id))nodes.set(id,element());return nodes.get(id)}
  const ctx={
   document:{getElementById:el,createElement:element},
+  window:{addEventListener:(event,handler)=>{events[event]=handler}},
   localStorage:{getItem:k=>storage.get(k)||null,setItem(k,v){writes.push(k);throw Error('Dashboard writes forbidden')}},
   Date,JSON,String,Number,Set,Map,URLSearchParams,Error,console
  };
  vm.runInNewContext(js,ctx);
- return {el,storage,writes,links};
+ return {el,storage,writes,links,events};
 }
 const page=boot(),e=page.el;
 assert.equal(e('workDate').value,date,'readiness defaults to upcoming saved date');
@@ -108,6 +109,35 @@ assert.equal(page.writes.length,0,'dashboard never saves or purchases anything')
 kyoto.children[1].children[1].onclick();
 assert.match(kyoto.children[2].children[1].textContent,/元資料との不一致/);
 assert.match(kyoto.children[2].children[1].textContent,/元資料を再確認/);
+// iPhone UI: filter only actionable, and refresh after Safari BFCache return.
+assert.equal(e('workOnlyActions').textContent,'','toggle initial accessible text is in HTML');
+e('workOnlyActions').onclick();
+assert.equal(e('workOnlyActions').attrs['aria-pressed'],'true');
+assert.match(e('workOnlyActions').textContent,/ON/);
+const activeGrid=e('workMeetings').children;
+const tokyoFiltered=activeGrid.find(x=>x.children[0].textContent.startsWith('東京'));
+const kyotoFiltered=activeGrid.find(x=>x.children[0].textContent.startsWith('京都'));
+assert.equal(tokyoFiltered.children[1].children[0].hidden,true,'already purchased race is hidden as no pending task');
+assert.equal(tokyoFiltered.children[1].children[1].hidden,false,'JRDB provisional still needs roster');
+assert.equal(tokyoFiltered.children[1].children[2].hidden,true,'unknown races are not marked actionable');
+assert.equal(kyotoFiltered.children[1].children[1].hidden,false,'stale memo is actionable');
+assert.match(e('workSummary').textContent,/36R表示/,'full coverage remains visible in summary');
+e('workOnlyActions').onclick();
+assert.equal(e('workOnlyActions').attrs['aria-pressed'],'false');
+assert.equal(e('workMeetings').children[0].children[1].children.every(x=>x.hidden===false),true,
+ 'OFF shows all 12 races per course');
+assert.ok(typeof page.events.pageshow==='function','Safari BFCache page return rechecks saved data');
+// Mutate only the simulated iPhone localStorage, not app code, to mimic saving a memo elsewhere.
+const revised=fixtures();revised[keys.memo]=[mkMemo('東京',1,'changed'),mkMemo('京都',2,'old-source')];
+page.storage.set(keys.memo,JSON.stringify(revised[keys.memo]));
+page.events.pageshow({persisted:true});
+assert.match(e('workSummary').textContent,/元資料要再確認2R/);
+assert.equal(e('workNext').children.length,7,'new stale roster joins queue after browser return');
+assert.match(e('workNext').children[0].children[0].textContent,/資料が不一致/);
+e('workReload').onclick();
+assert.match(e('workStatus').textContent,/読み直しました/);
+assert.equal(page.writes.length,0,'neither filter nor refresh writes any user data');
+
 // No incoming mail: status must not imply race is confirmed or AI-grade was performed.
 const noMail=boot({
  [keys.mail]:[],[keys.memo]:[],[keys.score]:[],
