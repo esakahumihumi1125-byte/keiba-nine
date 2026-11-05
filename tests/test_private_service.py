@@ -60,6 +60,33 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(denied['status'], '303 See Other')
         self.assertEqual(denied['headers']['Location'], '/login')
 
+    def test_owner_home_screen_resume_checks_release_without_weakening_auth(self):
+        active = create_app({**SETTINGS,
+                             'RENDER_GIT_COMMIT': '0123456789abcdef0123456789abcdef01234567'})
+        for path in ('/', '/preview-v2', '/my-tickets'):
+            r = call(active, path)
+            self.assertEqual(r['status'], '200 OK')
+            html = r['body'].decode('utf-8')
+            self.assertIn('name="keiba-owner-release"', html)
+            self.assertIn('iphone-login-recovery-20261105-v9|0123456789ab', html)
+            self.assertIn('src="/owner-update.js"', html)
+            self.assertNotIn('__OWNER_RELEASE__', html)
+            self.assertIn('no-store', r['headers']['Cache-Control'])
+        javascript = call(active, '/owner-update.js')
+        self.assertEqual(javascript['status'], '200 OK')
+        self.assertIn('text/javascript', javascript['headers']['Content-Type'])
+        self.assertIn("fetch('/ui-version'", javascript['body'].decode('utf-8'))
+        self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'], javascript['body'].decode('utf-8'))
+        latest = call(active, '/ui-version')
+        self.assertIn('renderCommit=0123456789ab', latest['body'].decode('utf-8'))
+        for path in ('/owner-update.js', '/ui-version'):
+            denied = call(active, path, auth='')
+            self.assertTrue(denied['status'].startswith('401'))
+            self.assertNotIn('WWW-Authenticate', denied['headers'])
+        bare = call(self.app, '/my-tickets')['body'].decode('utf-8')
+        self.assertIn('iphone-login-recovery-20261105-v9|not-reported', bare)
+        self.assertNotIn('__OWNER_RELEASE__', bare)
+
     def test_no_or_weak_password_fails_closed(self):
         for config in [{}, {'KEIBA_OWNER_PASSWORD': 'short'}, {'KEIBA_OWNER_PASSWORD': 'x' * 40}]:
             with self.assertRaises(ValueError): create_app(config)
