@@ -675,9 +675,9 @@ sb('mDate').value=reviewDate;sb('mDate').onchange();
 sb('mResultBulkText').value=reviewDate+' 京都3R 4-2-3';
 sb('mResultBulkCheck').onclick();
 storage.set(key,JSON.stringify(JSON.parse(storage.get(key)).map(x=>x.date===reviewDate?{...x,savedAt:'2099-03-01T10:00:00Z'}:x)));
-const beforeStale=storage.get(key);
+const beforeStaleReview=storage.get(key);
 sb('mResultBulkSave').onclick();
-assert.equal(storage.get(key),beforeStale,'newer edits block old bulk review');
+assert.equal(storage.get(key),beforeStaleReview,'newer edits block old bulk review');
 assert.match(sb('mResultBulkStatus').textContent,/もう一度検査/);
 
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
