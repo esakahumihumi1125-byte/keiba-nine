@@ -51,3 +51,5 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from owner_ticket_handoff import JS; from pathlib import Path; Path('/tmp/keiba-private-owner-handoff.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-private-owner-handoff.js
           node scripts/check-owner-ticket-handoff.cjs
+          python -c "import sys; sys.path.insert(0, 'scripts'); from jrdb_day_pipeline_ui import JS; from pathlib import Path; Path('/tmp/keiba-jrdb-day-pipeline.js').write_text(JS, encoding='utf-8')"
+          node --check /tmp/keiba-jrdb-day-pipeline.js
