@@ -14,14 +14,14 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h1>本人用データのバックアップ</h1>
 <p class="warning">この画面は端末内だけで動作します。JRDB想定メール・本人の馬番メモを含む場合があるため、ファイルは個人用に保管し、公開・共有しないでください。サーバー・Google・GitHubに自動送信しません。</p>
 <section><h2>今の保存内容</h2><p id="backupSummary" role="status">端末内を確認します。</p>
-<button id="backupDownload" type="button">4種類の記録を1つのJSONに保存</button>
-<p class="hint">3連単の下書き／実際の購入記録／JRDB想定メールから転記した記録／本人が照合した馬番メモをまとめて書き出します。保存先はiPhoneの「ファイル」など自分で管理できる場所を選んでください。</p></section>
+<button id="backupDownload" type="button">5種類の記録を1つのJSONに保存</button>
+<p class="hint">3連単の下書き／実際の購入記録／JRDB想定メールから転記した記録／本人が照合した馬番メモ／5項目評価の途中メモをまとめて書き出します。保存先はiPhoneの「ファイル」など自分で管理できる場所を選んでください。</p></section>
 <section><h2>別の端末・Safariから復元</h2>
 <label for="backupFile">上で保存したJSONを選択</label>
 <input id="backupFile" type="file" accept=".json,application/json">
-<p id="backupPreview" class="hint" role="status">選択しただけでは復元しません。内容を検査し、4種類すべての現在の記録を置き換える前に確認します。</p>
-<button id="backupRestore" type="button" disabled>確認して4種類の記録を復元</button>
-<p class="warning">復元は現在の4種類の記録を全件上書きします。実購入記録も含まれます。必ず先に今のデータを書き出してください。復元後はページを開き直すと新しい記録が見えます。</p></section>
+<p id="backupPreview" class="hint" role="status">選択しただけでは復元しません。内容を検査し、5種類すべての現在の記録を置き換える前に確認します。</p>
+<button id="backupRestore" type="button" disabled>確認して5種類の記録を復元</button>
+<p class="warning">復元は現在の5種類の記録を全件上書きします。実購入記録も含まれます。必ず先に今のデータを書き出してください。復元後はページを開き直すと新しい記録が見えます。</p></section>
 <section><h2>知っておきたいこと</h2><p class="hint">ホーム画面版とSafariは別の保存領域になる場合があります。「ホーム画面に追加した同じアプリ」からバックアップ・復元してください。JSONはパスワードで暗号化されていません。JRDBの有料情報を含む場合は会員本人以外へ渡さないでください。</p>
 <a href="/my-tickets">3連単下書き・購入記録へ</a></section>
 </main><script defer src="/owner-backup.js"></script></body></html>"""
@@ -34,9 +34,10 @@ const KEYS=[
  'keiba-nine-owner-ticket-drafts-v1',
  'keiba-nine-owner-real-purchases-v1',
  'keiba-nine-jrdb-personal-mail-v1',
- 'keiba-nine-owner-manual-numbers-v1'
+ 'keiba-nine-owner-manual-numbers-v1',
+ 'keiba-nine-owner-factor-notes-v1'
 ];
-const FORMAT='keiba-nine-owner-local-all-v1', LIMIT=2500000;
+const FORMAT='keiba-nine-owner-local-all-v2',LEGACY='keiba-nine-owner-local-all-v1', LIMIT=2500000;
 const TRACKS=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
 const $=id=>document.getElementById(id);
 const raceKey=x=>x.date+'|'+x.track+'|'+x.race;
@@ -93,17 +94,24 @@ function mapped(x){
  new Set(x.rows.map(r=>r.number)).size===x.rows.length&&
  new Set(x.rows.map(r=>r.name)).size===x.rows.length;
 }
-function sectionsValid(sections){
+function scoredNote(x){
+ return race(x)&&typeof x.text==='string'&&x.text.length>0&&x.text.length<=4000&&
+ typeof x.savedAt==='string'&&x.savedAt.length>=10&&x.savedAt.length<=32&&
+ (x.sourceMark===null||
+  (typeof x.sourceMark==='string'&&x.sourceMark.length>0&&x.sourceMark.length<=1500));
+}
+function sectionsValid(sections,legacy=false){
  if(!sections||typeof sections!=='object'||Array.isArray(sections)||
-    Object.keys(sections).sort().join(',')!==KEYS.slice().sort().join(','))throw Error('4種類のバックアップ構造が違います。');
+    Object.keys(sections).sort().join(',')!==(legacy?KEYS.slice(0,4):KEYS).slice().sort().join(','))throw Error('バックアップの構造が違います。');
  const rules=[{max:300,valid:draft,identity:raceKey},{max:500,valid:purchase,identity:x=>x.id},
   {max:48,valid:mail,identity:x=>x.date+'|'+x.track},
-  {max:576,valid:mapped,identity:raceKey}];
- for(let i=0;i<KEYS.length;i++){
+  {max:576,valid:mapped,identity:raceKey},
+  {max:300,valid:scoredNote,identity:raceKey}];
+ for(let i=0;i<(legacy?4:KEYS.length);i++){
   const rows=sections[KEYS[i]],rule=rules[i];
   if(!Array.isArray(rows)||rows.length>rule.max||!rows.every(rule.valid)||
      new Set(rows.map(rule.identity)).size!==rows.length)
-   throw Error(['下書き','実購入記録','想定メール','馬番メモ'][i]+'の形式が不正か、上限を超えています。');
+   throw Error(['下書き','実購入記録','想定メール','馬番メモ','5項目評価の途中メモ'][i]+'の形式が不正か、上限を超えています。');
  }
  const meetings=new Map(sections[KEYS[2]].map(x=>[x.date+'|'+x.track,x]));
  const mappedRows=sections[KEYS[3]];
@@ -113,7 +121,7 @@ function sectionsValid(sections){
   const source=m&&m.races.find(x=>x.race===row.race);
   if(!source||row.sourceMark!==JSON.stringify([source.postTime,source.expected,source.horses]))stale++;
  }
- return {counts:KEYS.map(k=>sections[k].length),stale};
+ return {counts:(legacy?KEYS.slice(0,4):KEYS).map(k=>sections[k].length),stale};
 }
 function currentRaw(){
  return KEYS.map(k=>localStorage.getItem(k));
@@ -124,7 +132,7 @@ function decodeLocal(){
  return sections;
 }
 function countsLabel(c){
- return '下書き'+c[0]+'R／購入記録'+c[1]+'件／想定メール'+c[2]+'開催／馬番メモ'+c[3]+'R';
+ return '下書き'+c[0]+'R／購入記録'+c[1]+'件／想定メール'+c[2]+'開催／馬番メモ'+c[3]+'R／5項目評価'+(c[4]||0)+'R';
 }
 function showCurrent(){
  try{
@@ -169,16 +177,22 @@ $('backupFile').onchange=async()=>{
   const raw=await chosen.text();
   if(raw.length>LIMIT)throw Error('ファイルが大きすぎます。');
   const parsed=JSON.parse(raw);
-  if(!parsed||parsed.format!==FORMAT||!parsed.sections||typeof parsed.exportedAt!=='string'||
+  const legacy=parsed&&parsed.format===LEGACY;
+  if(!parsed||(parsed.format!==FORMAT&&!legacy)||!parsed.sections||typeof parsed.exportedAt!=='string'||
      Object.keys(parsed).sort().join(',')!=='exportedAt,format,sections')throw Error('競馬ナインの一括バックアップではありません。');
-  const report=sectionsValid(parsed.sections);
+  sectionsValid(parsed.sections,legacy);
+  const sections={...parsed.sections};
+  // Old four-part exports keep the current private factor drafts untouched.
+  if(legacy)sections[KEYS[4]]=decodeLocal()[KEYS[4]];
+  const report=sectionsValid(sections);
   const before=currentRaw();
-  // Ignore earlier asynchronous file reads if user has selected a new file.
   if(!$('backupFile').files||$('backupFile').files[0]!==chosen)return;
-  pending={file:chosen,before,sections:parsed.sections,report};
+  pending={file:chosen,before,sections,report};
   $('backupRestore').disabled=false;
   $('backupPreview').textContent=countsLabel(report.counts)+
-   '。元メールと一致しない馬番メモ'+report.stale+'R。形式を検査済み。復元すると現在の4種類のデータを上書きします。';
+   '。元メールと一致しない馬番メモ'+report.stale+'R。形式検査済み。'+
+   (legacy?'旧4種類のバックアップのため、現在の5項目途中評価は維持されます。':'')+
+   '復元すると現在の5種類の記録を置き換えます。';
  }catch(e){
   $('backupPreview').textContent='読み込めません：'+(e instanceof Error?e.message:'ファイルを確認してください。');
  }
@@ -207,7 +221,7 @@ $('backupRestore').onclick=()=>{
   }
   clearPending();
   $('backupPreview').textContent=rolledBack?
-   '保存できず、元の4種類の記録へ戻しました。空き容量を確認してな。':
+   '保存できず、元の5種類の記録へ戻しました。空き容量を確認してな。':
    '端末の容量不足で完全な復旧を保証できません。アプリ操作を止め、バックアップを保管してください。';
  }
 };
