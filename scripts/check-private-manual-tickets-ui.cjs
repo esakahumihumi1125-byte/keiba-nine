@@ -348,4 +348,54 @@ part('mTrack').onchange();
 assert.match(part('mRaceBoardStatus').textContent,/本人の馬名一致メモ 0R/,'duplicated horse number is not a matched memo');
 assert.ok(!js.includes('fetch('),'local JRDB readiness board does not send mail data to a server');
 
+
+// Date-wide readiness: only meetings actually present in local mail/drafts appear.
+storage.set('keiba-nine-jrdb-personal-mail-v1',JSON.stringify([
+ memoMeeting,
+ {kind:'jrdb-provisional',date:'2026-11-07',track:'京都',races:[
+  {race:1,postTime:'10:05',expected:3,horses:['架空京都A','架空京都B','架空京都C']}]},
+ {kind:'jrdb-provisional',date:'2026-11-07',track:'福島',races:[
+  {race:1,postTime:'09:45',expected:3,horses:['架空福島A','架空福島B','架空福島C']}]}
+]));
+storage.set('keiba-nine-owner-manual-numbers-v1',JSON.stringify([memoRecord]));
+const daywide=boot(),dw=daywide.el;
+dw('mDate').value='2026-11-07';dw('mDate').onchange();
+assert.equal(dw('mDayCoverage').children.length,3,'only 3 connected venues for that date');
+assert.match(dw('mDayCoverageSummary').textContent,/端末内3場／想定メール3R／馬名一致メモ1R／下書き2R・40点/);
+assert.match(dw('mDayCoverageSummary').textContent,/4,000円.*未購入/);
+assert.equal(dw('mDayCoverage').children[0].children[0].textContent,'福島');
+assert.equal(dw('mDayCoverage').children[1].children[0].textContent,'東京');
+assert.equal(dw('mDayCoverage').children[2].children[0].textContent,'京都');
+const beforeVenueTap=storage.get(key),beforeVenueWrites=writes.length;
+dw('mDayCoverage').children[0].onclick();
+assert.equal(dw('mTrack').value,'福島','one tap opens first venue');
+assert.match(dw('mRaceBoardStatus').textContent,/JRDB想定メール 1R/);
+dw('mDayCoverage').children[2].onclick();
+assert.equal(dw('mTrack').value,'京都','one tap switches to existing saved venue');
+assert.equal(dw('mCount').textContent,'4点','venue tap reloads only saved formation');
+assert.equal(storage.get(key),beforeVenueTap,'venue navigation never overwrites drafts');
+assert.equal(writes.length,beforeVenueWrites,'venue readiness navigation is read-only');
+dw('mDate').value='2026-11-09';dw('mDate').onchange();
+assert.equal(dw('mDayCoverage').children.length,0,'next date must not inherit any venue');
+assert.match(dw('mDayCoverageSummary').textContent,/まだありません/);
+const dayCanceled=boot(false),dc=dayCanceled.el;
+dc('mDate').value='2026-11-07';dc('mDate').onchange();
+dc('mTrack').value='京都';dc('mTrack').onchange();
+dc('mRace').value='1';dc('mRace').onchange();
+dc('mFirst').children[3].onclick();
+const dirtyPoints=dc('mCount').textContent;
+dc('mDayCoverage').children[1].onclick();
+assert.equal(dc('mTrack').value,'京都','unsaved changes block venue-switch');
+assert.equal(dc('mCount').textContent,dirtyPoints);
+assert.match(dc('mMsg').textContent,/切替をやめました/);
+const beforeStale=storage.get(key),staleWrites=writes.length;
+storage.set('keiba-nine-jrdb-personal-mail-v1',JSON.stringify([
+ {...memoMeeting,races:[{...memoMeeting.races[0],horses:['別の馬A','架空馬B','架空馬C']}]}
+]));
+dc('mDate').onchange();
+assert.match(dc('mDayCoverageSummary').textContent,/馬名一致メモ0R/,'changed mail invalidates aggregate memo count');
+assert.equal(storage.get(key),beforeStale,'read-only coverage did not mutate draft data');
+assert.equal(writes.length,staleWrites,'mail coverage views never write draft or purchase data');
+assert.ok(!js.includes('fetch('),'aggregate cannot transmit licensed member data');
+
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
