@@ -58,6 +58,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const page=boot(),e=page.el;
  assert.match(e('backupSummary').textContent,/下書き1R／購入記録1件／想定メール1開催／馬番メモ1R/);
  assert.equal(e('backupDownload').disabled,false);
+ assert.equal(boot({...fixture(),[keys[0]]:[{...first,result:[1,2,3]}]}).el('backupDownload').disabled,false,'reviewed unsold draft remains included in private backup');
  assert.equal(boot({...fixture(),[keys[1]]:[{...purchase,result:[1,2,3]}]}).el('backupDownload').disabled,false,'finished notes remain part of same five-part backup');
  e('backupDownload').onclick();
  assert.equal(page.downloads.length,1,'one file download only');
@@ -85,6 +86,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
   ['missing-ledger',{...goodBackup,sections:{[keys[0]]:[],[keys[2]]:[],[keys[3]]:[]}}],
   ['extra-record',{...goodBackup,sections:{...fixture(),extra:[]}}],
   ['invalid-purchase',{...goodBackup,sections:{...fixture(),[keys[1]]:[{...purchase,stake:123} ]}}],
+  ['invalid-draft-result',{...goodBackup,sections:{...fixture(),[keys[0]]:[{...first,result:[1,1,2]}]}}],
   ['invalid-finish',{...goodBackup,sections:{...fixture(),[keys[1]]:[{...purchase,result:[1,1,2]}]}}],
   ['duplicated-horse',{...goodBackup,sections:{...fixture(),[keys[2]]:[{...mail,races:[{...source,horses:['架空A','架空A','架空C']}]}]}}],
   ['duplicate-record',{...goodBackup,sections:{...fixture(),[keys[0]]:[first,first]}}],
