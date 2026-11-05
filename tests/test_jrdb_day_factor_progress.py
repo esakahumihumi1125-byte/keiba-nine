@@ -58,7 +58,7 @@ class DayFactorProgressTests(unittest.TestCase):
         self.assertEqual((p,e,t,z,h,day),inputs)
         serialized=json.dumps(out,ensure_ascii=False)
         for private in ('racekey','horse_number','horse_id','2328aaa95a05',
-                        'NONPUBLIC','oikirisisu','siagarisisu','IDM',
+                        'NONPUBLIC','oikirisisu','siagarisisu','race_back_1_idm',
                         'PRIVATE','win_odds'):
             self.assertNotIn(private,serialized)
 
