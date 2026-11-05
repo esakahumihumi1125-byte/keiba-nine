@@ -24,6 +24,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="workStatus" role="status" class="hint">端末に保存された資料を確認します。</p></section>
 <section><h2>最大36Rの準備状況</h2>
 <div id="workSummary" class="summary" role="status"></div>
+<div class="next-queue"><h3>次に準備するレース</h3><p class="hint">本人が保存した資料の不足・不一致から作った作業リストです。優先順位は発走順・勝率・公式情報の確定ではありません。</p><div id="workNext" aria-label="次に準備するレースと操作"></div></div>
 <div class="legend">未取込／JRDB想定／馬番メモ一致／評価途中／評価入力済／3連単下書き／実購入記録</div>
 <div id="workMeetings" aria-label="各競馬場の12R準備"></div></section>
 <section><h2>実戦で必要な確認</h2>
@@ -35,7 +36,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 </main><script defer src="/owner-race-workbench.js"></script></body></html>"""
 
-CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#eff4ff;font:15px/1.5 system-ui,sans-serif}main{max-width:760px;margin:auto;padding:18px 12px 48px}h1{font-size:25px}h2{font-size:19px;margin:0 0 10px}a{color:#f5d27c}section{background:#142b44;border:1px solid #4d6885;border-radius:14px;margin:14px 0;padding:14px}.warning{color:#ffe4a9;background:#302b24;border:1px solid #957a4b;padding:11px;border-radius:10px;font-size:13px}.hint{color:#c5d6e7;font-size:13px}.legend{color:#c4d2df;font-size:12px;margin:8px 0 14px}.quick{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center}.quick label{width:100%}.quick a,.quick button{flex:1;min-width:125px;text-align:center}input,select,button{font:inherit;min-height:43px;background:#0b2035;color:white;border:1px solid #8099b4;border-radius:8px;padding:8px}input[type=date]{width:100%}button{cursor:pointer}button:focus-visible,a:focus-visible{outline:2px solid #f2d17d}.summary{color:#f1d481;font-weight:700}.venue{padding:10px;margin:13px 0;background:#0e233a;border:1px solid #46637f;border-radius:11px}.venue h3{margin:2px 0 8px;font-size:17px}.race-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.race-btn{border:1px solid #66768d;padding:6px 3px;min-height:63px;background:#28394c}.race-btn .race-no{display:block;font-weight:800;font-size:15px}.race-btn small{display:block;line-height:1.3;font-size:10px;white-space:normal}.race-btn[data-stage=empty]{color:#c7cbd0}.race-btn[data-stage=mail]{background:#2a3e52}.race-btn[data-stage=roster]{background:#294c52}.race-btn[data-stage=partial]{background:#63512f}.race-btn[data-stage=graded]{background:#31513f}.race-btn[data-stage=draft]{background:#46548a}.race-btn[data-stage=actual]{background:#5a4376}.race-btn[data-stage=stale]{background:#633e3b;color:#ffe8c2}.race-btn[aria-pressed=true]{outline:2px solid #f2d17d;outline-offset:1px}.race-detail{margin-top:12px;border:1px solid #5a7a96;padding:10px;border-radius:9px}.race-detail p{margin:6px 0;font-size:13px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}.actions a{padding:8px;border:1px solid #a4b8c8;border-radius:8px;min-height:39px}.error{color:#ffc1a3}"""
+CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#eff4ff;font:15px/1.5 system-ui,sans-serif}main{max-width:760px;margin:auto;padding:18px 12px 48px}h1{font-size:25px}h2{font-size:19px;margin:0 0 10px}a{color:#f5d27c}section{background:#142b44;border:1px solid #4d6885;border-radius:14px;margin:14px 0;padding:14px}.warning{color:#ffe4a9;background:#302b24;border:1px solid #957a4b;padding:11px;border-radius:10px;font-size:13px}.hint{color:#c5d6e7;font-size:13px}.legend{color:#c4d2df;font-size:12px;margin:8px 0 14px}.quick{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center}.quick label{width:100%}.quick a,.quick button{flex:1;min-width:125px;text-align:center}input,select,button{font:inherit;min-height:43px;background:#0b2035;color:white;border:1px solid #8099b4;border-radius:8px;padding:8px}input[type=date]{width:100%}button{cursor:pointer}button:focus-visible,a:focus-visible{outline:2px solid #f2d17d}.summary{color:#f1d481;font-weight:700}.next-queue{margin-top:16px;padding:11px;border:1px solid #456d85;border-radius:10px;background:#10263b}.next-queue h3{margin:0;font-size:16px}.queue-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:10px 0;border-top:1px solid #40576d}.queue-row strong{font-size:14px}.queue-row p{width:100%;margin:0;color:#cbd9e7;font-size:12px}.queue-row a{border:1px solid #aab7c4;border-radius:8px;padding:6px 10px;align-self:center;min-height:36px}.queue-alert strong{color:#ffca9e}.venue{padding:10px;margin:13px 0;background:#0e233a;border:1px solid #46637f;border-radius:11px}.venue h3{margin:2px 0 8px;font-size:17px}.race-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.race-btn{border:1px solid #66768d;padding:6px 3px;min-height:63px;background:#28394c}.race-btn .race-no{display:block;font-weight:800;font-size:15px}.race-btn small{display:block;line-height:1.3;font-size:10px;white-space:normal}.race-btn[data-stage=empty]{color:#c7cbd0}.race-btn[data-stage=mail]{background:#2a3e52}.race-btn[data-stage=roster]{background:#294c52}.race-btn[data-stage=partial]{background:#63512f}.race-btn[data-stage=graded]{background:#31513f}.race-btn[data-stage=draft]{background:#46548a}.race-btn[data-stage=actual]{background:#5a4376}.race-btn[data-stage=stale]{background:#633e3b;color:#ffe8c2}.race-btn[aria-pressed=true]{outline:2px solid #f2d17d;outline-offset:1px}.race-detail{margin-top:12px;border:1px solid #5a7a96;padding:10px;border-radius:9px}.race-detail p{margin:6px 0;font-size:13px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}.actions a{padding:8px;border:1px solid #a4b8c8;border-radius:8px;min-height:39px}.error{color:#ffc1a3}"""
 
 JS = r"""(()=>{'use strict';
 // Read-only local progress. No fetch / XHR / server data transfer or purchase.
@@ -160,8 +161,40 @@ function statusText(s){
   s.actual?'実購入記録：本人入力 '+s.actual+'件（投票完了は未確認）':'実購入記録：なし'
  ].join('／');
 }
+
+function nextAction(s){
+ // Requires real locally stored progress, never invents a race or predicts a winner.
+ if(s.stale)return {priority:0,label:'資料が不一致・再確認',link:'/jrdb-mail-local',cta:'馬番メモを確認'};
+ if(s.actual>0)return null;
+ if(s.graded&&!s.points)return {priority:1,label:'評価入力済・買い目未作成',link:'/my-tickets',cta:'3連単を作る'};
+ if(s.hasScore&&!s.graded&&!s.points)return {priority:2,label:'手動評価の入力途中',link:'/my-scorecard',cta:'評価を続ける'};
+ if(s.matching&&!s.hasScore&&!s.points)return {priority:3,label:'馬番メモあり・評価未入力',link:'/my-scorecard',cta:'評価を始める'};
+ if(s.source&&!s.matching&&!s.hasScore&&!s.points)return {priority:4,label:'想定メールあり・馬番未照合',link:'/jrdb-mail-local',cta:'馬番を照合'};
+ if(s.points>0&&!s.actual)return {priority:5,label:'3連単下書きあり・購入記録なし',link:'/my-tickets',cta:'下書きを確認'};
+ return null;
+}
+function renderNextQueue(items,date){
+ const root=$('workNext');root.replaceChildren();
+ if(!items.length){
+  root.append(create('p','対応候補はありません。資料未取込のRは準備済みではありません。JRA公式で開催と出馬表を確認してな。'));
+  return;
+ }
+ items.sort((a,b)=>a.action.priority-b.action.priority||a.race-b.race||
+  TRACKS.indexOf(a.track)-TRACKS.indexOf(b.track));
+ for(const item of items.slice(0,6)){
+  const div=create('div');div.className='queue-row'+(item.action.priority===0?' queue-alert':'');
+  const name=create('strong',item.track+item.race+'R｜'+item.action.label);
+  const explanation=create('p','端末内の資料から判断。JRA出走確定・取消・公式時刻は別途確認。');
+  const link=create('a',item.action.cta);
+  link.href=item.action.link==='/jrdb-mail-local'?item.action.link:
+   jumpUrl(item.action.link,date,item.track,item.race);
+  div.append(name,link,explanation);root.append(div);
+ }
+ if(items.length>6)root.append(create('p','ほか'+(items.length-6)+'R。各競馬場の一覧から選んでな。'));
+}
 function render(){
  $('workMeetings').replaceChildren();
+ $('workNext').replaceChildren();
  $('workSummary').textContent='';
  const date=$('workDate').value;
  if(!validDate(date)){$('workStatus').textContent='正しい日付を選んでな。';return;}
@@ -169,11 +202,13 @@ function render(){
   const data=readData(),venues=tracksFor(data,date);
   current={data,date};
   if(!venues.length){
+   renderNextQueue([],date);
    $('workStatus').textContent='この開催日の保存資料がありません。想定メールを取り込むか、競馬場を追加表示してな。';
    $('workSummary').textContent='表示0R';
    return;
   }
   let rows=0,countMail=0,countMemo=0,countGrade=0,countTicket=0,countActual=0,stale=0;
+  const nextItems=[];
   for(const venue of venues){
    const section=create('section');section.className='venue';
    const head=create('h3',venue+'｜1R〜12R');
@@ -183,6 +218,8 @@ function render(){
    section.append(head,grid,detail);
    for(let race=1;race<=12;race++){
     const s=raceStatus(data,date,venue,race);
+    const action=nextAction(s);
+    if(action)nextItems.push({track:venue,race,action});
     countMail+=Number(s.source);countMemo+=Number(s.matching);
     countGrade+=Number(s.graded);countTicket+=Number(s.points>0);
     countActual+=Number(s.actual>0);stale+=Number(s.stale);
@@ -209,6 +246,7 @@ function render(){
    }
    $('workMeetings').append(section);
   }
+  renderNextQueue(nextItems,date);
   $('workSummary').textContent=rows+'R表示／JRDB想定'+countMail+'R／馬番メモ一致'+countMemo+
    'R／評価入力完了'+countGrade+'R／3連単下書き'+countTicket+'R／実購入記録'+countActual+
    'R／元資料要再確認'+stale+'R';
