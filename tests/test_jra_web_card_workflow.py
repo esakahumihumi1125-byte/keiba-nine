@@ -42,7 +42,7 @@ class JRAWebCardWorkflowTests(unittest.TestCase):
         self.assertIn("sourceMark", JS)
         self.assertIn("馬名差異あり", JS)
         self.assertIn("未入力", JS)
-        self.assertIn("本人の手入力", HTML)
+        self.assertIn("本人が転記した馬名の一致だけ", HTML)
         self.assertIn("公式確認済みの件数ではない", JS)
         self.assertIn("https://www.jra.go.jp/keiba/", HTML)
         self.assertNotIn("fetch(", JS)
