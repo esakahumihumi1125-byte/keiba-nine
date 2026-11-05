@@ -25,3 +25,22 @@
 参考：
 - https://render.com/docs/deploys
 - https://render.com/docs/git-provider
+
+## 2026-11-05 追加：GitHub CI → Render Deploy Hookの安全な予備経路
+
+Render上で `Auto-Deploy: On Commit` と表示されていても、GitHubの複数のpush・CI成功後に新しいRenderのDeployが自動で開始されないことを観測。原因はまだ断定できない。**毎回手動デプロイする代わりの予備経路**として、`.github/workflows/owner-render-after-checks.yml` を用意した。
+
+### 1回だけ必要な本人の操作（Render秘密URLは絶対にチャットで共有しない）
+
+1. 先にRenderの本人用サービス `keiba-nine-owner-preview` の **Settings → Deploy Hook** にあるURLを自分の端末でコピーする。ユーザー・パスワード・メール・会員情報と同様に秘密扱い。公開リポジトリへ貼らない。
+2. [GitHubのリポジトリ設定](https://github.com/esakahumihumi1125-byte/keiba-nine/settings/secrets/actions) の **New repository secret** を開く。名前を正確に `RENDER_DEPLOY_HOOK_URL` とし、値にRenderのDeploy Hook URLを貼る。画面のスクショやチャットへURLの中身を送らない。
+3. GitHub `main` で後続の新しいコミットが発生すると、`Private service checks` が成功した場合だけ、この予備ワークフローが起動する。最新HEADとテスト合格のコミットSHAが一致した場合のみ、秘密URLにPOSTでデプロイを依頼する。Renderで `live` になったことは別途確認する。
+4. **予備ルートが実際に稼働したことを確認した後**、Render元来のAuto-Deployが復旧すると同じコミットで二重ビルドになる可能性がある。二重デプロイを避けるには、使用する自動化ルートを1本に揃える。GitHub Actionsフックを主とするなら、Render SettingsのAuto-DeployはOffにする。逆にRender標準連携が直ったら、GitHub ActionsのSecretを削除するかワークフローを停止する。
+5. GitHub Actions `Owner Render deploy after private checks` が `RENDER_DEPLOY_HOOK_URL is not configured: deploy safely skipped.` と表示したら、設定前なので **まだ自動配信されていない**。一切の秘密はログに表示されない設計。
+
+- **Secretがない現状ではデプロイしない（自動配信は未完成）**。
+- PR・他ブランチ・失敗したCIからの配信は禁止。最新のmain以外の古いテスト合格コミットはスキップする。
+- GitHubのワークフローはコードの配信手順だけを管理し、JRDB・馬番・馬券・購入記録・本人のログイン情報は読み取らない。
+- Deploy Hookは本人が知る人だけが持つ秘密。万一漏れたらRenderでRegenerate Hookし、GitHubのSecretを新しい値へ更新する。
+
+参考：[Render Deploy Hooks](https://render.com/docs/deploy-hooks)。
