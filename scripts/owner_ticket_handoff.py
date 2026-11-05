@@ -7,11 +7,34 @@ JS = r"""
   // accepted or declined, so a later reload never silently repeats the import.
   if(typeof window==='undefined'||!window.location)return;
   const fragment=window.location.hash||'';
-  if(!fragment.startsWith('#import=v1'))return;
   function clearFragment(){
     try{window.history.replaceState(null,'',window.location.pathname+window.location.search);}
     catch(_){}
   }
+  // Race-selection-only deep link from the private JRDB provisional screen.
+  // Only date, track and R are carried in the URL fragment (never horse data).
+  if(fragment.startsWith('#select=v1')){
+    try{
+      if(fragment.length>170)throw Error('レース指定が長すぎます。');
+      const p=new URLSearchParams(fragment.slice(1));
+      const expected=['select','date','track','race'];
+      if([...p.keys()].length!==expected.length||
+         expected.some(k=>p.getAll(k).length!==1)||
+         p.get('select')!=='v1')throw Error('レース指定が不正です。');
+      const date=p.get('date'),track=p.get('track'),race=Number(p.get('race'));
+      if(!validDate(date)||!TRACKS.includes(track)||!Number.isInteger(race)||
+         race<1||race>12)throw Error('日付・競馬場・レースを確認してください。');
+      clearFragment();
+      $('mDate').value=date;$('mTrack').value=track;$('mRace').value=String(race);
+      loadSelected();showDay();
+      message(date+' '+track+race+'Rを選択したで。馬番対応は引き継いでへんから、3連単は自分で確認・作成してな。');
+    }catch(error){
+      clearFragment();
+      message('レース指定を受け取れませんでした：'+(error instanceof Error?error.message:'入力を確認してな。'));
+    }
+    return;
+  }
+  if(!fragment.startsWith('#import=v1'))return;
   try{
     if(fragment.length>450)throw Error('受け取りデータが長すぎます。');
     const p=new URLSearchParams(fragment.slice(1));
