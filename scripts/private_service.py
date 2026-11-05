@@ -37,6 +37,7 @@ from jra_reference_compare import (compare_independent_race_snapshot,
 from research_planner import plan_race
 from operator_factor_intake import validate_operator_factor_note
 from manual_ticket_book import HTML as TICKET_HTML, JS as TICKET_JS, CSS as TICKET_CSS
+from owner_ticket_handoff import JS as TICKET_HANDOFF_JS
 from manual_purchase_book import HTML as PURCHASE_HTML, JS as PURCHASE_JS, CSS as PURCHASE_CSS
 
 def _now_in_jst():
@@ -1018,7 +1019,7 @@ def create_app(settings=None):
                 '<script src="/my-purchases.js?v=ledger-v2" defer></script>')
             content, mime = {
                 '/my-tickets': (notebook, 'text/html; charset=utf-8'),
-                '/my-tickets.js': (TICKET_JS, 'text/javascript; charset=utf-8'),
+                '/my-tickets.js': (TICKET_JS + '\n' + TICKET_HANDOFF_JS, 'text/javascript; charset=utf-8'),
                 '/my-tickets.css': (TICKET_CSS + PURCHASE_CSS, 'text/css; charset=utf-8'),
                 '/my-purchases.js': (PURCHASE_JS, 'text/javascript; charset=utf-8'),
             }[path]
