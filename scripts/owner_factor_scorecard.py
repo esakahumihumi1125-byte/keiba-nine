@@ -206,6 +206,31 @@ $('scoreFromMemo').onclick=()=>{
  }
 };
 $('scoreDate').value=new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10);
+function receiveRaceSelection(){
+ if(!window.location||typeof window.location.hash!=='string'||
+    !window.location.hash.startsWith('#select='))return;
+ const fragment=window.location.hash;
+ try{
+  if(fragment.length>170)throw Error('指定が長すぎます。');
+  const p=new URLSearchParams(fragment.slice(1));
+  const keys=['select','date','track','race'];
+  if([...p.keys()].length!==4||keys.some(k=>p.getAll(k).length!==1)||
+     p.get('select')!=='v1')throw Error('形式が不正です。');
+  const date=p.get('date'),track=p.get('track'),race=Number(p.get('race'));
+  if(!dateValid(date)||!TRACKS.has(track)||!Number.isInteger(race)||race<1||race>12)
+   throw Error('日付・競馬場・Rが不正です。');
+  $('scoreDate').value=date;$('scoreTrack').value=track;$('scoreRace').value=String(race);
+  $('scoreStatus').textContent=date+' '+track+race+'Rを選択。本人の馬番メモを読み込むか、5項目を入力してな。';
+ }catch(e){
+  $('scoreStatus').textContent='レース選択を受け取れませんでした：'+
+   (e instanceof Error?e.message:'形式を確認してな。');
+ }finally{
+  try{window.history&&window.history.replaceState(null,'',window.location.pathname+window.location.search)}
+  catch(_){}
+ }
+}
+receiveRaceSelection();
+
 $('scoreReview').onclick=()=>{
  invalidate();
  try{
