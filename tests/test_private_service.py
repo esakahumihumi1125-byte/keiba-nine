@@ -88,6 +88,37 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(denied['status'], '303 See Other')
         self.assertEqual(denied['headers']['Location'], '/login')
 
+    def test_manual_scorecard_is_private_not_an_ai_prediction(self):
+        for path, phrase in (
+            ('/my-scorecard', '5項目の手動評価'),
+            ('/owner-scorecard.js', "scoreHandoff"),
+            ('/owner-scorecard.css', '.score-row'),
+        ):
+            with self.subTest(path=path):
+                response = call(self.app, path)
+                self.assertEqual(response['status'], '200 OK')
+                self.assertIn('no-store', response['headers']['Cache-Control'])
+                self.assertIn(phrase, response['body'].decode('utf-8'))
+                denied = call(self.app, path, auth='')
+                if path == '/my-scorecard':
+                    self.assertEqual(denied['status'], '303 See Other')
+                    self.assertEqual(denied['headers']['Location'], '/login')
+                else:
+                    self.assertEqual(denied['status'], '401 Unauthorized')
+                    self.assertNotIn('WWW-Authenticate', denied['headers'])
+        root = call(self.app, '/')['body'].decode('utf-8')
+        notebook = call(self.app, '/my-tickets')['body'].decode('utf-8')
+        self.assertIn('href="/my-scorecard"', root)
+        self.assertIn('href="/my-scorecard"', notebook)
+        page = call(self.app, '/my-scorecard')['body'].decode('utf-8')
+        self.assertIn('AIによる調教分析', page)
+        self.assertIn('実戦で使う前に公式出馬表', page)
+        js = call(self.app, '/owner-scorecard.js')['body'].decode('utf-8')
+        self.assertNotIn('fetch(', js)
+        self.assertNotIn('localStorage', js)
+        self.assertNotIn('innerHTML', js)
+        self.assertIn("window.location.assign('/my-tickets#'", js)
+
     def test_owner_backup_page_is_authenticated_and_local_only(self):
         for path, marker in (
             ('/owner-backup', '本人用データのバックアップ'),
