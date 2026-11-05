@@ -476,10 +476,11 @@ class PrivateServiceTests(unittest.TestCase):
         data = json.loads(out['body'])
         self.assertEqual(data['transport'], 'https')
         self.assertFalse(data['jrdbConfigured'])
+        self.assertFalse(data['prestartBodyEnabled'])
         self.assertFalse(data['liveConnectionVerified'])
         self.assertFalse(data['realPredictionEnabled'])
         self.assertNotIn(SETTINGS['KEIBA_OWNER_PASSWORD'].encode(), out['body'])
-        self.assertEqual(set(data), {'transport', 'jrdbConfigured',
+        self.assertEqual(set(data), {'transport', 'jrdbConfigured', 'prestartBodyEnabled',
                                    'liveConnectionVerified', 'realPredictionEnabled',
                                    'nextStep'})
         self.assertIn('no-store', out['headers']['Cache-Control'])
