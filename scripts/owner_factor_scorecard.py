@@ -24,7 +24,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </div></section>
 <section><h2>② 馬番と5項目の評価を貼る</h2>
 <p class="hint">1頭1行で「馬番　調教　近走　適性　血統　展開」を入力。馬名は省略可。各項目は<b>S・A・B・C</b>。丸数字①〜⑱にも対応。最低3頭、最大18頭。</p>
-<textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
+<button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
 <p class="hint">重み：調教25%／近走25%／適性20%／血統10%／展開20%。各項目をS=4、A=3、B=2、C=1として100点換算。人気やオッズは使わない。これは実績ある予測モデルではありません。</p>
 <button type="button" id="scoreReview">総合評価と3連単候補を計算</button>
 <p id="scoreStatus" role="status" class="hint">入力したデータはこのページ内だけで計算し、保存・送信しません。</p></section>
@@ -38,10 +38,10 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="/my-tickets">手動で3連単を作る</a></section>
 </main><script defer src="/owner-scorecard.js"></script></body></html>"""
 
-CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
+CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
 
 JS = r"""(()=>{'use strict';
-/* No network, storage, AI, or member-data ingestion: only operator-entered grades. */
+/* No network or writes: read optional same-browser manually copied roster; grades remain operator-entered. */
 const $=id=>document.getElementById(id);
 const TRACKS=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
 const GRADE=Object.freeze({S:4,A:3,B:2,C:1});
@@ -114,9 +114,90 @@ function invalidate(){
  $('scoreFormation').textContent='入力が変わりました。再計算してください。';
  $('scoreStatus').textContent='未計算です。計算しても保存・購入されません。';
 }
-for(const id of ['scoreDate','scoreTrack','scoreRace','scoreInput']){
- $(id).oninput=invalidate;$(id).onchange=invalidate;
+const LABELS=['調教','近走','適性','血統','展開'];
+let memoRows=null;
+function resetMemoGrid(){
+ memoRows=null;$('scoreMemoGrid').replaceChildren();
 }
+for(const id of ['scoreDate','scoreTrack','scoreRace']){
+ $(id).oninput=()=>{resetMemoGrid();invalidate()};
+ $(id).onchange=()=>{resetMemoGrid();invalidate()};
+}
+$('scoreInput').oninput=()=>{resetMemoGrid();invalidate()};
+$('scoreInput').onchange=()=>{resetMemoGrid();invalidate()};
+function readMatchingMemo(select){
+ const mail=JSON.parse(localStorage.getItem('keiba-nine-jrdb-personal-mail-v1')||'[]');
+ const notes=JSON.parse(localStorage.getItem('keiba-nine-owner-manual-numbers-v1')||'[]');
+ if(!Array.isArray(mail)||mail.length>48||!Array.isArray(notes)||notes.length>576)
+  throw Error('保存資料の形式が不正です。');
+ const meeting=mail.find(x=>x&&x.kind==='jrdb-provisional'&&
+  x.date===select.date&&x.track===select.track);
+ const source=meeting&&Array.isArray(meeting.races)&&meeting.races.find(r=>r&&r.race===select.race);
+ const memo=notes.find(x=>x&&x.date===select.date&&x.track===select.track&&x.race===select.race);
+ if(!source||!memo||!Array.isArray(source.horses)||!Array.isArray(memo.rows)||
+    !Number.isInteger(source.expected)||source.expected<3||source.expected>18||
+    source.horses.length!==source.expected||memo.rows.length!==source.expected||
+    memo.sourceMark!==JSON.stringify([source.postTime,source.expected,source.horses]))
+  throw Error('このRの想定メールと一致する本人馬番メモがありません。');
+ const names=new Set(source.horses),usedNumbers=new Set(),usedNames=new Set();
+ if(names.size!==source.expected)throw Error('元の想定馬名に重複があります。');
+ const rows=[];
+ for(const row of memo.rows){
+  if(!row||!Number.isInteger(row.number)||row.number<1||row.number>18||
+     typeof row.name!=='string'||!row.name||row.name.length>35||
+     !/^[^\s<>]+$/.test(row.name)||!names.has(row.name)||
+     usedNames.has(row.name)||usedNumbers.has(row.number))
+   throw Error('本人メモの馬番・馬名が一致していません。');
+  usedNumbers.add(row.number);usedNames.add(row.name);
+  rows.push({number:row.number,name:row.name,grades:['?','?','?','?','?']});
+ }
+ return rows.sort((a,b)=>a.number-b.number);
+}
+function renderMemoInput(){
+ $('scoreInput').value=memoRows.map(row=>
+  row.number+' '+row.name+' '+row.grades.join(' ')).join('\n');
+ invalidate();
+ const missing=memoRows.reduce((n,row)=>n+row.grades.filter(x=>x==='?').length,0);
+ $('scoreMemoStatus').textContent='本人メモから'+memoRows.length+'頭を表示。未評価'+missing+
+  '項目。すべてS/A/B/Cで選んでから計算してな（公式馬番・取消は未確認）。';
+}
+$('scoreFromMemo').onclick=()=>{
+ try{
+  const choice=identity();
+  const roster=readMatchingMemo(choice);
+  if($('scoreInput').value.trim()&&!confirm('現在の5項目入力を置き換えて、本人の馬番・馬名メモから'+
+   roster.length+'頭を読み込みますか？ 未保存の評価入力は消えます。'))return;
+  resetMemoGrid();
+  memoRows=roster;
+  const grid=$('scoreMemoGrid');
+  for(const row of memoRows){
+   const card=document.createElement('div'),name=document.createElement('strong'),fields=document.createElement('div');
+   card.className='memo-horse';fields.className='memo-horse-fields';
+   name.textContent=row.number+'番 '+row.name;card.append(name);
+   for(let index=0;index<LABELS.length;index++){
+    const label=document.createElement('label'),menu=document.createElement('select');
+    label.textContent=LABELS[index];
+    menu.setAttribute('aria-label',row.number+'番 '+row.name+' '+LABELS[index]);
+    for(const value of ['', 'S', 'A', 'B', 'C']){
+     const option=document.createElement('option');
+     option.value=value;option.textContent=value||'未評価';
+     menu.append(option);
+    }
+    menu.value='';
+    menu.onchange=()=>{
+     if(!memoRows)return;
+     row.grades[index]=Object.hasOwn(GRADE,menu.value)?menu.value:'?';
+     renderMemoInput();
+    };
+    label.append(menu);fields.append(label);
+   }
+   card.append(fields);grid.append(card);
+  }
+  renderMemoInput();
+ }catch(e){
+  $('scoreMemoStatus').textContent='読み込めません：'+(e instanceof Error?e.message:'資料を確認してな。');
+ }
+};
 $('scoreDate').value=new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10);
 $('scoreReview').onclick=()=>{
  invalidate();
