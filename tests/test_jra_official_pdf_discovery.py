@@ -97,7 +97,7 @@ class OfficialPdfDiscoveryTests(unittest.TestCase):
 
     def test_fail_closed_for_dates_content_type_and_redirects(self):
         opener = StubOpener(StubResponse(OFFICIAL_LIKE_HTML))
-        for day in ("2026-10-01", "2026-12-02", "2026-11-31", "20261107"):
+        for day in ("2026-09-01", "2026-12-02", "2026-11-31", "20261107"):
             with self.subTest(day=day), self.assertRaises(JRAIndexError):
                 discover_official_pdf_links(day, now=date(2026, 11, 5), opener=opener)
         self.assertEqual(opener.calls, [])
