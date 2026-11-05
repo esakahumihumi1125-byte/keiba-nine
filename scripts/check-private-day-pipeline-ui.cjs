@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs'), vm=require('node:vm');
 const script=fs.readFileSync('/tmp/keiba-jrdb-day-pipeline.js','utf8');
-function instance(configured){
+function instance(configured, prestartEnabled=false){
  const nodes=new Map(), calls=[];
  const el=id=>{
   if(!nodes.has(id))nodes.set(id,{id,value:'',disabled:id==='run',hidden:id==='report'||id==='review',
@@ -48,7 +48,16 @@ function instance(configured){
  };
  async function fetchMock(url,opts){
   calls.push({url,opts});
-  if(url==='/api/setup')return {ok:true,json:async()=>({jrdbConfigured:configured})};
+  if(url==='/api/setup')return {ok:true,json:async()=>({jrdbConfigured:configured,prestartBodyEnabled:prestartEnabled})};
+  if(url.startsWith('/api/jrdb/prestart-body?date='))return {ok:true,json:async()=>({
+   version:'private-prestart-body-1',rawHorseRecordsIncluded:false,oddsUsed:false,
+   realPredictionReady:false,purchaseReady:false,raceCount:1,
+   summary:{weightRecords:1,paddockRecords:0,missingRows:0},
+   races:[{track:'東京',race:1,registered:2,bodyWeightRecords:1,
+    weightChangeRecords:1,paddockRecords:0,prestartRowsMissing:0,
+    realPredictionReady:false,ticketReady:false,bodyConditionGraded:false,
+    officialBodyWeightVerified:false}]
+  })};
   if(url==='/api/jrdb/day-pipeline?date=20261101')
    return {ok:true,json:async()=>malformed?
     {...demo,reviewQueue:{...demo.reviewQueue,realPredictionReady:true}}:demo};
@@ -71,6 +80,7 @@ async function tick(){
  assert.equal(offline.el('run').disabled,true,'Paid fetch cannot start without credentials');
  assert.match(offline.el('state').textContent,/認証情報待ち/);
  assert.equal(offline.el('report').hidden,true);
+ assert.equal(offline.el('prestartRun').disabled,true);
  const ready=instance(true);
  await tick();
  assert.equal(ready.calls.length,1,'Never fetch JRDB during page load');
@@ -100,6 +110,25 @@ async function tick(){
  assert.equal(ready.el('report').hidden,true,'Forged prediction-ready flags rejected');
  assert.match(ready.el('message').textContent,/安全に表示できません/);
  assert.equal(ready.el('run').disabled,false,'Recover from invalid response');
+ const beforeBody=instance(true,true);
+ await tick();
+ assert.equal(beforeBody.calls.length,1,'Body endpoint cannot run on page load');
+ assert.equal(beforeBody.el('prestartRun').disabled,false);
+ const dateOnPage=beforeBody.el('date').value;
+ await beforeBody.el('prestartRun').events.click();
+ assert.equal(beforeBody.calls.length,2,'Body endpoint requires explicit click');
+ assert.equal(beforeBody.calls[1].url,
+  '/api/jrdb/prestart-body?date='+dateOnPage.replaceAll('-',''));
+ assert.equal(beforeBody.el('prestartReport').hidden,false);
+ assert.match(beforeBody.el('prestartSummary').textContent,/馬体重の報告 1頭分/);
+ assert.equal(beforeBody.el('prestartRows').children.length,1);
+ beforeBody.el('date').value='2099-01-01';
+ beforeBody.el('date').events.change();
+ assert.equal(beforeBody.el('prestartReport').hidden,true);
+ assert.equal(beforeBody.el('prestartRows').children.length,0);
+ await beforeBody.el('prestartRun').events.click();
+ assert.equal(beforeBody.calls.length,2,'Past/future days must never trigger prestart API');
+ assert.match(beforeBody.el('prestartMessage').textContent,/日本時間の今日/);
  assert.ok(!script.includes('localStorage'));
  assert.ok(!script.includes('innerHTML'));
  assert.ok(!script.includes('setInterval'));
