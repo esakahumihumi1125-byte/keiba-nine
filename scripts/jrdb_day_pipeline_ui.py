@@ -113,14 +113,33 @@ JS = """
       'R／発走時刻経過 '+queue.racesPassedPost+
       'R。これは資料の確認順で、公式確定・購入推奨ではありません。';
     const reviewRows=$('reviewRows');reviewRows.replaceChildren();
+    const ageLabels={
+     no_going_report:'提供元の馬場情報なし',
+     no_update_timestamp:'馬場更新時刻なし',
+     timestamp_in_future:'更新時刻が未来',
+     recent_reported:'直近60分以内の報告',
+     old_or_other_date_reported:'古い報告または別日'
+    };
+    const priorityLabels={
+     urgent_manual_check:'発走2時間以内・要確認',
+     post_time_passed:'発走時刻経過',
+     not_near_start:'開始まで余裕あり・別日'
+    };
     for(const item of queue.races){
+     if(!(item.sourceGoingAgeStatus in ageLabels)||
+        !(item.reviewPriority in priorityLabels)||
+        item.realPredictionReady!==false||item.ticketReady!==false||
+        item.independentJraVerified!==false||!Array.isArray(item.blockers)||
+        !item.blockers.every(x=>typeof x==='string'&&x.length<150))
+       throw Error('不明な確認状態を表示できません。');
      const el=make('article','');el.className='race';
-     const label=item.reviewPriority==='urgent_manual_check'?'先に確認':
-       item.reviewPriority==='post_time_passed'?'発走済み':'通常・後日';
-     el.append(make('strong',item.track+item.race+'R｜'+label));
-     el.append(make('p','発走まで '+(item.minutesUntilListedPost==null?'時刻未確認':item.minutesUntilListedPost+'分')+
-       '｜馬場資料 '+item.sourceGoingAgeStatus+'｜公式照合なし'));
-     el.append(make('p',(item.blockers||[]).join('／')));
+     el.append(make('strong',item.track+item.race+'R｜'+priorityLabels[item.reviewPriority]));
+     const minutes=item.minutesUntilListedPost;
+     const due=minutes==null?'発走時刻は未確認':
+       minutes>0?'発走まで約'+minutes+'分':
+       '発走予定時刻を'+Math.abs(minutes)+'分経過';
+     el.append(make('p',due+'｜馬場資料 '+ageLabels[item.sourceGoingAgeStatus]+'｜公式照合なし'));
+     el.append(make('p',item.blockers.join('／')));
      reviewRows.append(el);
     }
     review.hidden=false;
