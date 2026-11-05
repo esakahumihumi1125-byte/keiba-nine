@@ -62,6 +62,20 @@ assert.match(e('workSummary').textContent,/評価入力完了1R/);
 assert.match(e('workSummary').textContent,/3連単下書き1R/);
 assert.match(e('workSummary').textContent,/実購入記録1R/);
 assert.match(e('workSummary').textContent,/元資料要再確認1R/);
+const workQueue=e('workNext');
+assert.equal(workQueue.children.length,5,'five locally evidenced races need preparation');
+assert.match(workQueue.children[0].children[0].textContent,/京都2R.*資料が不一致/,'stale materials first');
+assert.equal(workQueue.children[0].children[1].href,'/jrdb-mail-local');
+assert.match(workQueue.children[1].children[0].textContent,/福島1R.*入力途中/,'partial manual factor scores second');
+assert.ok(workQueue.children[1].children[1].href.startsWith('/my-scorecard#select=v1&'));
+const queueParams=new URLSearchParams(workQueue.children[1].children[1].href.split('#')[1]);
+assert.equal(queueParams.get('date'),date);
+assert.equal(queueParams.get('track'),'福島');
+assert.equal(queueParams.get('race'),'1');
+assert.equal(queueParams.size,4,'queue URL must never contain horse/member/grade data');
+assert.ok(workQueue.children.every(x=>!x.textContent.includes('架空A')));
+assert.equal(page.writes.length,0,'next-action queue is also read-only');
+
 const tokyo=e('workMeetings').children.find(v=>v.children[0].textContent.startsWith('東京'));
 const kyoto=e('workMeetings').children.find(v=>v.children[0].textContent.startsWith('京都'));
 const fukushima=e('workMeetings').children.find(v=>v.children[0].textContent.startsWith('福島'));
@@ -103,6 +117,10 @@ const noMail=boot({
 assert.equal(noMail.el('workMeetings').children.length,1);
 const k=noMail.el('workMeetings').children[0].children[1].children[3];
 assert.equal(k.dataset.stage,'draft');
+assert.equal(noMail.el('workNext').children.length,1);
+assert.match(noMail.el('workNext').children[0].children[0].textContent,/下書きあり・購入記録なし/);
+assert.ok(noMail.el('workNext').children[0].children[1].href.startsWith('/my-tickets#select=v1&'));
+
 k.onclick();
 assert.match(noMail.el('workMeetings').children[0].children[2].children[1].textContent,/未取込/);
 assert.match(noMail.el('workMeetings').children[0].children[2].children[1].textContent,/3連単下書き：1点/);
@@ -112,11 +130,15 @@ e('workDate').onchange();
 assert.equal(e('workMeetings').children.length,0);
 assert.match(e('workStatus').textContent,/読み込めません/);
 assert.match(e('workSummary').textContent,/不正な記録/);
+assert.equal(e('workNext').children.length,0,'corrupt records must not yield apparently valid recommendations');
 // Missing race date: manually add one course; don't claim a fictitious meeting exists.
 const empty=boot({[keys.mail]:[],[keys.memo]:[],[keys.score]:[],
  [keys.ticket]:[],[keys.purchase]:[]});
 empty.el('workDate').value='2099-02-02';empty.el('workDate').onchange();
 assert.equal(empty.el('workMeetings').children.length,0);
+assert.match(empty.el('workNext').children[0].textContent,/対応候補はありません/);
+assert.match(empty.el('workNext').children[0].textContent,/準備済みではありません/);
+
 empty.el('workExtraTrack').value='中山';empty.el('workAddTrack').onclick();
 assert.equal(empty.el('workMeetings').children.length,1);
 assert.match(empty.el('workSummary').textContent,/12R表示／JRDB想定0R/);
