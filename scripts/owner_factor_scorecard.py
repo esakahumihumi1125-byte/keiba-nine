@@ -152,14 +152,17 @@ function saveDraft(){
 const LABELS=['調教','近走','適性','血統','展開'];
 let memoRows=null;
 function resetMemoGrid(){
- memoRows=null;$('scoreMemoGrid').replaceChildren();
+ memoRows=null;memoSourceMark=null;$('scoreMemoGrid').replaceChildren();
+}
+function changeScoreRace(){
+ resetMemoGrid();invalidate();restoreCurrentNote();
+ $('scoreMemoStatus').textContent='本人の馬番メモは必要なら読み込み直してな。';
 }
 for(const id of ['scoreDate','scoreTrack','scoreRace']){
- $(id).oninput=()=>{resetMemoGrid();invalidate();$('scoreMemoStatus').textContent='レースが変わりました。本人の馬番メモは必要なら読み込み直してな。'};
- $(id).onchange=()=>{resetMemoGrid();invalidate();$('scoreMemoStatus').textContent='レースが変わりました。本人の馬番メモは必要なら読み込み直してな。'};
+ $(id).oninput=changeScoreRace;$(id).onchange=changeScoreRace;
 }
-$('scoreInput').oninput=()=>{resetMemoGrid();invalidate()};
-$('scoreInput').onchange=()=>{resetMemoGrid();invalidate()};
+$('scoreInput').oninput=()=>{resetMemoGrid();invalidate();saveDraft()};
+$('scoreInput').onchange=()=>{resetMemoGrid();invalidate();saveDraft()};
 function readMatchingMemo(select){
  const mail=JSON.parse(localStorage.getItem('keiba-nine-jrdb-personal-mail-v1')||'[]');
  const notes=JSON.parse(localStorage.getItem('keiba-nine-owner-manual-numbers-v1')||'[]');
@@ -186,12 +189,12 @@ function readMatchingMemo(select){
   usedNumbers.add(row.number);usedNames.add(row.name);
   rows.push({number:row.number,name:row.name,grades:['?','?','?','?','?']});
  }
- return rows.sort((a,b)=>a.number-b.number);
+ return {rows:rows.sort((a,b)=>a.number-b.number),sourceMark:memo.sourceMark};
 }
 function verifyMemoHasNotChanged(){
  if(!memoRows)return;
  const live=readMatchingMemo(identity());
- if(live.length!==memoRows.length||live.some((r,i)=>
+ if(live.sourceMark!==memoSourceMark||live.rows.length!==memoRows.length||live.rows.some((r,i)=>
   r.number!==memoRows[i].number||r.name!==memoRows[i].name))
   throw Error('本人の馬番メモが更新されています。公式出馬表を確認して読み込み直してください。');
 }
@@ -202,17 +205,12 @@ function renderMemoInput(){
  const missing=memoRows.reduce((n,row)=>n+row.grades.filter(x=>x==='?').length,0);
  $('scoreMemoStatus').textContent='本人メモから'+memoRows.length+'頭を表示。未評価'+missing+
   '項目。すべてS/A/B/Cで選んでから計算してな（公式馬番・取消は未確認）。';
+ saveDraft();
 }
-$('scoreFromMemo').onclick=()=>{
- try{
-  const choice=identity();
-  const roster=readMatchingMemo(choice);
-  if($('scoreInput').value.trim()&&!confirm('現在の5項目入力を置き換えて、本人の馬番・馬名メモから'+
-   roster.length+'頭を読み込みますか？ 未保存の評価入力は消えます。'))return;
-  resetMemoGrid();
-  memoRows=roster;
-  const grid=$('scoreMemoGrid');
-  for(const row of memoRows){
+
+function drawMemoGrid(){
+ const grid=$('scoreMemoGrid');
+ for(const row of memoRows){
    const card=document.createElement('div'),name=document.createElement('strong'),fields=document.createElement('div');
    card.className='memo-horse';fields.className='memo-horse-fields';
    name.textContent=row.number+'番 '+row.name;card.append(name);
@@ -225,7 +223,7 @@ $('scoreFromMemo').onclick=()=>{
      option.value=value;option.textContent=value||'未評価';
      menu.append(option);
     }
-    menu.value='';
+    menu.value=Object.hasOwn(GRADE,row.grades[index])?row.grades[index]:'';
     menu.onchange=()=>{
      if(!memoRows)return;
      row.grades[index]=Object.hasOwn(GRADE,menu.value)?menu.value:'?';
@@ -235,6 +233,16 @@ $('scoreFromMemo').onclick=()=>{
    }
    card.append(fields);grid.append(card);
   }
+}
+$('scoreFromMemo').onclick=()=>{
+ try{
+  const choice=identity();
+  const roster=readMatchingMemo(choice);
+  if($('scoreInput').value.trim()&&!confirm('現在の5項目入力を置き換えて、本人の馬番・馬名メモから'+
+   roster.rows.length+'頭を読み込みますか？ 現在の評価入力は上書きされます。'))return;
+  resetMemoGrid();
+  memoRows=roster.rows;memoSourceMark=roster.sourceMark;
+  drawMemoGrid();
   renderMemoInput();
  }catch(e){
   $('scoreMemoStatus').textContent='読み込めません：'+(e instanceof Error?e.message:'資料を確認してな。');
