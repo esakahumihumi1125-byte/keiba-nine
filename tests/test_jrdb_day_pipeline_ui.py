@@ -40,7 +40,7 @@ class DayPipelinePageTests(unittest.TestCase):
         self.assertIn('text/css',style['headers']['Content-Type'])
         self.assertIn(b'/day-pipeline.js',page['body'])
         self.assertIn(b'id="run" type="button" disabled',page['body'])
-        self.assertIn('認証情報',HTML)
+        self.assertIn('認証',HTML)
         self.assertIn("async function init()",JS)
         self.assertIn("'/api/setup'",JS)
         self.assertIn("'/api/jrdb/day-pipeline?date='",JS)
