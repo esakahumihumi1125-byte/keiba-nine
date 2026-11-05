@@ -99,6 +99,13 @@ assert.match($('realList').children[0].children[1].textContent,/1着馬が1着�
 assert.equal($('realInvest').textContent,'0円','result is not used as payment proof');
 promptValue='1-2-3';$('realList').children[0].children[4].onclick();
 assert.match($('realReviewSummary').textContent,/3連単買い目に一致：1件/);
+promptValue='';approve=false;$('realList').children[0].children[4].onclick();approve=true;
+assert.match($('realReviewSummary').textContent,/3連単買い目に一致：1件/,'cancelled clear');
+promptValue='';$('realList').children[0].children[4].onclick();
+assert.equal(JSON.parse(storage.get(ledgerKey))[0].result,null,'cleared only review note');
+assert.match($('realReviewSummary').textContent,/結果を入力した購入記録：0件/);
+promptValue='1-2-3';$('realList').children[0].children[4].onclick();
+assert.match($('realReviewSummary').textContent,/3連単買い目に一致：1件/,'can re-enter result');
 assert.equal(row.children[2].textContent,'払戻を入力');
 promptValue='not a number';row.children[2].onclick();
 assert.match($('realMessage').textContent,/整数/);
