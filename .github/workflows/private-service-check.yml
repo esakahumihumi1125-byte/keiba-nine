@@ -53,6 +53,9 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from jra_official_pdf_ui import JS; from pathlib import Path; Path('/tmp/keiba-jra-official-pdf-ui.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-jra-official-pdf-ui.js
           node scripts/check-private-jra-official-pdf-ui.cjs
+          python -c "import sys; sys.path.insert(0, 'scripts'); from jra_web_card_workflow import JS; from pathlib import Path; Path('/tmp/keiba-jra-web-card.js').write_text(JS, encoding='utf-8')"
+          node --check /tmp/keiba-jra-web-card.js
+          node scripts/check-private-jra-web-card.cjs
           python -c "import sys; sys.path.insert(0, 'scripts'); from manual_purchase_book import JS; from pathlib import Path; Path('/tmp/keiba-private-purchases.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-private-purchases.js
           node scripts/check-private-real-purchases-ui.cjs
