@@ -59,3 +59,15 @@ JRDBの公開API仕様：https://jrdb-api.keiba.bigtime.world/docs/request-respo
 **重要：10項目の資料欄の8/10を接続しても、実戦の総合ランクは0/10、実レース予想0、購入0のまま。** 使用条件、JRA最終出走・馬場・時刻照合、評価基準の検証は残っています。現状はAPI認証情報未設定につき全て実データ未取得です。
 
 実装：`scripts/jrdb_day_materials_progress.py`、`tests/test_jrdb_day_materials_progress.py`。既存の `jrdb_private_factor_bridge.py`、`jrdb_entry_rotation_materials.py`、`jrdb_personnel_body_materials.py` の安全なマトリックスを流用。
+
+## 過去の距離・馬場照合を本人用1画面に統合（2026-11-05）
+
+本人用 `/day-pipeline` には、既存の個別履歴画面から独立した**「過去の距離・馬場を最大8レース分照合する」**操作を追加しています。これは `KEIBA_HISTORY_ENABLED=1` と専用JRDB認証が設定されて初めて使用可能です。APIの認証を受ける前には取得しません。画面の表示、日付変更、全R資料チェックから自動実行もしません。
+
+- 本人が明示ボタンで押したときのみ、既存の認証付き `POST /api/jrdb/history` を `{date: YYYYMMDD, limit: 8}` で呼びます。既存のサーバー側バリデーションと通信回数上限を利用します。
+- 通常の当日5資料に加えて、過去番組 `/dra` 最大8件、過去馬場 `/dka` 最大8件（同一開催分を重複取得しない）に限定します。通常の全R資料チェックを押しただけでは過去データを追加取得しません。
+- 過去の同じ馬場・近い距離のサンプルを持つ登録馬の**件数**を、対象日のレース別に確認できます。10項目の資料の形を合わせる処理は既存の `run_bounded_history_audit`、`combine_ten_factor_observations`、`audit_real_evaluation_preflight` を再利用します。
+- 未取得の履歴・サンプル不足は「不明」と扱い、苦手・Cランクとみなしません。10項目の根拠枠を接続できても、予想や購入可否、独立したJRA出走・取消・馬場・発走時刻の照合は**別作業**であり、現時点では未完了です。
+- 過去レースIDや馬番、馬名、有料の生レコードは画面に出しません。開催日変更後に古い結果を再表示しない日付チェックを入れました。
+
+関連：`scripts/private_service.py`、`scripts/jrdb_history_pipeline.py`、`scripts/jrdb_day_pipeline_ui.py`、`scripts/check-private-day-pipeline-ui.cjs`。
