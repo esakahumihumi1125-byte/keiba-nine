@@ -131,6 +131,45 @@ assert.match(q('mMsg').textContent,/48点/);
 assert.equal(q('mSave').disabled,true,'quick action cannot bypass point cap');
 assert.equal(storage.get('keiba-nine-owner-ticket-drafts-v1')!==null,true,
  'existing saved draft is preserved');
+// Pasting a ChatGPT-style formation changes only unsaved picks, never storage.
+const paste=boot(),p=paste.el;
+assert.equal(typeof p('mApplyPaste').onclick,'function');
+p('mPaste').value='1着：①②\n2着：①②③④\n3着：①②③④⑤⑥⑦⑧';
+const savedBeforePaste=storage.get('keiba-nine-owner-ticket-drafts-v1');
+p('mApplyPaste').onclick();
+assert.match(p('mMsg').textContent,/日付・競馬場・レース/,'required race coordinate');
+assert.equal(p('mCount').textContent,'0点');
+p('mDate').value='2026-11-08';p('mDate').onchange();
+p('mTrack').value='東京';p('mTrack').onchange();
+p('mRace').value='1';p('mRace').onchange();
+p('mApplyPaste').onclick();
+assert.equal(p('mCount').textContent,'36点','circled digits may be adjacent');
+assert.equal(p('mCost').textContent,'3,600円');
+assert.equal(p('mSave').disabled,false);
+assert.match(p('mMsg').textContent,/まだ保存・購入はしていません/);
+assert.deepEqual(p('mFirst').children.filter(n=>n.className.includes('selected')).map(x=>Number(x.textContent)),[1,2]);
+assert.equal(storage.get('keiba-nine-owner-ticket-drafts-v1'),savedBeforePaste,
+ 'Importing a formation must never save or overwrite the notebook');
+p('mPaste').value='1着：1,2\n2着：1,2,3,4,5\n3着：1,2,3,4,5,6,7,8,9';
+p('mApplyPaste').onclick();
+assert.match(p('mMsg').textContent,/48点を超え/);
+assert.equal(p('mCount').textContent,'36点','Oversized paste never replaces the previous selection');
+for(const bad of [
+ '1着：①①\n2着：②③\n3着：④⑤',
+ '1着：①\n1着：②\n3着：③',
+ '1着：1,2\n2着：2,3\n3着：0,4',
+ '1着：1,2\n2着：2,3\n3着：4,5\nオッズ 3.2',
+ '1着：12\n2着：12\n3着：12',
+ '1着：㉑\n2着：2\n3着：3',
+]){
+ p('mPaste').value=bad;p('mApplyPaste').onclick();
+ assert.match(p('mMsg').textContent,/反映できません/);
+ assert.equal(p('mCount').textContent,'36点','Invalid paste must not alter picks');
+}
+p('mPaste').value='１着候補：１、２\n２着：１・２・３・４\n３着：１・２・３・４・５・６・７・８';
+p('mApplyPaste').onclick();
+assert.equal(p('mCount').textContent,'36点','Full-width numbers and Japanese delimiters work');
+assert.equal(storage.get('keiba-nine-owner-ticket-drafts-v1'),savedBeforePaste);
 const second=boot(),get=second.el;
 get('mDate').value='2026-11-07';get('mDate').onchange();
 get('mTrack').value='東京';get('mTrack').onchange();
