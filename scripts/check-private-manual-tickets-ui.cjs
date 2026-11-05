@@ -178,4 +178,31 @@ assert.equal(get('mCount').textContent,'36点','same storage restores across rel
 assert.ok(writes.length>=1);
 assert.ok(!js.includes('fetch('),'must not call paid or public APIs');
 assert.ok(!js.includes('innerHTML'),'only use textContent for saved local data');
+
+// Read-only link to the manual, SAME-ORIGIN horse-number memo.
+const memoMeeting={kind:'jrdb-provisional',date:'2026-11-07',track:'東京',
+ races:[{race:2,postTime:'10:30',expected:3,horses:['架空馬A','架空馬B','架空馬C']}]};
+const memoRecord={date:'2026-11-07',track:'東京',race:2,
+ sourceMark:JSON.stringify(['10:30',3,['架空馬A','架空馬B','架空馬C']]),
+ rows:[{number:3,name:'架空馬C'},{number:1,name:'架空馬A'},{number:2,name:'架空馬B'}]};
+storage.set('keiba-nine-jrdb-personal-mail-v1',JSON.stringify([memoMeeting]));
+storage.set('keiba-nine-owner-manual-numbers-v1',JSON.stringify([memoRecord]));
+const memoPage=boot(),m=memoPage.el;
+m('mDate').value='2026-11-07';m('mDate').onchange();
+m('mTrack').value='東京';m('mTrack').onchange();
+m('mRace').value='2';m('mRace').onchange();
+assert.equal(m('mRosterRows').children.length,3,'same-race memo should show three names');
+assert.equal(m('mRosterRows').children[0].textContent,'1番 架空馬A','memo sorted by horse number');
+assert.match(m('mRosterStatus').textContent,/本人が手入力/);
+assert.equal(m('mCount').textContent,'0点','memo must not auto-create a formation');
+const beforeMemoWrites=writes.length;
+m('mRace').value='3';m('mRace').onchange();
+assert.equal(m('mRosterRows').children.length,0,'other race must not inherit names');
+m('mRace').value='2';m('mRace').onchange();
+storage.set('keiba-nine-jrdb-personal-mail-v1',
+ JSON.stringify([{...memoMeeting,races:[{...memoMeeting.races[0],horses:['別の馬A','架空馬B','架空馬C']}]}]));
+m('mRace').onchange();
+assert.equal(m('mRosterRows').children.length,0,'changed source cannot display stale names');
+assert.match(m('mRosterStatus').textContent,/再照合/);
+assert.equal(writes.length,beforeMemoWrites,'read-only memo viewing must never write localStorage');
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
