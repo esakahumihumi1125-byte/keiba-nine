@@ -31,6 +31,34 @@ def call(app, path='/', method='GET', auth=AUTH, data=None, **changes):
 class PrivateServiceTests(unittest.TestCase):
     def setUp(self): self.app = create_app(SETTINGS)
 
+    def test_owner_deployment_revision_check_requires_authentication(self):
+        root = call(self.app, '/')['body'].decode('utf-8')
+        js = call(self.app, '/app.js')['body'].decode('utf-8')
+        self.assertIn('id="deployCheck"', root)
+        self.assertIn('id="deployResult"', root)
+        self.assertIn("request('/api/deploy-status')", js)
+        self.assertIn('配信中の版IDを見る', root)
+        report = {
+            'version': 'owner-revision-diagnostic-1',
+            'status': 'behind', 'renderCommit': '4c7f36010fee',
+            'githubMainCommit': '00bf8a0ea0c5',
+            'checkedOnDemand': True, 'autoDeployed': False,
+            'predictionReady': False,
+            'note': 'Renderが古い版を配信中です。',
+        }
+        with patch('private_service.inspect_owner_revision', return_value=report) as check:
+            actual = call(self.app, '/api/deploy-status')
+            self.assertEqual(actual['status'], '200 OK')
+            self.assertEqual(json.loads(actual['body']), report)
+            self.assertIn('no-store', actual['headers']['Cache-Control'])
+            check.assert_called_once_with('not-reported')
+        with patch('private_service.inspect_owner_revision') as check:
+            denied = call(self.app, '/api/deploy-status', auth='')
+            self.assertEqual(denied['status'], '401 Unauthorized')
+            check.assert_not_called()
+        self.assertEqual(call(self.app, '/api/deploy-status', method='POST')['status'],
+                         '404 Not Found')
+
     def test_iphone_home_screen_entry_and_private_notebook_navigation(self):
         # Pure HTML navigation: no new public route, credentials or storage.
         home = call(self.app, '/')
