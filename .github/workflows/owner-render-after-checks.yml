@@ -29,6 +29,8 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]]; then
+            echo '### Render deployment: NOT STARTED' >> "$GITHUB_STEP_SUMMARY"
+            echo 'The private RENDER_DEPLOY_HOOK_URL repository secret is not configured. This green workflow run does not mean Render was updated.' >> "$GITHUB_STEP_SUMMARY"
             echo 'RENDER_DEPLOY_HOOK_URL is not configured: deploy safely skipped.'
             exit 0
           fi
@@ -43,3 +45,5 @@ jobs:
           curl --fail --silent --show-error --max-time 25 --request POST \
             --output /dev/null "$RENDER_DEPLOY_HOOK_URL"
           echo 'Render deploy hook accepted the request; live status must still be checked.'
+          echo '### Render deployment: REQUEST SENT' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Deploy hook request was accepted, but Render must still report the expected commit as live.' >> "$GITHUB_STEP_SUMMARY"
