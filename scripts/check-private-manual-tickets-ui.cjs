@@ -18,7 +18,7 @@ function boot(confirmDecision=true){
    click(){this.clicked=true}
   };
  }
- function el(id){if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);}
+ function el(id){if(!nodes.has(id)){const node=element();if(id==='mBulkApply')node.disabled=true;nodes.set(id,node);}return nodes.get(id);}
  const urls=[];
  const URL={createObjectURL(x){urls.push(x);return 'blob:synthetic'},revokeObjectURL(x){urls.push(x)}};
  vm.runInNewContext(js,{document:{getElementById:el,createElement:element},
