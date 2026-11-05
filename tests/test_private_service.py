@@ -98,6 +98,10 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertIn('name="keiba-owner-release"', html)
             self.assertIn('iphone-login-recovery-20261105-v9|0123456789ab', html)
             self.assertIn('src="/owner-update.js"', html)
+            if path == '/my-tickets':
+                self.assertIn('class="release-details"', html)
+                self.assertIn('この画面の配信識別子：', html)
+                self.assertIn('0123456789ab</code>', html)
             self.assertNotIn('__OWNER_RELEASE__', html)
             self.assertIn('no-store', r['headers']['Cache-Control'])
         javascript = call(active, '/owner-update.js')
