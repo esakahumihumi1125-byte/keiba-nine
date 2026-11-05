@@ -21,7 +21,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <option>東京</option><option>中山</option><option>中京</option><option>京都</option>
 <option>阪神</option><option>小倉</option></select>
 <button type="button" id="workAddTrack">追加表示</button></div>
-<p id="workStatus" role="status" class="hint">端末に保存された資料を確認します。</p></section>
+<div class="quick"><button type="button" id="workReload">端末内の記録を再読込</button><button type="button" id="workOnlyActions" aria-pressed="false">作業対象Rだけ表示：OFF</button></div><p id="workStatus" role="status" class="hint">端末に保存された資料を確認します。</p></section>
 <section><h2>最大36Rの準備状況</h2>
 <div id="workSummary" class="summary" role="status"></div>
 <div class="next-queue"><h3>次に準備するレース</h3><p class="hint">本人が保存した資料の不足・不一致から作った作業リストです。優先順位は発走順・勝率・公式情報の確定ではありません。</p><div id="workNext" aria-label="次に準備するレースと操作"></div></div>
@@ -36,7 +36,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 </main><script defer src="/owner-race-workbench.js"></script></body></html>"""
 
-CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#eff4ff;font:15px/1.5 system-ui,sans-serif}main{max-width:760px;margin:auto;padding:18px 12px 48px}h1{font-size:25px}h2{font-size:19px;margin:0 0 10px}a{color:#f5d27c}section{background:#142b44;border:1px solid #4d6885;border-radius:14px;margin:14px 0;padding:14px}.warning{color:#ffe4a9;background:#302b24;border:1px solid #957a4b;padding:11px;border-radius:10px;font-size:13px}.hint{color:#c5d6e7;font-size:13px}.legend{color:#c4d2df;font-size:12px;margin:8px 0 14px}.quick{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center}.quick label{width:100%}.quick a,.quick button{flex:1;min-width:125px;text-align:center}input,select,button{font:inherit;min-height:43px;background:#0b2035;color:white;border:1px solid #8099b4;border-radius:8px;padding:8px}input[type=date]{width:100%}button{cursor:pointer}button:focus-visible,a:focus-visible{outline:2px solid #f2d17d}.summary{color:#f1d481;font-weight:700}.next-queue{margin-top:16px;padding:11px;border:1px solid #456d85;border-radius:10px;background:#10263b}.next-queue h3{margin:0;font-size:16px}.queue-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:10px 0;border-top:1px solid #40576d}.queue-row strong{font-size:14px}.queue-row p{width:100%;margin:0;color:#cbd9e7;font-size:12px}.queue-row a{border:1px solid #aab7c4;border-radius:8px;padding:6px 10px;align-self:center;min-height:36px}.queue-alert strong{color:#ffca9e}.venue{padding:10px;margin:13px 0;background:#0e233a;border:1px solid #46637f;border-radius:11px}.venue h3{margin:2px 0 8px;font-size:17px}.race-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.race-btn{border:1px solid #66768d;padding:6px 3px;min-height:63px;background:#28394c}.race-btn .race-no{display:block;font-weight:800;font-size:15px}.race-btn small{display:block;line-height:1.3;font-size:10px;white-space:normal}.race-btn[data-stage=empty]{color:#c7cbd0}.race-btn[data-stage=mail]{background:#2a3e52}.race-btn[data-stage=roster]{background:#294c52}.race-btn[data-stage=partial]{background:#63512f}.race-btn[data-stage=graded]{background:#31513f}.race-btn[data-stage=draft]{background:#46548a}.race-btn[data-stage=actual]{background:#5a4376}.race-btn[data-stage=stale]{background:#633e3b;color:#ffe8c2}.race-btn[aria-pressed=true]{outline:2px solid #f2d17d;outline-offset:1px}.race-detail{margin-top:12px;border:1px solid #5a7a96;padding:10px;border-radius:9px}.race-detail p{margin:6px 0;font-size:13px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}.actions a{padding:8px;border:1px solid #a4b8c8;border-radius:8px;min-height:39px}.error{color:#ffc1a3}"""
+CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#eff4ff;font:15px/1.5 system-ui,sans-serif}main{max-width:760px;margin:auto;padding:18px 12px 48px}h1{font-size:25px}h2{font-size:19px;margin:0 0 10px}a{color:#f5d27c}section{background:#142b44;border:1px solid #4d6885;border-radius:14px;margin:14px 0;padding:14px}.warning{color:#ffe4a9;background:#302b24;border:1px solid #957a4b;padding:11px;border-radius:10px;font-size:13px}.hint{color:#c5d6e7;font-size:13px}.legend{color:#c4d2df;font-size:12px;margin:8px 0 14px}.quick{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center}.quick label{width:100%}.quick a,.quick button{flex:1;min-width:125px;text-align:center}input,select,button{font:inherit;min-height:43px;background:#0b2035;color:white;border:1px solid #8099b4;border-radius:8px;padding:8px}input[type=date]{width:100%}button{cursor:pointer}button:focus-visible,a:focus-visible{outline:2px solid #f2d17d}.summary{color:#f1d481;font-weight:700}.next-queue{margin-top:16px;padding:11px;border:1px solid #456d85;border-radius:10px;background:#10263b}.next-queue h3{margin:0;font-size:16px}.queue-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:10px 0;border-top:1px solid #40576d}.queue-row strong{font-size:14px}.queue-row p{width:100%;margin:0;color:#cbd9e7;font-size:12px}.queue-row a{border:1px solid #aab7c4;border-radius:8px;padding:6px 10px;align-self:center;min-height:36px}.queue-alert strong{color:#ffca9e}.race-btn[hidden]{display:none!important}.quick button[aria-pressed=true]{background:#2d594b;border-color:#c0dfcc;color:#fff}.venue{padding:10px;margin:13px 0;background:#0e233a;border:1px solid #46637f;border-radius:11px}.venue h3{margin:2px 0 8px;font-size:17px}.race-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.race-btn{border:1px solid #66768d;padding:6px 3px;min-height:63px;background:#28394c}.race-btn .race-no{display:block;font-weight:800;font-size:15px}.race-btn small{display:block;line-height:1.3;font-size:10px;white-space:normal}.race-btn[data-stage=empty]{color:#c7cbd0}.race-btn[data-stage=mail]{background:#2a3e52}.race-btn[data-stage=roster]{background:#294c52}.race-btn[data-stage=partial]{background:#63512f}.race-btn[data-stage=graded]{background:#31513f}.race-btn[data-stage=draft]{background:#46548a}.race-btn[data-stage=actual]{background:#5a4376}.race-btn[data-stage=stale]{background:#633e3b;color:#ffe8c2}.race-btn[aria-pressed=true]{outline:2px solid #f2d17d;outline-offset:1px}.race-detail{margin-top:12px;border:1px solid #5a7a96;padding:10px;border-radius:9px}.race-detail p{margin:6px 0;font-size:13px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}.actions a{padding:8px;border:1px solid #a4b8c8;border-radius:8px;min-height:39px}.error{color:#ffc1a3}"""
 
 JS = r"""(()=>{'use strict';
 // Read-only local progress. No fetch / XHR / server data transfer or purchase.
@@ -49,7 +49,7 @@ const PURCHASES='keiba-nine-owner-real-purchases-v1';
 const TRACKS=['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'];
 const KEYS=[MAIL,NUMBERS,SCORES,DRAFTS,PURCHASES],LIMITS=[48,576,300,300,500];
 const MAX_RACES=36;
-let current=null,additions=new Set();
+let current=null,additions=new Set(),onlyActions=false;
 function jstDate(){
  return new Date(Date.now()+9*3600000).toISOString().slice(0,10);
 }
@@ -225,6 +225,7 @@ function render(){
     countActual+=Number(s.actual>0);stale+=Number(s.stale);
     const tile=create('button');tile.type='button';tile.className='race-btn';
     tile.dataset.stage=s.state;tile.setAttribute('aria-pressed','false');
+    tile.hidden=onlyActions&&!action;
     tile.setAttribute('aria-label',venue+race+'R：'+s.label);
     tile.append(create('span',race+'R'),create('small',s.label));
     tile.children[0].className='race-no';
@@ -265,6 +266,20 @@ function nextWeekend(day){
  date.setUTCDate(date.getUTCDate()+add);
  return date.toISOString().slice(0,10);
 }
+$('workOnlyActions').onclick=()=>{
+ onlyActions=!onlyActions;
+ $('workOnlyActions').setAttribute('aria-pressed',String(onlyActions));
+ $('workOnlyActions').textContent='作業対象Rだけ表示：'+(onlyActions?'ON':'OFF');
+ render();
+};
+$('workReload').onclick=()=>{
+ render();
+ if(current)$('workStatus').textContent+='（端末の保存内容を読み直しました）';
+};
+// Returning from a scorecard or 3連単 in Safari may restore this page from BFCache.
+// Refresh only read-only status on navigation return. No setItem, fetch or upload.
+if(typeof window!=='undefined'&&window.addEventListener)
+ window.addEventListener('pageshow',e=>{if(e.persisted)render()});
 $('workSaturday').onclick=()=>{$('workDate').value=nextWeekend(6);additions=new Set();render()};
 $('workSunday').onclick=()=>{$('workDate').value=nextWeekend(0);additions=new Set();render()};
 $('workDate').onchange=()=>{additions=new Set();render()};
