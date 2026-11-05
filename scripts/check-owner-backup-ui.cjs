@@ -1,4 +1,4 @@
-/* Browser-only 4-section backup import/export safety tests; synthetic horse names. */
+/* Browser-only 5-section backup import/export safety tests; synthetic horse names. */
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-backup.js','utf8');
@@ -6,8 +6,9 @@ const keys=[
  'keiba-nine-owner-ticket-drafts-v1',
  'keiba-nine-owner-real-purchases-v1',
  'keiba-nine-jrdb-personal-mail-v1',
- 'keiba-nine-owner-manual-numbers-v1'
-],format='keiba-nine-owner-local-all-v1';
+ 'keiba-nine-owner-manual-numbers-v1',
+ 'keiba-nine-owner-factor-notes-v1'
+],format='keiba-nine-owner-local-all-v2';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -15,8 +16,9 @@ const mail={kind:'jrdb-provisional',date:'2099-01-09',track:'東京',races:[sour
 const memo={date:'2099-01-09',track:'東京',race:1,
  sourceMark:JSON.stringify([source.postTime,source.expected,source.horses]),
  rows:[{number:1,name:'架空A'},{number:2,name:'架空B'},{number:3,name:'架空C'}]};
+const factor={date:'2099-01-09',track:'東京',race:1,text:'1 架空A A ? A B C',sourceMark:memo.sourceMark,savedAt:'2099-01-08T12:00:00+09:00'};
 const fixture=()=>({
- [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],[keys[3]]:[memo]
+ [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],[keys[3]]:[memo],[keys[4]]:[factor]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -63,7 +65,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -105,13 +107,13 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  e('backupRestore').onclick();
  assert.equal(e('backupRestore').disabled,true);
  assert.deepEqual([...page.storage.entries()],changed,'stale preview cannot clobber edits');
- // Storage failure during restore must roll back all four keys.
+ // Storage failure during restore must roll back all five keys.
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
  page.failOnWrite(keys[2]);
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
- assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 4 sections');
- assert.match(e('backupPreview').textContent,/元の4種類の記録へ戻しました/);
+ assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 5 sections');
+ assert.match(e('backupPreview').textContent,/元の5種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -120,5 +122,38 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.ok(!js.includes('fetch('),'backup code must not transmit provider or betting data');
  assert.ok(!js.includes('XMLHttpRequest'),'backup must remain local');
  assert.ok(!js.includes('innerHTML'),'do not inject imported content as HTML');
- console.log('Owner local 4-part backup: export, restore, consent, schema, quota rollback and no upload PASS');
+
+ // Malformed factor-grade backups must never overwrite valid records.
+ for(const badFactor of [
+  {...factor,race:13},{...factor,text:''},{...factor,sourceMark:'x'.repeat(1600)},
+  {...factor,sourceMark:42},{...factor,savedAt:''}
+ ]){
+  const current=[...page.storage.entries()];
+  const invalidFile=fakeFile(JSON.stringify({format,exportedAt:'2099-01-08T23:00:00Z',
+   sections:{...fixture(),[keys[4]]:[badFactor]}}));
+  e('backupFile').files=[invalidFile];await e('backupFile').onchange();await flush();
+  assert.equal(e('backupRestore').disabled,true,'bad factor note cannot restore');
+  assert.deepEqual([...page.storage.entries()],current,'bad factor note has zero writes');
+ }
+ // Previous (four-part) exports remain importable and preserve existing factor notes.
+ page.storage.set(keys[4],JSON.stringify([factor]));
+ const fourParts=fixture();delete fourParts[keys[4]];
+ const legacyFile=fakeFile(JSON.stringify({
+  format:'keiba-nine-owner-local-all-v1',exportedAt:'2099-01-08T23:00:00Z',sections:fourParts
+ }));
+ e('backupFile').files=[legacyFile];await e('backupFile').onchange();await flush();
+ assert.equal(e('backupRestore').disabled,false);
+ assert.match(e('backupPreview').textContent,/旧4種類のバックアップ/);
+ e('backupRestore').onclick();
+ assert.deepEqual(JSON.parse(page.storage.get(keys[4])),[factor],
+  'legacy restore preserves ongoing factor scoring notes');
+ const afterLegacy=[...page.storage.entries()];
+ const malformedLegacy={...fourParts,[keys[4]]:[]};
+ const extraLegacy=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v1',
+  exportedAt:'2099-01-08T23:00:00Z',sections:malformedLegacy}));
+ e('backupFile').files=[extraLegacy];await e('backupFile').onchange();await flush();
+ assert.equal(e('backupRestore').disabled,true,'old backup must have precisely four sections');
+ assert.deepEqual([...page.storage.entries()],afterLegacy);
+
+ console.log('Owner local 5-part backup: export, restore, consent, schema, quota rollback and no upload PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
