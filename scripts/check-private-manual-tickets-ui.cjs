@@ -19,11 +19,12 @@ function boot(confirmDecision=true){
   };
  }
  function el(id){if(!nodes.has(id)){const node=element();if(id==='mBulkApply')node.disabled=true;nodes.set(id,node);}return nodes.get(id);}
- const urls=[];
+ const urls=[],navigation=[];
  const URL={createObjectURL(x){urls.push(x);return 'blob:synthetic'},revokeObjectURL(x){urls.push(x)}};
  vm.runInNewContext(js,{document:{getElementById:el,createElement:element},
-  localStorage,Date,Set,Number,String,JSON,Blob,URL,confirm:()=>confirmDecision,console});
- return {el,nodes,urls};
+  localStorage,Date,Set,Number,String,JSON,Blob,URL,URLSearchParams,
+  window:{location:{assign:u=>navigation.push(u)}},confirm:()=>confirmDecision,console});
+ return {el,nodes,urls,navigation};
 }
 const first=boot(),$=first.el;
 assert.equal(typeof $('mImport').onchange,'function','JSON restore must be available immediately on first load');
@@ -489,5 +490,33 @@ ap('mFirst').children[0].onclick();ap('mSecond').children[1].onclick();ap('mThir
 ap('mNextRace').onclick();
 assert.equal(ap('mRace').value,'2','explicitly approved navigation is allowed');
 assert.equal(ap('mCount').textContent,'0点','new unsaved race starts empty');
+
+
+// Date/track/R-only handoff into manual scorecard, never leaks members or selections.
+const jumpPage=boot(true),jp=jumpPage.el;
+jp('mDate').value='2026-11-07';jp('mDate').onchange();
+jp('mTrack').value='東京';jp('mTrack').onchange();
+jp('mRace').value='7';jp('mRace').onchange();
+const beforeJump=storage.get(key),jumpWrites=writes.length;
+jp('mScorecardOpen').onclick();
+assert.equal(jumpPage.navigation.length,1);
+assert.ok(jumpPage.navigation[0].startsWith('/my-scorecard#select=v1&'));
+const options=new URLSearchParams(jumpPage.navigation[0].split('#')[1]);
+assert.equal(options.get('date'),'2026-11-07');
+assert.equal(options.get('track'),'東京');
+assert.equal(options.get('race'),'7');
+assert.equal(options.size,4,'no horse numbers, grades or licensed email in route');
+assert.equal(storage.get(key),beforeJump);
+assert.equal(writes.length,jumpWrites);
+const stopPage=boot(false),sp=stopPage.el;
+sp('mDate').value='2026-11-07';sp('mDate').onchange();
+sp('mTrack').value='東京';sp('mTrack').onchange();
+sp('mRace').value='7';sp('mRace').onchange();
+sp('mFirst').children[0].onclick();
+sp('mSecond').children[1].onclick();
+sp('mThird').children[2].onclick();
+sp('mScorecardOpen').onclick();
+assert.equal(stopPage.navigation.length,0,'unsaved 3連単 must not be lost via scorecard jump');
+assert.equal(sp('mCount').textContent,'1点');
 
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
