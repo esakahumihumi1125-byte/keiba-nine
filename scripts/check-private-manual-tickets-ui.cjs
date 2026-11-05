@@ -455,4 +455,39 @@ assert.equal(cr('mCount').textContent,'1点','cancel keeps already edited format
 assert.equal(storage.get(key),beforeRanks,'cancel does not persist');
 assert.ok(!js.includes('fetch('),'rank helper performs no remote analyses or transfers');
 
+
+// Unsaved operator selections must be protected on every navigation surface.
+const guarded=boot(false),g=guarded.el;
+g('mDate').value='2026-11-14';g('mDate').onchange();
+g('mTrack').value='福島';g('mTrack').onchange();
+g('mRace').value='1';g('mRace').onchange();
+g('mFirst').children[0].onclick();
+g('mSecond').children[1].onclick();
+g('mThird').children[2].onclick();
+assert.equal(g('mCount').textContent,'1点');
+const beforeGuard=storage.get(key),beforeGuardWrites=writes.length;
+g('mNextRace').onclick();
+assert.equal(g('mRace').value,'1','next-R button blocked when unsaved');
+g('mRaceBoard').children[1].onclick();
+assert.equal(g('mRace').value,'1','12R grid blocked when unsaved');
+g('mRace').value='3';g('mRace').onchange();
+assert.equal(g('mRace').value,'1','direct race dropdown restored after cancel');
+g('mTrack').value='東京';g('mTrack').onchange();
+assert.equal(g('mTrack').value,'福島','track dropdown restored after cancel');
+g('mDate').value='2026-11-15';g('mDate').onchange();
+assert.equal(g('mDate').value,'2026-11-14','date picker restored after cancel');
+g('mDate').onchange();
+assert.equal(g('mCount').textContent,'1点','same date re-check cannot discard unsaved input');
+assert.match(g('mMsg').textContent,/切り替えをやめました/);
+assert.equal(storage.get(key),beforeGuard,'navigation cannot save a ticket');
+assert.equal(writes.length,beforeGuardWrites,'navigation never mutates localStorage');
+const approved=boot(true),ap=approved.el;
+ap('mDate').value='2026-11-14';ap('mDate').onchange();
+ap('mTrack').value='福島';ap('mTrack').onchange();
+ap('mRace').value='1';ap('mRace').onchange();
+ap('mFirst').children[0].onclick();ap('mSecond').children[1].onclick();ap('mThird').children[2].onclick();
+ap('mNextRace').onclick();
+assert.equal(ap('mRace').value,'2','explicitly approved navigation is allowed');
+assert.equal(ap('mCount').textContent,'0点','new unsaved race starts empty');
+
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
