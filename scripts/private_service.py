@@ -22,6 +22,7 @@ from jrdb_private import (fetch_race_program, fetch_horse_entries,
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
 from jrdb_day_pipeline import inspect_day
 from jrdb_day_review_gate import build_day_review_queue
+from jrdb_day_factor_progress import summarize_day_factor_progress
 from jrdb_prestart_body import audit_prestart_body
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
@@ -1227,6 +1228,9 @@ def create_app(settings=None):
                     programme, conditions, date, _now_in_jst()
                 )
                 report['reviewQueue'] = build_day_review_queue(report, freshness)
+                report['factorProgress'] = summarize_day_factor_progress(
+                    programme, entries, training, recent, date, report
+                )
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     RaceContextError, FreshnessError, ValueError, KeyError, TypeError):
                 return response('502 Bad Gateway', {
