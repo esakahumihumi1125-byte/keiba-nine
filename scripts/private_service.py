@@ -1076,6 +1076,7 @@ def create_app(settings=None):
                 'transport': 'https' if secure else 'local-dev',
                 'jrdbConfigured': configured,
                 'prestartBodyEnabled': bool(configured and settings.get('KEIBA_PRESTART_BODY_ENABLED') == '1'),
+                'historyConfigured': bool(configured and settings.get('KEIBA_HISTORY_ENABLED') == '1'),
                 'liveConnectionVerified': False,
                 'realPredictionEnabled': False,
                 'nextStep': ('本人専用のHTTPS環境でJRDB実接続を検証する' if configured
