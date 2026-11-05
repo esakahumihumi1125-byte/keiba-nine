@@ -38,7 +38,9 @@ class PrivateManualNotebookTests(unittest.TestCase):
         self.assertIn('id="mTrack"', HTML)
         self.assertIn('id="mRace"', HTML)
         for id_ in ("mFirst", "mSecond", "mThird", "mCount",
-                    "mCost", "mSave", "mSaved", "mExport", "mImport"):
+                    "mCost", "mSave", "mSaved", "mExport", "mImport",
+                    "mAxisSingle", "mAxisPair", "mCopyThird",
+                    "mPrevRace", "mNextRace"):
             self.assertIn('id="' + id_ + '"', HTML)
         self.assertIn("AI予想・JRAの出走確定・購入履歴ではありません", HTML)
         self.assertIn("localStorage.setItem", JS)
@@ -49,6 +51,10 @@ class PrivateManualNotebookTests(unittest.TestCase):
         self.assertIn("picker.files", JS)
         self.assertIn("raw.every(validRecord)", JS)
         self.assertIn("LIMIT=48", JS)
+        self.assertIn("function applyQuick(mode)", JS)
+        self.assertIn("function changeRace(delta)", JS)
+        self.assertIn("1頭軸ながし", HTML)
+        self.assertIn("2頭軸ながし", HTML)
         self.assertNotIn("fetch(", JS)
         self.assertNotIn("innerHTML", JS)
         self.assertNotIn("JRDB_API_KEY", JS + HTML + CSS)
