@@ -6,8 +6,11 @@ services:
     runtime: python
     plan: free
     branch: main
-    # Only auto-deploy a tested revision on main.
-    autoDeployTrigger: "checksPass"
+    # Match the existing service's On Commit setting. Actual GitHub-to-Render
+    # notification delivery still depends on Render GitHub App repository access.
+    # This file is only a template; changing it does not reconfigure an
+    # existing non-Blueprint-managed Render web service.
+    autoDeployTrigger: "commit"
     buildCommand: pip install -r deploy/render-requirements.txt
     startCommand: gunicorn --config deploy/render-gunicorn.py
     envVars:
