@@ -88,6 +88,33 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(denied['status'], '303 See Other')
         self.assertEqual(denied['headers']['Location'], '/login')
 
+    def test_owner_backup_page_is_authenticated_and_local_only(self):
+        for path, marker in (
+            ('/owner-backup', '本人用データのバックアップ'),
+            ('/owner-backup.js', "keiba-nine-owner-local-all-v1"),
+            ('/owner-backup.css', 'max-width:670px'),
+        ):
+            with self.subTest(path=path):
+                allowed = call(self.app, path)
+                self.assertEqual(allowed['status'], '200 OK')
+                self.assertIn('no-store', allowed['headers']['Cache-Control'])
+                self.assertIn(marker, allowed['body'].decode('utf-8'))
+                denied = call(self.app, path, auth='')
+                if path == '/owner-backup':
+                    self.assertEqual(denied['status'], '303 See Other')
+                    self.assertEqual(denied['headers']['Location'], '/login')
+                else:
+                    self.assertEqual(denied['status'], '401 Unauthorized')
+                    self.assertNotIn('WWW-Authenticate', denied['headers'])
+        root = call(self.app, '/')['body'].decode('utf-8')
+        notebook = call(self.app, '/my-tickets')['body'].decode('utf-8')
+        self.assertIn('href="/owner-backup"', root)
+        self.assertIn('href="/owner-backup"', notebook)
+        js = call(self.app, '/owner-backup.js')['body'].decode('utf-8')
+        self.assertNotIn('fetch(', js)
+        self.assertNotIn('XMLHttpRequest', js)
+        self.assertNotIn('innerHTML', js)
+
     def test_owner_home_screen_resume_checks_release_without_weakening_auth(self):
         active = create_app({**SETTINGS,
                              'RENDER_GIT_COMMIT': '0123456789abcdef0123456789abcdef01234567'})
