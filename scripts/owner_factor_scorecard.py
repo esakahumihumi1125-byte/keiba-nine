@@ -11,7 +11,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="apple-mobile-web-app-title" content="競馬ナイン本人用">
 <title>競馬ナイン｜5項目の手動評価</title>
 <link rel="stylesheet" href="/owner-scorecard.css">
-</head><body><main><a href="/">← 本人用ホーム</a>
+</head><body><main><a href="/">← 本人用ホーム</a> <a href="/owner-races">全開催R一覧へ</a>
 <h1>5項目の手動評価</h1>
 <p class="warning">これは<b>本人が入力する仮評価の計算表</b>です。JRA・JRDBの実データ取得、AIによる調教分析、実馬の予想はまだ行っていません。実戦で使う前に公式出馬表・取消を確認してください。</p>
 <section><h2>① 開催日・競馬場・レース</h2><div class="fields">
