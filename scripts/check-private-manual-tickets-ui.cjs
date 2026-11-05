@@ -317,6 +317,7 @@ const malformedCoverage=boot(),bad=malformedCoverage.el;
 storage.set('keiba-nine-jrdb-personal-mail-v1','not valid JSON');
 bad('mDate').value='2026-11-07';bad('mDate').onchange();
 bad('mTrack').value='東京';bad('mTrack').onchange();
+bad('mRace').value='2';bad('mRace').onchange();
 assert.match(bad('mRaceBoardStatus').textContent,/JRDB想定メール 0R/,'broken mail cannot appear as checked coverage');
 storage.set('keiba-nine-jrdb-personal-mail-v1',JSON.stringify([{...memoMeeting,races:[
   {race:2,postTime:'10:30',expected:3,horses:['架空馬A','架空馬B','架空馬C']}]}]));
@@ -324,6 +325,7 @@ storage.set('keiba-nine-owner-manual-numbers-v1',JSON.stringify([memoRecord]));
 const partial=boot(),part=partial.el;
 part('mDate').value='2026-11-07';part('mDate').onchange();
 part('mTrack').value='東京';part('mTrack').onchange();
+part('mRace').value='2';part('mRace').onchange();
 assert.match(part('mRaceBoardStatus').textContent,/本人の馬名一致メモ 1R/);
 storage.set('keiba-nine-owner-manual-numbers-v1',JSON.stringify([{...memoRecord,rows:[
  {number:1,name:'架空馬A'},{number:1,name:'架空馬B'},{number:2,name:'架空馬C'}]}]));
