@@ -130,8 +130,10 @@ class PrivateServiceTests(unittest.TestCase):
         js = call(self.app, '/owner-scorecard.js')['body'].decode('utf-8')
         self.assertNotIn('fetch(', js)
         self.assertIn("localStorage.getItem('keiba-nine-owner-manual-numbers-v1')", js)
-        self.assertNotIn('localStorage.setItem', js)
-        self.assertNotIn('localStorage.removeItem', js)
+        self.assertIn('localStorage.setItem(NOTE_KEY', js)
+        self.assertNotIn("localStorage.setItem('keiba-nine-jrdb-personal-mail-v1'", js)
+        self.assertNotIn("localStorage.setItem('keiba-nine-owner-manual-numbers-v1'", js)
+        self.assertNotIn("localStorage.setItem('keiba-nine-owner-real-purchases-v1'", js)
         self.assertNotIn('innerHTML', js)
         self.assertIn("window.location.assign('/my-tickets#'", js)
 
