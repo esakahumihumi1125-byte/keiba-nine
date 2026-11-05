@@ -21,6 +21,7 @@ from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_historical_venue_conditions, JRDBError)
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
 from jrdb_day_pipeline import inspect_day
+from jrdb_day_review_gate import build_day_review_queue
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
@@ -1214,13 +1215,18 @@ def create_app(settings=None):
             try:
                 date = query['date'][0]
                 programme = normalize_program_rows(fetch_race_program(date), date)
-                report = inspect_day(
-                    programme, fetch_horse_entries(date),
-                    fetch_training_analysis(date), fetch_recent_runs(date),
-                    fetch_venue_conditions(date), date
+                entries = fetch_horse_entries(date)
+                training = fetch_training_analysis(date)
+                recent = fetch_recent_runs(date)
+                conditions = fetch_venue_conditions(date)
+                report = inspect_day(programme, entries, training, recent,
+                                     conditions, date)
+                freshness = audit_prestart_freshness(
+                    programme, conditions, date, _now_in_jst()
                 )
+                report['reviewQueue'] = build_day_review_queue(report, freshness)
             except (JRDBError, ProgrammeFormatError, CoverageError,
-                    RaceContextError, ValueError, KeyError, TypeError):
+                    RaceContextError, FreshnessError, ValueError, KeyError, TypeError):
                 return response('502 Bad Gateway', {
                     'error': '全レースの資料を安全に一括照合できませんでした。'})
             return response('200 OK', report)
