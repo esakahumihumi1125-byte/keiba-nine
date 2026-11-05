@@ -631,4 +631,53 @@ rm('mRace').value='3';rm('mRace').onchange();
 assert.match(rm('mDraftReviewSummary').textContent,/着順入力 0／1R/);
 assert.ok(!js.includes('fetch('),'result review remains local-only');
 
+
+// Bulk result notes are dry-run first, only for saved drafts on the selected date.
+const multiReview=boot(),mr=multiReview.el;
+mr('mDate').value=reviewDate;mr('mDate').onchange();
+const matchLine=reviewDate+' 京都3R ①②③';
+mr('mResultBulkText').value=matchLine+'\n'+matchLine;
+const bulkBefore=storage.get(key),bulkWrites=writes.length;
+mr('mResultBulkCheck').onclick();
+assert.equal(mr('mResultBulkSave').disabled,true,'duplicate race blocks whole batch');
+assert.equal(storage.get(key),bulkBefore);
+mr('mResultBulkText').value=matchLine+'\n'+reviewDate+' 京都4R 1-2-3';
+mr('mResultBulkCheck').onclick();
+assert.match(mr('mResultBulkStatus').textContent,/下書き未保存/);
+assert.equal(storage.get(key),bulkBefore,'missing drafts do not create results');
+mr('mResultBulkText').value=matchLine;
+mr('mResultBulkCheck').onclick();
+assert.equal(mr('mResultBulkSave').disabled,false);
+assert.equal(mr('mResultBulkPreview').children.length,1);
+assert.match(mr('mResultBulkPreview').children[0].textContent,/3連単の組み合わせ内/);
+assert.equal(storage.get(key),bulkBefore,'preview does not write');
+assert.equal(writes.length,bulkWrites);
+mr('mResultBulkText').value=matchLine+'\n';
+mr('mResultBulkSave').onclick();
+assert.equal(mr('mResultBulkSave').disabled,true,'modified input invalidates confirmation');
+assert.equal(storage.get(key),bulkBefore);
+mr('mResultBulkText').value=matchLine;
+mr('mResultBulkCheck').onclick();
+mr('mResultBulkSave').onclick();
+assert.deepEqual(JSON.parse(storage.get(key)).find(x=>x.date===reviewDate).result,[1,2,3]);
+assert.match(mr('mDraftReviewSummary').textContent,/3連単組み合わせ内 1R/);
+assert.equal(storage.get(purchaseKey),purchaseBefore,'bulk outcomes never invent JRA purchases');
+const afterResult=storage.get(key);
+const cancelledBatch=boot(false),cb=cancelledBatch.el;
+cb('mDate').value=reviewDate;cb('mDate').onchange();
+cb('mResultBulkText').value=reviewDate+' 京都3R 4-2-3';
+cb('mResultBulkCheck').onclick();
+cb('mResultBulkSave').onclick();
+assert.equal(storage.get(key),afterResult,'cancelled bulk result replacement keeps current notes');
+// Another browser view changed drafts after preview: stop potentially stale overwrite.
+const staleBatch=boot(),sb=staleBatch.el;
+sb('mDate').value=reviewDate;sb('mDate').onchange();
+sb('mResultBulkText').value=reviewDate+' 京都3R 4-2-3';
+sb('mResultBulkCheck').onclick();
+storage.set(key,JSON.stringify(JSON.parse(storage.get(key)).map(x=>x.date===reviewDate?{...x,savedAt:'2099-03-01T10:00:00Z'}:x)));
+const beforeStale=storage.get(key);
+sb('mResultBulkSave').onclick();
+assert.equal(storage.get(key),beforeStale,'newer edits block old bulk review');
+assert.match(sb('mResultBulkStatus').textContent,/もう一度検査/);
+
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
