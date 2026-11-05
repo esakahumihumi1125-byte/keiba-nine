@@ -7,7 +7,7 @@ const localStorage={
  getItem:k=>storage.get(k)||null,
  setItem(k,v){writes.push(k);storage.set(k,v)}
 };
-function boot(confirmDecision=true){
+function boot(confirmDecision=true,fragment=''){
  const nodes=new Map();
  function element(tag='div'){
   return {tag,value:'',textContent:'',className:'',disabled:false,children:[],
@@ -19,12 +19,14 @@ function boot(confirmDecision=true){
   };
  }
  function el(id){if(!nodes.has(id)){const node=element();if(id==='mBulkApply')node.disabled=true;nodes.set(id,node);}return nodes.get(id);}
- const urls=[],navigation=[];
+ const urls=[],navigation=[],clearedFragments=[];
  const URL={createObjectURL(x){urls.push(x);return 'blob:synthetic'},revokeObjectURL(x){urls.push(x)}};
  vm.runInNewContext(js,{document:{getElementById:el,createElement:element},
   localStorage,Date,Set,Number,String,JSON,Blob,URL,URLSearchParams,
-  window:{location:{assign:u=>navigation.push(u)}},confirm:()=>confirmDecision,console});
- return {el,nodes,urls,navigation};
+  window:{location:{hash:fragment,pathname:'/my-tickets',search:'',assign:u=>navigation.push(u)},
+   history:{replaceState:(_state,_title,url)=>clearedFragments.push(url)}},
+  confirm:()=>confirmDecision,console});
+ return {el,nodes,urls,navigation,clearedFragments};
 }
 const first=boot(),$=first.el;
 assert.equal(typeof $('mImport').onchange,'function','JSON restore must be available immediately on first load');
@@ -583,5 +585,54 @@ assert.equal(on('mDayCoverage').children.length,1,'independent private score not
 assert.equal(on('mDayCoverage').children[0].children[0].textContent,'京都');
 assert.match(on('mDayCoverage').children[0].children[1].textContent,/本人採点済1R/);
 assert.equal(on('mRaceBoard').children.length,0,'a venue is not invented as selected');
+
+
+// Dashboard / scorecard fragment handoff: selection and user-entered picks must load.
+const selectHash='#select=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=9';
+const receivedSelect=boot(true,selectHash),rs=receivedSelect.el;
+assert.equal(rs('mDate').value,'2099-02-15');
+assert.equal(rs('mTrack').value,'京都');
+assert.equal(rs('mRace').value,'9');
+assert.match(rs('mMsg').textContent,/9Rを選択しました/);
+assert.equal(rs('mCount').textContent,'0点');
+assert.deepEqual(receivedSelect.clearedFragments,['/my-tickets'],
+ 'the private race hash should not remain in browser history');
+const handoffHash='#import=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=10'+
+ '&first=1%2C2&second=1%2C2%2C3%2C4&third=1%2C2%2C3%2C4%2C5%2C6%2C7%2C8';
+const beforeHandoffWrites=writes.length,beforeHandoffDraft=storage.get(key);
+const formed=boot(true,handoffHash),frm=formed.el;
+assert.equal(frm('mDate').value,'2099-02-15');
+assert.equal(frm('mTrack').value,'京都');
+assert.equal(frm('mRace').value,'10');
+assert.equal(frm('mCount').textContent,'36点');
+assert.equal(frm('mCost').textContent,'3,600円');
+assert.equal(frm('mTickets').children.length,36,'all combinations reviewable');
+assert.match(frm('mMsg').textContent,/手動で下書き保存してな/);
+assert.equal(storage.get(key),beforeHandoffDraft,'reviewing imported formation never saves drafts');
+assert.equal(writes.length,beforeHandoffWrites,'no localStorage changes on fragment handoff');
+assert.deepEqual(formed.clearedFragments,['/my-tickets']);
+const declined=boot(false,handoffHash),decl=declined.el;
+assert.notEqual(decl('mDate').value,'2099-02-15','declined import must not change the selected date');
+assert.equal(decl('mCount').textContent,'0点');
+assert.deepEqual(declined.clearedFragments,['/my-tickets']);
+const corruptFragments=[
+ '#import=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=10&first=1%2C1&second=1%2C2%2C3&third=1%2C2%2C3',
+ '#import=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=10&first=19&second=2&third=3',
+ '#import=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=10&first=1%2C2&second=1%2C2%2C3%2C4%2C5&third=1%2C2%2C3%2C4%2C5%2C6%2C7%2C8%2C9',
+ '#import=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=10&first=1&second=1&third=1',
+ '#import=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=10&first=1&second=2&third=3&horses=secret',
+ '#import=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=10&first=1&first=2&second=2&third=3',
+ '#import=v1&date=2099-02-15&track=%E4%BA%AC%E9%83%BD&race=13&first=1&second=2&third=3',
+ '#select=v1&date=2099-02-15&track=London&race=3',
+ '#select=v1&date=2099-02-30&track=%E6%9D%B1%E4%BA%AC&race=3'
+];
+for(const hash of corruptFragments){
+ const prior=writes.length,invalid=boot(true,hash),ev=invalid.el;
+ assert.match(ev('mMsg').textContent,/引き継ぎを受け取れません/,hash);
+ assert.equal(ev('mCount').textContent,'0点');
+ assert.equal(writes.length,prior,'invalid fragment must not persist');
+ assert.deepEqual(invalid.clearedFragments,['/my-tickets']);
+}
+assert.ok(!js.includes('fetch('),'private handoff must not upload user data');
 
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
