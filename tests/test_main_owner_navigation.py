@@ -15,7 +15,7 @@ class MainAppOwnerNavigationTests(unittest.TestCase):
         self.assertIn('id="ownerLedgerOpen"', main)
         self.assertEqual(main.count('https://keiba-nine-owner-preview.onrender.com/my-tickets'), 2)
         self.assertIn('name===\'published\'?\'home\':name', main)
-        self.assertIn("保存記録とは別管理", main)
+        self.assertIn("保存記録はRender側に別管理", main)
         self.assertNotIn('KEIBA_OWNER_PASSWORD=', main)
         self.assertNotIn('KEIBA_OWNER_PUBLIC_ORIGIN=', main)
 
