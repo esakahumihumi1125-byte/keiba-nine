@@ -16,7 +16,7 @@ const fragment='#'+built.url.split('#')[1];
 function receiverRun(hash,accepted=true){
  const nodes=Object.fromEntries(['mDate','mTrack','mRace'].map(id=>[id,{value:''}]));
  const logs=[];
- let clearCount=0,renderCount=0,dayCount=0;
+ let clearCount=0,renderCount=0,dayCount=0,loadedCount=0;
  const win={location:{hash,pathname:'/my-tickets',search:''},
    history:{replaceState(){clearCount++}},
    confirm:()=>accepted};
@@ -32,11 +32,11 @@ function receiverRun(hash,accepted=true){
     return Array.from(set);
   },
   first:new Set([10]),second:new Set([11]),third:new Set([12]),
-  $:id=>nodes[id],render:()=>renderCount++,showDay:()=>dayCount++,
+  $:id=>nodes[id],render:()=>renderCount++,showDay:()=>dayCount++,loadSelected:()=>loadedCount++, 
   message:t=>logs.push(t)
  };
  vm.runInNewContext(receiver,c);
- return {c,nodes,logs,clearCount,renderCount,dayCount};
+ return {c,nodes,logs,clearCount,renderCount,dayCount,loadedCount};
 }
 let result=receiverRun(fragment);
 assert.equal(result.clearCount,1);
@@ -49,6 +49,29 @@ assert.deepEqual([...result.c.third],[2,3,4,5,6,7]);
 assert.equal(result.renderCount,1);
 assert.equal(result.dayCount,1);
 assert.match(result.logs.at(-1),/購入記録には追加されません/);
+// Race-only fragment never imports unverified horse numbers or buys anything.
+const selection='#select=v1&date=2026-11-07&track='+encodeURIComponent('東京')+'&race=6';
+result=receiverRun(selection,false);
+assert.equal(result.clearCount,1);
+assert.equal(result.nodes.mDate.value,'2026-11-07');
+assert.equal(result.nodes.mTrack.value,'東京');
+assert.equal(result.nodes.mRace.value,'6');
+assert.equal(result.loadedCount,1);
+assert.equal(result.dayCount,1);
+assert.equal(result.renderCount,0,'Race navigation must never generate tickets');
+assert.deepEqual([...result.c.first],[10],'Horse picks never imported via race-only link');
+assert.match(result.logs.at(-1),/馬番対応は引き継いでへん/);
+for(const wrong of [
+ '#select=v1&date=2026-11-07&track='+encodeURIComponent('京都')+'&race=19',
+ '#select=v1&date=2026-11-07&track='+encodeURIComponent('東京')+'&race=1&race=2',
+ '#select=v1&date=2026-11-08&track='+encodeURIComponent('東京')+'&race=1',
+ '#select=v1&date=2026-11-07&track='+encodeURIComponent('東京')+'&race=1&first=1'
+]){
+ const x=receiverRun(wrong);
+ assert.equal(x.loadedCount,0);
+ assert.equal(x.clearCount,1);
+ assert.deepEqual([...x.c.first],[10]);
+}
 result=receiverRun(fragment,false);
 assert.equal(result.clearCount,1);
 assert.deepEqual([...result.c.first],[10], 'Decline must keep current selection');
