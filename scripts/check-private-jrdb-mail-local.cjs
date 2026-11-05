@@ -60,9 +60,11 @@ e('mailText').value=mail('2099年1月1日（木）','東京',2).replace('2頭','
 e('importMail').onclick();
 assert.match(e('message').textContent,/頭数が一致/);
 assert.equal(storage.get(key),before,'Truncated email never overwrites existing data');
+approve=false; // A brand-new venue must not require a replacement confirmation.
 e('mailText').value=mail('2099年1月1日（木）','京都',1);
 e('importMail').onclick();
-assert.equal(JSON.parse(storage.get(key)).length,2,'Other venue preserved');
+approve=true;
+assert.equal(JSON.parse(storage.get(key)).length,2,'Other venue saved without confirmation');
 e('mailText').value=mail('2099年1月1日（木）','東京',1).replace('テストサクラ','改訂テストサクラ');
 e('importMail').onclick();
 state=JSON.parse(storage.get(key));
