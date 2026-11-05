@@ -66,7 +66,8 @@ class RenderPreviewSafetyTests(unittest.TestCase):
         content = MANIFEST.read_text(encoding="utf-8")
         self.assertIn('plan: free', content)
         self.assertIn('runtime: python', content)
-        self.assertIn('autoDeployTrigger: "checksPass"', content)
+        self.assertIn('autoDeployTrigger: "commit"', content)
+        self.assertIn('notification delivery still depends on Render GitHub App', content)
         self.assertIn('gunicorn --config deploy/render-gunicorn.py', content)
         self.assertIn('key: KEIBA_OWNER_PASSWORD\n        generateValue: true', content)
         self.assertIn('key: JRDB_PRIVATE_ENABLED\n        value: "0"', content)
@@ -80,8 +81,8 @@ class RenderPreviewSafetyTests(unittest.TestCase):
             self.assertNotIn(forbidden, content)
 
     def test_main_ci_is_not_path_filtered(self):
-        # Render's checksPass gate should receive a result even when only
-        # documentation, metadata, or the Blueprint itself changes.
+        # Run checks independently for each main update, even if the live Render
+        # service currently uses On Commit rather than CI-gated deploys.
         workflow = WORKFLOW.read_text(encoding="utf-8")
         triggers = workflow.split("permissions:", 1)[0]
         self.assertIn("  push:\n    branches: [main]", triggers)
