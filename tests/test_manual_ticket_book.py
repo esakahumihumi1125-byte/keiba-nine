@@ -55,6 +55,8 @@ class PrivateManualNotebookTests(unittest.TestCase):
         self.assertIn("function changeRace(delta)", JS)
         self.assertIn("1頭軸ながし", HTML)
         self.assertIn("2頭軸ながし", HTML)
+        self.assertIn('class="back app-home-link"', HTML)
+        self.assertIn('https://esakahumihumi1125-byte.github.io/keiba-nine/', HTML)
         self.assertNotIn("fetch(", JS)
         self.assertNotIn("innerHTML", JS)
         self.assertNotIn("JRDB_API_KEY", JS + HTML + CSS)
