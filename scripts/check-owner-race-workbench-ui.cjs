@@ -142,6 +142,36 @@ assert.match(empty.el('workNext').children[0].textContent,/準備済みではあ
 empty.el('workExtraTrack').value='中山';empty.el('workAddTrack').onclick();
 assert.equal(empty.el('workMeetings').children.length,1);
 assert.match(empty.el('workSummary').textContent,/12R表示／JRDB想定0R/);
+
+// Completed user scores without any ticket should offer the 3連単 notebook.
+// Even a fully graded local note does NOT mean JRA official race verification.
+const gradedOnly=boot({
+ [keys.mail]:[],[keys.memo]:[],
+ [keys.score]:[{date,track:'東京',race:5,text:finished,sourceMark:null,savedAt:'2099-01-08T09:00:00Z'}],
+ [keys.ticket]:[],[keys.purchase]:[]
+});
+assert.equal(gradedOnly.el('workNext').children.length,1);
+assert.match(gradedOnly.el('workNext').children[0].children[0].textContent,/評価入力済・買い目未作成/);
+assert.ok(gradedOnly.el('workNext').children[0].children[1].href.startsWith('/my-tickets#select=v1&'));
+assert.match(gradedOnly.el('workSummary').textContent,/評価入力完了1R/);
+assert.match(gradedOnly.el('workSummary').textContent,/JRDB想定0R/);
+// Matching manually numbered horses should offer the scorecard next.
+const memoOnly=boot({
+ [keys.mail]:[mkMail('東京')],[keys.memo]:[mkMemo('東京')],
+ [keys.score]:[],[keys.ticket]:[],[keys.purchase]:[]
+});
+assert.equal(memoOnly.el('workNext').children[0].children[1].textContent,'評価を始める');
+assert.equal(new URLSearchParams(memoOnly.el('workNext').children[0].children[1].href.split('#')[1]).get('race'),'1');
+// More than six local mail notices show a bounded queue, with an accurate remainder.
+const twelve=boot({
+ [keys.mail]:[{kind:'jrdb-provisional',date,track:'京都',races:Array.from(
+  {length:12},(_,i)=>({...source(i+1),postTime:'provisional'}))}],
+ [keys.memo]:[],[keys.score]:[],[keys.ticket]:[],[keys.purchase]:[]
+});
+assert.equal(twelve.el('workNext').children.length,7);
+assert.match(twelve.el('workNext').children[6].textContent,/ほか6R/);
+assert.equal(twelve.writes.length,0);
+
 assert.ok(!js.includes('fetch('),'no data transmitted');
 assert.ok(!js.includes('XMLHttpRequest'),'no data transmitted');
 assert.ok(!js.includes('localStorage.setItem'),'read-only');
