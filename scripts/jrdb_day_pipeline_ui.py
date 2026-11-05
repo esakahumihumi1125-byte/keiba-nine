@@ -18,9 +18,14 @@ JRA公式最終照合と実データの予想精度検証は別工程です。�
 <button id="run" type="button" disabled>全レースの資料を一括確認する</button>
 <p id="message" class="hint" role="status">API β版の認証が届くまでは実行できません。</p>
 <p class="hint">本人がボタンを押したときだけJRDBの番組・出走馬・調教・近走・馬場を各1回取得します。
-画面表示だけで、サーバーへの保存や定期的な自動取得はしません。</p></section>
+画面表示だけで、サーバーへの保存や定期的な自動取得はしません。</p>
+<hr><h2>当日だけの直前資料（別操作）</h2>
+<button id="prestartRun" type="button" disabled>当日の馬体重・パドック資料の件数を確認</button>
+<p id="prestartMessage" class="hint" role="status">API β版の認証と直前資料用の安全設定が済むまでは停止中。</p>
+<p class="hint">別操作で番組・登録馬・直前資料を各1回取得。オッズは使用せず、馬体重や指数の値も表示しません。</p></section>
 <section class="panel" id="report" hidden><h2>レース別の確認結果</h2>
 <p id="summary"></p><div id="rows"></div><section id="review" hidden><h2>発走前の優先チェック</h2><p id="reviewSummary"></p><div id="reviewRows"></div></section></section>
+<section class="panel" id="prestartReport" hidden><h2>当日の馬体資料（件数のみ）</h2><p id="prestartSummary"></p><div id="prestartRows"></div></section>
 <footer>登録済み馬の名前・馬番・有料の生データは表示しません。これは資料取得の準備状況であり、レース予想ではありません。</footer>
 </main><script src="/day-pipeline.js" defer></script></body></html>"""
 
@@ -42,6 +47,7 @@ JS = """
 (function(){
  const $=id=>document.getElementById(id);
  const date=$('date'), button=$('run'), status=$('state'), message=$('message');
+ const prestart=$('prestartRun'), prestartMessage=$('prestartMessage');
  function jstDate(){
   const values=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
    timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'
@@ -68,6 +74,10 @@ JS = """
    status.textContent='認証設定あり（接続成功・利用許諾・予想生成の確認ではありません）。';
    button.disabled=false;
    message.textContent='実行すると対象日の5種類の資料を各1回確認します。';
+   if(data.prestartBodyEnabled===true){
+    prestart.disabled=false;
+    prestartMessage.textContent='開催日の当日に本人が操作したときだけ直前資料を確認できます。';
+   }
   }catch(_){
    status.textContent='設定を確認できませんでした。ログイン状態を確認してな。';
   }
@@ -75,9 +85,49 @@ JS = """
  date.addEventListener('change',()=>{
   $('report').hidden=true;
   $('review').hidden=true;
+  $('prestartReport').hidden=true;
+  $('prestartRows').replaceChildren();
   $('rows').replaceChildren();
   $('reviewRows').replaceChildren();
   message.textContent='開催日を変更しました。以前の資料チェックは非表示にしたで。';
+ });
+ prestart.addEventListener('click',async()=>{
+  const iso=date.value;
+  if(iso!==jstDate()){
+   prestartMessage.textContent='直前情報は日本時間の今日の開催日だけ確認できるで。';
+   return;
+  }
+  prestart.disabled=true;
+  $('prestartReport').hidden=true;
+  prestartMessage.textContent='直前資料の件数を確認しています…';
+  try{
+   const data=await getJson('/api/jrdb/prestart-body?date='+encodeURIComponent(iso.replaceAll('-','')));
+   if(data.version!=='private-prestart-body-1'||data.rawHorseRecordsIncluded!==false||
+      data.oddsUsed!==false||data.realPredictionReady!==false||
+      data.purchaseReady!==false||!Array.isArray(data.races)||
+      data.raceCount!==data.races.length||data.races.length>120)
+    throw Error('直前資料を安全に表示できませんでした。');
+   $('prestartSummary').textContent=data.raceCount+'R確認／馬体重の報告 '+
+    data.summary.weightRecords+'頭分／パドック資料 '+data.summary.paddockRecords+
+    '頭分／直前情報の未対応 '+data.summary.missingRows+
+    '頭分。評価や購入はしていません。';
+   const rows=$('prestartRows');rows.replaceChildren();
+   for(const r of data.races){
+    if(r.realPredictionReady!==false||r.ticketReady!==false||
+       r.bodyConditionGraded!==false||r.officialBodyWeightVerified!==false)
+      throw Error('予想や公式確定の扱いを拒否しました。');
+    const el=make('article','');el.className='race';
+    el.append(make('strong',r.track+r.race+'R｜登録 '+r.registered+'頭'));
+    el.append(make('p','馬体重の報告 '+r.bodyWeightRecords+
+      '頭／増減 '+r.weightChangeRecords+'頭／パドック資料 '+
+      r.paddockRecords+'頭／未対応 '+r.prestartRowsMissing+'頭'));
+    el.append(make('p','出走取消・馬体状態のJRA公式最終確認なし。買い目なし。'));
+    rows.append(el);
+   }
+   $('prestartReport').hidden=false;
+   prestartMessage.textContent='直前資料の件数だけを確認したで。買い目・記録への反映はなし。';
+  }catch(e){prestartMessage.textContent=e.message||'直前資料を確認できませんでした。';}
+  finally{prestart.disabled=false;}
  });
  button.addEventListener('click',async()=>{
   const iso=date.value;
