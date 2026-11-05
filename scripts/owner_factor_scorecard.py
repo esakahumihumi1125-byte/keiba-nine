@@ -27,14 +27,14 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
 <p class="hint">重み：調教25%／近走25%／適性20%／血統10%／展開20%。各項目をS=4、A=3、B=2、C=1として100点換算。人気やオッズは使わない。これは実績ある予測モデルではありません。</p>
 <button type="button" id="scoreReview">総合評価と3連単候補を計算</button><button type="button" id="scoreClearDraft" class="clear-note">このRの途中評価を削除</button>
-<p id="scoreStatus" role="status" class="hint">入力したデータはこのページ内だけで計算し、保存・送信しません。</p></section>
+<p id="scoreStatus" role="status" class="hint">途中評価は本人用の端末内に自動保存します。サーバー送信・馬券購入・正式な予想確定はしません。</p></section>
 <section><h2>③ 総合評価順と買い目候補</h2>
 <div id="scoreRanks" aria-label="総合評価順"></div>
 <p id="scoreFormation" class="hint">評価を計算すると着順候補と実点数を表示します。</p>
 <button type="button" id="scoreHandoff" disabled>3連単下書き画面へ渡す（未保存）</button>
 <p class="hint">このボタンで引き継ぐのは日付・競馬場・R・馬番の着順候補だけ。馬名・評価・元データはURLやサーバーへ渡しません。移動先でも本人確認があり、保存も馬券購入も自動では行いません。</p>
 </section>
-<section><h2>判断時の注意</h2><p class="hint">総合S：85点以上、A：70点以上、B：55点以上、C：55点未満（暫定基準）。1着は相対上位2頭、2着は上位4頭、3着は上位8頭まで。点数が少なければ無理に増やしません。S馬がいない場合も相対上位は表示しますが、勝てるという意味ではありません。全着順の馬番が実際に出走するかはJRA公式で別途照合してください。</p>
+<section><h2>判断時の注意</h2><p class="hint">総合S：85点以上、A：70点以上、B：55点以上、C：55点未満（暫定・検証前の基準）。1着は相対上位2頭、2着は上位4頭、3着は上位8頭まで。点数が少なければ無理に増やしません。S馬がいない場合も相対上位は表示しますが、勝てるという意味ではありません。全着順の馬番が実際に出走するかはJRA公式で別途照合してください。</p>
 <a href="/my-tickets">手動で3連単を作る</a></section>
 </main><script defer src="/owner-scorecard.js"></script></body></html>"""
 
@@ -48,7 +48,7 @@ const GRADE=Object.freeze({S:4,A:3,B:2,C:1});
 const WEIGHTS=Object.freeze([25,25,20,10,20]);
 const NOTE_KEY='keiba-nine-owner-factor-notes-v1',MAX_NOTES=300;
 const CIRCLES='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
-let preview=null,suppressDraftWrite=false,memoSourceMark=null;
+let preview=null,memoSourceMark=null;
 function dateValid(date){
  if(typeof date!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(date))return false;
  const d=new Date(date+'T12:00:00Z');
@@ -131,7 +131,6 @@ function notesRead(){
  return rows;
 }
 function saveDraft(){
- if(suppressDraftWrite)return;
  try{
   const choice=identity(),raw=$('scoreInput').value;
   if(raw.length>4000)throw Error('評価の入力は4000文字以内にしてな。');
