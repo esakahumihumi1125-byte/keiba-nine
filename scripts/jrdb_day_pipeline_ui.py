@@ -20,7 +20,7 @@ JRA公式最終照合と実データの予想精度検証は別工程です。�
 <p class="hint">本人がボタンを押したときだけJRDBの番組・出走馬・調教・近走・馬場を各1回取得します。
 画面表示だけで、サーバーへの保存や定期的な自動取得はしません。</p></section>
 <section class="panel" id="report" hidden><h2>レース別の確認結果</h2>
-<p id="summary"></p><div id="rows"></div></section>
+<p id="summary"></p><div id="rows"></div><section id="review" hidden><h2>発走前の優先チェック</h2><p id="reviewSummary"></p><div id="reviewRows"></div></section></section>
 <footer>登録済み馬の名前・馬番・有料の生データは表示しません。これは資料取得の準備状況であり、レース予想ではありません。</footer>
 </main><script src="/day-pipeline.js" defer></script></body></html>"""
 
@@ -99,8 +99,34 @@ JS = """
       '｜JRA公式照合なし・総合評価なし・買い目なし'));
     rows.append(row);
    }
+   const queue=result.reviewQueue;
+   const review=$('review');
+   review.hidden=true;
+   if(queue){
+    if(queue.version!=='private-day-review-1'||queue.realPredictionReady!==false||
+       queue.purchaseReady!==false||queue.officialFinalVerified!==false||
+       queue.raceCount!==result.raceCount||!Array.isArray(queue.races)||
+       queue.races.length!==queue.raceCount)
+      throw Error('発走前の確認状況を安全に表示できませんでした。');
+    $('reviewSummary').textContent='発走前2時間以内 '+queue.racesWithinTwoHours+
+      'R／優先確認 '+queue.racesNeedingManualPriorityCheck+
+      'R／発走時刻経過 '+queue.racesPassedPost+
+      'R。これは資料の確認順で、公式確定・購入推奨ではありません。';
+    const reviewRows=$('reviewRows');reviewRows.replaceChildren();
+    for(const item of queue.races){
+     const el=make('article','');el.className='race';
+     const label=item.reviewPriority==='urgent_manual_check'?'先に確認':
+       item.reviewPriority==='post_time_passed'?'発走済み':'通常・後日';
+     el.append(make('strong',item.track+item.race+'R｜'+label));
+     el.append(make('p','発走まで '+(item.minutesUntilListedPost==null?'時刻未確認':item.minutesUntilListedPost+'分')+
+       '｜馬場資料 '+item.sourceGoingAgeStatus+'｜公式照合なし'));
+     el.append(make('p',(item.blockers||[]).join('／')));
+     reviewRows.append(el);
+    }
+    review.hidden=false;
+   }
    $('report').hidden=false;
-   message.textContent='資料件数だけを確認しました。購入や保存はしていません。';
+   message.textContent='資料件数と発走前の確認優先順を整理しました。購入や保存はしていません。';
   }catch(e){message.textContent=e.message||'資料の照合に失敗しました。';}
   finally{button.disabled=before;}
  });
