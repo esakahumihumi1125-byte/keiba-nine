@@ -21,7 +21,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <option>札幌</option><option>函館</option><option>福島</option><option>新潟</option><option>東京</option><option>中山</option><option>中京</option><option>京都</option><option>阪神</option><option>小倉</option>
 </select>
 <label for="scoreRace">レース（1〜12R）</label><input id="scoreRace" type="number" min="1" max="12" step="1" value="1">
-</div></section>
+</div><p id="scoreDayStatus" class="hint" role="status">日付・競馬場を選ぶと12Rの入力状況を表示します。</p><div id="scoreRaceGrid" class="score-race-grid" role="group" aria-label="選択した競馬場の1R〜12R評価メモ"></div><p class="hint">評価状況はこの端末の手入力メモのみ。公式の開催・出走・取消情報を表すものではありません。</p></section>
 <section><h2>② 馬番と5項目の評価を貼る</h2>
 <p class="hint">1頭1行で「馬番　調教　近走　適性　血統　展開」を入力。馬名は省略可。各項目は<b>S・A・B・C</b>。丸数字①〜⑱にも対応。最低3頭、最大18頭。</p>
 <button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
@@ -38,7 +38,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="/my-tickets">手動で3連単を作る</a></section>
 </main><script defer src="/owner-scorecard.js"></script></body></html>"""
 
-CSS = """.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
+CSS = """.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
 
 JS = r"""(()=>{'use strict';
 /* No network or writes: read optional same-browser manually copied roster; grades remain operator-entered. */
@@ -147,14 +147,79 @@ function saveDraft(){
  }catch(e){
   $('scoreDraftStatus').textContent='端末内保存に失敗：'+(e instanceof Error?e.message:'容量を確認してな。');
  }
+ renderDayGrid();
 }
 const LABELS=['調教','近走','適性','血統','展開'];
 let memoRows=null;
 function resetMemoGrid(){
  memoRows=null;memoSourceMark=null;$('scoreMemoGrid').replaceChildren();
 }
+function memoNoteMatches(note){
+ if(!note||note.sourceMark===null)return true;
+ const live=readMatchingMemo(note);
+ if(live.sourceMark!==note.sourceMark)return false;
+ const lines=note.text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+ if(lines.length!==live.rows.length)return false;
+ const names=new Map();
+ for(const line of lines){
+  const match=/^([1-9]|1[0-8])\s+([^\s<>]+)\s+(?:[SABC?]\s+){4}[SABC?]$/.exec(line);
+  if(!match||names.has(Number(match[1])))return false;
+  names.set(Number(match[1]),match[2]);
+ }
+ return live.rows.every(row=>names.get(row.number)===row.name);
+}
+function scoreNoteState(note){
+ if(!note)return {text:'未着手',className:'score-empty'};
+ if(note.sourceMark!==null){
+  try{if(!memoNoteMatches(note))return {text:'要再確認',className:'score-stale'};}
+  catch(_){return {text:'要再確認',className:'score-stale'};}
+ }
+ try{parseGrades(note.text);return {text:'採点済',className:'score-done'};}
+ catch(_){return {text:'途中',className:'score-partial'};}
+}
+function renderDayGrid(){
+ const grid=$('scoreRaceGrid');
+ grid.replaceChildren();
+ let selected;
+ try{selected=identity();}
+ catch(_){
+  $('scoreDayStatus').textContent='日付・競馬場・1〜12Rを選んでな。';
+  return;
+ }
+ let notes;
+ try{notes=notesRead();}
+ catch(e){
+  $('scoreDayStatus').textContent='保存済み評価の読み込み不可：'+
+   (e instanceof Error?e.message:'端末の記録を確認してな。');
+  return;
+ }
+ const today=notes.filter(x=>x.date===selected.date);
+ const mine=today.filter(x=>x.track===selected.track);
+ const byRace=new Map(mine.map(x=>[x.race,x]));
+ let done=0,partial=0,stale=0;
+ for(let race=1;race<=12;race++){
+  const status=scoreNoteState(byRace.get(race));
+  if(status.className==='score-done')done++;
+  if(status.className==='score-partial')partial++;
+  if(status.className==='score-stale')stale++;
+  const button=document.createElement('button');
+  button.type='button';button.className=status.className;
+  button.textContent=race+'R　'+status.text;
+  button.setAttribute('aria-pressed',String(race===selected.race));
+  button.onclick=()=>{
+   if(Number($('scoreRace').value)===race)return;
+   $('scoreRace').value=String(race);
+   changeScoreRace();
+  };
+  grid.append(button);
+ }
+ $('scoreDayStatus').textContent=selected.date+' '+selected.track+
+  '：採点済'+done+'R／途中'+partial+'R／要再確認'+stale+
+  'R／未着手'+(12-done-partial-stale)+'R。'+
+  '同日の全会場の保存メモ'+today.length+'R（公式出走表は未照合）。';
+}
 function changeScoreRace(){
- resetMemoGrid();invalidate();restoreCurrentNote();
+ resetMemoGrid();invalidate();restoreCurrentNote();renderDayGrid();
  $('scoreMemoStatus').textContent='本人の馬番メモは必要なら読み込み直してな。';
 }
 for(const id of ['scoreDate','scoreTrack','scoreRace']){
@@ -322,12 +387,13 @@ $('scoreClearDraft').onclick=()=>{
   localStorage.setItem(NOTE_KEY,JSON.stringify(rest));
   resetMemoGrid();$('scoreInput').value='';invalidate();
   $('scoreDraftStatus').textContent='このRの途中評価を削除しました。購入・下書きには変更なし。';
+  renderDayGrid();
  }catch(e){
   $('scoreDraftStatus').textContent='削除できません：'+
    (e instanceof Error?e.message:'端末保存の状態を確認してな。');
  }
 };
-restoreCurrentNote();
+restoreCurrentNote();renderDayGrid();
 
 $('scoreReview').onclick=()=>{
  invalidate();
