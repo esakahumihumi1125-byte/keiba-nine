@@ -183,4 +183,43 @@ assert.equal(network,0,'All workflows must stay local/offline');
 assert.ok(!mapping.includes('fetch('));
 assert.ok(!mapping.includes('innerHTML'));
 assert.ok(!mapping.includes('XMLHttpRequest'));
+
+// Maximum 36R: three synthetic venues, each with exactly 12 complete race rosters.
+function fullSyntheticMeeting(venue){
+ const text=['■想定確定',''];
+ for(let n=1;n<=12;n++){
+  text.push('2099年1月9日（土）　5回'+venue+'1日目　09:55発走');
+  text.push(n+'Ｒ'+(n===11?' 架空ステークス':''));
+  text.push('2歳・未勝利(馬齢) 芝1600M 2頭');
+  text.push('前評 B 馬名 性 齢 騎手 斤量 IDM 厩舎');
+  text.push(' テストサクラ 牝 2 架空 55 架空');
+  text.push(' テストナイン 牡 2 架空 56 架空');
+  text.push('');
+ }
+ text.push("All Rights Reserved By 'JRDB.'");
+ return text.join('\n');
+}
+const three=boot();
+three('mailText').value=['東京','京都','福島'].map(fullSyntheticMeeting).join('\n\n');
+three('importMail').onclick();
+assert.match(three('message').textContent,/3通を確認/);
+const maxBatch=['東京','京都','福島'].flatMap(venue=>
+ Array.from({length:12},(_,idx)=>'2099-01-09 '+venue+(idx+1)+'R\n1 テストサクラ\n2 テストナイン')
+).join('\n\n');
+three('bulkNumberPaste').value=maxBatch;
+three('bulkNumberReview').onclick();
+assert.equal(three('bulkNumberPreview').children.length,36,'all 36 race previews are displayed');
+assert.match(three('bulkNumberStatus').textContent,/36R一致/);
+assert.equal(three('bulkNumberSave').disabled,false);
+three('bulkNumberSave').onclick();
+const allMapped=JSON.parse(storage.get(NUMBERS));
+assert.equal(allMapped.filter(r=>r.date==='2099-01-09').length,36,'all 36 race mappings stored atomically');
+assert.equal(storage.get(DRAFT),'draft-marker');
+assert.equal(storage.get(REAL),'purchase-marker');
+const allMappedSaved=storage.get(NUMBERS);
+three('bulkNumberPaste').value=maxBatch+'\n\n2099-01-10 東京1R\n1 テストサクラ\n2 テストナイン';
+three('bulkNumberReview').onclick();
+assert.equal(three('bulkNumberSave').disabled,true,'a 37th race is rejected');
+assert.equal(storage.get(NUMBERS),allMappedSaved);
+
 console.log('JRDB provisional vs manual numbered JRA racecard: mapping, mismatch, overwrite guard, stale after mail changes, owner confirmation, isolation PASS');
