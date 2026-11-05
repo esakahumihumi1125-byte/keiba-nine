@@ -132,7 +132,7 @@ def render_validation_html(report):
     def panel(key, label):
         s = report[key]
         return (
-            '<section class="venue" style="border:0"><h2>%s</h2>'
+            '<section class="venue"><h2>%s</h2>'
             '<p>架空の確定結果：%s R／1着が総合3位以内：%s R／'
             '1着候補に含めた：%s R／3連単的中：%s R</p>'
             '<p>見直し候補：総合4位以下で勝利 %s R、勝ち切り検討に入れたのに'
