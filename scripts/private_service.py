@@ -20,6 +20,7 @@ from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_venue_conditions, fetch_historical_race_program,
                           fetch_historical_venue_conditions, JRDBError)
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
+from jrdb_day_pipeline import inspect_day
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
 from jrdb_factor_preflight import audit_assessment_preflight
@@ -1187,6 +1188,32 @@ def create_app(settings=None):
             except (JRDBError, ProgrammeFormatError, CoverageError):
                 return response('502 Bad Gateway', {'error': '全レースの照合ができませんでした。API接続・開催日・データ形式を確認してください。'})
             return response('200 OK', coverage)
+        if method == 'GET' and path == '/api/jrdb/day-pipeline':
+            # Owner-initiated full-day gate: one /tra, /tky, /tcy, /tze, /tka
+            # call each. Never a scheduled paid fetch or live predictor.
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not all(isinstance(settings.get(k), str) and settings[k].strip()
+                               for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': 'JRDBのβ版認証情報が未発行・未設定のため一括資料取得は停止中です。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date'} or len(query['date']) != 1
+                    or not _valid_date(query['date'][0])):
+                return response('400 Bad Request', {'error': '開催日をYYYYMMDDで1つ指定してください。'})
+            try:
+                date = query['date'][0]
+                programme = normalize_program_rows(fetch_race_program(date), date)
+                report = inspect_day(
+                    programme, fetch_horse_entries(date),
+                    fetch_training_analysis(date), fetch_recent_runs(date),
+                    fetch_venue_conditions(date), date
+                )
+            except (JRDBError, ProgrammeFormatError, CoverageError,
+                    RaceContextError, ValueError, KeyError, TypeError):
+                return response('502 Bad Gateway', {
+                    'error': '全レースの資料を安全に一括照合できませんでした。'})
+            return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/selected-readiness':
             # Single owner-triggered request with one /tra /tky /tcy /tze /tka
             # read each; only a selected race's redacted counts leave the server.
