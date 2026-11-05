@@ -33,6 +33,21 @@ const mail=(date,venue,number=1)=>[
  '　 B テストナイン 牡 2 架空騎手　56 架空厩舎','',
  "All Rights Reserved By 'JRDB.'"
 ].join('\n');
+// 12R mail pattern; named 9R–11R match the real structural heading format.
+function titledTwelveRaceMail(date,venue){
+ const body=['■想定確定',''];
+ for(let n=1;n<=12;n++){
+  body.push(date+'　5回'+venue+'1日目　09:55発走');
+  body.push(n+'Ｒ'+([9,10,11].includes(n)?' 特別サンプル'+n:''));
+  body.push('２歳・未勝利(馬齢)[指]　芝・左1600M　2頭');
+  body.push('前評 B 馬名 性 齢 騎手 斤量 IDM 厩舎');
+  body.push(' テストサクラ 牝 2 架空騎手 55 架空厩舎');
+  body.push(' B テストナイン 牡 2 架空騎手 56 架空厩舎');
+  body.push('');
+ }
+ body.push("All Rights Reserved By 'JRDB.'");
+ return body.join('\n');
+}
 const key='keiba-nine-jrdb-personal-mail-v1';
 const e=loadPage();
 assert.equal(storage.size,0);
@@ -121,6 +136,20 @@ e('mailText').value='Random unauthorized content';
 e('importMail').onclick();
 assert.match(e('message').textContent,/取り込めません/);
 assert.equal(storage.get(key),snapshot);
+// Named stakes/race headers must not silently skip 9R–11R or drop their horses.
+const full=titledTwelveRaceMail('2099年1月9日（土）','福島');
+e('mailText').value=full;e('importMail').onclick();
+let titledMeeting=JSON.parse(storage.get(key)).find(x=>x.date==='2099-01-09'&&x.track==='福島');
+assert.equal(titledMeeting.races.length,12,'full mail with titled 9R–11R must import 12 races');
+assert.deepEqual(Array.from(titledMeeting.races.map(x=>x.race)),[1,2,3,4,5,6,7,8,9,10,11,12]);
+assert.equal(titledMeeting.races[8].expected,2,'named 9R count retained');
+assert.equal(titledMeeting.races[10].horses.length,2,'named 11R horse entries retained');
+assert.ok(!storage.get(key).includes('特別サンプル'),'race titles are not saved');
+const preservedTitled=storage.get(key);
+e('mailText').value=full.replace('9Ｒ 特別サンプル9','9Ｒ特別サンプル9');
+e('importMail').onclick();
+assert.match(e('message').textContent,/取り込めません/);
+assert.equal(storage.get(key),preservedTitled,'unrecognized named heading fails all-or-nothing');
 e('clearAll').onclick();
 assert.equal(storage.has(key),false);
 assert.equal(e('raceList').children.length,0);
