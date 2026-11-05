@@ -3,10 +3,10 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs'), vm=require('node:vm');
 const script=fs.readFileSync('/tmp/keiba-jrdb-day-pipeline.js','utf8');
-function instance(configured, prestartEnabled=false, deferDay=false){
+function instance(configured, prestartEnabled=false, deferDay=false, historyEnabled=false){
  const nodes=new Map(), calls=[], delayed=[];
  const el=id=>{
-  if(!nodes.has(id))nodes.set(id,{id,value:'',disabled:id==='run'||id==='prestartRun',hidden:id==='report'||id==='review'||id==='factorProgress'||id==='sourceMaterials'||id==='prestartReport',
+  if(!nodes.has(id))nodes.set(id,{id,value:'',disabled:id==='run'||id==='prestartRun'||id==='historyRun',hidden:id==='report'||id==='review'||id==='factorProgress'||id==='sourceMaterials'||id==='prestartReport'||id==='historyReport',
    textContent:'',children:[],events:{},
    addEventListener(type,fn){this.events[type]=fn},
    replaceChildren(...children){this.children=children},
@@ -98,7 +98,42 @@ function instance(configured, prestartEnabled=false, deferDay=false){
  };
  async function fetchMock(url,opts){
   calls.push({url,opts});
-  if(url==='/api/setup')return {ok:true,json:async()=>({jrdbConfigured:configured,prestartBodyEnabled:prestartEnabled})};
+  if(url==='/api/setup')return {ok:true,json:async()=>({jrdbConfigured:configured,prestartBodyEnabled:prestartEnabled,historyConfigured:historyEnabled})};
+  if(url==='/api/jrdb/history'){
+   assert.equal(opts.method,'POST','History must be an explicit owner POST');
+   assert.equal(opts.headers['X-Keiba-Request'],'private');
+   assert.equal(opts.headers['Content-Type'],'application/json');
+   assert.equal(opts.credentials,'same-origin');
+   assert.equal(opts.cache,'no-store');
+   assert.equal(JSON.parse(opts.body).limit,8);
+   assert.equal(JSON.parse(opts.body).date,'20261101');
+   return {ok:true,json:async()=>({
+    version:'bounded-history-1',predictionReady:false,goingSuitabilityAssessed:false,
+    selectedPastRaces:2,deferredPastRaces:1,unavailablePastProgrammes:0,
+    draCalls:2,dkaCalls:1,maxTotalCalls:16,
+    allTenFactorSources:{
+     version:'combined-ten-factor-observations-1',raceCount:2,
+     predictionReady:false,bettingReady:false,
+     races:[
+      {track:'東京',race:1,sourceMaterialSlots:10,
+       unmappedFactorCount:0,verifiedFactorCount:0,runnerCount:2,
+       runnersWithComparableCourse:1,runnersWithKnownGoingComparable:1,
+       runnersWithIncompleteHistory:1,officialJraFinalVerification:false,
+       overallRankReady:false,predictionReady:false,bettingReady:false},
+      {track:'京都',race:1,sourceMaterialSlots:10,
+       unmappedFactorCount:0,verifiedFactorCount:0,runnerCount:1,
+       runnersWithComparableCourse:0,runnersWithKnownGoingComparable:0,
+       runnersWithIncompleteHistory:1,officialJraFinalVerification:false,
+       overallRankReady:false,predictionReady:false,bettingReady:false}
+     ]},
+    realAssessmentPreflight:{version:'real-assessment-preflight-1',raceCount:2,
+     realGradeReady:false,realPredictionReady:false,purchaseReady:false},
+    evidenceQuality:{version:'history-evidence-coverage-1',raceCount:2,
+     predictionReady:false,suitabilityAssessed:false},
+    privateHistoryFactors:{version:'private-course-ground-materials-1',
+     raceCount:2,predictionReady:false,bettingReady:false}
+   })};
+  }
   if(url.startsWith('/api/jrdb/prestart-body?date='))return {ok:true,json:async()=>({
    version:'private-prestart-body-1',rawHorseRecordsIncluded:false,oddsUsed:false,
    realPredictionReady:false,purchaseReady:false,raceCount:1,
@@ -134,10 +169,12 @@ async function tick(){
  assert.match(offline.el('state').textContent,/認証情報待ち/);
  assert.equal(offline.el('report').hidden,true);
  assert.equal(offline.el('prestartRun').disabled,true);
+ assert.equal(offline.el('historyRun').disabled,true);
  const ready=instance(true);
  await tick();
  assert.equal(ready.calls.length,1,'Never fetch JRDB during page load');
  assert.equal(ready.el('run').disabled,false);
+ assert.equal(ready.el('historyRun').disabled,true);
  assert.equal(typeof ready.el('run').events.click,'function');
  ready.el('date').value='2026-11-01';
  await ready.el('run').events.click();
@@ -188,6 +225,22 @@ async function tick(){
  assert.equal(stale.el('factorRows').children.length,0,
   'Stale response must not recreate factor grades');
  assert.match(stale.el('message').textContent,/開催日を変更/);
+ const past=instance(true,false,false,true);
+ await tick();
+ assert.equal(past.calls.length,1,'Opening page must not start historical fetches');
+ assert.equal(past.el('historyRun').disabled,false);
+ past.el('date').value='2026-11-01';
+ await past.el('historyRun').events.click();
+ assert.equal(past.calls.length,2);
+ assert.equal(past.calls[1].url,'/api/jrdb/history');
+ assert.equal(past.el('historyReport').hidden,false);
+ assert.equal(past.el('historyRows').children.length,2);
+ assert.match(past.el('historySummary').textContent,/過去番組 2件/);
+ past.el('date').value='2026-11-02';
+ past.el('date').events.change();
+ assert.equal(past.el('historyReport').hidden,true);
+ assert.equal(past.el('historyRows').children.length,0);
+ assert.equal(past.calls.length,2,'Changing date must not issue another historical request');
  const beforeBody=instance(true,true);
  await tick();
  assert.equal(beforeBody.calls.length,1,'Body endpoint cannot run on page load');
