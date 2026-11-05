@@ -66,11 +66,17 @@ function selection(x){
 function draft(x){
  return selection(x)&&typeof x.savedAt==='string'&&x.savedAt.length<=32;
 }
+function validFinish(x){
+ return Array.isArray(x)&&x.length===3&&
+  x.every(n=>Number.isInteger(n)&&n>=1&&n<=18)&&new Set(x).size===3;
+}
 function purchase(x){
  return selection(x)&&typeof x.id==='string'&&/^[0-9a-z-]{1,80}$/.test(x.id)&&
  Number.isSafeInteger(x.unit)&&x.unit>=100&&x.unit<=100000&&x.unit%100===0&&
  Number.isSafeInteger(x.stake)&&x.stake===points(x)*x.unit&&
  (x.payout===null||(Number.isSafeInteger(x.payout)&&x.payout>=0))&&
+ (!Object.prototype.hasOwnProperty.call(x,'result')||
+  x.result===null||validFinish(x.result))&&
  typeof x.purchasedAt==='string'&&x.purchasedAt.length<=32;
 }
 function sourceRace(x){
