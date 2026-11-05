@@ -40,7 +40,7 @@ class PrivateManualNotebookTests(unittest.TestCase):
         for id_ in ("mFirst", "mSecond", "mThird", "mCount",
                     "mCost", "mSave", "mSaved", "mExport", "mImport",
                     "mAxisSingle", "mAxisPair", "mCopyThird",
-                    "mPrevRace", "mNextRace"):
+                    "mPrevRace", "mNextRace", "mPaste", "mApplyPaste"):
             self.assertIn('id="' + id_ + '"', HTML)
         self.assertIn("AI予想・JRAの出走確定・購入履歴ではありません", HTML)
         self.assertIn("localStorage.setItem", JS)
@@ -53,6 +53,11 @@ class PrivateManualNotebookTests(unittest.TestCase):
         self.assertIn("LIMIT=48", JS)
         self.assertIn("function applyQuick(mode)", JS)
         self.assertIn("function changeRace(delta)", JS)
+        self.assertIn("function parseFormationText(raw)", JS)
+        self.assertIn("mApplyPaste", JS)
+        self.assertIn("まだ保存・購入はしていません", JS)
+        self.assertIn("①②", HTML)
+        self.assertIn("textarea", CSS)
         self.assertIn("1頭軸ながし", HTML)
         self.assertIn("2頭軸ながし", HTML)
         self.assertIn('class="back app-home-link"', HTML)
