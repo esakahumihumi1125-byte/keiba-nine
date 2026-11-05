@@ -70,7 +70,7 @@ for(const patch of [
  {first:'1,1'},{track:'大阪'},{date:'2026-11-31'},
  {first:'1',second:'2,3,4,5,6,7,8,9',third:'2,3,4,5,6,7,8,9,10'}
 ])assert.throws(()=>bridge.build({...standard,...patch}));
-assert.equal(bridge.build({...standard,first:'1,2',second:'3,4,5,6,7',third:'3,4,5,6,7,8'}).points,48);
+assert.equal(bridge.build({...standard,first:'1,2',second:'1,2,3,4,5',third:'1,2,3,4,5,6,7,8'}).points,48);
 let nav='',status='',click;
 const values={rpDate:standard.date,rpTrack:standard.track,rpRace:standard.race,
   rpFirst:standard.first,rpSecond:standard.second,rpThird:standard.third,
