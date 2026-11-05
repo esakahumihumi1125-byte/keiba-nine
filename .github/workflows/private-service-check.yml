@@ -44,6 +44,9 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from manual_ticket_book import JS; from pathlib import Path; Path('/tmp/keiba-private-manual-tickets.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-private-manual-tickets.js
           node scripts/check-private-manual-tickets-ui.cjs
+          python -c "import sys; sys.path.insert(0, 'scripts'); from jrdb_mail_local_import import JS; from pathlib import Path; Path('/tmp/keiba-jrdb-mail-local.js').write_text(JS, encoding='utf-8')"
+          node --check /tmp/keiba-jrdb-mail-local.js
+          node scripts/check-private-jrdb-mail-local.cjs
           python -c "import sys; sys.path.insert(0, 'scripts'); from manual_purchase_book import JS; from pathlib import Path; Path('/tmp/keiba-private-purchases.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-private-purchases.js
           node scripts/check-private-real-purchases-ui.cjs
