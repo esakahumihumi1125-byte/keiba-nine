@@ -215,6 +215,9 @@ m('mDate').value='2026-11-07';m('mDate').onchange();
 m('mTrack').value='東京';m('mTrack').onchange();
 m('mRace').value='2';m('mRace').onchange();
 assert.equal(m('mRosterRows').children.length,3,'same-race memo should show three names');
+assert.match(m('mRaceBoardStatus').textContent,/JRDB想定メール 1R／本人の馬名一致メモ 1R/);
+assert.equal(m('mRaceBoard').children[1].children[2].textContent,'馬名一致メモ','matched mail/typed horses are marked only as owner memo');
+assert.equal(m('mRaceBoard').children[0].children[2].textContent,'出走資料未取込');
 assert.equal(m('mRosterRows').children[0].textContent,'1番 架空馬A','memo sorted by horse number');
 assert.match(m('mRosterStatus').textContent,/本人が手入力/);
 assert.equal(m('mCount').textContent,'0点','memo must not auto-create a formation');
@@ -236,6 +239,8 @@ storage.set('keiba-nine-jrdb-personal-mail-v1',
 m('mRace').onchange();
 assert.equal(m('mRosterRows').children.length,0,'changed source cannot display stale names');
 assert.match(m('mRosterStatus').textContent,/再照合/);
+assert.match(m('mRaceBoardStatus').textContent,/JRDB想定メール 1R／本人の馬名一致メモ 0R/,'changed mail invalidates old memo coverage');
+assert.equal(m('mRaceBoard').children[1].children[2].textContent,'想定メールあり');
 m('mFirst').children[0].onclick();
 assert.equal(m('mFirstNames').textContent,'選択中：1番','stale name must not appear on selected horse');
 
@@ -297,5 +302,33 @@ c('mBulkApply').onclick();
 assert.equal(storage.get(key),beforeCancel,'changed input needs a fresh preview');
 assert.equal(c('mBulkApply').disabled,true);
 assert.ok(!js.includes('fetch('),'batch import must not upload to any API');
+
+// Weekend shortcuts use local Japan calendar dates, without writing drafts.
+const weekend=boot(),w=weekend.el,writeCount=writes.length,existingBackup=storage.get(key);
+w('mSaturday').onclick();
+assert.equal(new Date(w('mDate').value+'T12:00:00Z').getUTCDay(),6,'Saturday jump chooses a Saturday');
+const saturday=w('mDate').value;
+w('mSunday').onclick();
+assert.equal(new Date(w('mDate').value+'T12:00:00Z').getUTCDay(),0,'Sunday jump chooses a Sunday');
+assert.notEqual(w('mDate').value,saturday,'Saturday and Sunday are different race dates');
+assert.equal(storage.get(key),existingBackup,'date navigation does not edit saved drafts');
+assert.equal(writes.length,writeCount,'date navigation has no storage writes');
+const malformedCoverage=boot(),bad=malformedCoverage.el;
+storage.set('keiba-nine-jrdb-personal-mail-v1','not valid JSON');
+bad('mDate').value='2026-11-07';bad('mDate').onchange();
+bad('mTrack').value='東京';bad('mTrack').onchange();
+assert.match(bad('mRaceBoardStatus').textContent,/JRDB想定メール 0R/,'broken mail cannot appear as checked coverage');
+storage.set('keiba-nine-jrdb-personal-mail-v1',JSON.stringify([{...memoMeeting,races:[
+  {race:2,postTime:'10:30',expected:3,horses:['架空馬A','架空馬B','架空馬C']}]}]));
+storage.set('keiba-nine-owner-manual-numbers-v1',JSON.stringify([memoRecord]));
+const partial=boot(),part=partial.el;
+part('mDate').value='2026-11-07';part('mDate').onchange();
+part('mTrack').value='東京';part('mTrack').onchange();
+assert.match(part('mRaceBoardStatus').textContent,/本人の馬名一致メモ 1R/);
+storage.set('keiba-nine-owner-manual-numbers-v1',JSON.stringify([{...memoRecord,rows:[
+ {number:1,name:'架空馬A'},{number:1,name:'架空馬B'},{number:2,name:'架空馬C'}]}]));
+part('mTrack').onchange();
+assert.match(part('mRaceBoardStatus').textContent,/本人の馬名一致メモ 0R/,'duplicated horse number is not a matched memo');
+assert.ok(!js.includes('fetch('),'local JRDB readiness board does not send mail data to a server');
 
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
