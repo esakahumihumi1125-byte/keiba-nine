@@ -21,7 +21,9 @@ JS = r"""
       if([...p.keys()].length!==expected.length||
          expected.some(k=>p.getAll(k).length!==1)||
          p.get('select')!=='v1')throw Error('レース指定が不正です。');
-      const date=p.get('date'),track=p.get('track'),race=Number(p.get('race'));
+      const date=p.get('date'),track=p.get('track'),raceText=p.get('race');
+      if(!/^(?:[1-9]|1[0-2])$/.test(raceText||''))throw Error('1〜12Rを選択してください。');
+      const race=Number(raceText);
       if(!validDate(date)||!TRACKS.includes(track)||!Number.isInteger(race)||
          race<1||race>12)throw Error('日付・競馬場・レースを確認してください。');
       clearFragment();
@@ -42,7 +44,9 @@ JS = r"""
     if([...p.keys()].length!==keys.length||keys.some(k=>p.getAll(k).length!==1))
       throw Error('受け取り内容の形式が正しくありません。');
     if(p.get('import')!=='v1')throw Error('未対応の引き継ぎ形式です。');
-    const date=p.get('date'),track=p.get('track'),race=Number(p.get('race'));
+    const date=p.get('date'),track=p.get('track'),raceText=p.get('race');
+    if(!/^(?:[1-9]|1[0-2])$/.test(raceText||''))throw Error('1〜12Rを選択してください。');
+    const race=Number(raceText);
     if(!validDate(date)||!TRACKS.includes(track)||!Number.isInteger(race)||
        race<1||race>12)throw Error('開催日・競馬場・レースを確認してください。');
     function parseHorseList(value){
@@ -66,6 +70,9 @@ JS = r"""
     $('mDate').value=date;
     $('mTrack').value=track;
     $('mRace').value=String(race);
+    // Update the selected-race identity first; imported picks remain unsaved.
+    // This preserves the unsaved-change warning when navigating away.
+    loadSelected();
     first=new Set(incomingFirst);
     second=new Set(incomingSecond);
     third=new Set(incomingThird);
