@@ -72,6 +72,13 @@ JS = """
    status.textContent='設定を確認できませんでした。ログイン状態を確認してな。';
   }
  }
+ date.addEventListener('change',()=>{
+  $('report').hidden=true;
+  $('review').hidden=true;
+  $('rows').replaceChildren();
+  $('reviewRows').replaceChildren();
+  message.textContent='開催日を変更しました。以前の資料チェックは非表示にしたで。';
+ });
  button.addEventListener('click',async()=>{
   const iso=date.value;
   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(iso)){message.textContent='開催日を選んでな。';return;}
