@@ -64,12 +64,14 @@ assert.match(e('workSummary').textContent,/3連単下書き1R/);
 assert.match(e('workSummary').textContent,/実購入記録1R/);
 assert.match(e('workSummary').textContent,/元資料要再確認1R/);
 const workQueue=e('workNext');
-assert.equal(workQueue.children.length,5,'five locally evidenced races need preparation');
+assert.equal(workQueue.children.length,6,'six races including unpaid purchase need preparation');
 assert.match(workQueue.children[0].children[0].textContent,/京都2R.*資料が不一致/,'stale materials first');
 assert.equal(workQueue.children[0].children[1].href,'/jrdb-mail-local');
-assert.match(workQueue.children[1].children[0].textContent,/福島1R.*入力途中/,'partial manual factor scores second');
-assert.ok(workQueue.children[1].children[1].href.startsWith('/my-scorecard#select=v1&'));
-const queueParams=new URLSearchParams(workQueue.children[1].children[1].href.split('#')[1]);
+assert.match(workQueue.children[1].children[0].textContent,/東京1R.*払戻未確定/,'pending payout is actionable');
+assert.ok(workQueue.children[1].children[1].href.startsWith('/my-tickets#select=v1&'));
+assert.match(workQueue.children[2].children[0].textContent,/福島1R.*入力途中/,'partial manual factor scores after pending payout');
+assert.ok(workQueue.children[2].children[1].href.startsWith('/my-scorecard#select=v1&'));
+const queueParams=new URLSearchParams(workQueue.children[2].children[1].href.split('#')[1]);
 assert.equal(queueParams.get('date'),date);
 assert.equal(queueParams.get('track'),'福島');
 assert.equal(queueParams.get('race'),'1');
@@ -82,8 +84,10 @@ const kyoto=e('workMeetings').children.find(v=>v.children[0].textContent.startsW
 const fukushima=e('workMeetings').children.find(v=>v.children[0].textContent.startsWith('福島'));
 assert.ok(tokyo&&kyoto&&fukushima);
 const t1=tokyo.children[1].children[0];
-assert.equal(t1.dataset.stage,'actual');
-assert.match(t1.attrs['aria-label'],/購入記録/);
+assert.equal(t1.dataset.stage,'pending');
+assert.match(e('workLedger').textContent,/未確定 1件・投資 100円/);
+assert.match(e('workLedger').textContent,/回収率 —/);
+assert.match(t1.attrs['aria-label'],/払戻入力待ち/);
 assert.equal(kyoto.children[1].children[1].dataset.stage,'stale');
 assert.equal(fukushima.children[1].children[0].dataset.stage,'partial');
 assert.equal(tokyo.children[1].children[1].dataset.stage,'mail');
@@ -117,7 +121,7 @@ assert.match(e('workOnlyActions').textContent,/ON/);
 const activeGrid=e('workMeetings').children;
 const tokyoFiltered=activeGrid.find(x=>x.children[0].textContent.startsWith('東京'));
 const kyotoFiltered=activeGrid.find(x=>x.children[0].textContent.startsWith('京都'));
-assert.equal(tokyoFiltered.children[1].children[0].hidden,true,'already purchased race is hidden as no pending task');
+assert.equal(tokyoFiltered.children[1].children[0].hidden,false,'unsettled payout still appears in action-only view');
 assert.equal(tokyoFiltered.children[1].children[1].hidden,false,'JRDB provisional still needs roster');
 assert.equal(tokyoFiltered.children[1].children[2].hidden,true,'unknown races are not marked actionable');
 assert.equal(kyotoFiltered.children[1].children[1].hidden,false,'stale memo is actionable');
@@ -137,6 +141,40 @@ assert.match(e('workNext').children[0].children[0].textContent,/資料が不一�
 e('workReload').onclick();
 assert.match(e('workStatus').textContent,/読み直しました/);
 assert.equal(page.writes.length,0,'neither filter nor refresh writes any user data');
+
+// ROI summary only counts actual-purchase records with explicitly entered payouts.
+// A 0 yen payout is a settled loss. Unknown payouts must remain out of ROI.
+const ledgerFixture=fixtures();
+ledgerFixture[keys.purchase]=[
+ {...ledgerFixture[keys.purchase][0],id:'pending-a',payout:null,stake:100,unit:100},
+ {...ledgerFixture[keys.purchase][0],id:'paid-win',payout:400,stake:100,unit:100},
+ {...ledgerFixture[keys.purchase][0],id:'paid-loss',payout:0,stake:100,unit:100},
+ {...ledgerFixture[keys.purchase][0],id:'other-date',date:'2099-01-08',payout:999,stake:100,unit:100}
+];
+const accounting=boot(ledgerFixture),ac=accounting.el;
+assert.match(ac('workLedger').textContent,/払戻確定 2件/);
+assert.match(ac('workLedger').textContent,/確定投資 200円/);
+assert.match(ac('workLedger').textContent,/確定払戻 400円/);
+assert.match(ac('workLedger').textContent,/確定収支 \+200円/);
+assert.match(ac('workLedger').textContent,/回収率 200\.0%/);
+assert.match(ac('workLedger').textContent,/未確定 1件・投資 100円/);
+assert.doesNotMatch(ac('workLedger').textContent,/999/,'other date never included');
+assert.equal(accounting.writes.length,0,'read-only ROI must not settle tickets');
+const closedFixture=fixtures();
+closedFixture[keys.purchase]=[{...closedFixture[keys.purchase][0],payout:0}];
+const closed=boot(closedFixture);
+assert.equal(closed.el('workMeetings').children.find(x=>x.children[0].textContent.startsWith('東京')).children[1].children[0].dataset.stage,'actual');
+assert.equal(closed.el('workNext').children.length,5,'settled purchase no longer needs payout task');
+assert.match(closed.el('workLedger').textContent,/回収率 0\.0%/);
+// Malformed records must block accounting, not be silently ignored as 0 yen.
+const corruptedLedger=fixtures();
+corruptedLedger[keys.purchase]=[{...corruptedLedger[keys.purchase][0],stake:200}];
+const invalid=boot(corruptedLedger);
+assert.match(invalid.el('workStatus').textContent,/読み込めません/);
+assert.match(invalid.el('workLedger').textContent,/集計を停止しました/);
+assert.equal(invalid.el('workMeetings').children.length,0);
+assert.equal(invalid.writes.length,0);
+
 
 // No incoming mail: status must not imply race is confirmed or AI-grade was performed.
 const noMail=boot({
