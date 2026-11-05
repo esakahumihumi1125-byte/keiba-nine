@@ -41,7 +41,8 @@ function titledTwelveRaceMail(date,venue){
   body.push(n+'Ｒ'+([9,10,11].includes(n)?' 特別サンプル'+n:''));
   body.push('２歳・未勝利(馬齢)[指]　芝・左1600M　2頭');
   body.push('前評 B 馬名 性 齢 騎手 斤量 IDM 厩舎');
-  body.push(' テストサクラ 牝 2 架空騎手 55 架空厩舎');
+  const grade=['','◎ ','○ ','▲ ','△ ','注 ','B ◎ ','◎ B ','☆ ','× ','B △ ','△ B '][n-1];
+  body.push(' '+grade+'テストサクラ 牝 2 架空騎手 55 架空厩舎');
   body.push(' B テストナイン 牡 2 架空騎手 56 架空厩舎');
   body.push('');
  }
@@ -150,6 +151,10 @@ e('mailText').value=full.replace('9Ｒ 特別サンプル9','9Ｒ特別サンプ
 e('importMail').onclick();
 assert.match(e('message').textContent,/取り込めません/);
 assert.equal(storage.get(key),preservedTitled,'unrecognized named heading fails all-or-nothing');
+e('mailText').value=full.replace('◎ テストサクラ','未確認印 テストサクラ');
+e('importMail').onclick();
+assert.match(e('message').textContent,/取り込めません/);
+assert.equal(storage.get(key),preservedTitled,'unsupported grade marker must fail closed');
 e('clearAll').onclick();
 assert.equal(storage.has(key),false);
 assert.equal(e('raceList').children.length,0);
