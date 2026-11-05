@@ -105,6 +105,77 @@ approve=true;reloaded('deleteNumbers').onclick();
 assert.equal(JSON.parse(storage.get(NUMBERS)).length,0);
 assert.equal(storage.get(DRAFT),'draft-marker');
 assert.equal(storage.get(REAL),'purchase-marker');
+
+// Bulk mapping: two venues, strictly matched to imported provisional horse names.
+const secondVenue=mail().replace('2099年1月1日（木）','2099年1月2日（金）')
+ .replace('東京','京都');
+reloaded('mailText').value=secondVenue;
+reloaded('importMail').onclick();
+assert.equal(JSON.parse(storage.get(MAIL)).length,2);
+const allRaceText='2099-01-01 東京1R\n1 改訂テストサクラ\n2 テストナイン\n\n'+
+ '2099-01-02 京都1R\n① テストサクラ\n② テストナイン';
+reloaded('bulkNumberPaste').value=allRaceText;
+assert.equal(reloaded('bulkNumberSave').disabled,true,'batch-save begins locked');
+const originalMappings=storage.get(NUMBERS),writes=[];
+reloaded('bulkNumberReview').onclick();
+assert.equal(reloaded('bulkNumberPreview').children.length,2);
+assert.match(reloaded('bulkNumberStatus').textContent,/2R一致/);
+assert.equal(reloaded('bulkNumberSave').disabled,false);
+assert.equal(storage.get(NUMBERS),originalMappings,'preview never persists');
+approve=false;
+reloaded('bulkNumberSave').onclick();
+assert.equal(storage.get(NUMBERS),originalMappings,'bulk save canceled');
+approve=true;
+reloaded('bulkNumberSave').onclick();
+let batchMappings=JSON.parse(storage.get(NUMBERS));
+assert.equal(batchMappings.length,2);
+assert.deepEqual(batchMappings.map(x=>x.track).sort(),['京都','東京']);
+assert.equal(batchMappings.find(x=>x.track==='京都').rows.length,2);
+assert.match(reloaded('bulkNumberStatus').textContent,/2Rの馬番・馬名メモを端末内に保存/);
+assert.equal(reloaded('bulkNumberPaste').value,'');
+assert.equal(reloaded('bulkNumberSave').disabled,true);
+assert.equal(storage.get(DRAFT),'draft-marker','batch does not alter ticket drafts');
+assert.equal(storage.get(REAL),'purchase-marker','batch does not alter actual purchases');
+const batchSaved=storage.get(NUMBERS);
+for(const text of [
+ allRaceText+'\n2099-01-01 東京1R\n1 改訂テストサクラ\n2 テストナイン',
+ '2099-01-01 東京1R\n1 改訂テストサクラ\n2 別の馬',
+ '2099-01-01 東京1R\n1 改訂テストサクラ',
+ '2099-01-01 東京1R\n1 改訂テストサクラ\n1 テストナイン',
+ '2099-01-33 東京1R\n1 改訂テストサクラ\n2 テストナイン',
+ '2099-01-01 福島1R\n1 改訂テストサクラ\n2 テストナイン',
+ '2099-01-01 東京1R\n1 改訂テストサクラ\n2 テストナイン\n2099-01-01 東京13R\n1 x'
+]){
+ reloaded('bulkNumberPaste').value=text;
+ reloaded('bulkNumberReview').onclick();
+ assert.equal(reloaded('bulkNumberSave').disabled,true,'invalid batch blocked');
+ assert.match(reloaded('bulkNumberStatus').textContent,/一括照合できません/);
+ assert.equal(storage.get(NUMBERS),batchSaved,'invalid batch cannot mutate records');
+}
+reloaded('bulkNumberPaste').value=allRaceText;
+reloaded('bulkNumberReview').onclick();
+assert.equal(reloaded('bulkNumberSave').disabled,false);
+reloaded('bulkNumberPaste').value=allRaceText+'\n';
+reloaded('bulkNumberSave').onclick();
+assert.match(reloaded('bulkNumberStatus').textContent,/貼付内容または元資料が変わりました/);
+assert.equal(storage.get(NUMBERS),batchSaved,'modified reviewed input rejected');
+reloaded('bulkNumberPaste').value=allRaceText;
+reloaded('bulkNumberReview').onclick();
+const savedMailSnapshot=storage.get(MAIL);
+storage.set(MAIL,savedMailSnapshot+' ');
+reloaded('bulkNumberSave').onclick();
+assert.equal(storage.get(NUMBERS),batchSaved,'changed source mail snapshot blocks save');
+assert.equal(reloaded('bulkNumberSave').disabled,true);
+storage.set(MAIL,savedMailSnapshot);
+reloaded('bulkNumberPaste').value=allRaceText;
+reloaded('bulkNumberReview').onclick();
+storage.set(NUMBERS,batchSaved+' ');
+reloaded('bulkNumberSave').onclick();
+assert.equal(storage.get(NUMBERS),batchSaved+' ','intervening memo modification blocks overwrite');
+storage.set(NUMBERS,batchSaved);
+assert.equal(network,0,'bulk mapping performs no network requests');
+assert.ok(!mapping.includes('fetch('));
+
 reloaded('clearAll').onclick();
 assert.equal(storage.has(MAIL),false);
 assert.equal(reloaded('numberRace').value,'');
