@@ -188,4 +188,3 @@ def render_validation_html(report):
         '</main></body></html>'
     ) % (panel("development", "開発用（架空）"),
          panel("validation", "検証用（架空）"), "".join(lines))
-    )
