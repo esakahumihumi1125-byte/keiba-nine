@@ -53,6 +53,7 @@ from jra_web_card_workflow import HTML as WEB_CARD_HTML, JS as WEB_CARD_JS, CSS 
 from jra_official_pdf_discovery import discover_official_pdf_links, JRAIndexError
 from owner_ticket_handoff import JS as TICKET_HANDOFF_JS
 from manual_purchase_book import HTML as PURCHASE_HTML, JS as PURCHASE_JS, CSS as PURCHASE_CSS
+from owner_backup import HTML as BACKUP_HTML, JS as BACKUP_JS, CSS as BACKUP_CSS
 
 def _now_in_jst():
     """Server-side time only; browser timestamps cannot claim freshness."""
@@ -63,7 +64,7 @@ UI_VERSION = 'iphone-login-recovery-20261105-v9'
 MAX_BODY = 131072
 LOGIN_HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>競馬ナイン｜本人ログイン</title><meta name="theme-color" content="#09172b"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="競馬ナイン本人用"><link rel="stylesheet" href="/login.css"></head><body><main><h1>KEIBA NINE</h1><p class="subtitle">本人用プレビューへのログイン</p><p class="notice">予想デモは架空データ用です。実戦予想・馬券購入は未接続。</p><form action="/login" method="post"><label for="loginUser">ユーザー名</label><input id="loginUser" name="username" autocomplete="username" value="owner" maxlength="128" required><label for="loginPassword">パスワード</label><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><input type="hidden" name="login_csrf" value="__CSRF__"><button type="submit">ログイン</button></form><p id="loginError" class="error">__ERROR__</p><p class="help">ログイン後に同じ画面へ戻る場合は、ChatGPT内のブラウザーではなくSafariでこのURLを直接開いてください。アプリのパスワードはRenderのEnvironmentに設定した値です。</p><p class="help">Renderのサービス <strong>keiba-nine-owner-preview</strong> の Environment にある <code>KEIBA_OWNER_PASSWORD</code> を使います。RenderやGitHubのログインパスワードとは別です。</p><p class="help">正しくログインできると、このiPhoneでは最長7日間ログイン状態を保持します。パスワードを変更すると再ログインが必要です。</p><p class="help">パスワードはこのチャットやGitHubに貼らないでください。</p></main></body></html>'''
 LOGIN_CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.65 system-ui,sans-serif}main{max-width:440px;padding:28px 22px;margin:36px auto}h1{color:#edca70;margin:0;font-size:32px}.subtitle{color:#d6e1f0;margin:0 0 24px}.notice,.help{color:#d0deee;font-size:14px}.notice{background:#142e48;border-radius:10px;padding:12px}form{background:#172d48;border:1px solid #405e7b;border-radius:16px;padding:20px}label{display:block;font-weight:700;margin:14px 0 5px}input,button{box-sizing:border-box;width:100%;padding:13px;border-radius:10px;font:inherit}input{background:#f8fbff;color:#10213b;border:1px solid #8b9eb7}button{margin-top:23px;background:#edca70;border:0;color:#12243a;font-weight:800;min-height:50px}.error{color:#ffbec4;font-weight:700}.error:empty{display:none}code{overflow-wrap:anywhere}'''
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><meta name="keiba-owner-release" content="__OWNER_RELEASE__"><meta name="theme-color" content="#09172b"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="競馬ナイン本人用"><link rel="stylesheet" href="/app.css?theme=owner-mobile-nav-20261104"></head><body><main><h1>KEIBA NINE</h1><p class="top-lead">競馬ナイン｜本人用プレビュー</p><div class="preview-mode"><strong>本人用：手動の3連単下書きが使えます</strong><span>実馬のAI予想・馬券購入は未接続</span></div><section class="owner-quick-start" aria-label="本人用の実戦メニュー"><h2>本人用の実戦メニュー</h2><p class="muted">実レースのAI自動予想は未接続。まずは3連単の下書きと購入記録を本人の端末で管理できます。</p><a class="owner-main-action" href="/my-tickets">3連単・全R下書き・購入記録を開く</a><a class="owner-sub-action" href="/jrdb-mail-local">JRDB想定メールと馬番メモを確認</a><p class="muted">ホーム画面から開いた場合、Safariとデータが別になることがあります。重要な記録はJSONでバックアップしてください。</p></section><section class="owner-release-panel"><h2>最新版の配信確認</h2><p class="muted">GitHubの最新版と、現在Renderで稼働しているコードを照合します。自動更新・デプロイは実行しません。</p><button id="deployCheck" type="button">配信中の版を照合</button><p id="deployResult" class="muted" role="status">必要なときだけ確認できます。買い目やJRDBデータは送信しません。</p><a href="/ui-version" target="_blank" rel="noopener noreferrer">配信中の版IDを見る</a></section><nav class="jump-nav" aria-label="画面内メニュー"><a href="/my-tickets">自分の3連単を作る（手動）</a><a href="/jrdb-mail-local">JRDB想定メール取り込み（本人用）</a><a href="/research-batch-demo">全36R一括テスト（架空）</a><a href="/research-validation-demo">1着候補の振り返り（架空）</a><a href="/day-pipeline">全R資料の一括準備（API待ち）</a><a href="#researchPanel">予想デモ</a><a href="#jrdbSection">レース選択</a><a href="#operatorFactorPanel">資料チェック</a><a href="#ownerTools">接続・設定</a></nav><p class="muted" id="uiVersion">画面版：iphone-login-recovery-20261105-v9</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><meta name="keiba-owner-release" content="__OWNER_RELEASE__"><meta name="theme-color" content="#09172b"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="競馬ナイン本人用"><link rel="stylesheet" href="/app.css?theme=owner-mobile-nav-20261104"></head><body><main><h1>KEIBA NINE</h1><p class="top-lead">競馬ナイン｜本人用プレビュー</p><div class="preview-mode"><strong>本人用：手動の3連単下書きが使えます</strong><span>実馬のAI予想・馬券購入は未接続</span></div><section class="owner-quick-start" aria-label="本人用の実戦メニュー"><h2>本人用の実戦メニュー</h2><p class="muted">実レースのAI自動予想は未接続。まずは3連単の下書きと購入記録を本人の端末で管理できます。</p><a class="owner-main-action" href="/my-tickets">3連単・全R下書き・購入記録を開く</a><a class="owner-sub-action" href="/jrdb-mail-local">JRDB想定メールと馬番メモを確認</a><a class="owner-sub-action" href="/owner-backup">端末内の4種類の記録をまとめてバックアップ</a><p class="muted">ホーム画面から開いた場合、Safariとデータが別になることがあります。重要な記録はJSONでバックアップしてください。</p></section><section class="owner-release-panel"><h2>最新版の配信確認</h2><p class="muted">GitHubの最新版と、現在Renderで稼働しているコードを照合します。自動更新・デプロイは実行しません。</p><button id="deployCheck" type="button">配信中の版を照合</button><p id="deployResult" class="muted" role="status">必要なときだけ確認できます。買い目やJRDBデータは送信しません。</p><a href="/ui-version" target="_blank" rel="noopener noreferrer">配信中の版IDを見る</a></section><nav class="jump-nav" aria-label="画面内メニュー"><a href="/my-tickets">自分の3連単を作る（手動）</a><a href="/owner-backup">端末内の全記録を一括バックアップ</a><a href="/jrdb-mail-local">JRDB想定メール取り込み（本人用）</a><a href="/research-batch-demo">全36R一括テスト（架空）</a><a href="/research-validation-demo">1着候補の振り返り（架空）</a><a href="/day-pipeline">全R資料の一括準備（API待ち）</a><a href="#researchPanel">予想デモ</a><a href="#jrdbSection">レース選択</a><a href="#operatorFactorPanel">資料チェック</a><a href="#ownerTools">接続・設定</a></nav><p class="muted" id="uiVersion">画面版：iphone-login-recovery-20261105-v9</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
 <p class="research-intro">見やすい予想画面の動作確認。<strong>架空8頭のテスト専用</strong>です。実レース・JRDB有料データ・購入には使えません。</p>
 <button id="researchDemo" class="primary-run">架空8頭で予想画面を確認</button>
 <p id="researchMessage" role="status">未検証。上のボタンで架空8頭の画面を表示できます。</p>
@@ -1060,7 +1061,7 @@ def create_app(settings=None):
                             extra=[('Location', '/login?session=check'),
                                    ('Set-Cookie', session_cookie(expected))])
         if not valid:
-            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
+            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
                 return response('303 See Other', '', 'text/plain; charset=utf-8',
                                 extra=[('Location', '/login')])
             # Do not summon an iPhone native Basic-password popup when an
@@ -1070,7 +1071,7 @@ def create_app(settings=None):
                 '/app.js', '/app.css', '/my-tickets.js',
                 '/my-tickets.css', '/my-purchases.js', '/research-batch-demo.css',
                 '/day-pipeline.css', '/day-pipeline.js',
-                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
+                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
             ):
                 return response('401 Unauthorized', {'error': 'ログインが必要です。'})
             return response('401 Unauthorized', {'error': '本人認証が必要です。'},
@@ -1090,12 +1091,22 @@ def create_app(settings=None):
             if path in ('/', '/preview-v2'):
                 text = text.replace('__OWNER_RELEASE__', release_tag)
             return response('200 OK', text, mime)
+        if method == 'GET' and path in ('/owner-backup', '/owner-backup.js', '/owner-backup.css'):
+            code, mime = {
+                '/owner-backup': (BACKUP_HTML, 'text/html; charset=utf-8'),
+                '/owner-backup.js': (BACKUP_JS, 'text/javascript; charset=utf-8'),
+                '/owner-backup.css': (BACKUP_CSS, 'text/css; charset=utf-8'),
+            }[path]
+            return response('200 OK', code, mime)
         if method == 'GET' and path in ('/my-tickets', '/my-tickets.js',
                                            '/my-tickets.css', '/my-purchases.js'):
             # Both JS bundles are static; all actual purchase entries remain in
             # localStorage on the owner's browser, never in this Render service.
             notebook = TICKET_HTML.replace('</main>', PURCHASE_HTML + '</main>')
             notebook = notebook.replace('__OWNER_RELEASE__', release_tag)
+            notebook = notebook.replace(
+                '<section id="savedPanel">',
+                '<section><h2>本人用の一括バックアップ</h2><p class="muted">端末を変える前に、下書き・実購入記録・想定メール・馬番メモの4種類をまとめて保存できます。</p><a href="/owner-backup">4種類をまとめてバックアップ・復元</a></section><section id="savedPanel">')
             notebook = notebook.replace(
                 '<script src="/my-tickets.js" defer></script>',
                 '<script src="/my-tickets.js?v=drafts-v2" defer></script>'
