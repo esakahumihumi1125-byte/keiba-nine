@@ -120,8 +120,8 @@ function resetMemoGrid(){
  memoRows=null;$('scoreMemoGrid').replaceChildren();
 }
 for(const id of ['scoreDate','scoreTrack','scoreRace']){
- $(id).oninput=()=>{resetMemoGrid();invalidate()};
- $(id).onchange=()=>{resetMemoGrid();invalidate()};
+ $(id).oninput=()=>{resetMemoGrid();invalidate();$('scoreMemoStatus').textContent='レースが変わりました。本人の馬番メモは必要なら読み込み直してな。'};
+ $(id).onchange=()=>{resetMemoGrid();invalidate();$('scoreMemoStatus').textContent='レースが変わりました。本人の馬番メモは必要なら読み込み直してな。'};
 }
 $('scoreInput').oninput=()=>{resetMemoGrid();invalidate()};
 $('scoreInput').onchange=()=>{resetMemoGrid();invalidate()};
@@ -152,6 +152,13 @@ function readMatchingMemo(select){
   rows.push({number:row.number,name:row.name,grades:['?','?','?','?','?']});
  }
  return rows.sort((a,b)=>a.number-b.number);
+}
+function verifyMemoHasNotChanged(){
+ if(!memoRows)return;
+ const live=readMatchingMemo(identity());
+ if(live.length!==memoRows.length||live.some((r,i)=>
+  r.number!==memoRows[i].number||r.name!==memoRows[i].name))
+  throw Error('本人の馬番メモが更新されています。公式出馬表を確認して読み込み直してください。');
 }
 function renderMemoInput(){
  $('scoreInput').value=memoRows.map(row=>
@@ -202,6 +209,7 @@ $('scoreDate').value=new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10)
 $('scoreReview').onclick=()=>{
  invalidate();
  try{
+  verifyMemoHasNotChanged();
   const select=identity(),raw=$('scoreInput').value,rows=parseGrades(raw);
   const formation=planFormation(rows),host=$('scoreRanks');
   for(let index=0;index<rows.length;index++){
@@ -235,6 +243,9 @@ $('scoreHandoff').onclick=()=>{
  let current;
  try{current=identity();}catch(_){invalidate();return;}
  if(JSON.stringify(current)!==JSON.stringify(p.select)){invalidate();return;}
+ try{verifyMemoHasNotChanged()}catch(e){
+  invalidate();$('scoreStatus').textContent='引き継ぎ停止：'+(e instanceof Error?e.message:'馬番メモが更新されました。');return;
+ }
  if(!confirm('本人入力の5項目から計算した3連単'+p.formation.points+
   '点を、未保存の下書きとして渡しますか？\nAIの実馬予想ではありません。移動先でも確認してください。'))return;
  const query=new URLSearchParams();
