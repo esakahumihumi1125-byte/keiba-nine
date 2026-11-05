@@ -51,3 +51,17 @@
 - APIキー/JRDB料金は不要。JRAページへの要求はボタン操作時だけで、定期巡回・大量スクレイピングはしない。ホーム画面の架空予想や実購入記録には影響しない。
 
 参照：JRA公式「開催場別出馬表」 `https://www.jra.go.jp/keiba/rpdf/`。コード：`scripts/jra_official_pdf_discovery.py`、`scripts/jra_official_pdf_ui.py`、テスト：`tests/test_jra_official_pdf_discovery.py`、`scripts/check-private-jra-official-pdf-ui.cjs`。
+
+## 2026-11-05：前日用JRA Web出馬表の案内と12R照合進捗
+
+前日予想を使う本人専用 `/jrdb-mail-local` に、`scripts/jra_web_card_workflow.py` を追加。
+
+- **通常の馬番付きWeb出馬表は、レース前日の10時すぎにJRAが発表**。一部GIや前日発売の重賞は別スケジュールで、ホームページの表示には時間差がある。選択したレース日の**前日**を計算し、JSTで通常発表の目安時刻を過ぎたかどうかのみ表示。「JRAが実際に公開した」とは断定しない。
+- JRAの公式競馬メニュー `https://www.jra.go.jp/keiba/` を開くリンクを設置。JRAの `/JRADB/accessD.html` は単純な直リンクではパラメータエラーになるため、動かないレース直リンクを捏造しない。ユーザーは公式メニューから出馬表を選ぶ。
+- 取り込み済みの開催ごとに全Rを一覧表示し、JRDBの想定馬名と**本人が端末へ転記した馬番メモ**を突き合わせ、「馬名一致（本人転記）／未入力／想定更新・再照合／馬名差異あり」の件数を見せる。ここでいう一致はJRAからの独立取得・自動照合成功を意味しない。
+- Rを押すと同じ画面の馬番照合欄で対象Rを選び直し、操作回数を減らす。想定メールの更新・開催削除・手入力照合の保存を行った時は、進捗表示を再計算する。
+- この画面では**JRAのWeb出馬表を自動取得・解析しない**。公式に掲載された馬番か、騎手・取消・馬場の最新情報か、公開条件を満たしたかの検証は未完成。実データの予想や馬券は自動生成しない。
+- PDF索引のリンク探索は引き続き残すが、JRAによる開催場別PDFの掲載は当日以降の場合がある。前日予想の根拠資料はWeb出馬表を優先し、PDFリンクがないだけで「未開催」や「枠番が未発表」とは判断しない。
+
+参考：JRA「出馬表はいつごろ発表されるのですか？」 `https://www.jra.go.jp/faq/pop02/2_2.html`。JRA開催場別出馬表 `https://www.jra.go.jp/keiba/rpdf/`。
+テスト：`tests/test_jra_web_card_workflow.py`、`scripts/check-private-jra-web-card.cjs`。
