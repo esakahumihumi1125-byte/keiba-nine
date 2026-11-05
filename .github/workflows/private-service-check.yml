@@ -47,3 +47,7 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from manual_purchase_book import JS; from pathlib import Path; Path('/tmp/keiba-private-purchases.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-private-purchases.js
           node scripts/check-private-real-purchases-ui.cjs
+          node --check owner-ticket-transfer.js
+          python -c "import sys; sys.path.insert(0, 'scripts'); from owner_ticket_handoff import JS; from pathlib import Path; Path('/tmp/keiba-private-owner-handoff.js').write_text(JS, encoding='utf-8')"
+          node --check /tmp/keiba-private-owner-handoff.js
+          node scripts/check-owner-ticket-handoff.cjs
