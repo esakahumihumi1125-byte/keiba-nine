@@ -502,6 +502,24 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertNotIn(cfg['JRDB_AUTH_KEY'].encode(), out['body'])
         fetch.assert_not_called()
 
+    def test_history_setup_explicit_gate_without_provider_fetch(self):
+        cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'synthetic-api-not-real',
+               'JRDB_AUTH_KEY': 'synthetic-auth-not-real',
+               'KEIBA_HISTORY_ENABLED': '1'}
+        with patch('private_service.fetch_historical_race_program') as history, \
+             patch('private_service.fetch_race_program') as today:
+            reply = call(create_app(cfg), '/api/setup')
+        self.assertEqual(reply['status'], '200 OK')
+        report = json.loads(reply['body'])
+        self.assertTrue(report['historyConfigured'])
+        self.assertTrue(report['jrdbConfigured'])
+        self.assertFalse(report['liveConnectionVerified'])
+        self.assertFalse(report['realPredictionEnabled'])
+        history.assert_not_called()
+        today.assert_not_called()
+        self.assertNotIn(cfg['JRDB_API_KEY'].encode(), reply['body'])
+
     def test_http_preview_cannot_enable_paid_jrdb_credentials(self):
         with self.assertRaisesRegex(ValueError, 'HTTPS-only'):
             create_app({**SETTINGS, 'KEIBA_ALLOW_LOCAL_HTTP': '1',
