@@ -19,12 +19,12 @@ function boot(confirmDecision=true){
   };
  }
  function el(id){if(!nodes.has(id)){const node=element();if(id==='mBulkApply')node.disabled=true;nodes.set(id,node);}return nodes.get(id);}
- const urls=[],navigation=[];
+ const urls=[],navigation=[];let reply='1-2-3';
  const URL={createObjectURL(x){urls.push(x);return 'blob:synthetic'},revokeObjectURL(x){urls.push(x)}};
  vm.runInNewContext(js,{document:{getElementById:el,createElement:element},
   localStorage,Date,Set,Number,String,JSON,Blob,URL,URLSearchParams,
-  window:{location:{assign:u=>navigation.push(u)}},confirm:()=>confirmDecision,console});
- return {el,nodes,urls,navigation};
+  window:{location:{assign:u=>navigation.push(u)}},confirm:()=>confirmDecision,prompt:()=>reply,console});
+ return {el,nodes,urls,navigation,setPrompt:s=>{reply=s}};
 }
 const first=boot(),$=first.el;
 assert.equal(typeof $('mImport').onchange,'function','JSON restore must be available immediately on first load');
@@ -584,5 +584,51 @@ assert.equal(on('mDayCoverage').children[0].children[0].textContent,'京都');
 assert.match(on('mDayCoverage').children[0].children[1].textContent,/本人採点済1R/);
 assert.equal(on('mRaceBoard').children.length,0,'a venue is not invented as selected');
 
+
+
+// Private saved drafts can be reviewed even when the user did not buy a ticket.
+const reviewOnly=boot(),rv=reviewOnly.el,reviewDate='2099-03-01';
+rv('mDate').value=reviewDate;rv('mDate').onchange();
+rv('mTrack').value='京都';rv('mTrack').onchange();
+rv('mRace').value='3';rv('mRace').onchange();
+rv('mFirst').children[0].onclick();
+rv('mSecond').children[1].onclick();
+rv('mThird').children[2].onclick();
+rv('mSave').onclick();
+const draftRow=rv('mSaved').children[0];
+assert.equal(draftRow.children[4].textContent,'実際の1〜3着を入力');
+assert.match(rv('mDraftReviewSummary').textContent,/着順入力 0／1R/);
+const purchaseKey='keiba-nine-owner-real-purchases-v1';
+const purchaseBefore=storage.get(purchaseKey);
+reviewOnly.setPrompt('1-1-2');draftRow.children[4].onclick();
+assert.match(rv('mMsg').textContent,/異なる3頭/);
+assert.equal(JSON.parse(storage.get(key)).find(x=>x.date===reviewDate).result,null);
+reviewOnly.setPrompt('①②③');draftRow.children[4].onclick();
+assert.deepEqual(JSON.parse(storage.get(key)).find(x=>x.date===reviewDate).result,[1,2,3]);
+assert.match(rv('mDraftReviewSummary').textContent,/3連単組み合わせ内 1R/);
+reviewOnly.setPrompt('4-2-3');rv('mSaved').children[0].children[4].onclick();
+assert.match(rv('mDraftReviewSummary').textContent,/1着候補の取りこぼし 1R/);
+assert.match(rv('mSaved').children[0].children[1].textContent,/1着候補から漏れ/);
+assert.equal(storage.get(purchaseKey),purchaseBefore,'draft review never settles or creates real purchases');
+reviewOnly.setPrompt('');rv('mSaved').children[0].children[4].onclick();
+assert.equal(JSON.parse(storage.get(key)).find(x=>x.date===reviewDate).result,null,'clear only result');
+reviewOnly.setPrompt('1-2-3');rv('mSaved').children[0].children[4].onclick();
+// Saving the same formation again must not erase an already reviewed result.
+rv('mSave').onclick();
+assert.deepEqual(JSON.parse(storage.get(key)).find(x=>x.date===reviewDate).result,[1,2,3]);
+// A changed formation makes the old result comparison invalid.
+rv('mFirst').children[3].onclick();
+rv('mSave').onclick();
+assert.equal(JSON.parse(storage.get(key)).find(x=>x.date===reviewDate).result,null);
+// Restoring older backups with no result field remains supported by the same parser.
+const oldDraft=JSON.parse(storage.get(key)).find(x=>x.date===reviewDate);
+delete oldDraft.result;
+assert.ok(!Object.hasOwn(oldDraft,'result'));
+const resumed=boot(),rm=resumed.el;
+rm('mDate').value=reviewDate;rm('mDate').onchange();
+rm('mTrack').value='京都';rm('mTrack').onchange();
+rm('mRace').value='3';rm('mRace').onchange();
+assert.match(rm('mDraftReviewSummary').textContent,/着順入力 0／1R/);
+assert.ok(!js.includes('fetch('),'result review remains local-only');
 
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
