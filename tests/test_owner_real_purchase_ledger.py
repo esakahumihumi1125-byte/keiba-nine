@@ -40,12 +40,19 @@ class OwnerRealPurchaseLedgerTests(unittest.TestCase):
     def test_ledger_is_explicit_owner_entry_only_and_not_live_prediction(self):
         for element in ("realUnit", "realAdd", "realInvest", "realReturn",
                         "realROI", "realProfit", "realPending", "realList",
+                        "realDayInvest", "realDayReturn", "realDayROI",
+                        "realDayProfit", "realDayPending", "realPendingOnly",
                         "realMessage", "realExport", "realImport"):
             self.assertIn('id="' + element + '"', HTML)
         self.assertIn("実際に購入した分だけ", HTML)
         self.assertIn("払戻未確定", HTML)
         self.assertIn("回収率", HTML)
         self.assertIn("payout!==null", JS)
+        self.assertIn("const dayPaid=day.filter", JS)
+        self.assertIn("const dayPending=day.filter", JS)
+        self.assertIn("el('realPendingOnly').onchange=show", JS)
+        self.assertIn("当日の確定投資", HTML)
+        self.assertIn("未確定の馬券だけ表示", HTML)
         self.assertIn("localStorage.setItem", JS)
         self.assertIn("real.length>=500", JS)
         self.assertIn("if(!confirm(explain))return", JS)
