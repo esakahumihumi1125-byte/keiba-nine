@@ -249,6 +249,8 @@ assert.equal(m('mRaceBoard').children[1].children[2].textContent,'想定メー�
 m('mFirst').children[0].onclick();
 assert.equal(m('mFirstNames').textContent,'選択中：1番','stale name must not appear on selected horse');
 assert.match(m('mNumberReview').textContent,/馬番メモが未登録または更新/,'stale source requires recheck');
+m('mSecond').children[1].onclick();m('mThird').children[2].onclick();
+assert.equal(m('mCount').textContent,'1点');
 assert.equal(m('mSave').disabled,false,'source warnings do not silently block explicit operator draft');
 
 assert.equal(writes.length,beforeMemoWrites,'read-only memo viewing must never write localStorage');
