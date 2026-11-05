@@ -48,6 +48,7 @@ JS = """
  const $=id=>document.getElementById(id);
  const date=$('date'), button=$('run'), status=$('state'), message=$('message');
  const prestart=$('prestartRun'), prestartMessage=$('prestartMessage');
+ let selectedDateVersion=0;
  function jstDate(){
   const values=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
    timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'
@@ -83,6 +84,7 @@ JS = """
   }
  }
  date.addEventListener('change',()=>{
+  selectedDateVersion+=1;
   $('report').hidden=true;
   $('review').hidden=true;
   $('factorProgress').hidden=true;
@@ -99,11 +101,13 @@ JS = """
    prestartMessage.textContent='直前情報は日本時間の今日の開催日だけ確認できるで。';
    return;
   }
+  const requestedVersion=selectedDateVersion;
   prestart.disabled=true;
   $('prestartReport').hidden=true;
   prestartMessage.textContent='直前資料の件数を確認しています…';
   try{
    const data=await getJson('/api/jrdb/prestart-body?date='+encodeURIComponent(iso.replaceAll('-','')));
+   if(requestedVersion!==selectedDateVersion||date.value!==iso)return;
    if(data.version!=='private-prestart-body-1'||data.rawHorseRecordsIncluded!==false||
       data.oddsUsed!==false||data.realPredictionReady!==false||
       data.purchaseReady!==false||!Array.isArray(data.races)||
@@ -128,16 +132,19 @@ JS = """
    }
    $('prestartReport').hidden=false;
    prestartMessage.textContent='直前資料の件数だけを確認したで。買い目・記録への反映はなし。';
-  }catch(e){prestartMessage.textContent=e.message||'直前資料を確認できませんでした。';}
+  }catch(e){if(requestedVersion===selectedDateVersion&&date.value===iso)
+   prestartMessage.textContent=e.message||'直前資料を確認できませんでした。';}
   finally{prestart.disabled=false;}
  });
  button.addEventListener('click',async()=>{
   const iso=date.value;
   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(iso)){message.textContent='開催日を選んでな。';return;}
+  const requestedVersion=selectedDateVersion;
   const before=button.disabled;button.disabled=true;$('report').hidden=true;
   message.textContent='対象日の資料件数を確認しています…';
   try{
    const result=await getJson('/api/jrdb/day-pipeline?date='+encodeURIComponent(iso.replaceAll('-','')));
+   if(requestedVersion!==selectedDateVersion||date.value!==iso)return;
    if(result.realPredictionReady!==false||result.purchaseReady!==false||
       result.rawHorseRecordsIncluded!==false||result.sourceRequestCount!==5||
       !Array.isArray(result.races)||result.races.length>120||
@@ -243,7 +250,8 @@ JS = """
    }
    $('report').hidden=false;
    message.textContent='資料件数と発走前の確認優先順を整理しました。購入や保存はしていません。';
-  }catch(e){message.textContent=e.message||'資料の照合に失敗しました。';}
+  }catch(e){if(requestedVersion===selectedDateVersion&&date.value===iso)
+   message.textContent=e.message||'資料の照合に失敗しました。';}
   finally{button.disabled=before;}
  });
  init();
