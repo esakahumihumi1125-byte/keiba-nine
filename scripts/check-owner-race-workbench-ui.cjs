@@ -168,12 +168,12 @@ assert.equal(closed.el('workMeetings').children.find(x=>x.children[0].textConten
 assert.equal(closed.el('workNext').children.length,6,'settled purchase now needs result-review task');
 assert.match(closed.el('workNext').children[1].children[0].textContent,/着順の振り返り未入力/);
 assert.match(closed.el('workSummary').textContent,/着順メモ未入力1R/);
-const reviewedFixture=fixture();
+const reviewedFixture=fixtures();
 reviewedFixture[keys.purchase]=[{...reviewedFixture[keys.purchase][0],payout:0,result:[1,2,3]}];
 const reviewed=boot(reviewedFixture),rev=reviewed.el;
 assert.equal(rev('workNext').children.length,5,'manually reviewed result leaves no task');
 assert.match(rev('workSummary').textContent,/着順メモ未入力0R/);
-const badResult=fixture();
+const badResult=fixtures();
 badResult[keys.purchase]=[{...badResult[keys.purchase][0],payout:0,result:[1,1,3]}];
 const rejectedResult=boot(badResult);
 assert.match(rejectedResult.el('workLedger').textContent,/集計を停止しました/,'invalid result refuses reporting');
