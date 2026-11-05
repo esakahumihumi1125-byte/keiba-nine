@@ -6,7 +6,7 @@ const script=fs.readFileSync('/tmp/keiba-jrdb-day-pipeline.js','utf8');
 function instance(configured, prestartEnabled=false){
  const nodes=new Map(), calls=[];
  const el=id=>{
-  if(!nodes.has(id))nodes.set(id,{id,value:'',disabled:id==='run',hidden:id==='report'||id==='review',
+  if(!nodes.has(id))nodes.set(id,{id,value:'',disabled:id==='run'||id==='prestartRun',hidden:id==='report'||id==='review'||id==='prestartReport',
    textContent:'',children:[],events:{},
    addEventListener(type,fn){this.events[type]=fn},
    replaceChildren(...children){this.children=children},
