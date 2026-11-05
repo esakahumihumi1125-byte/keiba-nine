@@ -129,7 +129,9 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertIn('実戦で使う前に公式出馬表', page)
         js = call(self.app, '/owner-scorecard.js')['body'].decode('utf-8')
         self.assertNotIn('fetch(', js)
-        self.assertNotIn('localStorage', js)
+        self.assertIn("localStorage.getItem('keiba-nine-owner-manual-numbers-v1')", js)
+        self.assertNotIn('localStorage.setItem', js)
+        self.assertNotIn('localStorage.removeItem', js)
         self.assertNotIn('innerHTML', js)
         self.assertIn("window.location.assign('/my-tickets#'", js)
 
