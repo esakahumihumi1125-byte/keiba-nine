@@ -23,7 +23,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button type="button" id="workAddTrack">追加表示</button></div>
 <div class="quick"><button type="button" id="workReload">端末内の記録を再読込</button><button type="button" id="workOnlyActions" aria-pressed="false">作業対象Rだけ表示：OFF</button></div><p id="workStatus" role="status" class="hint">端末に保存された資料を確認します。</p></section>
 <section><h2>最大36Rの準備状況</h2>
-<div id="workSummary" class="summary" role="status"></div>
+<div id="workSummary" class="summary" role="status"></div><div id="workLedger" class="ledger-summary" role="status">購入記録を確認しています。</div>
 <div class="next-queue"><h3>次に準備するレース</h3><p class="hint">本人が保存した資料の不足・不一致から作った作業リストです。優先順位は発走順・勝率・公式情報の確定ではありません。</p><div id="workNext" aria-label="次に準備するレースと操作"></div></div>
 <div class="legend">未取込／JRDB想定／馬番メモ一致／評価途中／評価入力済／3連単下書き／実購入記録</div>
 <div id="workMeetings" aria-label="各競馬場の12R準備"></div></section>
@@ -36,7 +36,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 </main><script defer src="/owner-race-workbench.js"></script></body></html>"""
 
-CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#eff4ff;font:15px/1.5 system-ui,sans-serif}main{max-width:760px;margin:auto;padding:18px 12px 48px}h1{font-size:25px}h2{font-size:19px;margin:0 0 10px}a{color:#f5d27c}section{background:#142b44;border:1px solid #4d6885;border-radius:14px;margin:14px 0;padding:14px}.warning{color:#ffe4a9;background:#302b24;border:1px solid #957a4b;padding:11px;border-radius:10px;font-size:13px}.hint{color:#c5d6e7;font-size:13px}.legend{color:#c4d2df;font-size:12px;margin:8px 0 14px}.quick{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center}.quick label{width:100%}.quick a,.quick button{flex:1;min-width:125px;text-align:center}input,select,button{font:inherit;min-height:43px;background:#0b2035;color:white;border:1px solid #8099b4;border-radius:8px;padding:8px}input[type=date]{width:100%}button{cursor:pointer}button:focus-visible,a:focus-visible{outline:2px solid #f2d17d}.summary{color:#f1d481;font-weight:700}.next-queue{margin-top:16px;padding:11px;border:1px solid #456d85;border-radius:10px;background:#10263b}.next-queue h3{margin:0;font-size:16px}.queue-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:10px 0;border-top:1px solid #40576d}.queue-row strong{font-size:14px}.queue-row p{width:100%;margin:0;color:#cbd9e7;font-size:12px}.queue-row a{border:1px solid #aab7c4;border-radius:8px;padding:6px 10px;align-self:center;min-height:36px}.queue-alert strong{color:#ffca9e}.race-btn[hidden]{display:none!important}.quick button[aria-pressed=true]{background:#2d594b;border-color:#c0dfcc;color:#fff}.venue{padding:10px;margin:13px 0;background:#0e233a;border:1px solid #46637f;border-radius:11px}.venue h3{margin:2px 0 8px;font-size:17px}.race-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.race-btn{border:1px solid #66768d;padding:6px 3px;min-height:63px;background:#28394c}.race-btn .race-no{display:block;font-weight:800;font-size:15px}.race-btn small{display:block;line-height:1.3;font-size:10px;white-space:normal}.race-btn[data-stage=empty]{color:#c7cbd0}.race-btn[data-stage=mail]{background:#2a3e52}.race-btn[data-stage=roster]{background:#294c52}.race-btn[data-stage=partial]{background:#63512f}.race-btn[data-stage=graded]{background:#31513f}.race-btn[data-stage=draft]{background:#46548a}.race-btn[data-stage=actual]{background:#5a4376}.race-btn[data-stage=stale]{background:#633e3b;color:#ffe8c2}.race-btn[aria-pressed=true]{outline:2px solid #f2d17d;outline-offset:1px}.race-detail{margin-top:12px;border:1px solid #5a7a96;padding:10px;border-radius:9px}.race-detail p{margin:6px 0;font-size:13px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}.actions a{padding:8px;border:1px solid #a4b8c8;border-radius:8px;min-height:39px}.error{color:#ffc1a3}"""
+CSS = """*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#eff4ff;font:15px/1.5 system-ui,sans-serif}main{max-width:760px;margin:auto;padding:18px 12px 48px}h1{font-size:25px}h2{font-size:19px;margin:0 0 10px}a{color:#f5d27c}section{background:#142b44;border:1px solid #4d6885;border-radius:14px;margin:14px 0;padding:14px}.warning{color:#ffe4a9;background:#302b24;border:1px solid #957a4b;padding:11px;border-radius:10px;font-size:13px}.hint{color:#c5d6e7;font-size:13px}.legend{color:#c4d2df;font-size:12px;margin:8px 0 14px}.quick{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center}.quick label{width:100%}.quick a,.quick button{flex:1;min-width:125px;text-align:center}input,select,button{font:inherit;min-height:43px;background:#0b2035;color:white;border:1px solid #8099b4;border-radius:8px;padding:8px}input[type=date]{width:100%}button{cursor:pointer}button:focus-visible,a:focus-visible{outline:2px solid #f2d17d}.summary{color:#f1d481;font-weight:700}.ledger-summary{margin:12px 0;padding:12px;border:1px solid #627f98;border-radius:10px;background:#10243a;color:#e1eafa;font-size:13px;line-height:1.8}.race-btn[data-stage=pending]{background:#66502d;color:#fff0ce}.next-queue{margin-top:16px;padding:11px;border:1px solid #456d85;border-radius:10px;background:#10263b}.next-queue h3{margin:0;font-size:16px}.queue-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:10px 0;border-top:1px solid #40576d}.queue-row strong{font-size:14px}.queue-row p{width:100%;margin:0;color:#cbd9e7;font-size:12px}.queue-row a{border:1px solid #aab7c4;border-radius:8px;padding:6px 10px;align-self:center;min-height:36px}.queue-alert strong{color:#ffca9e}.race-btn[hidden]{display:none!important}.quick button[aria-pressed=true]{background:#2d594b;border-color:#c0dfcc;color:#fff}.venue{padding:10px;margin:13px 0;background:#0e233a;border:1px solid #46637f;border-radius:11px}.venue h3{margin:2px 0 8px;font-size:17px}.race-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.race-btn{border:1px solid #66768d;padding:6px 3px;min-height:63px;background:#28394c}.race-btn .race-no{display:block;font-weight:800;font-size:15px}.race-btn small{display:block;line-height:1.3;font-size:10px;white-space:normal}.race-btn[data-stage=empty]{color:#c7cbd0}.race-btn[data-stage=mail]{background:#2a3e52}.race-btn[data-stage=roster]{background:#294c52}.race-btn[data-stage=partial]{background:#63512f}.race-btn[data-stage=graded]{background:#31513f}.race-btn[data-stage=draft]{background:#46548a}.race-btn[data-stage=actual]{background:#5a4376}.race-btn[data-stage=stale]{background:#633e3b;color:#ffe8c2}.race-btn[aria-pressed=true]{outline:2px solid #f2d17d;outline-offset:1px}.race-detail{margin-top:12px;border:1px solid #5a7a96;padding:10px;border-radius:9px}.race-detail p{margin:6px 0;font-size:13px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}.actions a{padding:8px;border:1px solid #a4b8c8;border-radius:8px;min-height:39px}.error{color:#ffc1a3}"""
 
 JS = r"""(()=>{'use strict';
 // Read-only local progress. No fetch / XHR / server data transfer or purchase.
@@ -69,6 +69,9 @@ function readData(){
    throw Error('端末内の保存データを確認してください（'+(i+1)+'番目）。');
   result[k]=value;
  }
+ if(!result[PURCHASES].every(validPurchaseRecord)||
+    new Set(result[PURCHASES].map(x=>x.id)).size!==result[PURCHASES].length)
+  throw Error('購入記録に金額・買い目の不整合かID重複があります。データを保護するため集計を停止しました。');
  return result;
 }
 function meetingFor(data,date,track){
@@ -112,6 +115,33 @@ function draftPoints(d){
   if([a,b,c].every(n=>Number.isInteger(n)&&n>=1&&n<=18)&&a!==b&&a!==c&&b!==c)out.add(a+'-'+b+'-'+c);
  return out.size>48?0:out.size;
 }
+function validPurchaseRecord(x){
+ if(!x||!validDate(x.date)||!TRACKS.includes(x.track)||
+    !Number.isInteger(x.race)||x.race<1||x.race>12||
+    typeof x.id!=='string'||!/^[0-9a-z-]{1,80}$/.test(x.id)||
+    !Number.isSafeInteger(x.unit)||x.unit<100||x.unit>100000||x.unit%100!==0||
+    !Number.isSafeInteger(x.stake)||x.stake<100||
+    (x.payout!==null&&(!Number.isSafeInteger(x.payout)||x.payout<0))||
+    typeof x.purchasedAt!=='string'||x.purchasedAt.length>32)return false;
+ const count=draftPoints(x);
+ return count>=1&&x.stake===count*x.unit;
+}
+function yen(amount){return amount.toLocaleString('ja-JP')+'円';}
+function summarizePurchases(data,date){
+ const day=data[PURCHASES].filter(x=>x.date===date);
+ const paid=day.filter(x=>x.payout!==null);
+ const pending=day.filter(x=>x.payout===null);
+ const invested=paid.reduce((sum,x)=>sum+x.stake,0);
+ const returned=paid.reduce((sum,x)=>sum+x.payout,0);
+ const pendingStake=pending.reduce((sum,x)=>sum+x.stake,0);
+ const profit=returned-invested;
+ const roi=invested?(returned/invested*100).toFixed(1)+'%':'—';
+ return '選択日の本人入力・全競馬場｜払戻確定 '+paid.length+
+  '件／確定投資 '+yen(invested)+'／確定払戻 '+yen(returned)+
+  '／確定収支 '+(profit>0?'+':'')+yen(profit)+'／回収率 '+roi+
+  '／未確定 '+pending.length+'件・投資 '+yen(pendingStake)+
+  '（回収率には未計上。JRAの購入履歴と未照合）';
+}
 function raceStatus(data,date,track,race){
  const m=meetingFor(data,date,track);
  const source=m&&Array.isArray(m.races)&&m.races.find(x=>x.race===race);
@@ -119,17 +149,18 @@ function raceStatus(data,date,track,race){
  const note=data[SCORES].find(x=>x.date===date&&x.track===track&&x.race===race);
  const ticket=data[DRAFTS].find(x=>x.date===date&&x.track===track&&x.race===race);
  const actual=data[PURCHASES].filter(x=>x.date===date&&x.track===track&&x.race===race);
+ const unsettled=actual.filter(x=>x.payout===null);
  const matching=nameMemoMatches(memo,source);
  const stale=!!(memo&&!matching)||!!(note&&note.sourceMark!==null&&note.sourceMark!==undefined&&
    (!matching||note.sourceMark!==memo.sourceMark));
  const graded=scoreCompleted(note)&&(!note.sourceMark||matching)&&!stale;
  const points=draftPoints(ticket),hasTicket=!!ticket&&points>0;
- const state=stale?'stale':actual.length?'actual':hasTicket?'draft':graded?'graded':note?'partial':
+ const state=stale?'stale':unsettled.length?'pending':actual.length?'actual':hasTicket?'draft':graded?'graded':note?'partial':
    matching?'roster':source?'mail':'empty';
- const labels={stale:'資料再確認',actual:'購入記録',draft:'3連単下書',graded:'採点入力済',
+ const labels={stale:'資料再確認',pending:'払戻入力待ち',actual:'購入記録',draft:'3連単下書',graded:'採点入力済',
   partial:'評価途中',roster:'馬番メモ',mail:'JRDB想定',empty:'未取込'};
  return {state,label:labels[state],source:!!source,matching,hasMemo:!!memo,
-  hasScore:!!note,graded,stale,points,actual:actual.length,post:source&&source.postTime};
+  hasScore:!!note,graded,stale,points,actual:actual.length,pending:unsettled.length,post:source&&source.postTime};
 }
 function tracksFor(data,date){
  const tracks=new Set(additions);
@@ -158,19 +189,20 @@ function statusText(s){
   s.matching?'馬番・馬名メモ：想定メールと一致（本人転記）':s.hasMemo?'馬番メモ：元資料との不一致・再確認':'馬番メモ：未登録',
   s.hasScore?s.stale?'5項目評価：元資料を再確認':s.graded?'5項目評価：本人入力が全項目完了':'5項目評価：保存途中':'5項目評価：未入力',
   s.points?'3連単下書き：'+s.points+'点（未購入）':'3連単下書き：なし',
-  s.actual?'実購入記録：本人入力 '+s.actual+'件（投票完了は未確認）':'実購入記録：なし'
+  s.actual?'実購入記録：本人入力 '+s.actual+'件（払戻未確定 '+s.pending+'件・JRA購入完了は未確認）':'実購入記録：なし'
  ].join('／');
 }
 
 function nextAction(s){
  // Requires real locally stored progress, never invents a race or predicts a winner.
  if(s.stale)return {priority:0,label:'資料が不一致・再確認',link:'/jrdb-mail-local',cta:'馬番メモを確認'};
+ if(s.pending>0)return {priority:1,label:'払戻未確定 '+s.pending+'件',link:'/my-tickets',cta:'払戻を入力'};
  if(s.actual>0)return null;
- if(s.graded&&!s.points)return {priority:1,label:'評価入力済・買い目未作成',link:'/my-tickets',cta:'3連単を作る'};
- if(s.hasScore&&!s.graded&&!s.points)return {priority:2,label:'手動評価の入力途中',link:'/my-scorecard',cta:'評価を続ける'};
- if(s.matching&&!s.hasScore&&!s.points)return {priority:3,label:'馬番メモあり・評価未入力',link:'/my-scorecard',cta:'評価を始める'};
- if(s.source&&!s.matching&&!s.hasScore&&!s.points)return {priority:4,label:'想定メールあり・馬番未照合',link:'/jrdb-mail-local',cta:'馬番を照合'};
- if(s.points>0&&!s.actual)return {priority:5,label:'3連単下書きあり・購入記録なし',link:'/my-tickets',cta:'下書きを確認'};
+ if(s.graded&&!s.points)return {priority:2,label:'評価入力済・買い目未作成',link:'/my-tickets',cta:'3連単を作る'};
+ if(s.hasScore&&!s.graded&&!s.points)return {priority:3,label:'手動評価の入力途中',link:'/my-scorecard',cta:'評価を続ける'};
+ if(s.matching&&!s.hasScore&&!s.points)return {priority:4,label:'馬番メモあり・評価未入力',link:'/my-scorecard',cta:'評価を始める'};
+ if(s.source&&!s.matching&&!s.hasScore&&!s.points)return {priority:5,label:'想定メールあり・馬番未照合',link:'/jrdb-mail-local',cta:'馬番を照合'};
+ if(s.points>0&&!s.actual)return {priority:6,label:'3連単下書きあり・購入記録なし',link:'/my-tickets',cta:'下書きを確認'};
  return null;
 }
 function renderNextQueue(items,date){
@@ -196,11 +228,13 @@ function render(){
  $('workMeetings').replaceChildren();
  $('workNext').replaceChildren();
  $('workSummary').textContent='';
+ $('workLedger').textContent='';
  const date=$('workDate').value;
  if(!validDate(date)){$('workStatus').textContent='正しい日付を選んでな。';return;}
  try{
   const data=readData(),venues=tracksFor(data,date);
   current={data,date};
+  $('workLedger').textContent=summarizePurchases(data,date);
   if(!venues.length){
    renderNextQueue([],date);
    $('workStatus').textContent='この開催日の保存資料がありません。想定メールを取り込むか、競馬場を追加表示してな。';
@@ -255,6 +289,7 @@ function render(){
    'の端末内準備を表示。JRAの出走確定や予想成績の保証ではありません。';
  }catch(e){
   current=null;$('workMeetings').replaceChildren();
+  $('workLedger').textContent='購入記録の集計を停止しました。バックアップを保管して内容を確認してください。';
   $('workStatus').textContent='端末内の保存資料を読み込めません：'+
    (e instanceof Error?e.message:'保存状態を確認してな。');
   $('workSummary').textContent='不正な記録を無視して「準備完了」とは表示しません。';
