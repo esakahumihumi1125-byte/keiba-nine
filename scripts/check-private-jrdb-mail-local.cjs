@@ -3,6 +3,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const script=fs.readFileSync('/tmp/keiba-jrdb-mail-local.js','utf8');
 const storage=new Map(),requests=[];
+let approve=true;
 const localStorage={
  getItem:key=>storage.get(key)||null,
  setItem(key,value){storage.set(key,value);},
@@ -18,7 +19,7 @@ function loadPage(){
  const nodes=new Map();
  const get=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);};
  vm.runInNewContext(script,{document:{getElementById:get,createElement:element},
-  localStorage,Date,JSON,Set,String,Number,Array,Error,confirm:()=>true,
+  localStorage,Date,JSON,Set,String,Number,Array,Error,confirm:()=>approve,
   fetch:()=>{requests.push('network');throw Error('Never network');}});
  return get;
 }
@@ -38,7 +39,7 @@ assert.equal(storage.size,0);
 assert.equal(e('raceList').children.length,0);
 e('mailText').value=mail('2099年1月1日（木）','東京',1);
 e('importMail').onclick();
-assert.match(e('message').textContent,/1Rをこの端末だけに保存/);
+assert.match(e('message').textContent,/1通を確認/);
 assert.equal(e('mailText').value,'','Raw email cleared from DOM after successful ingest');
 let state=JSON.parse(storage.get(key));
 assert.equal(state.length,1);
@@ -66,12 +67,53 @@ e('mailText').value=mail('2099年1月1日（木）','東京',1).replace('テス�
 e('importMail').onclick();
 state=JSON.parse(storage.get(key));
 assert.equal(state.length,2,'Same venue/date replaces not duplicates');
+assert.match(e('message').textContent,/変更1R/);
 assert.equal(state.find(x=>x.track==='東京').races[0].horses[0],'改訂テストサクラ');
 assert.ok(e('raceList').children.length===1);
 e('chooseMeeting').value='2099-01-01|京都';
 e('chooseMeeting').onchange();
 assert.match(e('meetingInfo').textContent,/京都/);
 assert.ok(e('raceList').children[0].children[2].children.length===2);
+// Tomorrow: import multiple JRDB messages at once. An invalid final mail must
+// fail the entire batch without replacing the already imported calendar.
+const two=mail('2099年1月2日（金）','東京',1)+'\n\n'+
+ mail('2099年1月2日（金）','京都',1);
+e('mailText').value=two;
+e('importMail').onclick();
+assert.equal(JSON.parse(storage.get(key)).length,4);
+assert.match(e('message').textContent,/2通を確認/);
+assert.match(e('message').textContent,/2開催を追加/);
+let kept=storage.get(key);
+e('mailText').value=mail('2099年1月3日（土）','東京',1)+'\n\n'+
+ mail('2099年1月3日（土）','京都',1).replace('2頭','3頭');
+e('importMail').onclick();
+assert.match(e('message').textContent,/取り込めません/);
+assert.equal(storage.get(key),kept,'Batch parsing must be all or nothing');
+e('mailText').value=two;
+e('importMail').onclick();
+assert.match(e('message').textContent,/2開催は変更なし/);
+assert.equal(storage.get(key),kept,'Reimporting identical mail must not write');
+e('mailText').value=mail('2099年1月2日（金）','東京',1)+'\n\n'+
+ mail('2099年1月2日（金）','東京',1);
+e('importMail').onclick();
+assert.match(e('message').textContent,/重複/);
+assert.equal(storage.get(key),kept);
+approve=false;
+e('mailText').value=mail('2099年1月2日（金）','東京',1)
+ .replace('テストサクラ','新テストサクラ');
+e('importMail').onclick();
+assert.equal(storage.get(key),kept,'Declining corrected mail must preserve all meetings');
+approve=true;
+e('importMail').onclick();
+assert.match(e('message').textContent,/変更1R/);
+kept=storage.get(key);
+assert.equal(JSON.parse(kept).find(x=>x.date==='2099-01-02'&&x.track==='東京')
+ .races[0].horses[0],'新テストサクラ');
+// User should be able to delete an old meeting without losing other venues.
+e('chooseMeeting').value='2099-01-01|京都';
+e('deleteMeeting').onclick();
+assert.equal(JSON.parse(storage.get(key)).length,3);
+assert.ok(!JSON.parse(storage.get(key)).some(x=>x.date==='2099-01-01'&&x.track==='京都'));
 const snapshot=storage.get(key);
 e('mailText').value='Random unauthorized content';
 e('importMail').onclick();
