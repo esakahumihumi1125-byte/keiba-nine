@@ -65,7 +65,7 @@ const invalid=async()=>{
   $('chooseMeeting').value='2026-11-07|東京';
   await $('checkOfficialPdf').onclick();
   assert.equal($('officialPdfLinks').children.length,0,'Untrusted links or claims must be rejected');
-  assert.match($('officialPdfMessage').textContent,/不正|公式PDFリンクの応答|確認できませんでした/);
+  assert.match($('officialPdfMessage').textContent,/不正|公式PDFリンクの応答|確認できませんでした|公式サイト以外のリンクは表示しません/);
  }
 };
 const stale=async()=>{
