@@ -33,3 +33,15 @@ JRDBの公開API仕様：https://jrdb-api.keiba.bigtime.world/docs/request-respo
 - 新機能は未接続のまま。現在のレンダープレビューで実データが取得できた、またはその資料から総合S/A/B/Cや実際の3連単が生成された、という意味ではありません。
 
 実装：`scripts/jrdb_prestart_body.py`、`tests/test_jrdb_prestart_body.py`。公式仕様：https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tpd
+
+## 調教・近走の暫定研究進捗（5種類の資料再利用）
+
+`/api/jrdb/day-pipeline` は `/tra`、`/tky`、`/tcy`、`/tze`、`/tka` の取得結果をメモリー内で再利用して、`factorProgress` を追加で作成します。**追加のJRDB取得要求はありません。**
+
+- 調教では `oikirisisu` と `siagarisisu` を照合した**未検証の独自閾値**により、レース別の暫定S/A/B/C/未評価件数を集計します。
+- 近走では直近の走歴の着順・IDMから、別の**未検証の独自閾値**により同様の件数を計算します。新馬・走歴不足は「未評価」であり、能力Cとは判定しません。
+- 同じ出走馬の2項目が両方暫定評価できた件数と、2段階以上の不一致件数をまとめます。馬番・馬名・指数・過去着順・元データ・APIシークレットは本人用HTTPレスポンスにも含めません。
+- 残りの8評価項目、実戦総合S/A/B/C、予想精度、取消と馬場のJRA公式照合は**未実施**です。本人専用UIもその状態を明記し、馬券・購入記録に反映しません。
+- 開催日を変更すると以前の資料・暫定評価を非表示にします。変更前の通信が後から返っても、別日の資料を再表示しない仕組みです。
+
+関連：`scripts/jrdb_day_factor_progress.py`、`tests/test_jrdb_day_factor_progress.py`、`scripts/check-private-day-pipeline-ui.cjs`。
