@@ -8,6 +8,7 @@ function boot(decision=true,saved={}){
  const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>{writes.push(k);throw Error('Unexpected write: '+k)}};
  function element(tag='div'){
   return {tag,value:'',textContent:'',className:'',disabled:false,children:[],
+   attributes:{},setAttribute(k,v){this.attributes[k]=v},
    onclick:null,onchange:null,oninput:null,append(...c){this.children.push(...c)},
    replaceChildren(...c){this.children=[...c]}};
  }
