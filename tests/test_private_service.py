@@ -31,6 +31,35 @@ def call(app, path='/', method='GET', auth=AUTH, data=None, **changes):
 class PrivateServiceTests(unittest.TestCase):
     def setUp(self): self.app = create_app(SETTINGS)
 
+    def test_iphone_home_screen_entry_and_private_notebook_navigation(self):
+        # Pure HTML navigation: no new public route, credentials or storage.
+        home = call(self.app, '/')
+        login = call(self.app, '/login', auth='')
+        notebook = call(self.app, '/my-tickets')
+        self.assertEqual(home['status'], '200 OK')
+        self.assertEqual(notebook['status'], '200 OK')
+        self.assertEqual(login['status'], '200 OK')
+        root_html = home['body'].decode('utf-8')
+        notebook_html = notebook['body'].decode('utf-8')
+        login_html = login['body'].decode('utf-8')
+        for body in (root_html, notebook_html, login_html):
+            self.assertIn('name="apple-mobile-web-app-title"', body)
+            self.assertIn('name="theme-color"', body)
+        self.assertIn('class="owner-quick-start"', root_html)
+        self.assertIn('href="/my-tickets"', root_html)
+        self.assertIn('href="/jrdb-mail-local"', root_html)
+        self.assertIn('Safariとデータが別になることがあります', root_html)
+        for target in ('racePicker', 'formationPanel', 'bulkPanel',
+                       'savedPanel', 'actualPurchasePanel'):
+            self.assertIn('href="#' + target + '"', notebook_html)
+            self.assertIn('id="' + target + '"', notebook_html)
+        self.assertIn('id="mRaceBoard"', notebook_html)
+        self.assertIn('保存状況の一覧です', notebook_html)
+        self.assertIn('JSONバックアップ', notebook_html)
+        denied = call(self.app, '/my-tickets', auth='')
+        self.assertEqual(denied['status'], '303 See Other')
+        self.assertEqual(denied['headers']['Location'], '/login')
+
     def test_no_or_weak_password_fails_closed(self):
         for config in [{}, {'KEIBA_OWNER_PASSWORD': 'short'}, {'KEIBA_OWNER_PASSWORD': 'x' * 40}]:
             with self.assertRaises(ValueError): create_app(config)
