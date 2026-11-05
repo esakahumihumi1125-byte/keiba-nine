@@ -165,3 +165,56 @@ assert.ok(!script.includes('fetch('));
 assert.ok(!script.includes('innerHTML'));
 assert.ok(!script.includes('XMLHttpRequest'));
 console.log('JRDB personal mail importer: local-only 2099 fixture, two venues, replacement, bad email block, clear and no network OK');
+
+// iPhone import: a single UTF-8 text file containing two provisional emails.
+// Choosing it only populates the preview textbox; never saves automatically.
+(async()=>{
+ const ui=loadPage(),payload=mail('2099年1月12日（月）','東京')+
+  '\n\n'+mail('2099年1月12日（月）','京都');
+ const imported={name:'jrdb-two-courses.txt',size:Buffer.byteLength(payload,'utf8'),text:async()=>payload};
+ const before=storage.get(key);
+ ui('mailTextFile').files=[imported];
+ await ui('mailTextFile').onchange();
+ assert.match(ui('mailFileStatus').textContent,/2開催分を検査できました/);
+ assert.match(ui('mailFileStatus').textContent,/まだ未保存/);
+ assert.equal(ui('mailText').value,payload);
+ assert.equal(storage.get(key),before,'file preview never mutates browser records');
+ ui('importMail').onclick();
+ const now=JSON.parse(storage.get(key));
+ assert.equal(now.filter(x=>x.date==='2099-01-12').length,2);
+ assert.equal(ui('mailText').value,'','saved file contents cleared from textarea');
+ const saved=storage.get(key);
+ ui('mailText').value='do-not-overwrite';
+ const bad={name:'unexpected.txt',size:500,text:async()=>('invalid example.').repeat(20)};
+ ui('mailTextFile').files=[bad];await ui('mailTextFile').onchange();
+ assert.match(ui('mailFileStatus').textContent,/ファイルを読み込めません/);
+ assert.equal(ui('mailText').value,'do-not-overwrite','invalid import preserves pasted text');
+ assert.equal(storage.get(key),saved);
+ const wrong={name:'source.json',size:500,text:async()=>payload};
+ ui('mailTextFile').files=[wrong];await ui('mailTextFile').onchange();
+ assert.match(ui('mailFileStatus').textContent,/\.txt/);
+ assert.equal(storage.get(key),saved);
+ const huge={name:'oversize.txt',size:192001,text:async()=>{throw Error('should not read')}};
+ ui('mailTextFile').files=[huge];await ui('mailTextFile').onchange();
+ assert.match(ui('mailFileStatus').textContent,/192KB/);
+ assert.equal(storage.get(key),saved);
+ approve=false;
+ ui('mailTextFile').files=[imported];await ui('mailTextFile').onchange();
+ assert.equal(ui('mailText').value,'do-not-overwrite','declined file preview preserves other text');
+ approve=true;
+ ui('mailText').value='';
+ let resolveFirst;
+ const older={name:'older.txt',size:Buffer.byteLength(payload,'utf8'),text:()=>new Promise(r=>{resolveFirst=r})};
+ ui('mailTextFile').files=[older];
+ const pending=ui('mailTextFile').onchange();
+ const nextBody=mail('2099年1月13日（火）','福島');
+ const newer={name:'newer.txt',size:Buffer.byteLength(nextBody,'utf8'),text:async()=>nextBody};
+ ui('mailTextFile').files=[newer];
+ await ui('mailTextFile').onchange();
+ resolveFirst(payload);await pending;
+ assert.equal(ui('mailText').value,nextBody,'stale earlier file read cannot override latest selection');
+ assert.equal(storage.get(key),saved,'file loading cannot save without explicit click');
+ assert.equal(requests.length,0);
+ console.log('JRDB single-file manual preview: 2 venues, invalid file, cancel, and stale file read PASS');
+})().catch(error=>{console.error(error);process.exitCode=1});
+
