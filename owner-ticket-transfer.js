@@ -9,13 +9,13 @@
   const TRACKS=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
   const DEST='https://keiba-nine-owner-preview.onrender.com/my-tickets';
   function validDate(s){
-    if(typeof s!=='string'||!/^\\d{4}-\\d{2}-\\d{2}$/.test(s))return false;
+    if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;
     const d=new Date(s+'T12:00:00Z');
     return Number.isFinite(d.valueOf())&&d.toISOString().slice(0,10)===s;
   }
   function numbers(s){
-    if(typeof s!=='string'||!s.trim()||!/^[0-9,、，\\s]+$/.test(s))throw Error('馬番は1〜18の数字で入力してな。');
-    const raw=s.trim().split(/[,、，\\s]+/).filter(Boolean);
+    if(typeof s!=='string'||!s.trim()||!/^[0-9,、，\s]+$/.test(s))throw Error('馬番は1〜18の数字で入力してな。');
+    const raw=s.trim().split(/[,、，\s]+/).filter(Boolean);
     const nums=raw.map(n=>Number(n));
     if(!raw.length||raw.length>18||nums.some(n=>!Number.isInteger(n)||n<1||n>18)||new Set(nums).size!==nums.length)
       throw Error('馬番の重複や1〜18以外の番号を確認してな。');
