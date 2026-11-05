@@ -2,8 +2,8 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('/tmp/keiba-owner-scorecard.js','utf8');
-function boot(decision=true,saved={}){
- const nodes=new Map(),links=[],alerts=[],writes=[];
+function boot(decision=true,saved={},hash=''){
+ const nodes=new Map(),links=[],alerts=[],writes=[],cleared=[];
  const store=new Map(Object.entries(saved).map(([k,v])=>[k,JSON.stringify(v)]));
  const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>{writes.push(k);throw Error('Unexpected write: '+k)}};
  function element(tag='div'){
@@ -22,13 +22,14 @@ function boot(decision=true,saved={}){
  }
  const ctx={
   document:{getElementById:get,createElement:element},window:{
-    location:{assign:url=>links.push(url)}
+    location:{hash,pathname:'/my-scorecard',search:'',assign:url=>links.push(url)},
+    history:{replaceState:(...args)=>cleared.push(args[2])}
   },
   Date,JSON,Set,Map,Object,String,Number,Error,URLSearchParams,localStorage,
   confirm:()=>decision,console
  };
  vm.runInNewContext(source,ctx);
- return {el:get,links,alerts,writes,store};
+ return {el:get,links,alerts,writes,store,cleared};
 }
 const fixture=[
  '① 架空馬A S S A A S',
@@ -180,5 +181,18 @@ denied.el('scoreInput').value=fixture;
 denied.el('scoreFromMemo').onclick();
 assert.equal(denied.el('scoreInput').value,fixture,'cancel must not erase existing manual grades');
 assert.equal(denied.el('scoreMemoGrid').children.length,0);
+
+
+// Client-only selection deep link from the ticket notebook never carries horse records.
+const chosen=boot(true,{},'#select=v1&date=2026-11-07&track=%E4%BA%AC%E9%83%BD&race=9');
+assert.equal(chosen.el('scoreDate').value,'2026-11-07');
+assert.equal(chosen.el('scoreTrack').value,'京都');
+assert.equal(chosen.el('scoreRace').value,'9');
+assert.match(chosen.el('scoreStatus').textContent,/選択/);
+assert.deepEqual(chosen.cleared,['/my-scorecard'],'remove selection fragment immediately');
+const invalidLink=boot(true,{},'#select=v1&date=2026-11-07&track=%E4%BA%AC%E9%83%BD&race=9&horses=secret');
+assert.match(invalidLink.el('scoreStatus').textContent,/受け取れませんでした/);
+assert.deepEqual(invalidLink.cleared,['/my-scorecard']);
+assert.equal(invalidLink.el('scoreTrack').value,'','never trust arbitrary fragments');
 
 console.log('Owner manual 5-factor scoring: 36-point ranks, validation, cancel, no-network handoff PASS');
