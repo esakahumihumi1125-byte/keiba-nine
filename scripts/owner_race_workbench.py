@@ -30,7 +30,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section><h2>実戦で必要な確認</h2>
 <p class="hint">1Rの枠をタップすると、端末内にある資料の段階と、評価・3連単画面へのリンクが出るで。URLには日付・競馬場・Rだけを引き継ぐ。本人の馬名・JRDB本文・買い目・購入情報は送らない。</p>
 <div class="quick"><a href="/jrdb-mail-local">JRDB想定メール・馬番メモの取込</a>
-<a href="/owner-backup">5種類の記録をバックアップ</a></div>
+<a href="/owner-backup">5種類の記録をバックアップ</a><a href="/my-tickets#actualPurchasePanel">結果の振り返りを開く</a></div>
 <p class="warning">発走時刻、出走取消、馬場、馬番、購入締切はJRA公式で別途確認。実購入記録は本人が登録した記録であり、投票・購入の完了確認ではありません。</p>
 <a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表を確認</a>
 </section>
@@ -115,6 +115,10 @@ function draftPoints(d){
   if([a,b,c].every(n=>Number.isInteger(n)&&n>=1&&n<=18)&&a!==b&&a!==c&&b!==c)out.add(a+'-'+b+'-'+c);
  return out.size>48?0:out.size;
 }
+function validFinish(result){
+ return Array.isArray(result)&&result.length===3&&
+  result.every(n=>Number.isInteger(n)&&n>=1&&n<=18)&&new Set(result).size===3;
+}
 function validPurchaseRecord(x){
  if(!x||!validDate(x.date)||!TRACKS.includes(x.track)||
     !Number.isInteger(x.race)||x.race<1||x.race>12||
@@ -122,6 +126,7 @@ function validPurchaseRecord(x){
     !Number.isSafeInteger(x.unit)||x.unit<100||x.unit>100000||x.unit%100!==0||
     !Number.isSafeInteger(x.stake)||x.stake<100||
     (x.payout!==null&&(!Number.isSafeInteger(x.payout)||x.payout<0))||
+    (Object.prototype.hasOwnProperty.call(x,'result')&&x.result!==null&&!validFinish(x.result))||
     typeof x.purchasedAt!=='string'||x.purchasedAt.length>32)return false;
  const count=draftPoints(x);
  return count>=1&&x.stake===count*x.unit;
@@ -150,6 +155,8 @@ function raceStatus(data,date,track,race){
  const ticket=data[DRAFTS].find(x=>x.date===date&&x.track===track&&x.race===race);
  const actual=data[PURCHASES].filter(x=>x.date===date&&x.track===track&&x.race===race);
  const unsettled=actual.filter(x=>x.payout===null);
+ const reviewed=actual.filter(x=>validFinish(x.result));
+ const reviewPending=actual.filter(x=>x.payout!==null&&!validFinish(x.result));
  const matching=nameMemoMatches(memo,source);
  const stale=!!(memo&&!matching)||!!(note&&note.sourceMark!==null&&note.sourceMark!==undefined&&
    (!matching||note.sourceMark!==memo.sourceMark));
@@ -160,7 +167,8 @@ function raceStatus(data,date,track,race){
  const labels={stale:'資料再確認',pending:'払戻入力待ち',actual:'購入記録',draft:'3連単下書',graded:'採点入力済',
   partial:'評価途中',roster:'馬番メモ',mail:'JRDB想定',empty:'未取込'};
  return {state,label:labels[state],source:!!source,matching,hasMemo:!!memo,
-  hasScore:!!note,graded,stale,points,actual:actual.length,pending:unsettled.length,post:source&&source.postTime};
+  hasScore:!!note,graded,stale,points,actual:actual.length,pending:unsettled.length,
+  reviewed:reviewed.length,reviewPending:reviewPending.length,post:source&&source.postTime};
 }
 function tracksFor(data,date){
  const tracks=new Set(additions);
@@ -189,7 +197,7 @@ function statusText(s){
   s.matching?'馬番・馬名メモ：想定メールと一致（本人転記）':s.hasMemo?'馬番メモ：元資料との不一致・再確認':'馬番メモ：未登録',
   s.hasScore?s.stale?'5項目評価：元資料を再確認':s.graded?'5項目評価：本人入力が全項目完了':'5項目評価：保存途中':'5項目評価：未入力',
   s.points?'3連単下書き：'+s.points+'点（未購入）':'3連単下書き：なし',
-  s.actual?'実購入記録：本人入力 '+s.actual+'件（払戻未確定 '+s.pending+'件・JRA購入完了は未確認）':'実購入記録：なし'
+  s.actual?'実購入記録：本人入力 '+s.actual+'件（払戻未確定 '+s.pending+'件・着順メモ済 '+s.reviewed+'件・JRA購入完了は未確認）':'実購入記録：なし'
  ].join('／');
 }
 
@@ -197,6 +205,7 @@ function nextAction(s){
  // Requires real locally stored progress, never invents a race or predicts a winner.
  if(s.stale)return {priority:0,label:'資料が不一致・再確認',link:'/jrdb-mail-local',cta:'馬番メモを確認'};
  if(s.pending>0)return {priority:1,label:'払戻未確定 '+s.pending+'件',link:'/my-tickets',cta:'払戻を入力'};
+ if(s.reviewPending>0)return {priority:1.5,label:'着順の振り返り未入力 '+s.reviewPending+'件',link:'/my-tickets',cta:'着順を記録'};
  if(s.actual>0)return null;
  if(s.graded&&!s.points)return {priority:2,label:'評価入力済・買い目未作成',link:'/my-tickets',cta:'3連単を作る'};
  if(s.hasScore&&!s.graded&&!s.points)return {priority:3,label:'手動評価の入力途中',link:'/my-scorecard',cta:'評価を続ける'};
@@ -241,7 +250,7 @@ function render(){
    $('workSummary').textContent='表示0R';
    return;
   }
-  let rows=0,countMail=0,countMemo=0,countGrade=0,countTicket=0,countActual=0,stale=0;
+  let rows=0,countMail=0,countMemo=0,countGrade=0,countTicket=0,countActual=0,stale=0,reviewQueue=0;
   const nextItems=[];
   for(const venue of venues){
    const section=create('section');section.className='venue';
@@ -257,6 +266,7 @@ function render(){
     countMail+=Number(s.source);countMemo+=Number(s.matching);
     countGrade+=Number(s.graded);countTicket+=Number(s.points>0);
     countActual+=Number(s.actual>0);stale+=Number(s.stale);
+    reviewQueue+=Number(s.reviewPending>0);
     const tile=create('button');tile.type='button';tile.className='race-btn';
     tile.dataset.stage=s.state;tile.setAttribute('aria-pressed','false');
     tile.hidden=onlyActions&&!action;
@@ -284,9 +294,9 @@ function render(){
   renderNextQueue(nextItems,date);
   $('workSummary').textContent=rows+'R表示／JRDB想定'+countMail+'R／馬番メモ一致'+countMemo+
    'R／評価入力完了'+countGrade+'R／3連単下書き'+countTicket+'R／実購入記録'+countActual+
-   'R／元資料要再確認'+stale+'R';
+   'R／着順メモ未入力'+reviewQueue+'R／元資料要再確認'+stale+'R';
   $('workStatus').textContent=date+'：'+venues.join('・')+
-   'の端末内準備を表示。JRAの出走確定や予想成績の保証ではありません。';
+   'の端末内準備を表示。JRAの出走確定・実際の着順・予想成績の保証ではありません。';
  }catch(e){
   current=null;$('workMeetings').replaceChildren();
   $('workLedger').textContent='購入記録の集計を停止しました。バックアップを保管して内容を確認してください。';
