@@ -152,6 +152,7 @@ ledgerFixture[keys.purchase]=[
  {...ledgerFixture[keys.purchase][0],id:'other-date',date:'2099-01-08',payout:999,stake:100,unit:100}
 ];
 const accounting=boot(ledgerFixture),ac=accounting.el;
+ac('workDate').value=date;ac('workDate').onchange();
 assert.match(ac('workLedger').textContent,/払戻確定 2件/);
 assert.match(ac('workLedger').textContent,/確定投資 200円/);
 assert.match(ac('workLedger').textContent,/確定払戻 400円/);
