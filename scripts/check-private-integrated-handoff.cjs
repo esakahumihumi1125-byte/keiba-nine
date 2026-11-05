@@ -4,6 +4,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const manual=fs.readFileSync('/tmp/keiba-private-manual-tickets.js','utf8');
 const handoff=fs.readFileSync('/tmp/keiba-private-owner-handoff.js','utf8');
 function boot(hash,approved=true){
+ let decision=approved;
  const nodes=new Map(),changed=[],history=[];
  const data=new Map();
  function elem(tag='div'){
@@ -27,16 +28,16 @@ function boot(hash,approved=true){
  const win={
   location:{hash,pathname:'/my-tickets',search:''},
   history:{replaceState(...args){history.push(args[2])}},
-  confirm:()=>approved
+  confirm:()=>decision
  };
  vm.runInNewContext(manual+'\n'+handoff,{
   document:{getElementById:el,createElement:elem},
   window:win,localStorage,URLSearchParams,
   Date,Set,Map,JSON,String,Number,Error,
   Blob,URL:{createObjectURL(){return 'blob:test'},revokeObjectURL(){}},
-  confirm:()=>approved,console
+  confirm:()=>decision,console
  });
- return {el,changed,data,history};
+ return {el,changed,data,history,setApprove:x=>{decision=x}};
 }
 // Deep-link from the all-36R workbench must open the actual selected race.
 const race=boot('#select=v1&date=2099-02-17&track=%E6%9D%B1%E4%BA%AC&race=6');
@@ -59,6 +60,12 @@ assert.equal(ticket.el('mSave').disabled,false);
 assert.equal(ticket.changed.length,0,'handoff is not purchase/save');
 assert.deepEqual(ticket.history,['/my-tickets']);
 assert.match(ticket.el('mMsg').textContent,/購入記録には追加されません/);
+ticket.setApprove(false);
+ticket.el('mNextRace').onclick();
+assert.equal(ticket.el('mRace').value,'5',
+ 'do not lose newly imported unsaved candidates through next-R navigation');
+assert.equal(ticket.el('mCount').textContent,'30点');
+assert.equal(ticket.changed.length,0,'cancelled navigation cannot write the 3連単 draft');
 // User cancellation or extra payload cannot overwrite a formation.
 const denied=boot('#import=v1&date=2099-02-17&track=%E6%9D%B1%E4%BA%AC&race=5&'+
  'first=1&second=2&third=3',false);
@@ -70,4 +77,17 @@ assert.equal(invalid.el('mCount').textContent,'0点');
 assert.equal(invalid.changed.length,0);
 assert.deepEqual(invalid.history,['/my-tickets']);
 assert.match(invalid.el('mMsg').textContent,/受け取れませんでした/);
+
+for(const fragment of [
+ '#select=v1&date=2099-02-17&track=%E6%9D%B1%E4%BA%AC&race=01',
+ '#import=v1&date=2099-02-17&track=%E6%9D%B1%E4%BA%AC&race=15&first=1&second=2&third=3',
+ '#import=v1&date=2099-02-17&track=%E6%9D%B1%E4%BA%AC&race=5&first=1%2C1&second=2&third=3',
+ '#import=v1&date=2099-02-17&track=%E6%9D%B1%E4%BA%AC&race=5&first=1&second=2&third=3&secret=unused'
+]){
+ const malformed=boot(fragment);
+ assert.equal(malformed.el('mCount').textContent,'0点',fragment);
+ assert.equal(malformed.changed.length,0,'invalid fragment cannot save anything');
+ assert.deepEqual(malformed.history,['/my-tickets']);
+ assert.match(malformed.el('mMsg').textContent,/受け取れませんでした/);
+}
 console.log('Combined private 3連単 editor + handoff: real date/race/formation navigation and no implicit save PASS');
