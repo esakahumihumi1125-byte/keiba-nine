@@ -22,9 +22,16 @@ JRA公式最終照合と実データの予想精度検証は別工程です。�
 <hr><h2>当日だけの直前資料（別操作）</h2>
 <button id="prestartRun" type="button" disabled>当日の馬体重・パドック資料の件数を確認</button>
 <p id="prestartMessage" class="hint" role="status">API β版の認証と直前資料用の安全設定が済むまでは停止中。</p>
-<p class="hint">別操作で番組・登録馬・直前資料を各1回取得。オッズは使用せず、馬体重や指数の値も表示しません。</p></section>
+<p class="hint">別操作で番組・登録馬・直前資料を各1回取得。オッズは使用せず、馬体重や指数の値も表示しません。</p><hr><h2>残り2項目：過去距離・馬場の資料チェック</h2>
+<button id="historyRun" type="button" disabled>過去の距離・馬場を最大8レース分照合する</button>
+<p id="historyMessage" class="hint" role="status">JRDBの専用認証と履歴取得設定が届くまでは停止中。</p>
+<p class="hint">本人が押した時だけ別途取得。1回につき当日5種類＋過去番組最大8件・過去馬場最大8件。
+資料を照合しても、実戦の適性評価や馬券購入には進みません。</p></section>
 <section class="panel" id="report" hidden><h2>レース別の確認結果</h2>
 <p id="summary"></p><section id="factorProgress" hidden><h2>調教・近走の暫定資料評価（実戦評価ではありません）</h2><p id="factorSummary"></p><div id="factorRows"></div></section><section id="sourceMaterials" hidden><h2>10項目の資料チェック（8項目に資料の手掛かり）</h2><p id="sourceMaterialsSummary"></p><div id="sourceMaterialsRows"></div></section><div id="rows"></div><section id="review" hidden><h2>発走前の優先チェック</h2><p id="reviewSummary"></p><div id="reviewRows"></div></section></section>
+<section class="panel" id="historyReport" hidden><h2>過去の距離・馬場の資料照合</h2>
+<p id="historySummary"></p><div id="historyRows"></div>
+<p class="hint">今回の資料だけでは能力・馬場適性を断定しません。実戦予想は未接続です。</p></section>
 <section class="panel" id="prestartReport" hidden><h2>当日の馬体資料（件数のみ）</h2><p id="prestartSummary"></p><div id="prestartRows"></div></section>
 <footer>登録済み馬の名前・馬番・有料の生データは表示しません。これは資料取得の準備状況であり、レース予想ではありません。</footer>
 </main><script src="/day-pipeline.js" defer></script></body></html>"""
@@ -48,6 +55,7 @@ JS = """
  const $=id=>document.getElementById(id);
  const date=$('date'), button=$('run'), status=$('state'), message=$('message');
  const prestart=$('prestartRun'), prestartMessage=$('prestartMessage');
+ const history=$('historyRun'), historyMessage=$('historyMessage');
  let selectedDateVersion=0;
  function jstDate(){
   const values=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
@@ -75,6 +83,10 @@ JS = """
    status.textContent='認証設定あり（接続成功・利用許諾・予想生成の確認ではありません）。';
    button.disabled=false;
    message.textContent='実行すると対象日の5種類の資料を各1回確認します。';
+   if(data.historyConfigured===true){
+    history.disabled=false;
+    historyMessage.textContent='取得上限を守り、押した時だけ過去資料の照合を開始します。';
+   }
    if(data.prestartBodyEnabled===true){
     prestart.disabled=false;
     prestartMessage.textContent='開催日の当日に本人が操作したときだけ直前資料を確認できます。';
@@ -91,11 +103,92 @@ JS = """
   $('factorRows').replaceChildren();
   $('sourceMaterials').hidden=true;
   $('sourceMaterialsRows').replaceChildren();
+  $('historyReport').hidden=true;
+  $('historyRows').replaceChildren();
   $('prestartReport').hidden=true;
   $('prestartRows').replaceChildren();
   $('rows').replaceChildren();
   $('reviewRows').replaceChildren();
   message.textContent='開催日を変更しました。以前の資料チェックは非表示にしたで。';
+ });
+ history.addEventListener('click',async()=>{
+  const iso=date.value;
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(iso)){
+   historyMessage.textContent='開催日を選んでな。';return;
+  }
+  const requestedVersion=selectedDateVersion;
+  history.disabled=true;
+  $('historyReport').hidden=true;
+  $('historyRows').replaceChildren();
+  historyMessage.textContent='指定日の過去レースを上限8件で照合中…';
+  try{
+   const response=await fetch('/api/jrdb/history',{
+    method:'POST',credentials:'same-origin',cache:'no-store',
+    headers:{'Content-Type':'application/json','X-Keiba-Request':'private'},
+    body:JSON.stringify({date:iso.replaceAll('-',''),limit:8})
+   });
+   const data=await response.json();
+   if(requestedVersion!==selectedDateVersion||date.value!==iso)return;
+   if(!response.ok)throw Error(data.error||'過去資料を確認できませんでした。');
+   const full=data.allTenFactorSources,gate=data.realAssessmentPreflight,
+    quality=data.evidenceQuality, historical=data.privateHistoryFactors;
+   if(data.version!=='bounded-history-1'||data.predictionReady!==false||
+      data.goingSuitabilityAssessed!==false||
+      !Number.isInteger(data.selectedPastRaces)||data.selectedPastRaces<0||
+      data.selectedPastRaces>8||!Number.isInteger(data.deferredPastRaces)||
+      data.deferredPastRaces<0||
+      !Number.isInteger(data.draCalls)||data.draCalls<0||data.draCalls>8||
+      !Number.isInteger(data.dkaCalls)||data.dkaCalls<0||data.dkaCalls>8||
+      data.maxTotalCalls!==16||!full||
+      full.version!=='combined-ten-factor-observations-1'||
+      full.predictionReady!==false||full.bettingReady!==false||
+      !gate||gate.version!=='real-assessment-preflight-1'||
+      gate.realGradeReady!==false||gate.realPredictionReady!==false||
+      gate.purchaseReady!==false||!quality||
+      quality.predictionReady!==false||quality.suitabilityAssessed!==false||
+      !historical||historical.version!=='private-course-ground-materials-1'||
+      historical.predictionReady!==false||historical.bettingReady!==false||
+      !Array.isArray(full.races)||full.raceCount>120||
+      full.raceCount!==full.races.length||
+      quality.raceCount!==full.raceCount||gate.raceCount!==full.raceCount||
+      historical.raceCount!==full.raceCount)
+    throw Error('過去の資料を安全な形式で表示できませんでした。');
+   $('historySummary').textContent='過去番組 '+data.draCalls+'件／馬場 '+
+    data.dkaCalls+'件を確認（上限各8件）。未照合 '+data.deferredPastRaces+
+    '件、番組欠損 '+data.unavailablePastProgrammes+
+    '件。10項目に資料枠を接続しても、実戦の総合S/A/B/Cは未確定。';
+   const rows=$('historyRows'), seen=new Set();
+   for(const r of full.races){
+    const key=r.track+':'+r.race;
+    if(seen.has(key)||r.sourceMaterialSlots!==10||
+       r.unmappedFactorCount!==0||r.verifiedFactorCount!==0||
+       r.officialJraFinalVerification!==false||
+       r.overallRankReady!==false||r.predictionReady!==false||
+       r.bettingReady!==false||
+       !Number.isInteger(r.runnerCount)||r.runnerCount<0||r.runnerCount>18||
+       !Number.isInteger(r.runnersWithComparableCourse)||
+       !Number.isInteger(r.runnersWithKnownGoingComparable)||
+       r.runnersWithComparableCourse<0||
+       r.runnersWithComparableCourse>r.runnerCount||
+       r.runnersWithKnownGoingComparable<0||
+       r.runnersWithKnownGoingComparable>r.runnersWithComparableCourse)
+     throw Error('履歴資料のレース照合に失敗しました。');
+    seen.add(key);
+    const el=document.createElement('details');el.className='race';
+    el.append(make('summary',r.track+r.race+'R｜比較できた距離の履歴：'+
+      r.runnersWithComparableCourse+'/'+r.runnerCount+'頭'));
+    el.append(make('p','馬場状態まで比較可能：'+
+      r.runnersWithKnownGoingComparable+'/'+r.runnerCount+'頭'));
+    el.append(make('p','履歴不足の馬：'+r.runnersWithIncompleteHistory+
+      '頭／過去距離・馬場の能力評価は未実施。'));
+    rows.append(el);
+   }
+   $('historyReport').hidden=false;
+   historyMessage.textContent='過去資料の件数照合が完了。実戦予想・購入・記録は変更してへんで。';
+  }catch(e){
+   if(requestedVersion===selectedDateVersion&&date.value===iso)
+    historyMessage.textContent=e.message||'過去資料の照合に失敗しました。';
+  }finally{history.disabled=false;}
  });
  prestart.addEventListener('click',async()=>{
   const iso=date.value;
