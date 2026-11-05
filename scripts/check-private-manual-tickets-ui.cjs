@@ -89,6 +89,7 @@ const quick=boot(),q=quick.el;
 const pick=(id,n)=>q(id).children[n-1].onclick();
 q('mDate').value='2026-11-09';q('mDate').onchange();
 q('mTrack').value='京都';q('mTrack').onchange();
+q('mRace').value='1';q('mRace').onchange(); // DOM mock has no HTML select default
 assert.equal(q('mPrevRace').disabled,true,'1R has no previous race');
 q('mNextRace').onclick();
 assert.equal(q('mRace').value,'2','next race moves without free text');
