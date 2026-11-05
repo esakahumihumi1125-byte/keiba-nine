@@ -102,6 +102,35 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertNotIn('class="developer-menu" open', root)
         self.assertIn('架空データ', root)
 
+    def test_private_36r_workbench_has_login_and_no_data_upload(self):
+        for route, marker in (
+            ('/owner-races', '全開催Rの準備一覧'),
+            ('/owner-race-workbench.js', 'keiba-nine-owner-factor-notes-v1'),
+            ('/owner-race-workbench.css', '.race-grid'),
+        ):
+            with self.subTest(route=route):
+                ok = call(self.app, route)
+                self.assertEqual(ok['status'], '200 OK')
+                self.assertIn('no-store', ok['headers']['Cache-Control'])
+                self.assertIn(marker, ok['body'].decode('utf-8'))
+                missing = call(self.app, route, auth='')
+                if route == '/owner-races':
+                    self.assertEqual(missing['status'], '303 See Other')
+                    self.assertEqual(missing['headers']['Location'], '/login')
+                else:
+                    self.assertEqual(missing['status'], '401 Unauthorized')
+                    self.assertNotIn('WWW-Authenticate', missing['headers'])
+        home = call(self.app, '/')['body'].decode('utf-8')
+        self.assertIn('href="/owner-races"', home)
+        script = call(self.app, '/owner-race-workbench.js')['body'].decode('utf-8')
+        self.assertIn("const PURCHASES='keiba-nine-owner-real-purchases-v1'", script)
+        self.assertIn("const SCORES='keiba-nine-owner-factor-notes-v1'", script)
+        self.assertIn("'/my-scorecard'", script)
+        self.assertIn("'/my-tickets'", script)
+        self.assertNotIn('fetch(', script)
+        self.assertNotIn('localStorage.setItem', script)
+        self.assertNotIn('innerHTML', script)
+
     def test_manual_scorecard_is_private_not_an_ai_prediction(self):
         for path, phrase in (
             ('/my-scorecard', '5項目の手動評価'),
