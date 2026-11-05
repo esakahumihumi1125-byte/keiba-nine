@@ -24,7 +24,7 @@ JRA公式最終照合と実データの予想精度検証は別工程です。�
 <p id="prestartMessage" class="hint" role="status">API β版の認証と直前資料用の安全設定が済むまでは停止中。</p>
 <p class="hint">別操作で番組・登録馬・直前資料を各1回取得。オッズは使用せず、馬体重や指数の値も表示しません。</p></section>
 <section class="panel" id="report" hidden><h2>レース別の確認結果</h2>
-<p id="summary"></p><section id="factorProgress" hidden><h2>調教・近走の暫定資料評価（実戦評価ではありません）</h2><p id="factorSummary"></p><div id="factorRows"></div></section><div id="rows"></div><section id="review" hidden><h2>発走前の優先チェック</h2><p id="reviewSummary"></p><div id="reviewRows"></div></section></section>
+<p id="summary"></p><section id="factorProgress" hidden><h2>調教・近走の暫定資料評価（実戦評価ではありません）</h2><p id="factorSummary"></p><div id="factorRows"></div></section><section id="sourceMaterials" hidden><h2>10項目の資料チェック（8項目に資料の手掛かり）</h2><p id="sourceMaterialsSummary"></p><div id="sourceMaterialsRows"></div></section><div id="rows"></div><section id="review" hidden><h2>発走前の優先チェック</h2><p id="reviewSummary"></p><div id="reviewRows"></div></section></section>
 <section class="panel" id="prestartReport" hidden><h2>当日の馬体資料（件数のみ）</h2><p id="prestartSummary"></p><div id="prestartRows"></div></section>
 <footer>登録済み馬の名前・馬番・有料の生データは表示しません。これは資料取得の準備状況であり、レース予想ではありません。</footer>
 </main><script src="/day-pipeline.js" defer></script></body></html>"""
@@ -89,6 +89,8 @@ JS = """
   $('review').hidden=true;
   $('factorProgress').hidden=true;
   $('factorRows').replaceChildren();
+  $('sourceMaterials').hidden=true;
+  $('sourceMaterialsRows').replaceChildren();
   $('prestartReport').hidden=true;
   $('prestartRows').replaceChildren();
   $('rows').replaceChildren();
@@ -202,6 +204,55 @@ JS = """
      factorRows.append(card);
     }
     factors.hidden=false;
+   }
+   const materials=result.sourceMaterials;
+   const materialSection=$('sourceMaterials');materialSection.hidden=true;
+   if(materials){
+    if(materials.version!=='private-eight-materials-1'||
+       materials.date!==iso.replaceAll('-','')||
+       materials.raceCount!==result.raceCount||
+       materials.verifiedOverallFactors!==0||
+       materials.realPredictionReady!==false||
+       materials.purchaseReady!==false||
+       materials.rawHorseRecordsIncluded!==false||
+       !Array.isArray(materials.mappedSourceSlots)||
+       materials.mappedSourceSlots.length!==8||
+       !Array.isArray(materials.unmappedHistorySlots)||
+       materials.unmappedHistorySlots.length!==2||
+       !Array.isArray(materials.races)||materials.races.length!==result.raceCount)
+     throw Error('10項目の資料情報を安全に表示できませんでした。');
+    const counts=materials.summary;
+    $('sourceMaterialsSummary').textContent='10項目中、資料の8枠を接続／距離・馬場適性の過去照合は未接続。'+
+     '登録 '+counts.totalRegistered+'頭分・血統(父と母父) '+counts.pedigreePresent+
+     '頭分・枠と斤量 '+counts.drawAndWeightPresent+
+     '頭分・騎手/厩舎 '+counts.personnelPresent+'頭分。'+
+     'これは資料の有無だけで、能力評価や購入推奨ではありません。';
+    const materialRows=$('sourceMaterialsRows');materialRows.replaceChildren();
+    const observed=new Set(result.races.map(r=>r.track+':'+r.race));
+    for(const r of materials.races){
+     const n=r.registered, c=r.counts;
+     if(!observed.has(r.track+':'+r.race)||
+        r.observedSourceSlots!==8||r.unmappedHistorySlots!==2||
+        r.unverifiedFactorGrades!==10||r.provisionalFactorsOnly!==2||
+        r.officialJraVerified!==false||r.overallRankReady!==false||
+        r.realPredictionReady!==false||r.ticketReady!==false||
+        !Number.isInteger(n)||n<0||n>18||!c)
+      throw Error('レース別の資料件数を安全に表示できません。');
+     const names=[
+      ['pedigreeParentsRecorded','父・母父'],['drawAndAssignedWeightRecorded','枠と斤量'],
+      ['lastRaceDateRecorded','前走日付'],['jockeyTrainerNamesRecorded','騎手・厩舎'],
+      ['conformationCodeRecorded','馬体形状コード'],
+      ['pastCornerObservedForPaceResearch','過去4角位置']
+     ];
+     if(!names.every(([key])=>Number.isInteger(c[key])&&c[key]>=0&&c[key]<=n))
+      throw Error('提供元の資料件数が範囲外です。');
+     const panel=document.createElement('details');panel.className='race';
+     panel.append(make('summary',r.track+r.race+'R｜'+n+'頭の資料状況を表示'));
+     for(const [key,label] of names){panel.append(make('p',label+'：'+c[key]+'/'+n+'頭分'));}
+     panel.append(make('p','過去の距離・馬場照合と実戦の10項目評価は未実施。'));
+     materialRows.append(panel);
+    }
+    materialSection.hidden=false;
    }
    const queue=result.reviewQueue;
    const review=$('review');
