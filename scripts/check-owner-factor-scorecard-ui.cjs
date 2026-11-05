@@ -1,11 +1,12 @@
-/* Five-factor scorecard: user-entered grades only, no network or persistent data. */
+/* Local-only factor notes: persistence permitted only for private score drafts. */
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('/tmp/keiba-owner-scorecard.js','utf8');
 function boot(decision=true,saved={},hash=''){
  const nodes=new Map(),links=[],alerts=[],writes=[],cleared=[];
  const store=new Map(Object.entries(saved).map(([k,v])=>[k,JSON.stringify(v)]));
- const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>{writes.push(k);throw Error('Unexpected write: '+k)}};
+ const NOTE='keiba-nine-owner-factor-notes-v1';
+ const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>{if(k!==NOTE)throw Error('Unexpected write: '+k);writes.push(k);store.set(k,v)}};
  function element(tag='div'){
   return {tag,value:'',textContent:'',className:'',disabled:false,children:[],
    attributes:{},setAttribute(k,v){this.attributes[k]=v},
@@ -103,7 +104,8 @@ assert.match(t('scoreFormation').textContent,/4点/,'3 competitors do not pad to
 assert.match(t('scoreFormation').textContent,/70点未満/,'weak top score is explicitly flagged');
 assert.match(t('scoreRanks').children[0].children[0].textContent,/1位　1番/,'ties use number order');
 assert.ok(!source.includes('fetch('),'never transmit grades or horse data');
-assert.ok(!source.includes('localStorage.setItem'),'never save manual evaluation or member data to browser');
+assert.ok(!source.includes('localStorage.setItem(MAIL'),'never overwrite imported mail');
+assert.ok(!source.includes('localStorage.setItem(MEMO'),'never overwrite mapped numbers');
 assert.ok(!source.includes('innerHTML'),'render only safe textContent');
 
 // JRDB provisional mail + owner-typed number mapping are read-only references.
@@ -144,7 +146,8 @@ assert.match(o('scoreFormation').textContent,/36点／100円なら3,600円/);
 o('scoreHandoff').onclick();
 assert.equal(owned.links.length,1,'owner grades hand off only after explicit confirmation');
 assert.ok(!owned.links[0].includes('架空馬'));
-assert.deepEqual(owned.writes,[],'roster intake never writes member data or picks');
+assert.ok(owned.writes.length>0,'partial score notes are saved after grade selection');
+assert.ok(owned.writes.every(x=>x==='keiba-nine-owner-factor-notes-v1'),'never mutate mail, mapping, draft or actual purchases');
 const savedMeeting=owned.store.get(MAIL);
 owned.store.set(MAIL,JSON.stringify([{...meeting,races:[{...sourceRace,postTime:'15:36'}]}]));
 o('scoreHandoff').onclick();
@@ -194,5 +197,70 @@ const invalidLink=boot(true,{},'#select=v1&date=2026-11-07&track=%E4%BA%AC%E9%83
 assert.match(invalidLink.el('scoreStatus').textContent,/受け取れませんでした/);
 assert.deepEqual(invalidLink.cleared,['/my-scorecard']);
 assert.equal(invalidLink.el('scoreTrack').value,'','never trust arbitrary fragments');
+
+
+// Partial manual assessments auto-save per race and resume after iPhone relaunch.
+const NOTES='keiba-nine-owner-factor-notes-v1';
+const fresh=boot(),fr=fresh.el;
+fr('scoreDate').value='2026-11-07';
+fr('scoreTrack').value='京都';fr('scoreRace').value='3';
+fr('scoreInput').value='① 架空X A ? B ? S\n② 架空Y ? ? ? ? ?';
+fr('scoreInput').oninput();
+const savedNotes=JSON.parse(fresh.store.get(NOTES));
+assert.equal(savedNotes.length,1);
+assert.equal(savedNotes[0].date,'2026-11-07');
+assert.equal(savedNotes[0].text,fr('scoreInput').value);
+assert.equal(savedNotes[0].sourceMark,null);
+assert.ok(fresh.writes.every(k=>k===NOTES));
+const restored=boot(true,{[NOTES]:savedNotes}),rs=restored.el;
+rs('scoreDate').value='2026-11-07';rs('scoreTrack').value='京都';rs('scoreRace').value='3';
+rs('scoreRace').onchange();
+assert.equal(rs('scoreInput').value,fr('scoreInput').value);
+assert.match(rs('scoreDraftStatus').textContent,/途中評価を端末から復元/);
+rs('scoreRace').value='4';rs('scoreRace').onchange();
+assert.equal(rs('scoreInput').value,'','other race cannot inherit previous scores');
+rs('scoreRace').value='3';rs('scoreRace').onchange();
+assert.equal(rs('scoreInput').value,fr('scoreInput').value);
+const afterSaved=rs('scoreInput').value;
+rs('scoreClearDraft').onclick();
+assert.equal(rs('scoreInput').value,'');
+assert.equal(JSON.parse(restored.store.get(NOTES)).length,0);
+assert.match(rs('scoreDraftStatus').textContent,/削除しました/);
+const canDelete=boot(false,{[NOTES]:savedNotes});
+canDelete.el('scoreDate').value='2026-11-07';
+canDelete.el('scoreTrack').value='京都';canDelete.el('scoreRace').value='3';
+canDelete.el('scoreRace').onchange();
+canDelete.el('scoreClearDraft').onclick();
+assert.equal(canDelete.el('scoreInput').value,afterSaved,'cancel deletion preserves draft');
+assert.equal(JSON.parse(canDelete.store.get(NOTES)).length,1);
+// Graded memo notes restore selectors with the user's original per-horse values.
+const savedMemberNotes=JSON.parse(owned.store.get(NOTES));
+assert.equal(savedMemberNotes.length,1);
+assert.equal(savedMemberNotes[0].sourceMark,snapshot);
+const resumed=boot(true,{[MAIL]:[meeting],[MEMO]:[memo],[NOTES]:savedMemberNotes});
+resumed.el('scoreDate').value='2099-01-09';
+resumed.el('scoreTrack').value='東京';resumed.el('scoreRace').value='11';
+resumed.el('scoreRace').onchange();
+assert.equal(resumed.el('scoreMemoGrid').children.length,8);
+assert.equal(resumed.el('scoreMemoGrid').children[0].children[1].children[0].children[0].value,'S');
+assert.match(resumed.el('scoreDraftStatus').textContent,/復元/);
+resumed.el('scoreReview').onclick();
+assert.match(resumed.el('scoreFormation').textContent,/36点/);
+const changedMeeting={...meeting,races:[{...sourceRace,postTime:'15:36'}]};
+const staleDraft=boot(true,{[MAIL]:[changedMeeting],[MEMO]:[memo],[NOTES]:savedMemberNotes});
+staleDraft.el('scoreDate').value='2099-01-09';
+staleDraft.el('scoreTrack').value='東京';staleDraft.el('scoreRace').value='11';
+staleDraft.el('scoreRace').onchange();
+assert.equal(staleDraft.el('scoreInput').value,'');
+assert.equal(staleDraft.el('scoreMemoGrid').children.length,0);
+assert.match(staleDraft.el('scoreDraftStatus').textContent,/復元できません/);
+assert.equal(JSON.parse(staleDraft.store.get(NOTES)).length,1,'keep stale draft in storage');
+const broken=boot(true,{[NOTES]:[{...savedNotes[0],race:13}]});
+broken.el('scoreDate').value='2026-11-07';
+broken.el('scoreTrack').value='京都';broken.el('scoreRace').value='3';
+broken.el('scoreInput').value='① 仮想馬A A A A A A';
+broken.el('scoreInput').oninput();
+assert.match(broken.el('scoreDraftStatus').textContent,/保存に失敗/);
+assert.equal(JSON.parse(broken.store.get(NOTES))[0].race,13,'invalid storage not overwritten');
 
 console.log('Owner manual 5-factor scoring: 36-point ranks, validation, cancel, no-network handoff PASS');
