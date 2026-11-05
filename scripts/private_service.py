@@ -17,11 +17,12 @@ from owner_session_auth import (owner_credentials_match, session_cookie, session
 
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs,
-                          fetch_venue_conditions, fetch_historical_race_program,
+                          fetch_venue_conditions, fetch_prestart_body, fetch_historical_race_program,
                           fetch_historical_venue_conditions, JRDBError)
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
 from jrdb_day_pipeline import inspect_day
 from jrdb_day_review_gate import build_day_review_queue
+from jrdb_prestart_body import audit_prestart_body
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
@@ -1072,6 +1073,7 @@ def create_app(settings=None):
             return response('200 OK', {
                 'transport': 'https' if secure else 'local-dev',
                 'jrdbConfigured': configured,
+                'prestartBodyEnabled': bool(configured and settings.get('KEIBA_PRESTART_BODY_ENABLED') == '1'),
                 'liveConnectionVerified': False,
                 'realPredictionEnabled': False,
                 'nextStep': ('本人専用のHTTPS環境でJRDB実接続を検証する' if configured
@@ -1229,6 +1231,34 @@ def create_app(settings=None):
                     RaceContextError, FreshnessError, ValueError, KeyError, TypeError):
                 return response('502 Bad Gateway', {
                     'error': '全レースの資料を安全に一括照合できませんでした。'})
+            return response('200 OK', report)
+        if method == 'GET' and path == '/api/jrdb/prestart-body':
+            # Separate explicit opt-in for up to three JRDB reads: /tra,/tky,/tpd.
+            # Not part of the day pipeline, not auto-polled, never uses odds.
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or settings.get('KEIBA_PRESTART_BODY_ENABLED') != '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not all(isinstance(settings.get(k), str) and settings[k].strip()
+                               for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': '直前の馬体資料取得はまだ有効になっていません。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            now = _now_in_jst()
+            if (set(query) != {'date'} or len(query['date']) != 1
+                    or not _valid_date(query['date'][0])
+                    or query['date'][0] != now[:10].replace('-', '')):
+                return response('400 Bad Request', {
+                    'error': '直前情報は日本時間の当日のみ、開催日を1つ選んでください。'})
+            try:
+                date = query['date'][0]
+                programme = normalize_program_rows(fetch_race_program(date), date)
+                entries = fetch_horse_entries(date)
+                prestart = fetch_prestart_body(date)
+                report = audit_prestart_body(programme, entries, prestart, date)
+            except (JRDBError, ProgrammeFormatError, CoverageError,
+                    ValueError, KeyError, TypeError):
+                return response('502 Bad Gateway', {
+                    'error': '当日の馬体・パドック資料を安全に照合できませんでした。'})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/selected-readiness':
             # Single owner-triggered request with one /tra /tky /tcy /tze /tka
