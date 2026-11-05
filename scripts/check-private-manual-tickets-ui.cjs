@@ -56,10 +56,12 @@ assert.equal(records.length,1);assert.equal(records[0].date,'2026-11-07');
 assert.deepEqual(Array.from(records[0].first),[1,2]);
 assert.equal(records[0].purchased,undefined,'must not claim actual purchases');
 assert.equal($('mSaved').children.length,1);
+assert.match($('mDaySummary').textContent,/1R／36点／3,600円/,'day totals show only unsent drafts');
 $('mDate').value='2026-11-08';$('mDate').onchange();
 assert.equal($('mSaved').children.length,1); // one "none for day" paragraph
 assert.match($('mSaved').children[0].textContent,/ありません/);
 assert.equal($('mCount').textContent,'0点','other day does not display prior formation');
+assert.match($('mDaySummary').textContent,/0R／0点／0円/,'other date must not inherit costs');
 $('mDate').value='2026-11-07';$('mDate').onchange();
 assert.equal($('mSaved').children.length,1,'record returns with its day');
 assert.equal($('mCount').textContent,'36点','same track and race restores draft');
@@ -241,6 +243,8 @@ assert.equal(afterBatch.filter(r=>r.date==='2026-11-07'&&r.track==='東京'&&r.r
  'reimport updates the same race instead of duplicating it');
 assert.equal(b('mBulkPaste').value,'','successful batch clears textarea');
 assert.match(b('mBulkStatus').textContent,/2レースの下書き/);
+b('mDate').value='2026-11-07';b('mDate').onchange();
+assert.match(b('mDaySummary').textContent,/2R／40点／4,000円/,'batch summaries must count both races without duplicates');
 assert.equal(b('mBulkApply').disabled,true);
 const locked=storage.get(key),writesBeforeErrors=writes.length;
 for(const bad of [
