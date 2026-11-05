@@ -64,7 +64,9 @@ function selection(x){
  points(x)>=1&&points(x)<=48;
 }
 function draft(x){
- return selection(x)&&typeof x.savedAt==='string'&&x.savedAt.length<=32;
+ return selection(x)&&typeof x.savedAt==='string'&&x.savedAt.length<=32&&
+ (!Object.prototype.hasOwnProperty.call(x,'result')||
+  x.result===null||validFinish(x.result));
 }
 function validFinish(x){
  return Array.isArray(x)&&x.length===3&&
