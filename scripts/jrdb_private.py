@@ -27,7 +27,7 @@ def _fetch_endpoint(endpoint, parameters):
     Historical requests must specify exactly one existing race key, never a
     date range or an unconstrained search.
     """
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'dra', 'dka'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'dra', 'dka'):
         raise JRDBError('Unsupported JRDB endpoint')
     if os.environ.get("JRDB_PRIVATE_ENABLED") != "1":
         raise JRDBError("Private JRDB integration is disabled")
@@ -82,7 +82,7 @@ def _fetch_endpoint(endpoint, parameters):
 
 def _fetch_day(endpoint, racedate):
     """Private current-week reader; historic endpoints cannot use this."""
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd'):
         raise JRDBError("Unsupported current-day endpoint")
     return _fetch_endpoint(endpoint, {"racedate": racedate})
 
@@ -119,3 +119,12 @@ def fetch_recent_runs(racedate):
 def fetch_venue_conditions(racedate):
     """Private-only current meeting/going records (/tka). No public output."""
     return _fetch_day('tka', racedate)
+
+
+def fetch_prestart_body(racedate):
+    """Private-only `/tpd` snapshot; only invoke on owner prestart request.
+
+    Contract: the client deliberately does not fetch or use odds for ranking.
+    The caller must redact all body-weight and paddock fields before response.
+    """
+    return _fetch_day('tpd', racedate)
