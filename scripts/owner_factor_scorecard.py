@@ -274,6 +274,62 @@ function receiveRaceSelection(){
 }
 receiveRaceSelection();
 
+function restoreCurrentNote(){
+ resetMemoGrid();
+ $('scoreInput').value='';
+ try{
+  const selected=identity();
+  const note=notesRead().find(x=>noteKey(x)===noteKey(selected));
+  if(!note){
+   $('scoreDraftStatus').textContent='このレースの途中評価はまだ保存されていません。';
+   return;
+  }
+  if(note.sourceMark!==null){
+   const live=readMatchingMemo(selected);
+   if(live.sourceMark!==note.sourceMark)
+    throw Error('元の想定メール・馬番メモが更新されています。保存済み評価は自動復元しません。');
+   const lines=note.text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+   if(lines.length!==live.rows.length)throw Error('保存した馬番と現在の資料の頭数が違います。');
+   const graded=new Map();
+   for(const line of lines){
+    const match=/^([1-9]|1[0-8])\s+([^\s<>]+)\s+([SABC?])\s+([SABC?])\s+([SABC?])\s+([SABC?])\s+([SABC?])$/.exec(line);
+    if(!match||graded.has(Number(match[1])))throw Error('保存した評価行の形式が不正です。');
+    graded.set(Number(match[1]),{name:match[2],grades:match.slice(3)});
+   }
+   for(const row of live.rows){
+    const old=graded.get(row.number);
+    if(!old||old.name!==row.name)throw Error('保存した馬番・馬名が現在の資料と異なります。');
+    row.grades=old.grades;
+   }
+   memoRows=live.rows;memoSourceMark=live.sourceMark;
+   drawMemoGrid();
+  }
+  $('scoreInput').value=note.text;
+  $('scoreDraftStatus').textContent=selected.track+selected.race+
+   'Rの途中評価を端末から復元しました（未購入・未確定）。';
+ }catch(e){
+  resetMemoGrid();
+  $('scoreInput').value='';
+  $('scoreDraftStatus').textContent='途中評価を復元できません：'+
+   (e instanceof Error?e.message:'端末内の記録を確認してな。');
+ }
+}
+$('scoreClearDraft').onclick=()=>{
+ try{
+  const selected=identity();
+  if(!confirm(selected.date+' '+selected.track+selected.race+
+   'Rの途中評価を、この端末内から削除しますか？\n3連単下書きと購入記録は変更しません。'))return;
+  const rest=notesRead().filter(x=>noteKey(x)!==noteKey(selected));
+  localStorage.setItem(NOTE_KEY,JSON.stringify(rest));
+  resetMemoGrid();$('scoreInput').value='';invalidate();
+  $('scoreDraftStatus').textContent='このRの途中評価を削除しました。購入・下書きには変更なし。';
+ }catch(e){
+  $('scoreDraftStatus').textContent='削除できません：'+
+   (e instanceof Error?e.message:'端末保存の状態を確認してな。');
+ }
+};
+restoreCurrentNote();
+
 $('scoreReview').onclick=()=>{
  invalidate();
  try{
