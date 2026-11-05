@@ -26,12 +26,15 @@ function boot(){
  return {el,nodes,urls};
 }
 const first=boot(),$=first.el;
+assert.equal(typeof $('mImport').onchange,'function','JSON restore must be available immediately on first load');
+const originalImport=$('mImport').onchange;
 assert.equal($('mFirst').children.length,18);
 assert.equal($('mSecond').children.length,18);
 assert.equal($('mThird').children.length,18);
 assert.equal($('mSave').disabled,true);
 assert.equal(storage.size,0);
 $('mDate').value='2026-11-07';$('mDate').onchange();
+assert.equal($('mImport').onchange,originalImport,'date switching must not rebind the import handler');
 $('mTrack').value='東京';$('mTrack').onchange();
 $('mRace').value='1';$('mRace').onchange();
 const choose=(id,n)=>$(id).children[n-1].onclick();
