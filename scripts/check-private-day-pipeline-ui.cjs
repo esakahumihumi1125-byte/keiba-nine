@@ -6,7 +6,7 @@ const script=fs.readFileSync('/tmp/keiba-jrdb-day-pipeline.js','utf8');
 function instance(configured, prestartEnabled=false, deferDay=false){
  const nodes=new Map(), calls=[], delayed=[];
  const el=id=>{
-  if(!nodes.has(id))nodes.set(id,{id,value:'',disabled:id==='run'||id==='prestartRun',hidden:id==='report'||id==='review'||id==='factorProgress'||id==='prestartReport',
+  if(!nodes.has(id))nodes.set(id,{id,value:'',disabled:id==='run'||id==='prestartRun',hidden:id==='report'||id==='review'||id==='factorProgress'||id==='sourceMaterials'||id==='prestartReport',
    textContent:'',children:[],events:{},
    addEventListener(type,fn){this.events[type]=fn},
    replaceChildren(...children){this.children=children},
@@ -32,6 +32,33 @@ function instance(configured, prestartEnabled=false, deferDay=false){
     trainingUnaccounted:0,lastWeekUnaccounted:0,recentUnaccounted:0,
     sourceGoingRecorded:false}
   ],
+  sourceMaterials:{
+   version:'private-eight-materials-1',date:'20261101',raceCount:2,
+   verifiedOverallFactors:0,realPredictionReady:false,purchaseReady:false,
+   rawHorseRecordsIncluded:false,
+   mappedSourceSlots:['training','recent','pace','pedigree','draw_weight',
+    'rotation','jockey_stable','body_condition'],
+   unmappedHistorySlots:['course_distance','ground'],
+   summary:{totalRegistered:3,pedigreePresent:1,drawAndWeightPresent:1,
+    personnelPresent:1,conformationPresent:1,cornerResearchPresent:0,
+    rotationDatesPresent:1},
+   races:[
+    {track:'東京',race:1,registered:2,observedSourceSlots:8,
+     unmappedHistorySlots:2,unverifiedFactorGrades:10,provisionalFactorsOnly:2,
+     officialJraVerified:false,overallRankReady:false,
+     realPredictionReady:false,ticketReady:false,
+     counts:{pedigreeParentsRecorded:1,drawAndAssignedWeightRecorded:1,
+      lastRaceDateRecorded:1,jockeyTrainerNamesRecorded:1,
+      conformationCodeRecorded:1,pastCornerObservedForPaceResearch:0}},
+    {track:'京都',race:1,registered:1,observedSourceSlots:8,
+     unmappedHistorySlots:2,unverifiedFactorGrades:10,provisionalFactorsOnly:2,
+     officialJraVerified:false,overallRankReady:false,
+     realPredictionReady:false,ticketReady:false,
+     counts:{pedigreeParentsRecorded:0,drawAndAssignedWeightRecorded:0,
+      lastRaceDateRecorded:0,jockeyTrainerNamesRecorded:0,
+      conformationCodeRecorded:0,pastCornerObservedForPaceResearch:0}}
+   ]
+  },
   factorProgress:{
    version:'day-factor-progress-1',date:'20261101',raceCount:2,
    realOverallGradeReady:false,realPredictionReady:false,purchaseReady:false,
@@ -122,6 +149,10 @@ async function tick(){
  assert.equal(ready.el('review').hidden,false);
  assert.equal(ready.el('factorProgress').hidden,false);
  assert.equal(ready.el('factorRows').children.length,2);
+ assert.equal(ready.el('sourceMaterials').hidden,false);
+ assert.equal(ready.el('sourceMaterialsRows').children.length,2);
+ assert.equal(ready.el('sourceMaterialsRows').children[0].tag,'details');
+ assert.match(ready.el('sourceMaterialsSummary').textContent,/8枠を接続/);
  assert.match(ready.el('factorSummary').textContent,/暫定評価/);
  assert.equal(ready.el('rows').children.length,2);
  assert.equal(ready.el('reviewRows').children.length,2);
@@ -133,6 +164,7 @@ async function tick(){
  assert.equal(ready.el('report').hidden,true,'Previous day must not remain on screen');
  assert.equal(ready.el('reviewRows').children.length,0);
  assert.equal(ready.el('factorRows').children.length,0);
+ assert.equal(ready.el('sourceMaterialsRows').children.length,0);
  assert.equal(ready.el('rows').children.length,0);
  ready.el('date').value='2026-11-01';
  ready.setMalformed(true);
@@ -152,6 +184,7 @@ async function tick(){
  await inflight;
  assert.equal(stale.el('report').hidden,true,
   'An older date must never reappear after an in-flight response');
+ assert.equal(stale.el('sourceMaterialsRows').children.length,0);
  assert.equal(stale.el('factorRows').children.length,0,
   'Stale response must not recreate factor grades');
  assert.match(stale.el('message').textContent,/開催日を変更/);
