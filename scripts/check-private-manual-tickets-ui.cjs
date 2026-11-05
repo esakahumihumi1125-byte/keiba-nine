@@ -46,6 +46,7 @@ choose('mFirst',1);choose('mFirst',2);
 for(let i=1;i<=4;i++)choose('mSecond',i);
 for(let i=1;i<=8;i++)choose('mThird',i);
 assert.equal($('mCount').textContent,'36点','overlapping positions must not be purchased twice');
+assert.match($('mNumberReview').textContent,/馬番メモが未登録/,'unmapped picks need official entry check');
 assert.equal($('mCost').textContent,'3,600円');
 assert.equal($('mSave').disabled,false);
 assert.equal($('mTickets').children.length,36);
@@ -229,6 +230,10 @@ m('mSecond').children[1].onclick();
 m('mThird').children[2].onclick();
 assert.equal(m('mCount').textContent,'1点','read-only names do not change formation math');
 assert.match(m('mThirdNames').textContent,/3番 架空馬C/);
+assert.match(m('mNumberReview').textContent,/選択した馬番は本人転記の馬番メモにあります/,'matched owner memo is informational only');
+m('mFirst').children[3].onclick();
+assert.match(m('mNumberReview').textContent,/4番.*未登録/,'unknown selected number is highlighted');
+m('mFirst').children[3].onclick();
 
 const beforeMemoWrites=writes.length;
 m('mRace').value='3';m('mRace').onchange();
@@ -243,6 +248,8 @@ assert.match(m('mRaceBoardStatus').textContent,/JRDB想定メール 1R／本人�
 assert.equal(m('mRaceBoard').children[1].children[2].textContent,'想定メールあり');
 m('mFirst').children[0].onclick();
 assert.equal(m('mFirstNames').textContent,'選択中：1番','stale name must not appear on selected horse');
+assert.match(m('mNumberReview').textContent,/馬番メモが未登録または更新/,'stale source requires recheck');
+assert.equal(m('mSave').disabled,false,'source warnings do not silently block explicit operator draft');
 
 assert.equal(writes.length,beforeMemoWrites,'read-only memo viewing must never write localStorage');
 
