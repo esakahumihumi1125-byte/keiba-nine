@@ -42,6 +42,7 @@ from jra_reference_compare import (compare_independent_race_snapshot,
                                    validate_single_manual_reference, ReferenceCompareError)
 from research_planner import plan_race
 from research_batch_demo import build_demo_batch, render_batch_html, CSS as BATCH_DEMO_CSS
+from research_validation_demo import build_validation_review, render_validation_html
 from operator_factor_intake import validate_operator_factor_note
 from manual_ticket_book import HTML as TICKET_HTML, JS as TICKET_JS, CSS as TICKET_CSS
 from owner_ticket_handoff import JS as TICKET_HANDOFF_JS
@@ -56,7 +57,7 @@ UI_VERSION = 'iphone-login-recovery-20261105-v9'
 MAX_BODY = 131072
 LOGIN_HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>競馬ナイン｜本人ログイン</title><link rel="stylesheet" href="/login.css"></head><body><main><h1>KEIBA NINE</h1><p class="subtitle">本人用プレビューへのログイン</p><p class="notice">予想デモは架空データ用です。実戦予想・馬券購入は未接続。</p><form action="/login" method="post"><label for="loginUser">ユーザー名</label><input id="loginUser" name="username" autocomplete="username" value="owner" maxlength="128" required><label for="loginPassword">パスワード</label><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><input type="hidden" name="login_csrf" value="__CSRF__"><button type="submit">ログイン</button></form><p id="loginError" class="error">__ERROR__</p><p class="help">ログイン後に同じ画面へ戻る場合は、ChatGPT内のブラウザーではなくSafariでこのURLを直接開いてください。アプリのパスワードはRenderのEnvironmentに設定した値です。</p><p class="help">Renderのサービス <strong>keiba-nine-owner-preview</strong> の Environment にある <code>KEIBA_OWNER_PASSWORD</code> を使います。RenderやGitHubのログインパスワードとは別です。</p><p class="help">正しくログインできると、このiPhoneでは最長7日間ログイン状態を保持します。パスワードを変更すると再ログインが必要です。</p><p class="help">パスワードはこのチャットやGitHubに貼らないでください。</p></main></body></html>'''
 LOGIN_CSS = '''body{margin:0;background:#09172b;color:#edf3fa;font:16px/1.65 system-ui,sans-serif}main{max-width:440px;padding:28px 22px;margin:36px auto}h1{color:#edca70;margin:0;font-size:32px}.subtitle{color:#d6e1f0;margin:0 0 24px}.notice,.help{color:#d0deee;font-size:14px}.notice{background:#142e48;border-radius:10px;padding:12px}form{background:#172d48;border:1px solid #405e7b;border-radius:16px;padding:20px}label{display:block;font-weight:700;margin:14px 0 5px}input,button{box-sizing:border-box;width:100%;padding:13px;border-radius:10px;font:inherit}input{background:#f8fbff;color:#10213b;border:1px solid #8b9eb7}button{margin-top:23px;background:#edca70;border:0;color:#12243a;font-weight:800;min-height:50px}.error{color:#ffbec4;font-weight:700}.error:empty{display:none}code{overflow-wrap:anywhere}'''
-HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css?theme=owner-mobile-nav-20261104"></head><body><main><h1>KEIBA NINE</h1><p class="top-lead">競馬ナイン｜本人用プレビュー</p><div class="preview-mode"><strong>本人用：手動の3連単下書きが使えます</strong><span>実馬のAI予想・馬券購入は未接続</span></div><nav class="jump-nav" aria-label="画面内メニュー"><a href="/my-tickets">自分の3連単を作る（手動）</a><a href="/research-batch-demo">全36R一括テスト（架空）</a><a href="/day-pipeline">全R資料の一括準備（API待ち）</a><a href="#researchPanel">予想デモ</a><a href="#jrdbSection">レース選択</a><a href="#operatorFactorPanel">資料チェック</a><a href="#ownerTools">接続・設定</a></nav><p class="muted" id="uiVersion">画面版：iphone-login-recovery-20261105-v9</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
+HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NINE｜本人用接続確認</title><link rel="stylesheet" href="/app.css?theme=owner-mobile-nav-20261104"></head><body><main><h1>KEIBA NINE</h1><p class="top-lead">競馬ナイン｜本人用プレビュー</p><div class="preview-mode"><strong>本人用：手動の3連単下書きが使えます</strong><span>実馬のAI予想・馬券購入は未接続</span></div><nav class="jump-nav" aria-label="画面内メニュー"><a href="/my-tickets">自分の3連単を作る（手動）</a><a href="/research-batch-demo">全36R一括テスト（架空）</a><a href="/research-validation-demo">1着候補の振り返り（架空）</a><a href="/day-pipeline">全R資料の一括準備（API待ち）</a><a href="#researchPanel">予想デモ</a><a href="#jrdbSection">レース選択</a><a href="#operatorFactorPanel">資料チェック</a><a href="#ownerTools">接続・設定</a></nav><p class="muted" id="uiVersion">画面版：iphone-login-recovery-20261105-v9</p><section id="researchPanel" class="research-panel"><p class="research-kicker">KEIBA NINE • OWNER TEST</p><h2>総合評価と3連単</h2>
 <p class="research-intro">見やすい予想画面の動作確認。<strong>架空8頭のテスト専用</strong>です。実レース・JRDB有料データ・購入には使えません。</p>
 <button id="researchDemo" class="primary-run">架空8頭で予想画面を確認</button>
 <p id="researchMessage" role="status">未検証。上のボタンで架空8頭の画面を表示できます。</p>
@@ -991,7 +992,7 @@ def create_app(settings=None):
                             extra=[('Location', '/login?session=check'),
                                    ('Set-Cookie', session_cookie(expected))])
         if not valid:
-            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/research-batch-demo', '/day-pipeline'):
+            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/research-batch-demo', '/research-validation-demo', '/day-pipeline'):
                 return response('303 See Other', '', 'text/plain; charset=utf-8',
                                 extra=[('Location', '/login')])
             # Do not summon an iPhone native Basic-password popup when an
@@ -1032,6 +1033,11 @@ def create_app(settings=None):
                 '/my-purchases.js': (PURCHASE_JS, 'text/javascript; charset=utf-8'),
             }[path]
             return response('200 OK', content, mime)
+        if method == 'GET' and path == '/research-validation-demo':
+            # Synthetic-only chronological holdout: no real results,
+            # provider requests, model training, persistence or bets.
+            return response('200 OK', render_validation_html(build_validation_review()),
+                            'text/html; charset=utf-8')
         if method == 'GET' and path == '/research-batch-demo':
             # The fixture never contacts a provider, persists records, or
             # generates a live recommendation; it runs after owner auth.
