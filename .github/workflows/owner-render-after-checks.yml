@@ -1,0 +1,45 @@
+name: Owner Render deploy after private checks
+# Optional fallback: requires a private GitHub Actions repository secret.
+# Without RENDER_DEPLOY_HOOK_URL this workflow is inert and never deploys.
+on:
+  workflow_run:
+    workflows: ["Private service checks"]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: keiba-nine-owner-render-after-checks
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Only trigger a deploy when the most recent main commit passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]]; then
+            echo 'RENDER_DEPLOY_HOOK_URL is not configured: deploy safely skipped.'
+            exit 0
+          fi
+          # Never deploy when a newer commit has been pushed but not yet tested.
+          LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          if [[ "$LATEST" != "$PASSED_SHA" ]]; then
+            echo 'Tested SHA is not current main: skip obsolete deployment.'
+            exit 0
+          fi
+          # The URL contains a secret key: do not print or persist it.
+          # Trigger latest branch deployment without a ref (ref would disable native auto deploy).
+          curl --fail --silent --show-error --max-time 25 --request POST \
+            --output /dev/null "$RENDER_DEPLOY_HOOK_URL"
+          echo 'Render deploy hook accepted the request; live status must still be checked.'
