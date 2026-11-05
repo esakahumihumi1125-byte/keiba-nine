@@ -24,7 +24,7 @@ JRA公式最終照合と実データの予想精度検証は別工程です。�
 <p id="prestartMessage" class="hint" role="status">API β版の認証と直前資料用の安全設定が済むまでは停止中。</p>
 <p class="hint">別操作で番組・登録馬・直前資料を各1回取得。オッズは使用せず、馬体重や指数の値も表示しません。</p></section>
 <section class="panel" id="report" hidden><h2>レース別の確認結果</h2>
-<p id="summary"></p><div id="rows"></div><section id="review" hidden><h2>発走前の優先チェック</h2><p id="reviewSummary"></p><div id="reviewRows"></div></section></section>
+<p id="summary"></p><section id="factorProgress" hidden><h2>調教・近走の暫定資料評価（実戦評価ではありません）</h2><p id="factorSummary"></p><div id="factorRows"></div></section><div id="rows"></div><section id="review" hidden><h2>発走前の優先チェック</h2><p id="reviewSummary"></p><div id="reviewRows"></div></section></section>
 <section class="panel" id="prestartReport" hidden><h2>当日の馬体資料（件数のみ）</h2><p id="prestartSummary"></p><div id="prestartRows"></div></section>
 <footer>登録済み馬の名前・馬番・有料の生データは表示しません。これは資料取得の準備状況であり、レース予想ではありません。</footer>
 </main><script src="/day-pipeline.js" defer></script></body></html>"""
@@ -85,6 +85,8 @@ JS = """
  date.addEventListener('change',()=>{
   $('report').hidden=true;
   $('review').hidden=true;
+  $('factorProgress').hidden=true;
+  $('factorRows').replaceChildren();
   $('prestartReport').hidden=true;
   $('prestartRows').replaceChildren();
   $('rows').replaceChildren();
@@ -155,6 +157,44 @@ JS = """
     row.append(make('p','取得元馬場 '+(item.sourceGoingRecorded?'記録あり':'未確認')+
       '｜JRA公式照合なし・総合評価なし・買い目なし'));
     rows.append(row);
+   }
+   const progress=result.factorProgress;
+   const factors=$('factorProgress');factors.hidden=true;
+   if(progress){
+    if(progress.version!=='day-factor-progress-1'||
+       progress.date!==iso.replaceAll('-','')||
+       progress.raceCount!==result.raceCount||
+       progress.realOverallGradeReady!==false||
+       progress.realPredictionReady!==false||
+       progress.purchaseReady!==false||
+       progress.rawHorseRecordsIncluded!==false||
+       !Array.isArray(progress.races)||progress.races.length!==progress.raceCount)
+      throw Error('調教・近走の暫定評価情報を安全に表示できませんでした。');
+    const ps=progress.summary;
+    $('factorSummary').textContent='調教の暫定評価 '+ps.runnersWithTrainingProvisional+
+     '頭分／近走の暫定評価 '+ps.runnersWithRecentProvisional+
+     '頭分／両方に暫定評価 '+ps.runnersWithBothProvisional+
+     '頭分／2段階以上の不一致 '+ps.runnersWithLargeGradeDisagreement+
+     '頭分。実戦の総合評価・勝率・買い目ではありません。';
+    const factorRows=$('factorRows');factorRows.replaceChildren();
+    for(const r of progress.races){
+     if(r.realOverallGradeReady!==false||r.realPredictionReady!==false||
+        r.ticketReady!==false||r.officialRaceVerified!==false||
+        r.fullTenFactorsGraded!==0||r.remainingFactorsUnassessed!==8)
+      throw Error('未検証の暫定評価を実戦予想として表示できません。');
+     const card=make('article','');card.className='race';
+     card.append(make('strong',r.track+r.race+'R｜'+r.registered+'頭の研究用資料'));
+     card.append(make('p','調教の暫定評価 '+r.trainingExperimentalGraded+
+       '頭／近走の暫定評価 '+r.recentExperimentalGraded+
+       '頭／両方が暫定評価 '+r.bothExperimentalGraded+'頭'));
+     const labels=['S','A','B','C','未評価'];
+     const histogram=field=>labels.map(g=>g+' '+r[field][g]).join('・');
+     card.append(make('p','調教のみ：'+histogram('trainingGradeCounts')));
+     card.append(make('p','近走のみ：'+histogram('recentGradeCounts')));
+     card.append(make('p','残り8項目・JRA公式照合は未確認。3連単なし。'));
+     factorRows.append(card);
+    }
+    factors.hidden=false;
    }
    const queue=result.reviewQueue;
    const review=$('review');
