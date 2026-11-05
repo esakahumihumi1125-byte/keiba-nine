@@ -88,6 +88,20 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(denied['status'], '303 See Other')
         self.assertEqual(denied['headers']['Location'], '/login')
 
+    def test_home_keeps_synthetic_demo_behind_collapsed_section(self):
+        root = call(self.app, '/')['body'].decode('utf-8')
+        self.assertIn('aria-label="実戦で使うメニュー"', root)
+        self.assertIn('class="developer-menu"', root)
+        self.assertIn('class="developer-panel"', root)
+        self.assertIn('<summary>架空の予想デモを表示（開発確認用）</summary>', root)
+        self.assertIn('id="researchPanel"', root)
+        self.assertIn('href="/my-scorecard"', root)
+        self.assertIn('href="/owner-backup"', root)
+        self.assertIn('href="/my-tickets"', root)
+        self.assertNotIn('class="developer-panel" open', root)
+        self.assertNotIn('class="developer-menu" open', root)
+        self.assertIn('架空データ', root)
+
     def test_manual_scorecard_is_private_not_an_ai_prediction(self):
         for path, phrase in (
             ('/my-scorecard', '5項目の手動評価'),
