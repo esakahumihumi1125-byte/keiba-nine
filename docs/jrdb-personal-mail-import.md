@@ -38,3 +38,16 @@
 **重要：** この仕組みは「本人がコピーした馬番と想定メールの馬名を比較」するだけで、JRA公式サイトの画面が正しいか、取消・枠順・馬場・発走時刻が最新かを自動保証しません。正式なJRA独立照合やJRDB実データ連携は未実装。事前想定から「公式照合済み」や「実戦予想可能」へ自動昇格させません。
 
 実装：`scripts/jrdb_final_numbers_manual.py` / `scripts/owner_ticket_handoff.py`。テスト：`tests/test_jrdb_manual_numbers.py`、`scripts/check-private-jrdb-manual-numbers.cjs`、`scripts/check-owner-ticket-handoff.cjs`。
+
+## JRA開催場別出馬表PDFリンクの本人用確認（2026-11-05）
+
+本人専用画面 `/jrdb-mail-local` に、**「選択日の公式出馬表PDFを探す」**ボタンを設けた。
+
+- 本人がボタンを押すと、既存の認証付き `GET /api/jra/official-pdf-links?date=YYYY-MM-DD` により、**JRA公式の固定URL `https://www.jra.go.jp/keiba/rpdf/` のHTMLページを1回だけ取得**し、指定日の「◯回 ◯◯競馬場◯日」の公式PDFリンクを探す。
+- Python標準ライブラリのHTMLParserで公開索引の見出し・出馬表PDFへのリンクだけを読み取り、PDFファイルの内容は取得しない。日付はJST基準で過去56日から先14日までに制限。通信7秒・HTML最大900KB、公式URLドメイン/HTTPS/配下パスのみ許可、サーバー応答に馬番・生データを含めない。公式サイト側のHTML仕様変更・リンク未掲載・通信失敗なら未確認として扱う。
+- レース馬番、枠順、取消、騎手、馬場、公式発走時刻は取得・検証していないので、`officialRunnerNumbersVerified=false`、`predictionReady=false`、`bettingReady=false` を必須にしている。リンク発見だけでは実戦予想を開放しない。
+- クライアントでは日付変更後の古い検索結果を破棄し、公式JRAのPDFリンク以外は表示を拒否。PDFを本人が開いて確認後、下部の手入力馬番照合と接続できる。
+- **注意：これは「公式出馬表の公開URLを探す」初期段階であり、「公式出馬表を自動解析して各馬番を取得する」実装ではない。** 公式ページのライブ構造・アクセス可否はテスト用HTMLでは検証できない。実サイトの未掲載/仕様変更ではリンクを表示しない可能性がある。
+- APIキー/JRDB料金は不要。JRAページへの要求はボタン操作時だけで、定期巡回・大量スクレイピングはしない。ホーム画面の架空予想や実購入記録には影響しない。
+
+参照：JRA公式「開催場別出馬表」 `https://www.jra.go.jp/keiba/rpdf/`。コード：`scripts/jra_official_pdf_discovery.py`、`scripts/jra_official_pdf_ui.py`、テスト：`tests/test_jra_official_pdf_discovery.py`、`scripts/check-private-jra-official-pdf-ui.cjs`。
