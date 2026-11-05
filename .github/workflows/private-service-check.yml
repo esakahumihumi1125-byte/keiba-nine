@@ -36,6 +36,9 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from private_service import OWNER_UPDATE_JS; from pathlib import Path; Path('/tmp/keiba-owner-update.js').write_text(OWNER_UPDATE_JS, encoding='utf-8')"
           node --check /tmp/keiba-owner-update.js
           node scripts/check-owner-update-ui.cjs
+          python -c "import sys; sys.path.insert(0, 'scripts'); from owner_backup import JS; from pathlib import Path; Path('/tmp/keiba-owner-backup.js').write_text(JS, encoding='utf-8')"
+          node --check /tmp/keiba-owner-backup.js
+          node scripts/check-owner-backup-ui.cjs
           node scripts/check-private-research-ui.cjs
           node scripts/check-private-program-picker-ui.cjs
           node scripts/check-private-oneclick-readiness-ui.cjs
