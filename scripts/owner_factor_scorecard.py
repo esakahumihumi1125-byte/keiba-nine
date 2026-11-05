@@ -75,7 +75,7 @@ function parseGrades(text){
    throw Error((index+1)+'行目：1〜18の馬番が重複または不正です。');
   seen.add(value);
   const hasName=parts.length===7,name=hasName?parts[1]:'';
-  if(name&&(name.length>35||names.has(name)))throw Error('馬名が長すぎるか重複しています。');
+  if(name&&(name.length>35||names.has(name)||/[<>]/.test(name)))throw Error('馬名が不正・重複、または長すぎます。');
   if(name)names.add(name);
   const grades=parts.slice(hasName?2:1);
   if(grades.length!==5||grades.some(x=>!Object.hasOwn(GRADE,x)))
