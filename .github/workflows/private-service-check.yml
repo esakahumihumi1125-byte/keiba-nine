@@ -45,6 +45,9 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from owner_race_workbench import JS; from pathlib import Path; Path('/tmp/keiba-owner-race-workbench.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-owner-race-workbench.js
           node scripts/check-owner-race-workbench-ui.cjs
+          python -c "import sys; sys.path.insert(0, 'scripts'); from owner_result_review import JS; from pathlib import Path; Path('/tmp/keiba-owner-result-review.js').write_text(JS, encoding='utf-8')"
+          node --check /tmp/keiba-owner-result-review.js
+          node scripts/check-owner-review-ui.cjs
           node scripts/check-private-research-ui.cjs
           node scripts/check-private-program-picker-ui.cjs
           node scripts/check-private-oneclick-readiness-ui.cjs
