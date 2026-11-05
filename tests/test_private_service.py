@@ -141,6 +141,36 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertNotIn('localStorage.setItem', script)
         self.assertNotIn('innerHTML', script)
 
+    def test_owner_result_review_is_private_read_only(self):
+        for route, text in (
+            ('/owner-review', '着順ごとの振り返り'),
+            ('/owner-review.js', "keiba-nine-owner-ticket-drafts-v1"),
+            ('/owner-review.css', '.review-row'),
+        ):
+            with self.subTest(route=route):
+                result = call(self.app, route)
+                self.assertEqual(result['status'], '200 OK')
+                self.assertIn('no-store', result['headers']['Cache-Control'])
+                self.assertIn(text, result['body'].decode('utf-8'))
+                denied = call(self.app, route, auth='')
+                if route == '/owner-review':
+                    self.assertEqual(denied['status'], '303 See Other')
+                    self.assertEqual(denied['headers']['Location'], '/login')
+                else:
+                    self.assertEqual(denied['status'], '401 Unauthorized')
+                    self.assertNotIn('WWW-Authenticate', denied['headers'])
+        root = call(self.app, '/')['body'].decode('utf-8')
+        self.assertIn('href="/owner-review"', root)
+        script = call(self.app, '/owner-review.js')['body'].decode('utf-8')
+        self.assertNotIn('fetch(', script)
+        self.assertNotIn('XMLHttpRequest', script)
+        self.assertNotIn('localStorage.setItem', script)
+        self.assertNotIn('innerHTML', script)
+        self.assertIn("const DRAFT='keiba-nine-owner-ticket-drafts-v1'", script)
+        self.assertIn("const PURCHASE='keiba-nine-owner-real-purchases-v1'", script)
+        self.assertIn("const conflict=outcomes.size>1", script)
+        self.assertIn("function verdict(form,result)", script)
+
     def test_manual_scorecard_is_private_not_an_ai_prediction(self):
         for path, phrase in (
             ('/my-scorecard', '5項目の手動評価'),
