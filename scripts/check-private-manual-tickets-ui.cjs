@@ -195,6 +195,15 @@ assert.equal(m('mRosterRows').children.length,3,'same-race memo should show thre
 assert.equal(m('mRosterRows').children[0].textContent,'1番 架空馬A','memo sorted by horse number');
 assert.match(m('mRosterStatus').textContent,/本人が手入力/);
 assert.equal(m('mCount').textContent,'0点','memo must not auto-create a formation');
+assert.equal(m('mFirstNames').textContent,'','no selection should not show labels');
+m('mFirst').children[0].onclick();
+assert.match(m('mFirstNames').textContent,/1番 架空馬A/,'chosen horse shows mapped name');
+assert.equal(m('mSecondNames').textContent,'','only a chosen position gets a label');
+m('mSecond').children[1].onclick();
+m('mThird').children[2].onclick();
+assert.equal(m('mCount').textContent,'1点','read-only names do not change formation math');
+assert.match(m('mThirdNames').textContent,/3番 架空馬C/);
+
 const beforeMemoWrites=writes.length;
 m('mRace').value='3';m('mRace').onchange();
 assert.equal(m('mRosterRows').children.length,0,'other race must not inherit names');
@@ -204,5 +213,8 @@ storage.set('keiba-nine-jrdb-personal-mail-v1',
 m('mRace').onchange();
 assert.equal(m('mRosterRows').children.length,0,'changed source cannot display stale names');
 assert.match(m('mRosterStatus').textContent,/再照合/);
+m('mFirst').children[0].onclick();
+assert.equal(m('mFirstNames').textContent,'選択中：1番','stale name must not appear on selected horse');
+
 assert.equal(writes.length,beforeMemoWrites,'read-only memo viewing must never write localStorage');
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
