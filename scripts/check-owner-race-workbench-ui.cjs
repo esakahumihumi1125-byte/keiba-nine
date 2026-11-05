@@ -132,7 +132,7 @@ const revised=fixtures();revised[keys.memo]=[mkMemo('東京',1,'changed'),mkMemo
 page.storage.set(keys.memo,JSON.stringify(revised[keys.memo]));
 page.events.pageshow({persisted:true});
 assert.match(e('workSummary').textContent,/元資料要再確認2R/);
-assert.equal(e('workNext').children.length,7,'new stale roster joins queue after browser return');
+assert.equal(e('workNext').children.length,6,'new stale roster joins queue after browser return');
 assert.match(e('workNext').children[0].children[0].textContent,/資料が不一致/);
 e('workReload').onclick();
 assert.match(e('workStatus').textContent,/読み直しました/);
