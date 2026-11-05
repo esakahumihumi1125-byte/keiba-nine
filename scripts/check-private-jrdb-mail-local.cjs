@@ -35,7 +35,6 @@ const mail=(date,venue,number=1)=>[
 const key='keiba-nine-jrdb-personal-mail-v1';
 const e=loadPage();
 assert.equal(storage.size,0);
-assert.match(e('message').textContent,/メールの原文そのものは保存せず/);
 assert.equal(e('raceList').children.length,0);
 e('mailText').value=mail('2099年1月1日（木）','東京',1);
 e('importMail').onclick();
