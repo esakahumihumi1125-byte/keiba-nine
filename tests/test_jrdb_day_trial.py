@@ -48,6 +48,13 @@ class DayTrialResearchTests(unittest.TestCase):
         self.assertEqual(result["runnerCount"], 3)
         self.assertEqual(result["twoFactorComparable"], 1)
         self.assertEqual(result["ungraded"], 2)
+        tokyo = result["races"][0]
+        self.assertEqual(tokyo["pastFourthCornerSummary"]["categoryCounts"],
+                         {"frontObserved": 0, "backObserved": 0,
+                          "mixedObserved": 0, "insufficient": 2})
+        self.assertEqual([h["pastFourthCornerObservation"] for h in tokyo["runners"]],
+                         ["insufficient", "insufficient"])
+        self.assertFalse(tokyo["pastFourthCornerSummary"]["racePaceForecastAvailable"])
         row = result["races"][0]["factorCoverage"]
         self.assertEqual(row["observedRunnerCount"], 2)
         self.assertEqual(row["verifiedAbilityFactors"], 0)
@@ -89,6 +96,10 @@ class DayTrialResearchTests(unittest.TestCase):
         self.assertEqual(observed["body_condition"], 1)
         self.assertEqual(observed["pace"], 1)
         self.assertEqual(observed["rotation"], 1)
+        race = report["races"][0]
+        self.assertEqual(race["pastFourthCornerSummary"]["categoryCounts"]["frontObserved"], 1)
+        self.assertEqual(race["runners"][0]["pastFourthCornerObservation"], "frontObserved")
+        self.assertFalse(race["pastFourthCornerSummary"]["racePaceForecastAvailable"])
         self.assertEqual(coverage["verifiedAbilityFactors"], 0)
         self.assertFalse(report["predictionReady"])
         self.assertFalse(report["bettingReady"])
@@ -145,6 +156,25 @@ class DayTrialResearchTests(unittest.TestCase):
         self.assertEqual(unreported["goingAvailableCount"], 0)
         self.assertTrue(all(r["raceContext"]["going"] == "未確認"
                             for r in unreported["races"]))
+
+    def test_back_and_mixed_4th_corner_are_observations_not_a_rank(self):
+        p, e, t, z = sample_input()
+        z[0].update(race_back_1_corner4_order=8,
+                    race_back_2_corner4_order=9)
+        behind = build_day_trial(p, e, t, z, "20261101")
+        horse = behind["races"][0]["runners"][0]
+        self.assertEqual(horse["pastFourthCornerObservation"], "backObserved")
+        self.assertEqual(horse["comparisonRank"], 1)
+        self.assertEqual(behind["races"][0]["factorCoverage"]["materialCountByFactor"]["pace"], 1)
+        z[0]["race_back_2_corner4_order"] = 2
+        mixed = build_day_trial(p, e, t, z, "20261101")
+        self.assertEqual(mixed["races"][0]["runners"][0]["pastFourthCornerObservation"],
+                         "mixedObserved")
+        self.assertEqual(mixed["races"][0]["runners"][0]["comparisonRank"], 1)
+        self.assertFalse(mixed["races"][0]["pastFourthCornerSummary"]["racePaceForecastAvailable"])
+        for forbidden in ("race_back_1_corner4_order", "racekey",
+                          "horse_id", "NONPUBLIC"):
+            self.assertNotIn(forbidden, repr(mixed))
 
     def test_missing_histories_not_filled_and_odds_ignored(self):
         p, e, t, z = sample_input()
