@@ -180,6 +180,44 @@ class PrivateClientTests(unittest.TestCase):
         }).encode()
         self.assertEqual(fetch_race_program('20261026'), [{'racekey': '05260101'}])
 
+    def test_endpoint_beta_200_schema_nested_request_echo(self):
+        # /docs/endpoints/today/tra publishes this variant, even though the
+        # generic response page documents status="success".
+        payload = {
+            'request': {'parameters': {'racedate': '20261026'}},
+            'result': {'status': 200, 'endpoint_uri': '/v1/tra',
+                       'result_count': 1,
+                       'data': [{'racekey': '05264b01'}]},
+        }
+        self.response.read.return_value = json.dumps(payload).encode()
+        self.assertEqual(fetch_race_program('20261026'), [{'racekey': '05264b01'}])
+        payload['request']['parameters']['racedate'] = '20261027'
+        self.response.read.return_value = json.dumps(payload).encode()
+        with self.assertRaisesRegex(JRDBError, 'different race request'):
+            fetch_race_program('20261026')
+
+    def test_published_beta_response_metadata_never_silently_mismatched(self):
+        good = {'request': {'parameters': {'racedate': '20261026'}},
+                'result': {'status': 200, 'endpoint_uri': '/v1/tra',
+                           'result_count': 1, 'data': [{'racekey': 'test'}]}}
+        bad = [
+            {**good, 'result': {**good['result'], 'status': 201}},
+            {**good, 'result': {**good['result'], 'status': '200'}},
+            {**good, 'result': {**good['result'], 'status': True}},
+            {**good, 'result': {**good['result'], 'endpoint_uri': '/v1/tky'}},
+            {**good, 'result': {**good['result'], 'result_count': 2}},
+            {**good, 'result': {**good['result'], 'result_count': '1'}},
+            {**good, 'request': {'parameters': {'racekey': '05264b01'}}},
+            {**good, 'request': {'parameters': 'garbled'}},
+            {**good, 'error': {'code': 'LIMIT_EXCEEDED'}},
+            {'result': {'data': [{'racekey': 'test'}]}},
+        ]
+        for payload in bad:
+            with self.subTest(payload=str(payload)[:75]):
+                self.response.read.return_value = json.dumps(payload).encode()
+                with self.assertRaises(JRDBError):
+                    fetch_race_program('20261026')
+
     def test_documented_api_host_may_be_selected_without_leaking_keys(self):
         os.environ['JRDB_API_BASE_URL'] = 'https://api.bigtime.world/v1'
         self.assertEqual(fetch_race_program('20261026'), [{'racekey': 'synthetic'}])
