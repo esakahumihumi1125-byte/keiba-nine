@@ -53,6 +53,9 @@ assert.match(e('scoreRanks').children[0].children[0].textContent,/位.*番.*総�
 assert.ok(e('scoreRanks').children.every(r=>r.children[1].textContent.includes('調教')));
 assert.match(e('scoreFormation').textContent,/36点／100円なら3,600円/);
 assert.equal(e('scoreHandoff').disabled,false);
+assert.equal(e('scoreWinnerReview').children.length,1,'winner-review controls appear after valid 5-factor calculation');
+assert.match(e('scoreWinnerReview').children[0].children[5].textContent,/総合5位・5番/);
+assert.match(e('scoreWinnerReview').children[0].children[5].textContent,/A以上の材料/);
 const validated=e('scoreFormation').textContent;
 e('scoreHandoff').onclick();
 assert.equal(a.links.length,1,'explicit handoff only');
@@ -82,6 +85,7 @@ for(const [name,invalid] of [
  e('scoreReview').onclick();
  assert.equal(e('scoreHandoff').disabled,true,name+' cannot handoff');
  assert.equal(e('scoreRanks').children.length,0,name+' cannot render partial ranks');
+ assert.equal(e('scoreWinnerReview').children.length,0,name+' cannot leave stale win buttons');
  assert.match(e('scoreStatus').textContent,/計算できません/,name+' must explain failure');
 }
 e('scoreInput').value=fixture;e('scoreReview').onclick();
@@ -277,6 +281,51 @@ assert.match(broken.el('scoreDraftStatus').textContent,/保存に失敗/);
 assert.equal(JSON.parse(broken.store.get(NOTES))[0].race,13,'invalid storage not overwritten');
 
 
+
+// Explicit optional re-review of 3rd–5th place horses never auto-selects
+// winners. Added winner replaces no ranked horse; 3rd entries are narrowed
+// until the number of distinct permutations is <=40.
+const win=boot(),we=win.el;
+we('scoreDate').value='2026-11-07';we('scoreTrack').value='東京';we('scoreRace').value='4';
+we('scoreInput').value=fixture;we('scoreReview').onclick();
+const review=we('scoreWinnerReview').children[0];
+assert.equal(review.children.length,7);
+assert.equal(review.children[2].attributes['aria-pressed'],'true');
+assert.match(review.children[5].textContent,/総合5位・5番/);
+assert.match(review.children[5].textContent,/近走・適性・展開/);
+review.children[5].onclick();
+assert.match(we('scoreStatus').textContent,/5番を1着候補に追加/);
+assert.match(we('scoreFormation').textContent,/1着 1・2・5／2着 1・2・3・4／3着 1・2・3・4・5・6/);
+assert.match(we('scoreFormation').textContent,/40点／100円なら4,000円/);
+assert.equal(we('scoreWinnerReview').children[0].children[5].attributes['aria-pressed'],'true');
+assert.equal(we('scoreHandoff').disabled,false);
+we('scoreHandoff').onclick();
+assert.equal(win.links.length,1,'selected 5th place remains explicit owner decision');
+const changedWinner=new URLSearchParams(win.links[0].split('#')[1]);
+assert.equal(changedWinner.get('first'),'1,2,5');
+assert.equal(changedWinner.get('second'),'1,2,3,4');
+assert.equal(changedWinner.get('third'),'1,2,3,4,5,6');
+assert.ok(!win.links[0].includes('架空馬'));
+assert.equal(win.tempWrites.length,0,'winner-choice selection never changes bulk transfer or saved tickets');
+we('scoreWinnerReview').children[0].children[2].onclick();
+assert.match(we('scoreFormation').textContent,/1着 1・2／2着 1・2・3・4／3着 1・2・3・4・5・6・7・8/);
+assert.match(we('scoreFormation').textContent,/36点／100円なら3,600円/);
+we('scoreWinnerReview').children[0].children[3].onclick();
+assert.match(we('scoreFormation').textContent,/1着 1・2・3／2着 1・2・3・4/);
+assert.match(we('scoreFormation').textContent,/36点／100円なら3,600円/);
+we('scoreInput').value=fixture+'\n';
+we('scoreInput').oninput();
+assert.equal(we('scoreHandoff').disabled,true,'edited grade invalidates selected third winner');
+assert.equal(we('scoreWinnerReview').children.length,0,'winner controls cannot persist after source change');
+const notEnough=boot(),me=notEnough.el;
+me('scoreDate').value='2026-11-07';me('scoreTrack').value='東京';me('scoreRace').value='1';
+me('scoreInput').value='1 C C C C C\n2 C C C C C\n3 C C C C C';
+me('scoreReview').onclick();
+assert.equal(me('scoreWinnerReview').children[0].children.length,4,'3-runner race offers no rank 4 or 5');
+me('scoreWinnerReview').children[0].children[3].onclick();
+assert.match(me('scoreFormation').textContent,/4点／100円なら400円/,'no padding of short races');
+assert.match(me('scoreFormation').textContent,/最高評価でも70点未満/);
+
 // The saved 5-factor notes can now be compiled for an entire meeting date,
 // but only complete, non-stale assessments may enter the temporary batch.
 const dayNote=(track,race,text,sourceMark=null)=>({
@@ -292,14 +341,17 @@ const batch=boot(true,{[NOTES]:dayNotes}),be=batch.el;
 be('scoreDate').value='2026-11-07';be('scoreTrack').value='東京';be('scoreRace').value='11';
 be('scoreDayBuild').onclick();
 assert.equal(be('scoreDayBatchPreview').children.length,2,'partial and stale scores excluded');
-assert.equal(be('scoreDayBatchPreview').children[0].children[2].children.length,9,
+assert.equal(be('scoreDayBatchPreview').children[0].children[3].children.length,9,
  'each race exposes all 8 ranked horses when explicitly expanded');
-assert.match(be('scoreDayBatchPreview').children[0].children[2].children[0].textContent,/全馬の総合評価順/);
-assert.match(be('scoreDayBatchPreview').children[0].children[2].children[1].textContent,/1位.*総合S/);
-assert.match(be('scoreDayBatchPreview').children[0].children[2].children[1].className,/score-s/);
-assert.ok(be('scoreDayBatchPreview').children[0].children[2].children.some(x=>/score-a/.test(x.className)),
+assert.match(be('scoreDayBatchPreview').children[0].children[3].children[0].textContent,/全馬の総合評価順/);
+assert.match(be('scoreDayBatchPreview').children[0].children[3].children[1].textContent,/1位.*総合S/);
+assert.match(be('scoreDayBatchPreview').children[0].children[3].children[1].className,/score-s/);
+assert.ok(be('scoreDayBatchPreview').children[0].children[3].children.some(x=>/score-a/.test(x.className)),
  'A-ranked horses are presented with existing red class');
 assert.equal(be('scoreDayTransfer').disabled,false,'complete, saved grades are transferable');
+assert.match(be('scoreDayBatchPreview').children[0].children[2].textContent,/1着候補の再点検/);
+assert.match(be('scoreDayBatchPreview').children[0].children[2].textContent,/5位5番/);
+assert.match(be('scoreDayBatchText').value,/1着：1・2/,'re-review does not automatically override first two in bulk');
 assert.match(be('scoreDayBatchStatus').textContent,/2Rの手動採点を一括計算／40点/);
 assert.match(be('scoreDayBatchStatus').textContent,/除外：京都3R：途中／京都4R：要再確認/);
 assert.match(be('scoreDayBatchText').value,/2026-11-07 東京11R\n1着：/);
