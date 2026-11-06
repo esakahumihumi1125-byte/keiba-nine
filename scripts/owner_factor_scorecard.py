@@ -27,7 +27,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button>
 <button type="button" id="scoreFromPreday" class="memo-load">JRDB前日情報からこのRの馬番を仮入力</button>
 <button type="button" id="scoreSeedPredayDay" class="memo-load">JRDB前日情報から選択日の全Rを一括仮登録（既存評価は上書きしない）</button>
-<p id="scorePredayStatus" class="hint" role="status">「前日情報」を本人用メール取り込み画面で登録してから使えます。馬番・馬名はJRDB前日資料、JRA公式の出走確定ではありません。5項目は未評価で開始します。</p><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><p id="scorePaceStatus" class="hint" role="status">脚質情報は、JRDB前日情報を取り込んだレースだけ表示します。予測された展開・能力ランクではありません。</p>
+<p id="scorePredayStatus" class="hint" role="status">「前日情報」を本人用メール取り込み画面で登録してから使えます。馬番・馬名はJRDB前日資料、JRA公式の出走確定ではありません。5項目は未評価で開始します。</p><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><button type="button" id="scoreRetryDraft" class="memo-load">このRの途中評価をもう一度保存</button><p id="scoreNavigationStatus" role="status" class="hint">保存されていない評価がある場合は、別Rへの移動を止めます。</p><p id="scorePaceStatus" class="hint" role="status">脚質情報は、JRDB前日情報を取り込んだレースだけ表示します。予測された展開・能力ランクではありません。</p>
 <div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
 <p class="hint">重み：調教25%／近走25%／適性20%／血統10%／展開20%。各項目をS=4、A=3、B=2、C=1として100点換算。人気やオッズは使わない。これは実績ある予測モデルではありません。</p>
 <button type="button" id="scoreReview">総合評価と3連単候補を計算</button><button type="button" id="scoreClearDraft" class="clear-note">このRの途中評価を削除</button>
@@ -250,6 +250,7 @@ function saveDraft(){
  }
  renderDayGrid();
 }
+$('scoreRetryDraft').onclick=()=>saveDraft();
 const LABELS=['調教','近走','適性','血統','展開'];
 const RESEARCH_DRAFT_TAG='jrdb-two-factor-research-v1';
 const PREDAY_RESEARCH_TAG='jrdb-preday-roster-v1';
@@ -457,9 +458,34 @@ $('scoreNextPending').onclick=()=>{
    (e instanceof Error?e.message:'保存内容を確認してな。');
  }
 };
+let lastScoreSelection=null;
 function changeScoreRace(){
+ let requested;
+ try{requested=identity();}catch(_){requested=null;}
+ if(lastScoreSelection&&(!requested||
+     noteKey(lastScoreSelection)!==noteKey(requested))){
+  let keepCurrent=false;
+  try{
+   const previous=notesRead().find(x=>noteKey(x)===noteKey(lastScoreSelection));
+   const stale=previous&&scoreNoteState(previous).className==='score-stale';
+   const raw=$('scoreInput').value;
+   // A stale note is deliberately not restored. Its empty textarea is not
+   // an unsaved edit, but newly typed text must still be protected.
+   keepCurrent=stale?Boolean(raw.trim()):
+    raw!==(previous?.text||'');
+  }catch(_){keepCurrent=true;}
+  if(keepCurrent){
+   $('scoreDate').value=lastScoreSelection.date;
+   $('scoreTrack').value=lastScoreSelection.track;
+   $('scoreRace').value=String(lastScoreSelection.race);
+   $('scoreNavigationStatus').textContent='未保存の評価があります。移動を止めました。このRを再保存してから切り替えてな。';
+   return;
+  }
+ }
+ $('scoreNavigationStatus').textContent='保存されていない評価がある場合は、別Rへの移動を止めます。';
  resetMemoGrid();researchSource=null;invalidate();restoreCurrentNote();renderDayGrid();
  $('scoreMemoStatus').textContent='本人の馬番メモは必要なら読み込み直してな。';
+ lastScoreSelection=requested;
 }
 for(const id of ['scoreDate','scoreTrack','scoreRace']){
  $(id).oninput=changeScoreRace;$(id).onchange=changeScoreRace;
