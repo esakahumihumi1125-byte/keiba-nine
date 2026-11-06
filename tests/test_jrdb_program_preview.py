@@ -83,6 +83,28 @@ class PrivateProgramPreviewTests(unittest.TestCase):
         with self.assertRaises(ProgrammeFormatError):
             normalize_program_rows([sample(), sample()], "20261101")
 
+    def test_distinct_race_keys_cannot_claim_same_venue_and_race(self):
+        # Different meeting identifiers can collide at the same displayed
+        # track/race. Do not count them as independent races.
+        rows = [sample(), sample(racekey="05264c11")]
+        with self.assertRaisesRegex(ProgrammeFormatError, "Ambiguous"):
+            normalize_program_rows(rows, "20261101")
+
+    def test_different_race_numbers_on_one_venue_still_valid(self):
+        rows = normalize_program_rows(
+            [sample(), sample(racekey="05264b10")], "20261101"
+        )
+        self.assertEqual({r["race"] for r in rows}, {10, 11})
+
+    def test_explicit_course_code_must_match_race_key(self):
+        with self.assertRaisesRegex(ProgrammeFormatError, "venue code mismatch"):
+            normalize_program_rows(
+                [sample(racecourse_cd="08")], "20261101")
+        # No course-code field in legacy beta payload is still valid.
+        row = sample()
+        del row["racecourse_cd"]
+        self.assertEqual(normalize_program_rows([row], "20261101")[0]["track"], "東京")
+
     def test_empty_day_is_valid(self):
         self.assertEqual(normalize_program_rows([], "20261101"), [])
 
