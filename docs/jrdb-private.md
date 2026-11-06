@@ -45,3 +45,34 @@ as already available. This preparation does not enable any of them.
 - No credentials are added to the public repository or GitHub Actions; there is no public race-data or derived-prediction pipeline.
 - `scripts/private_service.py` exposes owner-only connectivity/coverage diagnostics, **not** operational real-data forecasting.
 - Historical failed PR check notifications do not indicate current main is failing: check the current GitHub Actions result rather than relying on the old email.
+
+## 2026-11-06: β版接続までの最短手順（本人用のみ）
+
+2026年11月6日現在、ベーシック会員の支払いとβ版専用アカウント申請は完了しているが、**専用APIキーの発行通知は未確認**。会員ログイン用ID・パスワードはAPIのキーではない。発行までは `JRDB_PRIVATE_ENABLED=0` のままにし、プライベート接続先でも実データ試算・自動更新を実行しない。
+
+JRDB公式認証ガイド（2026-11-06再確認）：
+https://jrdb-api.keiba.bigtime.world/docs/authentication
+仕様：https://jrdb-api.keiba.bigtime.world/docs/request-response
+
+### アカウント発行後に本人が設定するもの
+
+本人専用HTTPSのRenderサービスの **Environment／Secret** だけに設定する（値はGitHub、チャット、Safariの入力欄、公開Pages、ログ、GitHub Actionsに入れない）。
+
+| キー名 | 設定内容 |
+| --- | --- |
+| `JRDB_API_KEY` | JRDB API側のアプリ共通APIキー（通常の会員IDとは異なる） |
+| `JRDB_AUTH_KEY` | JRDB API側の本人専用 `x-user-key`（会員ログインパスワードと混同しない） |
+| `JRDB_API_BASE_URL` | **発行時に指定された**JRDBのHTTPS接続先。従来のβ版は `https://dev.api.bigtime.world/v1`、公開ドキュメントは `https://api.bigtime.world/v1` を記載。どちらを使うかは提供元の案内に合わせる。上記2候補のみコードで許可 |
+| `JRDB_PRIVATE_ENABLED` | 権限・ログイン・HTTPS・契約条件を確認してから `1` にする |
+
+1. 配信したコード版と認証付きのサービスを照合する。β版APIの契約範囲、保存先、本人だけのアクセス制限を確認する。
+2. 本人用ホームで開催日を選び、**「安全な設定診断を実行」**を押す。この段階ではAPIへ通信しない。未設定・未接続で「設定あり」と表示させない。
+3. 接続設定が揃った場合だけ有効になる **「JRDB β版の接続を1回だけ確認」** を押す。新しい `GET /api/jrdb/connection-test?date=YYYYMMDD` は本人認証と私有リクエストヘッダーを必須とし、発行済みAPI資格で **`/tra` を1回だけ**読み出す。
+4. 通信に成功した場合も、画面へ返すのは日付・番組R件数・「接続確認成功」と、`predictionReady=false` だけ。馬名・指数・有料生データ・キーは表示・保存・配信しない。通信エラーはHTTP 401／403／429を判別できる安全な説明だけを返す。
+5. 次に既存 `/owner-auto-trial` の1R／全R研究用確認を行い、JRA公式出走表・取消・当日の馬場・予想モデル全項目を検証する。**この手順は自動予想の完成ではなく、接続確認**。実戦用3連単や予想の一般公開を自動解放しない。
+
+`JRDB_PRIVATE_ENABLED` と認証キーが揃っただけでもAPIの権限や利用成功を意味せず、`/api/setup` は引き続き `liveConnectionVerified=false` を返す。追加された接続確認はユーザーの明示クリック時だけで、ページ表示、CI、公開アプリ、無料のRenderプレビュー、無人スケジューラからは有料APIを呼び出さない設計。
+
+### 未完の本番機能
+
+現時点で自動化されて**いない**もの：JRA公式の独立した出馬・取消・馬場照合、検証済み調教／近走／血統／適性／展開の全項目AI評価、全Rの本番S/A/B/C・最終3連単30〜40点・日付別自動更新と継続保存。β版接続確認とこれらの完了を混同しない。一般公開・サブスク提供はJRDBとの別途契約が前提。
