@@ -18,7 +18,7 @@ from owner_session_auth import (owner_credentials_match, session_cookie, session
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs,
                           fetch_venue_conditions, fetch_prestart_body, fetch_historical_race_program,
-                          fetch_historical_venue_conditions, JRDBError)
+                          fetch_historical_venue_conditions, JRDBError, approved_api_base)
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
 from jrdb_day_pipeline import inspect_day
 from jrdb_day_review_gate import build_day_review_queue
@@ -1207,7 +1207,7 @@ def create_app(settings=None):
                 'note=認証済みの配信コードの識別情報。JRDBやレースの実データは取得しません。'
             ), 'text/plain; charset=utf-8')
         if method == 'GET' and path == '/api/status':
-            ready = settings.get('JRDB_PRIVATE_ENABLED') == '1' and all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY')) and settings.get('GITHUB_ACTIONS') != 'true'
+            ready = settings.get('JRDB_PRIVATE_ENABLED') == '1' and all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY')) and settings.get('GITHUB_ACTIONS') != 'true' and approved_api_base(settings.get('JRDB_API_BASE_URL', ''))
             return response('200 OK', {'jrdbConfigured': ready,
                                        'historyConfigured': bool(ready and settings.get('KEIBA_HISTORY_ENABLED') == '1'),
                                        'manualComparisonConfigured': bool(ready and settings.get('KEIBA_MANUAL_REFERENCE_ENABLED') == '1'),
@@ -1217,7 +1217,7 @@ def create_app(settings=None):
             # discloses credentials, claims entitlement, or authorizes predictions.
             configured = settings.get('JRDB_PRIVATE_ENABLED') == '1' and all(
                 isinstance(settings.get(k), str) and bool(settings.get(k).strip())
-                for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY')) and settings.get('GITHUB_ACTIONS') != 'true'
+                for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY')) and settings.get('GITHUB_ACTIONS') != 'true' and approved_api_base(settings.get('JRDB_API_BASE_URL', ''))
             return response('200 OK', {
                 'transport': 'https' if secure else 'local-dev',
                 'jrdbConfigured': configured,
