@@ -456,6 +456,31 @@ function restoreCurrentNote(){
    }
    memoRows=live.rows;memoSourceMark=live.sourceMark;
    drawMemoGrid();
+  }else{
+   // Ordinary owner notes (including JRDB research-only 2-factor prefill)
+   // can reopen selector fields after relaunch. Unknown or malformed rows
+   // remain untouched free text; nothing is inferred or silently corrected.
+   const lines=note.text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+   if(lines.length>=3&&lines.length<=18){
+    const seenNums=new Set(),seenNames=new Set(),parsed=[];
+    let valid=true;
+    for(const line of lines){
+     const parts=line.split(/\s+/),hasName=parts.length===7;
+     const num=Number(parts[0]),name=hasName?parts[1]:'';
+     const grades=parts.slice(hasName?2:1);
+     if((parts.length!==6&&parts.length!==7)||
+        !/^(?:[1-9]|1[0-8])$/.test(parts[0])||
+        seenNums.has(num)||name.length>35||
+        (name&&!/^[^\s<>]+$/.test(name))||
+        (name&&seenNames.has(name))||
+        grades.length!==5||grades.some(g=>!['S','A','B','C','?'].includes(g))){
+      valid=false;break;
+     }
+     seenNums.add(num);if(name)seenNames.add(name);
+     parsed.push({number:num,name,grades});
+    }
+    if(valid){memoRows=parsed;memoSourceMark=null;drawMemoGrid();}
+   }
   }
   $('scoreInput').value=note.text;
   $('scoreDraftStatus').textContent=selected.track+selected.race+
