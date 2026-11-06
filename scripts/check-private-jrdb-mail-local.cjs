@@ -213,6 +213,15 @@ assert.match(previewPreday('predayRaces').children[0].children[1].children[0].te
 previewPreday('predayRaces').children[0].children[2].onclick();
 assert.match(navigation[0],/\/my-scorecard#select=v1&date=2099-11-07&track=/);
 assert.ok(!navigation[0].includes('合成'),'names do not enter URL');
+assert.equal(previewPreday('predayDaySeed').disabled,false,'owner may request safe full-day seed');
+const beforeSeedJump=storage.get(PRE);
+previewPreday('predayDaySeed').onclick();
+const seedJump=navigation[navigation.length-1];
+assert.match(seedJump,/\/my-scorecard#select=v1&date=2099-11-07&track=/);
+assert.match(seedJump,/&seed=day-v1$/);
+assert.ok(!seedJump.includes('合成'),'private horse names never enter seed URL');
+assert.equal(storage.get(PRE),beforeSeedJump,'jump never mutates stored pre-day data');
+
 const preSaved=storage.get(PRE);
 previewPreday('predayText').value=predayFixture('2099年11月8日（日）','東京')+'\n\n'+
  predayFixture('2099年11月8日（日）','京都').replace('3頭立','4頭立');
