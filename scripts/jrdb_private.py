@@ -98,25 +98,39 @@ def _fetch_endpoint(endpoint, parameters):
     if not isinstance(payload, dict):
         raise JRDBError("JRDB returned an unsuccessful response")
     result = payload.get("result")
-    # The provider's published β schema uses result.status=success/error;
-    # earlier beta mocks use success=true/false. Reject either error signal.
-    if (payload.get("success") is False or
-            not isinstance(result, dict) or
-            result.get("status") not in (None, "success") or
-            payload.get("success") not in (None, True)):
+    # Published beta docs currently disagree: the generic contract shows
+    # result.status="success", while the /tra endpoint shows integer 200.
+    # Support exactly these known success forms, plus the older explicitly
+    # successful top-level fixture; never accept an absent success indicator.
+    status = result.get("status") if isinstance(result, dict) else None
+    top_success = payload.get("success")
+    if (not isinstance(result, dict) or payload.get("error") is not None or
+            top_success not in (None, True) or
+            not (status == "success" or
+                 (type(status) is int and status == 200) or
+                 (status is None and top_success is True))):
         raise JRDBError("JRDB returned an unsuccessful response")
-    # When present, the server's request echo must match the exact request
-    # issued, preventing a stale/cross-date response from being accepted.
+    # The generic docs echo request.racedate; the endpoint example nests it
+    # inside request.parameters. Both must match what was actually sent.
     echoed = payload.get("request")
     if echoed is not None:
-        if (not isinstance(echoed, dict) or
-                any(key in echoed and echoed[key] != value
+        if not isinstance(echoed, dict):
+            raise JRDBError("JRDB returned a different race request")
+        received = echoed.get("parameters", echoed)
+        if (not isinstance(received, dict) or
+                any(received.get(key) != value
                     for key, value in parameters.items())):
             raise JRDBError("JRDB returned a different race request")
+    uri = result.get("endpoint_uri")
+    if uri is not None and uri != "/v1/" + endpoint:
+        raise JRDBError("JRDB returned a different endpoint")
     rows = result.get("data")
     if (not isinstance(rows, list) or len(rows) > 50000
             or not all(isinstance(row, dict) for row in rows)):
         raise JRDBError("Unexpected JRDB response format")
+    n = result.get("result_count")
+    if n is not None and (type(n) is not int or n != len(rows)):
+        raise JRDBError("JRDB response count mismatch")
     return rows
 
 
