@@ -3,10 +3,12 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('/tmp/keiba-owner-scorecard.js','utf8');
 function boot(decision=true,saved={},hash=''){
- const nodes=new Map(),links=[],alerts=[],writes=[],cleared=[];
+ const nodes=new Map(),links=[],alerts=[],writes=[],cleared=[],tempWrites=[];
+ const tempStore=new Map();
  const store=new Map(Object.entries(saved).map(([k,v])=>[k,JSON.stringify(v)]));
  const NOTE='keiba-nine-owner-factor-notes-v1';
  const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>{if(k!==NOTE)throw Error('Unexpected write: '+k);writes.push(k);store.set(k,v)}};
+ const sessionStorage={getItem:k=>tempStore.get(k)||null,setItem:(k,v)=>{tempWrites.push(k);tempStore.set(k,v)},removeItem:k=>tempStore.delete(k)};
  function element(tag='div'){
   return {tag,value:'',textContent:'',className:'',disabled:false,children:[],
    attributes:{},setAttribute(k,v){this.attributes[k]=v},
@@ -26,11 +28,11 @@ function boot(decision=true,saved={},hash=''){
     location:{hash,pathname:'/my-scorecard',search:'',assign:url=>links.push(url)},
     history:{replaceState:(...args)=>cleared.push(args[2])}
   },
-  Date,JSON,Set,Map,Object,String,Number,Error,URLSearchParams,localStorage,
+  Date,JSON,Set,Map,Object,String,Number,Error,URLSearchParams,localStorage,sessionStorage,
   confirm:()=>decision,console
  };
  vm.runInNewContext(source,ctx);
- return {el:get,links,alerts,writes,store,cleared};
+ return {el:get,links,alerts,writes,store,cleared,tempStore,tempWrites};
 }
 const fixture=[
  '① 架空馬A S S A A S',
@@ -273,5 +275,65 @@ broken.el('scoreInput').value='① 仮想馬A A A A A A';
 broken.el('scoreInput').oninput();
 assert.match(broken.el('scoreDraftStatus').textContent,/保存に失敗/);
 assert.equal(JSON.parse(broken.store.get(NOTES))[0].race,13,'invalid storage not overwritten');
+
+
+// The saved 5-factor notes can now be compiled for an entire meeting date,
+// but only complete, non-stale assessments may enter the temporary batch.
+const dayNote=(track,race,text,sourceMark=null)=>({
+ date:'2026-11-07',track,race,text,sourceMark,savedAt:'2026-11-06T00:00:00.000Z'
+});
+const dayNotes=[
+ dayNote('東京',11,fixture),
+ dayNote('京都',2,['1 C C C C C','2 C C C C C','3 C C C C C'].join('\n')),
+ dayNote('京都',3,'1 ? ? ? ? ?\n2 ? ? ? ? ?\n3 ? ? ? ? ?'),
+ dayNote('京都',4,fixture,'obsolete-provisional-source'),
+];
+const batch=boot(true,{[NOTES]:dayNotes}),be=batch.el;
+be('scoreDate').value='2026-11-07';be('scoreTrack').value='東京';be('scoreRace').value='11';
+be('scoreDayBuild').onclick();
+assert.equal(be('scoreDayBatchPreview').children.length,2,'partial and stale scores excluded');
+assert.equal(be('scoreDayTransfer').disabled,false,'complete, saved grades are transferable');
+assert.match(be('scoreDayBatchStatus').textContent,/2Rの手動採点を一括計算／40点/);
+assert.match(be('scoreDayBatchStatus').textContent,/除外：京都3R：途中／京都4R：要再確認/);
+assert.match(be('scoreDayBatchText').value,/2026-11-07 東京11R\n1着：/);
+assert.match(be('scoreDayBatchText').value,/2026-11-07 京都2R\n1着：/);
+assert.equal(be('scoreDayBatchText').value.trim().split(/\n/).filter(x=>x.includes('着：')).length,6);
+assert.equal(batch.writes.length,0,'batch must not persist any ticket or rewrite score notes');
+be('scoreDayTransfer').onclick();
+assert.equal(batch.links.length,1);
+assert.equal(batch.links[0],'/my-tickets#scorebatch=v1','never put ranks in URL');
+const transferKey='keiba-nine-scorecard-bulk-transfer-v1';
+assert.deepEqual(Array.from(batch.tempWrites),[transferKey]);
+const transfer=JSON.parse(batch.tempStore.get(transferKey));
+assert.equal(transfer.version,'scorecard-bulk-v1');
+assert.equal(transfer.date,'2026-11-07');
+assert.equal(transfer.count,2);
+assert.equal(transfer.points,40);
+assert.match(transfer.text,/東京11R/);
+assert.ok(!transfer.text.includes('架空馬'),'only numerical formations travel');
+assert.ok(!transfer.text.includes('調教'),'no grades in handoff payload');
+assert.equal(batch.writes.length,0,'transfer never saves purchased or draft tickets');
+const altered=boot(true,{[NOTES]:dayNotes}),ae=altered.el;
+ae('scoreDate').value='2026-11-07';ae('scoreDayBuild').onclick();
+const changedNotes=dayNotes.map(n=>n.race===11?{...n,text:n.text.replace('架空馬A S S','架空馬A C C')}:n);
+altered.store.set(NOTES,JSON.stringify(changedNotes));
+ae('scoreDayTransfer').onclick();
+assert.equal(altered.links.length,0,'newer score entries block stale preview transfer');
+assert.equal(altered.tempWrites.length,0);
+assert.equal(ae('scoreDayTransfer').disabled,true);
+assert.match(ae('scoreDayBatchStatus').textContent,/更新されています/);
+const notApproved=boot(false,{[NOTES]:dayNotes}),ne=notApproved.el;
+ne('scoreDate').value='2026-11-07';ne('scoreDayBuild').onclick();ne('scoreDayTransfer').onclick();
+assert.equal(notApproved.links.length,0,'user declined navigation');
+assert.equal(notApproved.tempWrites.length,0);
+const noComplete=boot(true,{[NOTES]:[dayNotes[2],dayNotes[3]]}),nc=noComplete.el;
+nc('scoreDate').value='2026-11-07';nc('scoreDayBuild').onclick();
+assert.equal(nc('scoreDayTransfer').disabled,true);
+assert.match(nc('scoreDayBatchStatus').textContent,/完成したレースはありません/);
+const invalidateBatch=boot(true,{[NOTES]:dayNotes}),ib=invalidateBatch.el;
+ib('scoreDate').value='2026-11-07';ib('scoreDayBuild').onclick();
+ib('scoreDate').value='2026-11-08';ib('scoreDate').onchange();
+assert.equal(ib('scoreDayTransfer').disabled,true);
+assert.equal(ib('scoreDayBatchText').value,'');
 
 console.log('Owner manual 5-factor scoring: 36-point ranks, validation, cancel, no-network handoff PASS');
