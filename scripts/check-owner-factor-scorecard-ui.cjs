@@ -562,6 +562,16 @@ assert.equal(pe('scoreTrack').value,'福島',
 assert.equal(pe('scoreRace').value,'1');
 assert.match(pe('scorePredayStatus').textContent,/自動選択したで/);
 assert.equal(pd.writes.length,0,'opening scorecard never seeds or writes notes');
+pe('scoreTrialJump').onclick();
+assert.equal(pd.links.length,1);
+assert.ok(pd.links[0].startsWith('/owner-auto-trial#select=v1&'));
+const pilotCoords=new URLSearchParams(pd.links[0].split('#')[1]);
+assert.equal(pilotCoords.get('date'),'2026-11-07');
+assert.equal(pilotCoords.get('track'),'福島');
+assert.equal(pilotCoords.get('race'),'1');
+assert.equal(pilotCoords.size,4);
+assert.equal(pd.writes.length,0);
+
 assert.equal(pe('scoreHandoff').disabled,true,'no auto-grade or ticket on page open');
 pe('scoreDate').value='2026-11-07';pe('scoreTrack').value='東京';pe('scoreRace').value='1';
 pe('scoreSeedPredayDay').onclick();
