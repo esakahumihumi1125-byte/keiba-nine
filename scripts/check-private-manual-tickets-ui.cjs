@@ -7,8 +7,12 @@ const localStorage={
  getItem:k=>storage.get(k)||null,
  setItem(k,v){writes.push(k);storage.set(k,v)}
 };
-function boot(confirmDecision=true){
+function boot(confirmDecision=true,hash='',handoff=null){
  const nodes=new Map();
+ const transientKey='keiba-nine-scorecard-bulk-transfer-v1';
+ const transient=new Map(handoff?[[transientKey,JSON.stringify(handoff)]]:[]);
+ const transientWrites=[];
+ const sessionStorage={getItem:k=>transient.get(k)||null,setItem:(k,v)=>{transientWrites.push(k);transient.set(k,v)},removeItem:k=>transient.delete(k)};
  function element(tag='div'){
   return {tag,value:'',textContent:'',className:'',disabled:false,children:[],
    dataset:{},onchange:null,onclick:null,href:'',download:'',type:'',
@@ -22,9 +26,10 @@ function boot(confirmDecision=true){
  const urls=[],navigation=[];let reply='1-2-3';
  const URL={createObjectURL(x){urls.push(x);return 'blob:synthetic'},revokeObjectURL(x){urls.push(x)}};
  vm.runInNewContext(js,{document:{getElementById:el,createElement:element},
-  localStorage,Date,Set,Number,String,JSON,Blob,URL,URLSearchParams,
-  window:{location:{assign:u=>navigation.push(u)}},confirm:()=>confirmDecision,prompt:()=>reply,console});
- return {el,nodes,urls,navigation,setPrompt:s=>{reply=s}};
+  localStorage,sessionStorage,Date,Set,Number,String,JSON,Blob,URL,URLSearchParams,
+  window:{location:{assign:u=>navigation.push(u),hash,pathname:'/my-tickets',search:''},
+          history:{replaceState:()=>{}}},confirm:()=>confirmDecision,prompt:()=>reply,console});
+ return {el,nodes,urls,navigation,transient,transientWrites,setPrompt:s=>{reply=s}};
 }
 const first=boot(),$=first.el;
 assert.equal(typeof $('mImport').onchange,'function','JSON restore must be available immediately on first load');
@@ -679,5 +684,56 @@ const beforeStaleReview=storage.get(key);
 sb('mResultBulkSave').onclick();
 assert.equal(storage.get(key),beforeStaleReview,'newer edits block old bulk review');
 assert.match(sb('mResultBulkStatus').textContent,/もう一度検査/);
+
+
+// Same-origin manual-scorecard batch: receiving NEVER creates a saved draft,
+// purchase record, result or provider request. Existing bulk checker is reused.
+const scoreBatchText=[
+ '2026-11-07 東京11R',
+ '1着：1・2',
+ '2着：1・2・3・4',
+ '3着：1・2・3・4・5・6・7・8',
+ '',
+ '2026-11-07 京都2R',
+ '1着：1・2',
+ '2着：1・2・3',
+ '3着：1・2・3',
+].join('\n');
+const receivedPayload={
+ version:'scorecard-bulk-v1',createdAt:new Date().toISOString(),
+ date:'2026-11-07',count:2,points:40,text:scoreBatchText
+};
+const beforeHandoffDrafts=storage.get(key);
+const beforeHandoffWrites=writes.length;
+const recipient=boot(true,'#scorebatch=v1',receivedPayload);
+const h=recipient.el;
+assert.equal(h('mBulkPaste').value,scoreBatchText);
+assert.equal(h('mDate').value,'2026-11-07');
+assert.equal(h('mBulkPreview').children.length,2,'all races passed through existing bulk checker');
+assert.equal(h('mBulkApply').disabled,false,'owner can review and explicitly save');
+assert.match(h('mBulkStatus').textContent,/40点.*未保存/);
+assert.equal(recipient.transient.size,0,'one-time temporary payload removed after import');
+assert.equal(storage.get(key),beforeHandoffDrafts,'no bulk draft saved automatically');
+assert.equal(writes.length,beforeHandoffWrites);
+assert.equal(h('mBulkPreview').children[0].children[2].textContent.split(' ／ ').length,36);
+assert.equal(h('mBulkPreview').children[1].children[2].textContent.split(' ／ ').length,4);
+const invalidBatch={...receivedPayload,points:41};
+const reject=boot(true,'#scorebatch=v1',invalidBatch),rj=reject.el;
+assert.equal(rj('mBulkApply').disabled,true,'tampered count rejected');
+assert.equal(rj('mBulkPaste').value,'');
+assert.match(rj('mBulkStatus').textContent,/引き継ぎ停止/);
+assert.equal(reject.transient.size,0);
+const ancient=boot(true,'#scorebatch=v1',{
+ ...receivedPayload,createdAt:'2020-01-01T00:00:00.000Z',
+});
+assert.equal(ancient.el('mBulkApply').disabled,true,'transfer expires');
+assert.match(ancient.el('mBulkStatus').textContent,/期限切れ/);
+const missingTransfer=boot(true,'#scorebatch=v1');
+assert.equal(missingTransfer.el('mBulkApply').disabled,true);
+assert.match(missingTransfer.el('mBulkStatus').textContent,/引き継ぎ停止/);
+const noTransfer=boot(true,'',receivedPayload);
+assert.equal(noTransfer.el('mBulkApply').disabled,true);
+assert.equal(noTransfer.transient.size,1,'do not read a temporary payload without the exact URL token');
+assert.equal(storage.get(key),beforeHandoffDrafts,'all transfer cases leave purchase and draft ledgers intact');
 
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
