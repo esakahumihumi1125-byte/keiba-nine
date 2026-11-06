@@ -58,6 +58,7 @@ from owner_factor_scorecard import HTML as SCORE_HTML, JS as SCORE_JS, CSS as SC
 from owner_race_workbench import HTML as WORKBENCH_HTML, JS as WORKBENCH_JS, CSS as WORKBENCH_CSS
 from owner_result_review import HTML as REVIEW_HTML, JS as REVIEW_JS, CSS as REVIEW_CSS
 from jrdb_one_race_trial import build_one_race_trial
+from jrdb_day_trial import build_day_trial
 from owner_one_race_trial_ui import HTML as AUTO_HTML, JS as AUTO_JS, CSS as AUTO_CSS
 
 def _now_in_jst():
@@ -1427,6 +1428,33 @@ def create_app(settings=None):
                 return response('502 Bad Gateway', {
                     'error': '当日の馬体・パドック資料を安全に照合できませんでした。'})
             return response('200 OK', report)
+        if method == 'GET' and path == '/api/jrdb/one-day-trial':
+            # Explicit owner-click only. Four date-scoped source reads ONCE
+            # for the entire day, not 4 calls per race. All horse data is
+            # ephemeral and is never saved or published.
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': 'JRDB β版のAPI接続がまだ有効ではありません。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date'} or len(query['date']) != 1
+                    or not _valid_date(query['date'][0])):
+                return response('400 Bad Request', {
+                    'error': '開催日を1つ正しく選んでください。'})
+            date = query['date'][0]
+            try:
+                programme = normalize_program_rows(fetch_race_program(date), date)
+                trial = build_day_trial(
+                    programme, fetch_horse_entries(date),
+                    fetch_training_analysis(date), fetch_recent_runs(date), date
+                )
+            except (JRDBError, ProgrammeFormatError, CoverageError,
+                    ValueError, KeyError, TypeError):
+                return response('502 Bad Gateway', {
+                    'error': '全Rの調教・近走データを安全に照合できませんでした。'
+                             'API接続または対象日の元資料を確認してください。'})
+            return response('200 OK', trial)
         if method == 'GET' and path == '/api/jrdb/one-race-trial':
             # Private, user-triggered pilot only: compare TWO provisional
             # source-derived factors. Do not publish, forecast a winner,
