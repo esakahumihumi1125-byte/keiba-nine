@@ -790,6 +790,9 @@ $('scoreClearDraft').onclick=()=>{
  }
 };
 restoreCurrentNote();renderDayGrid();
+// Initialise the navigation guard even when the chosen race came from a
+// one-time pre-day URL hash, before the first oninput/onchange event.
+try{lastScoreSelection=identity();}catch(_){lastScoreSelection=null;}
 
 /* Owner-only, explicit one-time JRDB RESEARCH prefill; never an AI forecast. */
 function receiveResearchPrefill(){
