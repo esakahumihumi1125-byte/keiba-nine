@@ -173,6 +173,56 @@ class PrivateClientTests(unittest.TestCase):
             self.response.read.return_value = value
             with self.assertRaises(JRDBError): fetch_race_program('20261026')
 
+    def test_published_beta_response_schema_and_echo(self):
+        self.response.read.return_value = json.dumps({
+            'request': {'racedate': '20261026'},
+            'result': {'status': 'success', 'data': [{'racekey': '05260101'}]}
+        }).encode()
+        self.assertEqual(fetch_race_program('20261026'), [{'racekey': '05260101'}])
+
+    def test_documented_api_host_may_be_selected_without_leaking_keys(self):
+        os.environ['JRDB_API_BASE_URL'] = 'https://api.bigtime.world/v1'
+        self.assertEqual(fetch_race_program('20261026'), [{'racekey': 'synthetic'}])
+        request = self.mock.return_value.open.call_args.args[0]
+        self.assertTrue(request.full_url.startswith('https://api.bigtime.world/v1/tra?'))
+        self.assertEqual(request.get_header('X-user-key'), 'synthetic-user')
+
+    def test_unapproved_base_is_blocked_before_any_network(self):
+        for base in ['http://api.bigtime.world/v1', 'https://evil.example/v1',
+                     'https://api.bigtime.world/v1/', 'https://api.bigtime.world/v1@evil.example',
+                     'https://dev.api.bigtime.world/v1?redirect=https://evil.example',
+                     'https://127.0.0.1/v1']:
+            with self.subTest(base=base):
+                os.environ['JRDB_API_BASE_URL'] = base
+                with self.assertRaisesRegex(JRDBError, 'Unapproved'):
+                    fetch_race_program('20261026')
+        self.mock.assert_not_called()
+
+    def test_api_key_control_characters_never_hit_provider(self):
+        for key in ['abc\\nvalue', 'abc value', 'abc\\rvalue']:
+            with self.subTest(key=key):
+                os.environ['JRDB_API_KEY'] = key
+                with self.assertRaisesRegex(JRDBError, 'Invalid credential format'):
+                    fetch_race_program('20261026')
+        self.mock.assert_not_called()
+
+    def test_provider_errors_and_mismatched_echo_fail_closed(self):
+        bad = [
+            {'result': {'status': 'error', 'data': [{'racekey': 'synthetic'}]}},
+            {'success': False, 'result': {'status': 'success', 'data': []}},
+            {'success': True, 'result': {'status': 'error', 'data': []}},
+            {'success': 'yes', 'result': {'data': []}},
+            {'result': {'status': 'unknown', 'data': []}},
+            {'request': {'racedate': '20261027'}, 'result': {'status': 'success', 'data': []}},
+            {'request': ['20261026'], 'result': {'status': 'success', 'data': []}},
+            {'result': {'status': 'success', 'data': [None]}},
+            {'result': {'status': 'success', 'data': [{}] * 50001}},
+        ]
+        for payload in bad:
+            self.response.read.return_value = json.dumps(payload).encode()
+            with self.subTest(case=str(payload)[:60]), self.assertRaises(JRDBError):
+                fetch_race_program('20261026')
+
     def test_no_redirect(self):
         self.assertIsNone(_NoRedirect().redirect_request(None, None, 302, '', {}, 'https://example.com'))
 
