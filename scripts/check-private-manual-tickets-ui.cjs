@@ -751,6 +751,7 @@ assert.equal(noTransfer.transient.size,1,'do not read a temporary payload withou
 assert.equal(storage.get(key),beforeHandoffDrafts,'all transfer cases leave purchase and draft ledgers intact');
 
 
+{
 // Manually confirmed JRA scratch/withdrawn numbers are LOCAL memos, not
 // provider-verified data. Fail closed on unsaved notes, conflicts and corruption.
 const SCRATCH='keiba-nine-owner-scratch-notes-v1';
@@ -848,4 +849,5 @@ assert.match(cc('mBulkStatus').textContent,/一括検査できません/);
 storage.delete(SCRATCH);
 assert.equal(storage.get(purchaseKey),beforeScratchPurchase);
 
+}
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
