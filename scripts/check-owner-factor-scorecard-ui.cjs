@@ -626,7 +626,7 @@ assert.equal(me('scoreNextPending').disabled,false);
 
 // A day without any imported notes is not silently treated as 0/36 complete.
 const absent=boot(),ae=absent.el;
-ae('scoreDate').value='2026-11-07';ae('scoreTrack').value='東京';ae('scoreRace').onchange();
+ae('scoreDate').value='2026-11-07';ae('scoreTrack').value='東京';ae('scoreRace').value='1';ae('scoreRace').onchange();
 assert.match(ae('scoreAllDayStatus').textContent,/0R登録/);
 assert.match(ae('scoreAllDayStatus').textContent,/未登録の開催・Rは集計対象外/);
 assert.equal(ae('scoreNextPending').disabled,true);
