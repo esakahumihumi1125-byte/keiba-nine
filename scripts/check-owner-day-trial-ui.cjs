@@ -86,6 +86,7 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  assert.equal(app.calls[1].options.headers['X-Keiba-Request'],'private');
  assert.equal(app.calls[1].options.cache,'no-store');
  assert.match($('trialDaySummary').textContent,/2R・4頭.*比較可能 2頭/);
+ assert.match($('trialDaySummary').textContent,/コース資料 2\/2R・提供元馬場 1\/2R/);
  assert.match($('trialDayStatus').textContent,/買い目未作成/);
  assert.equal($('trialDayRaces').children.length,2);
  assert.match($('trialDayRaces').children[0].children[0].textContent,/東京1R/);
