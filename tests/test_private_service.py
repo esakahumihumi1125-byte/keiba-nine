@@ -740,6 +740,29 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertNotIn(cfg['JRDB_AUTH_KEY'].encode(), out['body'])
         fetch.assert_not_called()
 
+    def test_setup_rejects_unknown_api_origin_even_with_keys(self):
+        cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'test-only', 'JRDB_AUTH_KEY': 'test-only',
+               'JRDB_API_BASE_URL': 'https://other-host.example/v1'}
+        with patch('private_service.fetch_race_program') as fetch:
+            app = create_app(cfg)
+            setup = json.loads(call(app, '/api/setup')['body'])
+            status = json.loads(call(app, '/api/status')['body'])
+        self.assertFalse(setup['jrdbConfigured'])
+        self.assertFalse(status['jrdbConfigured'])
+        self.assertFalse(setup['liveConnectionVerified'])
+        fetch.assert_not_called()
+
+    def test_setup_accepts_documented_api_origin_without_calling_jrdb(self):
+        cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'test-only', 'JRDB_AUTH_KEY': 'test-only',
+               'JRDB_API_BASE_URL': 'https://api.bigtime.world/v1'}
+        with patch('private_service.fetch_race_program') as fetch:
+            setup = json.loads(call(create_app(cfg), '/api/setup')['body'])
+        self.assertTrue(setup['jrdbConfigured'])
+        self.assertFalse(setup['liveConnectionVerified'])
+        fetch.assert_not_called()
+
     def test_history_setup_explicit_gate_without_provider_fetch(self):
         cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
                'JRDB_API_KEY': 'synthetic-api-not-real',
