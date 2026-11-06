@@ -30,6 +30,24 @@ const coverage=(runners)=>({
 });
 one.factorCoverage=coverage(one.runners);
 two.factorCoverage=coverage(two.runners);
+one.runners[0].pastFourthCornerObservation='frontObserved';
+one.runners[1].pastFourthCornerObservation='insufficient';
+two.runners[0].pastFourthCornerObservation='backObserved';
+two.runners[1].pastFourthCornerObservation='insufficient';
+one.factorCoverage.materialCountByFactor.pace=1;
+two.factorCoverage.materialCountByFactor.pace=1;
+const positionSummary=runners=>({
+ categoryCounts:{
+  frontObserved:runners.filter(h=>h.pastFourthCornerObservation==='frontObserved').length,
+  backObserved:runners.filter(h=>h.pastFourthCornerObservation==='backObserved').length,
+  mixedObserved:runners.filter(h=>h.pastFourthCornerObservation==='mixedObserved').length,
+  insufficient:runners.filter(h=>h.pastFourthCornerObservation==='insufficient').length,
+ },
+ researchOnly:true,racePaceForecastAvailable:false,
+ minObservedRacesForCategory:2,notRunnerAbilityGrade:true,
+});
+one.pastFourthCornerSummary=positionSummary(one.runners);
+two.pastFourthCornerSummary=positionSummary(two.runners);
 one.raceContext={
  surface:'芝',distance_m:1600,turn:'左',going:'重',
  courseInfoPresent:true,goingAvailable:true,
@@ -43,7 +61,7 @@ two.raceContext={
  conditionSnapshotPresent:false,conditionUpdateRecorded:false
 };
 const day={
- version:'owner-day-two-factor-trial-3',date:'20261107',raceCount:2,
+ version:'owner-day-two-factor-trial-4',date:'20261107',raceCount:2,
  runnerCount:4,twoFactorComparable:2,ungraded:2,
  courseInfoPresentCount:2,goingAvailableCount:1,
  officialJraVerified:false,overallRankReady:false,predictionReady:false,
@@ -90,6 +108,7 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  assert.match($('trialDayStatus').textContent,/買い目未作成/);
  assert.equal($('trialDayRaces').children.length,2);
  assert.match($('trialDayRaces').children[0].children[0].textContent,/東京1R/);
+ assert.match($('trialDayRaces').children[0].children[0].textContent,/前方複数回 1頭/);
  assert.match($('trialDayRaces').children[1].children[0].textContent,/京都12R/);
  assert.match($('trialDayRaces').children[0].children[2].textContent,/コース 芝 1600m 左/);
  assert.match($('trialDayRaces').children[0].children[2].textContent,/提供元の馬場 重/);
@@ -98,7 +117,10 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  assert.match($('trialDayRaces').children[0].children[3].children[0].textContent,/10項目の資料記録/);
  assert.equal($('trialDayRaces').children[0].children[3].children.length,11);
  assert.match($('trialDayRaces').children[0].children[4].textContent,/暫定1位/);
+ assert.match($('trialDayRaces').children[0].children[4].textContent,/前方での通過を複数回観測/);
  assert.match($('trialDayRaces').children[0].children[5].textContent,/比較順位なし/);
+ assert.match($('trialDayRaces').children[0].children[5].textContent,/4角位置の観測不足/);
+ assert.match($('trialDayRaces').children[1].children[4].textContent,/後方寄りの通過を観測/);
  assert.equal($('trialDayRun').disabled,false);
  $('trialTrack').value='東京';$('trialTrack').onchange();
  assert.equal($('trialDayRaces').children.length,2,'changing one-race picker does not erase the day snapshot');
@@ -127,6 +149,21 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  fx('trialDate').value='2026-11-07';fx('trialDate').onchange();
  await fx('trialDayRun').onclick();await tick();
  assert.equal(fx('trialDayRaces').children.length,0,'unverified course claims rejected');
+ const fakePace=start(true,{...day,races:[one,{
+  ...two,pastFourthCornerSummary:{...two.pastFourthCornerSummary,
+   racePaceForecastAvailable:true}
+ }]});
+ const fp=fakePace.el;await tick();
+ fp('trialDate').value='2026-11-07';fp('trialDate').onchange();
+ await fp('trialDayRun').onclick();await tick();
+ assert.equal(fp('trialDayRaces').children.length,0,'position data cannot turn into forecast');
+ const contradictoryPosition=start(true,{...day,races:[one,{
+  ...two,runners:two.runners.map((h,i)=>i?{...h,pastFourthCornerObservation:'frontObserved'}:h)
+ }]});
+ const cp=contradictoryPosition.el;await tick();
+ cp('trialDate').value='2026-11-07';cp('trialDate').onchange();
+ await cp('trialDayRun').onclick();await tick();
+ assert.equal(cp('trialDayRaces').children.length,0,'per-runner position must match aggregate');
  const fakeGoing=start(true,{...day,races:[one,{...two,raceContext:{...two.raceContext,going:'良'}}]});
  const fg=fakeGoing.el;await tick();
  fg('trialDate').value='2026-11-07';fg('trialDate').onchange();
@@ -150,5 +187,5 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  assert.equal(e('trialDayRaces').children.length,0);
  assert.ok(!source.includes('localStorage'),'no provider derived data persisted to browser');
  assert.ok(!source.includes('innerHTML'),'never inject provider text as HTML');
- console.log('Owner all-day JRDB trial: one-click 5-source API, course/going validation, privacy PASS');
+ console.log('Owner all-day JRDB trial: per-horse historical position, 5-source API, validation, privacy PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
