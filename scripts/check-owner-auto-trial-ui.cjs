@@ -75,6 +75,43 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  await c('trialRun').onclick();await tick();
  assert.match(c('trialStatus').textContent,/検証できません/);
  assert.equal(c('trialRows').children.length,0,'unsafe data not displayed');
+ // Even a provider-shaped result must not be shown with incorrect scoring,
+ // skipped tie ranks, reordered ties or inflated provisional totals.
+ async function tryReply(result){
+  const m=mock(true,result),x=m.el;
+  await tick();
+  x('trialDate').value=date;x('trialDate').onchange();
+  x('trialTrack').value='東京';x('trialTrack').onchange();
+  x('trialRace').value='1';x('trialRace').onchange();
+  await x('trialRun').onclick();await tick();
+  return {m,x};
+ }
+ const tieFixture={...payload,runnersObserved:3,twoFactorComparable:3,ungraded:0,runners:[
+  {horseNumber:1,trainingGrade:'S',recentGrade:'A',twoFactorPoints:7,comparisonRank:1,provisionalOnly:true},
+  {horseNumber:2,trainingGrade:'A',recentGrade:'S',twoFactorPoints:7,comparisonRank:1,provisionalOnly:true},
+  {horseNumber:3,trainingGrade:'B',recentGrade:'B',twoFactorPoints:4,comparisonRank:3,provisionalOnly:true},
+ ]};
+ const validTie=await tryReply(tieFixture);
+ assert.equal(validTie.x('trialRows').children.length,3,'1,1,3 is a valid documented comparison tie');
+ for(const [title,bad] of [
+  ['wrong points',{...payload,runners:[{...payload.runners[0],twoFactorPoints:8},payload.runners[1]]}],
+  ['inflated rank',{...payload,runners:[{...payload.runners[0],comparisonRank:2},payload.runners[1]]}],
+  ['incorrect tie rank',{...tieFixture,runners:[
+    tieFixture.runners[0],{...tieFixture.runners[1],comparisonRank:2},tieFixture.runners[2]]}],
+  ['gap after tie',{...tieFixture,runners:[
+    tieFixture.runners[0],tieFixture.runners[1],{...tieFixture.runners[2],comparisonRank:2}]}],
+  ['reordered tied horses',{...tieFixture,runners:[
+    tieFixture.runners[1],tieFixture.runners[0],tieFixture.runners[2]]}],
+  ['repeated horse number',{...tieFixture,runners:[
+    tieFixture.runners[0],tieFixture.runners[1],{...tieFixture.runners[2],horseNumber:2}]}],
+ ]){
+  const check=await tryReply(bad);
+  assert.match(check.x('trialStatus').textContent,/試算できません/,title);
+  assert.equal(check.x('trialRows').children.length,0,title+' never renders runners');
+  assert.equal(check.x('trialGradeHandoff').disabled,true,title+' never transfers grades');
+  assert.equal(check.m.navigations.length,0);
+  assert.equal(check.m.stored.size,0);
+ }
  const jump=mock(true,payload,'#select=v1&date=2026-11-07&track=%E6%9D%B1%E4%BA%AC&race=8');
  const je=jump.el;await tick();
  assert.equal(je('trialDate').value,'2026-11-07');
