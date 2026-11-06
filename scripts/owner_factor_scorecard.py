@@ -34,11 +34,20 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button type="button" id="scoreHandoff" disabled>3連単下書き画面へ渡す（未保存）</button>
 <p class="hint">このボタンで引き継ぐのは日付・競馬場・R・馬番の着順候補だけ。馬名・評価・元データはURLやサーバーへ渡しません。移動先でも本人確認があり、保存も馬券購入も自動では行いません。</p>
 </section>
+<section><h2>④ 選択日の全Rを自動で下書き化</h2>
+<p class="hint">この端末に保存された<b>本人手入力の5項目が全部そろったレース</b>だけ、同じ計算方法で3連単フォーメーションをまとめて作れます。最大36R。新しいレースのAI分析・JRA公式の出走確認は行いません。</p>
+<button type="button" id="scoreDayBuild">この日に採点済みの全Rをまとめて計算</button>
+<p id="scoreDayBatchStatus" class="hint" role="status">計算しても保存済みの馬券や購入記録には一切反映しません。</p>
+<div id="scoreDayBatchPreview" aria-label="一括下書き候補の点数"></div>
+<label for="scoreDayBatchText" class="hint">引き継ぐ馬番だけの4行形式（編集不可）</label>
+<textarea id="scoreDayBatchText" rows="7" readonly spellcheck="false" placeholder="採点済みRを計算すると、ここに日付・競馬場・Rと1着／2着／3着候補だけが並びます。"></textarea>
+<button type="button" id="scoreDayTransfer" disabled>全Rを3連単下書き画面で検査（未保存）</button>
+<p class="hint">引き継ぎ先で全買い目を確認してから、本人が明示的に保存します。データは同じブラウザーの一時領域だけで引き継ぎ、URL・GitHub・サーバーへ馬名、採点やJRDB本文は送りません。実購入はしません。</p></section>
 <section><h2>判断時の注意</h2><p class="hint">総合S：85点以上、A：70点以上、B：55点以上、C：55点未満（暫定・検証前の基準）。1着は相対上位2頭、2着は上位4頭、3着は上位8頭まで。点数が少なければ無理に増やしません。S馬がいない場合も相対上位は表示しますが、勝てるという意味ではありません。全着順の馬番が実際に出走するかはJRA公式で別途照合してください。</p>
 <a href="/my-tickets">手動で3連単を作る</a></section>
 </main><script defer src="/owner-scorecard.js"></script></body></html>"""
 
-CSS = """.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
+CSS = """.score-day-batch-card{padding:10px;margin:9px 0;border:1px solid #5c7b93;border-radius:9px;background:#10243a}.score-day-batch-card strong{display:block;color:#e9d18c}.score-day-batch-card span{font-size:13px;color:#d4e1ed}#scoreDayBatchText{margin:12px 0;min-height:130px;font-size:14px}#scoreDayTransfer{margin-top:10px}#scoreDayBatchPreview{margin-top:10px}.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
 
 JS = r"""(()=>{'use strict';
 /* No network or writes: read optional same-browser manually copied roster; grades remain operator-entered. */
@@ -444,4 +453,119 @@ $('scoreHandoff').onclick=()=>{
  // URL fragment is not sent to Render. Contains ONLY date/venue/race/numbers.
  window.location.assign('/my-tickets#'+query.toString());
 };
+
+/* Private one-day bulk conversion of SAVED, fully manual five-factor notes.
+ * No JRDB/JRA/AI inference. The temporary handoff contains race coordinates
+ * and number-only formations, never grades, names or licensed raw materials.
+ */
+const SCORE_DAY_TRANSFER='keiba-nine-scorecard-bulk-transfer-v1';
+let pendingScoreDay=null;
+function clearScoreDay(message){
+ pendingScoreDay=null;
+ $('scoreDayTransfer').disabled=true;
+ $('scoreDayBatchText').value='';
+ $('scoreDayBatchPreview').replaceChildren();
+ $('scoreDayBatchStatus').textContent=message||'未計算。手入力の採点済みレースだけが対象です。';
+}
+function compileScoreDay(date){
+ if(!dateValid(date))throw Error('先に正しい開催日を選んでな。');
+ const day=notesRead().filter(note=>note.date===date);
+ if(day.length>36)throw Error('この日の保存評価が36Rを超えています。不要な記録を整理してください。');
+ const ready=[],skipped=[];
+ for(const note of day){
+  const state=scoreNoteState(note);
+  if(state.className!=='score-done'){
+   skipped.push(note.track+note.race+'R：'+state.text);
+   continue;
+  }
+  const rows=parseGrades(note.text);
+  const formation=planFormation(rows);
+  if(formation.points<1||formation.points>48)throw Error(note.track+note.race+'Rの点数が不正です。');
+  ready.push({...note,formation,headcount:rows.length,topScore:rows[0].score});
+ }
+ const trackOrder=[...TRACKS];
+ ready.sort((a,b)=>trackOrder.indexOf(a.track)-trackOrder.indexOf(b.track)||a.race-b.race);
+ const text=ready.map(x=>[
+  x.date+' '+x.track+x.race+'R',
+  '1着：'+x.formation.first.join('・'),
+  '2着：'+x.formation.second.join('・'),
+  '3着：'+x.formation.third.join('・'),
+ ].join('\n')).join('\n\n');
+ if(text.length>25000||ready.length>36)throw Error('一括入力の上限を超えています。');
+ return {
+  date,ready,skipped,text,
+  count:ready.length,
+  points:ready.reduce((n,x)=>n+x.formation.points,0),
+  // Detect edits to saved notes and source provenance before navigating.
+  snapshot:JSON.stringify(day),
+ };
+}
+$('scoreDayBuild').onclick=()=>{
+ clearScoreDay();
+ try{
+  const date=$('scoreDate').value,result=compileScoreDay(date);
+  if(!result.count)throw Error('この日に手入力の5項目が完成したレースはありません。');
+  for(const item of result.ready){
+   const card=document.createElement('div');
+   card.className='score-day-batch-card';
+   const h=document.createElement('strong'),p=document.createElement('span');
+   h.textContent=item.track+item.race+'R｜'+item.formation.points+
+    '点／'+(item.formation.points*100).toLocaleString('ja-JP')+'円相当';
+   p.textContent='1着 '+item.formation.first.join('・')+
+    ' ／ 2着 '+item.formation.second.join('・')+
+    ' ／ 3着 '+item.formation.third.join('・')+
+    '（'+item.headcount+'頭の本人入力評価から計算。未購入）';
+   card.append(h,p);$('scoreDayBatchPreview').append(card);
+  }
+  $('scoreDayBatchText').value=result.text;
+  $('scoreDayBatchStatus').textContent=date+'：'+result.count+'Rの手動採点を一括計算／'+
+   result.points+'点、100円換算'+(result.points*100).toLocaleString('ja-JP')+
+   '円（未購入）。'+
+   (result.skipped.length?'除外：'+result.skipped.join('／')+'。':'')+
+   'JRA公式出走・取消は未照合。';
+  pendingScoreDay=result;
+  $('scoreDayTransfer').disabled=false;
+ }catch(e){
+  clearScoreDay('一括計算できません：'+(e instanceof Error?e.message:'評価を確認してください。'));
+ }
+};
+$('scoreDayTransfer').onclick=()=>{
+ const planned=pendingScoreDay;
+ if(!planned||planned.date!==$('scoreDate').value||
+    planned.text!==$('scoreDayBatchText').value){
+  clearScoreDay('開催日・内容が変更されました。再計算してな。');return;
+ }
+ let current;
+ try{current=compileScoreDay(planned.date);}
+ catch(e){
+  clearScoreDay('保存元の再検査に失敗：'+(e instanceof Error?e.message:'再計算してください。'));return;
+ }
+ if(!current.count||current.snapshot!==planned.snapshot||
+    current.text!==planned.text||current.points!==planned.points){
+  clearScoreDay('端末内の評価や元資料が更新されています。もう一度一括計算してな。');return;
+ }
+ if(typeof sessionStorage==='undefined'){
+  $('scoreDayBatchStatus').textContent='このブラウザーでは一時的な引き継ぎを使えません。下のテキストを手動でコピーしてな。';
+  return;
+ }
+ if(!confirm(planned.count+'R・'+planned.points+
+   '点の3連単候補を下書き画面へ移しますか？\n本人手入力からの自動組立で、実際の予想・購入ではありません。'))return;
+ try{
+  sessionStorage.setItem(SCORE_DAY_TRANSFER,JSON.stringify({
+   version:'scorecard-bulk-v1',
+   createdAt:new Date().toISOString(),
+   date:planned.date,count:planned.count,
+   points:planned.points,text:planned.text,
+  }));
+ }catch(_){
+  $('scoreDayBatchStatus').textContent='一時領域に引き継ぎを保存できませんでした。テキストを手動でコピーしてな。';
+  return;
+ }
+ window.location.assign('/my-tickets#scorebatch=v1');
+};
+for(const id of ['scoreDate','scoreTrack','scoreRace']){
+ const field=$(id),oldInput=field.oninput,oldChange=field.onchange;
+ field.oninput=(...args)=>{clearScoreDay();if(oldInput)oldInput(...args)};
+ field.onchange=(...args)=>{clearScoreDay();if(oldChange)oldChange(...args)};
+}
 })();"""
