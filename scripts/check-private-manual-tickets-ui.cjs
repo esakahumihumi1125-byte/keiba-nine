@@ -717,6 +717,20 @@ assert.equal(storage.get(key),beforeHandoffDrafts,'no bulk draft saved automatic
 assert.equal(writes.length,beforeHandoffWrites);
 assert.equal(h('mBulkPreview').children[0].children[2].textContent.split(' ／ ').length,36);
 assert.equal(h('mBulkPreview').children[1].children[2].textContent.split(' ／ ').length,4);
+const all36Text=['福島','東京','京都'].flatMap(track=>
+ Array.from({length:12},(_,i)=>[
+  '2026-11-07 '+track+(i+1)+'R',
+  '1着：1・2',
+  '2着：1・2・3・4',
+  '3着：1・2・3・4・5・6・7・8',
+ ].join('\n'))).join('\n\n');
+const fullDay=boot(true,'#scorebatch=v1',{
+ ...receivedPayload,text:all36Text,count:36,points:1296,
+});
+assert.equal(fullDay.el('mBulkPreview').children.length,36,'bulk checker handles all 36R at once');
+assert.equal(fullDay.el('mBulkApply').disabled,false);
+assert.equal(fullDay.transient.size,0,'full 36R transfer is one-time');
+assert.equal(storage.get(key),beforeHandoffDrafts,'36R preview is not an automatic save');
 const invalidBatch={...receivedPayload,points:41};
 const reject=boot(true,'#scorebatch=v1',invalidBatch),rj=reject.el;
 assert.equal(rj('mBulkApply').disabled,true,'tampered count rejected');
