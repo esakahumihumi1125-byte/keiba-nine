@@ -1,4 +1,4 @@
-/* Browser-only 5-section backup import/export safety tests; synthetic horse names. */
+/* Browser-only six-section backup import/export safety tests; synthetic horse names. */
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-backup.js','utf8');
@@ -7,8 +7,9 @@ const keys=[
  'keiba-nine-owner-real-purchases-v1',
  'keiba-nine-jrdb-personal-mail-v1',
  'keiba-nine-owner-manual-numbers-v1',
- 'keiba-nine-owner-factor-notes-v1'
-],format='keiba-nine-owner-local-all-v2';
+ 'keiba-nine-owner-factor-notes-v1',
+ 'keiba-nine-jrdb-preday-runners-v1'
+],format='keiba-nine-owner-local-all-v3';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -17,8 +18,12 @@ const memo={date:'2099-01-09',track:'東京',race:1,
  sourceMark:JSON.stringify([source.postTime,source.expected,source.horses]),
  rows:[{number:1,name:'架空A'},{number:2,name:'架空B'},{number:3,name:'架空C'}]};
 const factor={date:'2099-01-09',track:'東京',race:1,text:'1 架空A A ? A B C',sourceMark:memo.sourceMark,savedAt:'2099-01-08T12:00:00+09:00'};
+const preday={kind:'jrdb-preday-provisional',date:'2099-01-09',track:'東京',races:[
+ {race:1,postTime:'09:55',expected:3,runners:[
+  {number:1,name:'架空A',style:'逃'},{number:2,name:'架空B',style:'先'},{number:3,name:'架空C',style:'未確認'}
+ ]}]};
 const fixture=()=>({
- [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],[keys[3]]:[memo],[keys[4]]:[factor]
+ [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],[keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -67,7 +72,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -116,8 +121,8 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  page.failOnWrite(keys[2]);
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
- assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 5 sections');
- assert.match(e('backupPreview').textContent,/元の5種類の記録へ戻しました/);
+ assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
+ assert.match(e('backupPreview').textContent,/元の6種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -141,7 +146,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  }
  // Previous (four-part) exports remain importable and preserve existing factor notes.
  page.storage.set(keys[4],JSON.stringify([factor]));
- const fourParts=fixture();delete fourParts[keys[4]];
+ const fourParts=fixture();delete fourParts[keys[4]];delete fourParts[keys[5]];
  const legacyFile=fakeFile(JSON.stringify({
   format:'keiba-nine-owner-local-all-v1',exportedAt:'2099-01-08T23:00:00Z',sections:fourParts
  }));
@@ -151,6 +156,8 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  e('backupRestore').onclick();
  assert.deepEqual(JSON.parse(page.storage.get(keys[4])),[factor],
   'legacy restore preserves ongoing factor scoring notes');
+ assert.deepEqual(JSON.parse(page.storage.get(keys[5])),[],
+  'legacy four-part backup preserves the untouched pre-day section');
  const afterLegacy=[...page.storage.entries()];
  const malformedLegacy={...fourParts,[keys[4]]:[]};
  const extraLegacy=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v1',
@@ -159,5 +166,37 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(e('backupRestore').disabled,true,'old backup must have precisely four sections');
  assert.deepEqual([...page.storage.entries()],afterLegacy);
 
- console.log('Owner local 5-part backup: export, restore, consent, schema, quota rollback and no upload PASS');
+ // Reject malformed or oversize pre-day data: a private file must not bypass
+ // the original browser importer validation or overwrite unrelated records.
+ for(const broken of [
+  {...preday,races:[{...preday.races[0],expected:4}]},
+  {...preday,races:[{...preday.races[0],runners:[
+   preday.races[0].runners[0],preday.races[0].runners[0],preday.races[0].runners[2]
+  ]}]},
+  {...preday,races:[{...preday.races[0],runners:[
+   {...preday.races[0].runners[0],style:'AI-S'},
+   ...preday.races[0].runners.slice(1)
+  ]}]},
+  {...preday,date:'2099-02-31'}
+ ]){
+  const current=[...page.storage.entries()];
+  const bad=fakeFile(JSON.stringify({format,exportedAt:'2099-01-08T23:00:00Z',
+   sections:{...fixture(),[keys[5]]:[broken]}}));
+  e('backupFile').files=[bad];await e('backupFile').onchange();await flush();
+  assert.equal(e('backupRestore').disabled,true,'invalid pre-day runner file must be rejected');
+  assert.deepEqual([...page.storage.entries()],current,'invalid pre-day roster never changes data');
+ }
+ // Previous five-section exports remain importable without erasing a newer
+ // pre-day 36R roster (the extra sixth section is not in the old file).
+ const legacyFive=fixture();delete legacyFive[keys[5]];
+ page.storage.set(keys[5],JSON.stringify([preday]));
+ const older=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v2',
+  exportedAt:'2099-01-08T23:00:00Z',sections:legacyFive}));
+ e('backupFile').files=[older];await e('backupFile').onchange();await flush();
+ assert.equal(e('backupRestore').disabled,false);
+ assert.match(e('backupPreview').textContent,/旧5種類のバックアップ/);
+ e('backupRestore').onclick();
+ assert.deepEqual(JSON.parse(page.storage.get(keys[5])),[preday],
+  'restore older 5-part backup preserves the current private pre-day roster');
+ console.log('Owner local six-part backup: export, restore, legacy safety, pre-day validation, quota rollback PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
