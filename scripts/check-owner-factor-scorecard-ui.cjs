@@ -726,7 +726,7 @@ assert.equal(re('scoreHandoff').disabled,true);
 const beforeChange=JSON.stringify(predayMeetings);
 const changedPreday=JSON.parse(beforeChange);
 changedPreday[2].races[3].runners[0].name='架空サクラ変更';
-const stale=boot(true,{[PREDAY]:changedPreday,[NOTES]:preNotes}),st=stale.el;
+const stale=boot(true,{[PREDAY]:changedPreday,[NOTES]:[...preNotes,seeded.find(n=>n.track==='東京'&&n.race===1)]}),st=stale.el;
 st('scoreDate').value='2026-11-07';st('scoreTrack').value='福島';st('scoreRace').value='4';
 st('scoreRace').onchange();
 assert.match(st('scoreDraftStatus').textContent,/復元できません/);
