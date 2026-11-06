@@ -10,8 +10,8 @@ const data=()=>({schema:'keiba-nine-private-preday-review-v1',date:'2026-11-07',
   confidence:3,status:'買い候補',headNames:['架空A','架空B'],note:'仮',
   provisional:true,jraOfficialConfirmed:false,fullFactorVerified:false
  })))}); 
-function boot(){
- const nodes=new Map(),store=new Map([['other','preserved']]),writes=[];
+function boot(serverReady=false){
+ const nodes=new Map(),store=new Map([['other','preserved']]),writes=[],calls=[];
  const node=()=>({textContent:'',value:'',files:[],children:[],checked:false,
   onclick:null,onchange:null,append(...a){this.children.push(...a)},
   replaceChildren(...a){this.children=[...a]}});
@@ -19,13 +19,33 @@ function boot(){
  vm.runInNewContext(js,{document:{getElementById:$,createElement:node},
   Date,JSON,Set,Map,Number,String,Error,URLSearchParams,console,
   navigator:{clipboard:{writeText:async()=>{}}},
+  fetch:async(url,options)=>{
+   calls.push({url,options});
+   return {ok:true,json:async()=>serverReady?{
+    available:true,forecast:{...data(),sourceKind:'owner-private-authored-preday',
+      predictionReady:false,officialJraVerified:false,purchased:false,raceCount:36}
+   }:{available:false,forecast:null}};
+  },
   localStorage:{getItem:k=>store.get(k)||null,
    setItem(k,v){writes.push(k);store.set(k,v)},
    removeItem(k){writes.push('remove:'+k);store.delete(k)}},
   confirm:()=>true});
- return {$,store,writes};
+ return {$,store,writes,calls};
 }
+async function tick(){await new Promise(resolve=>setImmediate(resolve));}
 (async()=>{
+ const server=boot(true),se=server.$;
+ await tick();
+ assert.equal(se('fpRaces').children.length,36,'36R render directly on page open');
+ assert.equal(server.writes.length,0,'server auto-read does not overwrite local storage');
+ assert.equal(server.calls.length,1,'one same-origin request on startup');
+ assert.equal(server.calls[0].url,'/api/owner-preday-forecast');
+ assert.equal(server.calls[0].options.headers['X-Keiba-Request'],'private');
+ assert.match(se('fpCloudStatus').textContent,/自動表示/);
+ se('fpTrack').value='福島';se('fpTrack').onchange();
+ assert.equal(se('fpRaces').children.length,12,'viewer supports venue filter without file');
+ se('fpDelete').onclick();await tick();
+ assert.equal(se('fpRaces').children.length,12,'deleting local upload leaves server forecast visible');
  const b=boot(),el=b.$;
  assert.equal(b.writes.length,0);
  const source=JSON.stringify(data());
