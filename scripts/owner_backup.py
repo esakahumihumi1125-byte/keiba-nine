@@ -106,7 +106,8 @@ function scoredNote(x){
  return race(x)&&typeof x.text==='string'&&x.text.length>0&&x.text.length<=4000&&
  typeof x.savedAt==='string'&&x.savedAt.length>=10&&x.savedAt.length<=32&&
  (x.sourceMark===null||
-  (typeof x.sourceMark==='string'&&x.sourceMark.length>0&&x.sourceMark.length<=1500));
+  (typeof x.sourceMark==='string'&&x.sourceMark.length>0&&x.sourceMark.length<=1500))&&
+ (!Object.hasOwn(x,'researchSource')||x.researchSource==='jrdb-two-factor-research-v1');
 }
 function sectionsValid(sections,legacy=false){
  if(!sections||typeof sections!=='object'||Array.isArray(sections)||
