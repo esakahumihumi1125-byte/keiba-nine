@@ -370,8 +370,17 @@ function changeScoreRace(){
 for(const id of ['scoreDate','scoreTrack','scoreRace']){
  $(id).oninput=changeScoreRace;$(id).onchange=changeScoreRace;
 }
-$('scoreInput').oninput=()=>{resetMemoGrid();invalidate();saveDraft()};
-$('scoreInput').onchange=()=>{resetMemoGrid();invalidate();saveDraft()};
+function onScoreInputChange(){
+ // Textarea edits must never strip the source snapshot from a JRDB pre-day
+ // note. Otherwise a valid researchSource could be persisted without its
+ // required sourceMark, poisoning the entire owner note store.
+ const oldPreday=predaySourceMark;
+ resetMemoGrid();
+ predaySourceMark=oldPreday;
+ invalidate();saveDraft();
+}
+$('scoreInput').oninput=onScoreInputChange;
+$('scoreInput').onchange=onScoreInputChange;
 function readMatchingMemo(select){
  const mail=JSON.parse(localStorage.getItem('keiba-nine-jrdb-personal-mail-v1')||'[]');
  const notes=JSON.parse(localStorage.getItem('keiba-nine-owner-manual-numbers-v1')||'[]');
@@ -402,11 +411,13 @@ function readMatchingMemo(select){
 }
 function verifyMemoHasNotChanged(){
  if(predaySourceMark){
-  const live=readPredayRace(identity());
-  if(!memoRows||live.sourceMark!==predaySourceMark||
-    live.rows.length!==memoRows.length||
-    live.rows.some((r,i)=>r.number!==memoRows[i].number||r.name!==memoRows[i].name))
-   throw Error('JRDB前日情報が更新されています。馬番を確認し直してな。');
+  const choice=identity(),live=readPredayRace(choice);
+  const current={...choice,text:$('scoreInput').value,predaySourceMark};
+  if(live.sourceMark!==predaySourceMark||!predayNoteMatches(current))
+   throw Error('JRDB前日情報の馬番・馬名が変更または一致しません。再照合してな。');
+  if(memoRows&&(live.rows.length!==memoRows.length||
+     live.rows.some((r,i)=>r.number!==memoRows[i].number||r.name!==memoRows[i].name)))
+   throw Error('採点画面の馬番・馬名が更新されています。');
   return;
  }
  if(!memoRows)return;
