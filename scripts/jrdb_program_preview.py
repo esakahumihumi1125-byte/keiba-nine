@@ -38,7 +38,7 @@ def normalize_program_rows(rows, requested_date):
         raise ProgrammeFormatError("Invalid calendar date") from exc
     if not isinstance(rows, list) or len(rows) > 120:
         raise ProgrammeFormatError("Unexpected programme collection")
-    results, seen = [], set()
+    results, seen, race_slots = [], set(), set()
     for row in rows:
         if not isinstance(row, dict):
             raise ProgrammeFormatError("Unexpected programme row")
@@ -51,9 +51,22 @@ def normalize_program_rows(rows, requested_date):
             raise ProgrammeFormatError("Unknown course or race")
         if row.get("racedate") != requested_date:
             raise ProgrammeFormatError("Programme date mismatch")
+        # Some beta revisions expose a separate course code. If present,
+        # it must agree with the authoritative race key; never silently
+        # attach source materials to a different venue.
+        raw_course = row.get("racecourse_cd")
+        if raw_course is not None and raw_course != key[:2]:
+            raise ProgrammeFormatError("Programme venue code mismatch")
         if key in seen:
             raise ProgrammeFormatError("Duplicate programme race key")
+        # Different meeting IDs can still point at the SAME visible
+        # track + race slot. Reject them now, before a one-day API test
+        # falsely counts the slot twice or a picker displays two 1Rs.
+        slot = (course, int(race_code))
+        if slot in race_slots:
+            raise ProgrammeFormatError("Ambiguous duplicate track and race")
         seen.add(key)
+        race_slots.add(slot)
         raw_post = row.get("post_time")
         off = None
         if isinstance(raw_post, str) and POST_TIME.fullmatch(raw_post):
