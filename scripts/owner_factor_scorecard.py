@@ -58,7 +58,7 @@ const GRADE=Object.freeze({S:4,A:3,B:2,C:1});
 const WEIGHTS=Object.freeze([25,25,20,10,20]);
 const NOTE_KEY='keiba-nine-owner-factor-notes-v1',MAX_NOTES=300;
 const CIRCLES='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
-let preview=null,memoSourceMark=null;
+let preview=null,memoSourceMark=null,predaySourceMark=null;
 function dateValid(date){
  if(typeof date!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(date))return false;
  const d=new Date(date+'T12:00:00Z');
@@ -210,7 +210,12 @@ function savedNoteValid(x){
   typeof x.text==='string'&&x.text.length>0&&x.text.length<=4000&&
   typeof x.savedAt==='string'&&x.savedAt.length>=10&&x.savedAt.length<=32&&
   (x.sourceMark===null||(typeof x.sourceMark==='string'&&x.sourceMark.length>0&&x.sourceMark.length<=1500))&&
-  (!Object.hasOwn(x,'researchSource')||x.researchSource===RESEARCH_DRAFT_TAG);
+  (!Object.hasOwn(x,'researchSource')||
+    [RESEARCH_DRAFT_TAG,PREDAY_RESEARCH_TAG].includes(x.researchSource))&&
+  (!Object.hasOwn(x,'predaySourceMark')||
+    (x.researchSource===PREDAY_RESEARCH_TAG&&typeof x.predaySourceMark==='string'&&
+     x.predaySourceMark.length>=20&&x.predaySourceMark.length<=1500))&&
+  (x.researchSource!==PREDAY_RESEARCH_TAG||Object.hasOwn(x,'predaySourceMark'));
 }
 function noteKey(x){return x.date+'|'+x.track+'|'+x.race}
 function notesRead(){
@@ -229,7 +234,8 @@ function saveDraft(){
   if(raw.trim()){
    if(rest.length>=MAX_NOTES)throw Error('途中評価の保存上限300Rです。');
    rest.push({...choice,text:raw,sourceMark:memoSourceMark,
-    ...(researchSource?{researchSource}:{}),savedAt:new Date().toISOString()});
+    ...(researchSource?{researchSource}:{}),
+    ...(predaySourceMark?{predaySourceMark}:{}),savedAt:new Date().toISOString()});
   }
   localStorage.setItem(NOTE_KEY,JSON.stringify(rest));
   $('scoreDraftStatus').textContent=raw.trim()?
@@ -242,10 +248,50 @@ function saveDraft(){
 }
 const LABELS=['調教','近走','適性','血統','展開'];
 const RESEARCH_DRAFT_TAG='jrdb-two-factor-research-v1';
+const PREDAY_RESEARCH_TAG='jrdb-preday-roster-v1';
+const PREDAY_KEY='keiba-nine-jrdb-preday-runners-v1';
 let memoRows=null,researchSource=null;
 function resetMemoGrid(){
- memoRows=null;memoSourceMark=null;$('scoreMemoGrid').replaceChildren();
+ memoRows=null;memoSourceMark=null;predaySourceMark=null;$('scoreMemoGrid').replaceChildren();
 }
+function readPredayRace(choice){
+ const raw=JSON.parse(localStorage.getItem(PREDAY_KEY)||'[]');
+ if(!Array.isArray(raw)||raw.length>48)throw Error('前日情報の形式を確認できません。');
+ const day=raw.find(x=>x&&x.kind==='jrdb-preday-provisional'&&
+  x.date===choice.date&&x.track===choice.track);
+ const race=day&&Array.isArray(day.races)&&day.races.find(x=>x&&x.race===choice.race);
+ if(!race||!Number.isInteger(race.expected)||race.expected<3||race.expected>18||
+    !/^\d\d:\d\d$/.test(race.postTime)||!Array.isArray(race.runners)||
+    race.runners.length!==race.expected)
+  throw Error(choice.track+choice.race+'Rの前日情報が未取り込みです。');
+ const used=new Set(),names=new Set(),rows=[];
+ for(const h of race.runners){
+  if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
+     typeof h.name!=='string'||!h.name||h.name.length>35||
+     !/^[^\s<>]+$/.test(h.name)||!['逃','先','差','追'].includes(h.style)||
+     used.has(h.number)||names.has(h.name))
+   throw Error('前日情報の馬番・馬名・脚質が不正です。');
+  used.add(h.number);names.add(h.name);
+  rows.push({number:h.number,name:h.name,grades:['?','?','?','?','?']});
+ }
+ return {rows:rows.sort((a,b)=>a.number-b.number),
+  sourceMark:JSON.stringify([race.postTime,race.expected,race.runners])};
+}
+function predayNoteMatches(note){
+ if(!note||!note.predaySourceMark)return true;
+ const live=readPredayRace(note);
+ if(live.sourceMark!==note.predaySourceMark)return false;
+ const lines=note.text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+ if(lines.length!==live.rows.length)return false;
+ const names=new Map();
+ for(const line of lines){
+  const m=/^([1-9]|1[0-8])\s+([^\s<>]+)\s+(?:[SABC?]\s+){4}[SABC?]$/.exec(line);
+  if(!m||names.has(+m[1]))return false;
+  names.set(+m[1],m[2]);
+ }
+ return live.rows.every(r=>names.get(r.number)===r.name);
+}
+
 function memoNoteMatches(note){
  if(!note||note.sourceMark===null)return true;
  const live=readMatchingMemo(note);
@@ -262,6 +308,10 @@ function memoNoteMatches(note){
 }
 function scoreNoteState(note){
  if(!note)return {text:'未着手',className:'score-empty'};
+ if(note.predaySourceMark){
+  try{if(!predayNoteMatches(note))return {text:'要再確認（前日情報変更）',className:'score-stale'};}
+  catch(_){return {text:'要再確認（前日情報不明）',className:'score-stale'};}
+ }
  if(note.sourceMark!==null){
   try{if(!memoNoteMatches(note))return {text:'要再確認',className:'score-stale'};}
   catch(_){return {text:'要再確認',className:'score-stale'};}
@@ -348,6 +398,14 @@ function readMatchingMemo(select){
  return {rows:rows.sort((a,b)=>a.number-b.number),sourceMark:memo.sourceMark};
 }
 function verifyMemoHasNotChanged(){
+ if(predaySourceMark){
+  const live=readPredayRace(identity());
+  if(!memoRows||live.sourceMark!==predaySourceMark||
+    live.rows.length!==memoRows.length||
+    live.rows.some((r,i)=>r.number!==memoRows[i].number||r.name!==memoRows[i].name))
+   throw Error('JRDB前日情報が更新されています。馬番を確認し直してな。');
+  return;
+ }
  if(!memoRows)return;
  const live=readMatchingMemo(identity());
  if(live.sourceMark!==memoSourceMark||live.rows.length!==memoRows.length||live.rows.some((r,i)=>
@@ -441,6 +499,8 @@ function restoreCurrentNote(){
    $('scoreDraftStatus').textContent='このレースの途中評価はまだ保存されていません。';
    return;
   }
+  if(note.predaySourceMark&&!predayNoteMatches(note))
+   throw Error('JRDB前日情報が変更されています。評価を自動復元できません。');
   if(note.sourceMark!==null){
    const live=readMatchingMemo(selected);
    if(live.sourceMark!==note.sourceMark)
@@ -483,7 +543,8 @@ function restoreCurrentNote(){
      seenNums.add(num);if(name)seenNames.add(name);
      parsed.push({number:num,name,grades});
     }
-    if(valid){memoRows=parsed;memoSourceMark=null;drawMemoGrid();}
+    if(valid){memoRows=parsed;memoSourceMark=null;
+     predaySourceMark=note.predaySourceMark||null;drawMemoGrid();}
    }
   }
   $('scoreInput').value=note.text;
