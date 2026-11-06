@@ -51,12 +51,23 @@ class PrivateProgramPreviewTests(unittest.TestCase):
         self.assertIsNone(row["race_name"])
 
     def test_turn_codes_are_separate_from_surface(self):
-        for code, expected in (("1", "右"), ("2", "左"), ("9", "直線"),
-                               ("3", None), (None, None)):
+        for code, expected in (("1", "右"), ("2", "左"), ("3", "直線"),
+                               ("9", None), (None, None)):
             with self.subTest(code=code):
                 row = normalize_program_rows([sample(turn_cd=code)], "20261101")[0]
                 self.assertEqual(row["turn"], expected)
                 self.assertEqual(row["surface"], "芝")
+
+    def test_official_straight_course_code_is_preserved(self):
+        # /tra currently documents turn_cd='3' for Niigata straight.
+        row = normalize_program_rows([sample(
+            racekey="04264b11", turn_cd="3",
+            track_type="1", distance="1000"
+        )], "20261101")[0]
+        self.assertEqual(row["track"], "新潟")
+        self.assertEqual(row["turn"], "直線")
+        self.assertEqual(row["distance_m"], 1000)
+        self.assertFalse(row["horsesVerified"])
 
     def test_date_mismatch_fails_closed(self):
         with self.assertRaises(ProgrammeFormatError):
