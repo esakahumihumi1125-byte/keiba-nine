@@ -7,7 +7,8 @@ const keys={
  memo:'keiba-nine-owner-manual-numbers-v1',
  score:'keiba-nine-owner-factor-notes-v1',
  ticket:'keiba-nine-owner-ticket-drafts-v1',
- purchase:'keiba-nine-owner-real-purchases-v1'
+ purchase:'keiba-nine-owner-real-purchases-v1',
+ preday:'keiba-nine-jrdb-preday-runners-v1'
 };
 const date='2099-01-09';
 function source(race,postTime='09:55'){
@@ -57,7 +58,7 @@ assert.match(e('workStatus').textContent,/2099-01-09/);
 assert.equal(e('workMeetings').children.length,3,'3 racecourses grouped');
 assert.equal(e('workMeetings').children.reduce((n,x)=>n+x.children[1].children.length,0),36,'all 36R accessible');
 assert.match(e('workSummary').textContent,/36R表示/);
-assert.match(e('workSummary').textContent,/JRDB想定6R/);
+assert.match(e('workSummary').textContent,/JRDB前日0R／JRDB想定6R/);
 assert.match(e('workSummary').textContent,/馬番メモ一致1R/);
 assert.match(e('workSummary').textContent,/評価入力完了1R/);
 assert.match(e('workSummary').textContent,/3連単下書き1R/);
@@ -223,7 +224,7 @@ assert.match(empty.el('workNext').children[0].textContent,/準備済みではあ
 
 empty.el('workExtraTrack').value='中山';empty.el('workAddTrack').onclick();
 assert.equal(empty.el('workMeetings').children.length,1);
-assert.match(empty.el('workSummary').textContent,/12R表示／JRDB想定0R/);
+assert.match(empty.el('workSummary').textContent,/12R表示／JRDB前日0R／JRDB想定0R/);
 
 // Completed user scores without any ticket should offer the 3連単 notebook.
 // Even a fully graded local note does NOT mean JRA official race verification.
