@@ -21,7 +21,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <option>札幌</option><option>函館</option><option>福島</option><option>新潟</option><option>東京</option><option>中山</option><option>中京</option><option>京都</option><option>阪神</option><option>小倉</option>
 </select>
 <label for="scoreRace">レース（1〜12R）</label><input id="scoreRace" type="number" min="1" max="12" step="1" value="1">
-</div><p id="scoreDayStatus" class="hint" role="status">日付・競馬場を選ぶと12Rの入力状況を表示します。</p><p id="scoreAllDayStatus" class="hint" role="status">同日の保存済みRを確認します。未登録の開催を36Rと数えません。</p><div id="scoreVenueGrid" class="score-venue-grid" role="group" aria-label="保存済み会場別の採点進捗"></div><p id="scoreVenueStatus" class="hint" role="status">会場をタップすると、その会場の未評価Rへ移動できます。未登録の場は表示しません。</p><button type="button" id="scoreNextPending" class="memo-load" disabled>次の未評価・要再確認Rへ</button><p id="scoreNextPendingStatus" class="hint" role="status">採点済みのRを飛ばし、同日に保存された未評価・要再確認Rへ移動します。予想や馬券は自動作成しません。</p><div id="scoreRaceGrid" class="score-race-grid" role="group" aria-label="選択した競馬場の1R〜12R評価メモ"></div><p class="hint">評価状況はこの端末の手入力メモのみ。公式の開催・出走・取消情報を表すものではありません。</p></section>
+</div><p id="scoreDayStatus" class="hint" role="status">日付・競馬場を選ぶと12Rの入力状況を表示します。</p><p id="scoreAllDayStatus" class="hint" role="status">同日の保存済みRを確認します。未登録の開催を36Rと数えません。</p><div id="scoreVenueGrid" class="score-venue-grid" role="group" aria-label="保存済み会場別の採点進捗"></div><p id="scoreVenueStatus" class="hint" role="status">会場をタップすると、その会場の未評価Rへ移動できます。未登録の場は表示しません。</p><button type="button" id="scoreNextPending" class="memo-load" disabled>次の未評価・要再確認Rへ</button><p id="scoreNextPendingStatus" class="hint" role="status">採点済みのRを飛ばし、同日に保存された未評価・要再確認Rへ移動します。予想や馬券は自動作成しません。</p><button type="button" id="scoreTrialJump" class="memo-load">選択中のRをJRDB研究用・調教／近走の自動試算で開く</button><p id="scoreTrialJumpStatus" class="hint" role="status">API認証が発行された場合だけ利用できます。移動先で本人が実行を押すまで有料データの取得はしません。5項目の総合予想・馬券ではありません。</p><div id="scoreRaceGrid" class="score-race-grid" role="group" aria-label="選択した競馬場の1R〜12R評価メモ"></div><p class="hint">評価状況はこの端末の手入力メモのみ。公式の開催・出走・取消情報を表すものではありません。</p></section>
 <section><h2>② 馬番と5項目の評価を貼る</h2>
 <p class="hint">1頭1行で「馬番　調教　近走　適性　血統　展開」を入力。馬名は省略可。各項目は<b>S・A・B・C</b>。丸数字①〜⑱にも対応。最低3頭、最大18頭。</p>
 <button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button>
@@ -486,6 +486,23 @@ function changeScoreRace(){
 for(const id of ['scoreDate','scoreTrack','scoreRace']){
  $(id).oninput=changeScoreRace;$(id).onchange=changeScoreRace;
 }
+$('scoreTrialJump').onclick=()=>{
+ try{
+  const c=identity();
+  if(currentScoreHasUnsavedInput()||
+     (lastScoreSelection&&noteKey(c)!==noteKey(lastScoreSelection))){
+   $('scoreTrialJumpStatus').textContent='現在のRに未保存の評価があります。端末に保存してから移動してな。';
+   return;
+  }
+  // Only calendar coordinates travel in the fragment. No names, member
+  // source, factor grades, ticket numbers, or credentials leave this page.
+  const p=new URLSearchParams({select:'v1',date:c.date,track:c.track,race:String(c.race)});
+  window.location.assign('/owner-auto-trial#'+p.toString());
+ }catch(e){
+  $('scoreTrialJumpStatus').textContent='研究用の試算画面を開けません：'+
+   (e instanceof Error?e.message:'開催日・競馬場・Rを確認してな。');
+ }
+};
 function onScoreInputChange(){
  // Textarea edits must never strip the source snapshot from a JRDB pre-day
  // note. Otherwise a valid researchSource could be persisted without its
