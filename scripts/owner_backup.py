@@ -107,7 +107,13 @@ function scoredNote(x){
  typeof x.savedAt==='string'&&x.savedAt.length>=10&&x.savedAt.length<=32&&
  (x.sourceMark===null||
   (typeof x.sourceMark==='string'&&x.sourceMark.length>0&&x.sourceMark.length<=1500))&&
- (!Object.hasOwn(x,'researchSource')||x.researchSource==='jrdb-two-factor-research-v1');
+ (!Object.hasOwn(x,'researchSource')||
+  ['jrdb-two-factor-research-v1','jrdb-preday-roster-v1'].includes(x.researchSource))&&
+ (!Object.hasOwn(x,'predaySourceMark')||
+  (x.researchSource==='jrdb-preday-roster-v1'&&
+   typeof x.predaySourceMark==='string'&&x.predaySourceMark.length>=20&&
+   x.predaySourceMark.length<=1500))&&
+ (x.researchSource!=='jrdb-preday-roster-v1'||Object.hasOwn(x,'predaySourceMark'));
 }
 function sectionsValid(sections,legacy=false){
  if(!sections||typeof sections!=='object'||Array.isArray(sections)||
