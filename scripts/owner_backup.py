@@ -101,7 +101,7 @@ function preday(x){
  const seen=new Set();
  return x.races.every(r=>{
   if(!r||!Number.isInteger(r.race)||r.race<1||r.race>12||seen.has(r.race)||
-   typeof r.postTime!=='string'||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(r.postTime)||
+   typeof r.postTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(r.postTime)||
    !Number.isInteger(r.expected)||r.expected<3||r.expected>18||
    !Array.isArray(r.runners)||r.runners.length!==r.expected)return false;
   seen.add(r.race);
