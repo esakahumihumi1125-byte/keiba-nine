@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const script=fs.readFileSync('/tmp/keiba-jrdb-mail-local.js','utf8');
-const storage=new Map(),requests=[];
+const storage=new Map(),requests=[],navigation=[];
 let approve=true;
 const localStorage={
  getItem:key=>storage.get(key)||null,
@@ -19,7 +19,7 @@ function loadPage(){
  const nodes=new Map();
  const get=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);};
  vm.runInNewContext(script,{document:{getElementById:get,createElement:element},
-  localStorage,Date,JSON,Set,String,Number,Array,Error,confirm:()=>approve,
+  localStorage,window:{location:{assign:url=>navigation.push(url)}},URLSearchParams,Date,JSON,Set,String,Number,Array,Error,confirm:()=>approve,
   fetch:()=>{requests.push('network');throw Error('Never network');}});
  return get;
 }
@@ -164,6 +164,69 @@ assert.equal(requests.length,0,'Never issue a network request');
 assert.ok(!script.includes('fetch('));
 assert.ok(!script.includes('innerHTML'));
 assert.ok(!script.includes('XMLHttpRequest'));
+
+// Synthetic JRDB 前日情報: actual horse-numbered structure without licensed data.
+function predayFixture(date,venue,count=12){
+ const lines=['■前日情報',''];
+ for(let race=1;race<=count;race++){
+  lines.push(date+'　5回'+venue+'1日目　09:55発走');
+  lines.push(race+'Ｒ'+(race===11?' 合成特別競走':''));
+  lines.push('２歳・未勝利(馬齢)　ダ・左1600M　3頭立','');
+  lines.push('騎情ID前 B馬名 性齢 騎手 斤量 脚 前評IDM 情 騎 基オ(人)');
+  lines.push('◎◎◎◎ 1 合成サクラ'+race+' 牝2 架空騎手55 先 25: 21 1 0: 8.0( 1)');
+  lines.push('△△ 2 B合成ナイン'+race+' 牡3 架空騎手56 逃 12: 12 0 0: 30.0( 7)');
+  lines.push(' 3 合成ドリーム'+race+' セ4 架空騎手57 差 11: 10 1 0: 99.0(12)');
+  lines.push('','≪推奨買い目≫');
+  lines.push('1-2( 1.0)　1-3( 99.0)','');
+ }
+ lines.push('このメールに掲載された内容は転載禁止');
+ return lines.join('\n');
+}
+const PRE='keiba-nine-jrdb-preday-runners-v1';
+const previewPreday=loadPage();
+const predayTriple=[
+ predayFixture('2099年11月7日（土）','東京'),
+ predayFixture('2099年11月7日（土）','京都'),
+ predayFixture('2099年11月7日（土）','福島')
+].join('\n\n');
+const savedBeforePreday=storage.get(key);
+previewPreday('predayText').value=predayTriple;
+previewPreday('predayImport').onclick();
+assert.match(previewPreday('predayStatus').textContent,/3通の前日情報から36R/);
+assert.equal(previewPreday('predayText').value,'');
+const pre=JSON.parse(storage.get(PRE));
+assert.equal(pre.length,3);
+assert.ok(pre.every(x=>x.date==='2099-11-07'&&x.races.length===12));
+assert.equal(pre.find(x=>x.track==='東京').races[0].runners.length,3);
+assert.deepEqual(pre.find(x=>x.track==='東京').races[0].runners[1],{
+ number:2,name:'合成ナイン1',style:'逃'
+});
+assert.ok(!storage.get(PRE).includes('騎手'),'private local store excludes other licensed metadata');
+assert.ok(!storage.get(PRE).includes('99.0'),'private local store excludes odds');
+assert.ok(!storage.get(PRE).includes('前評'),'private local store excludes provider ratings');
+assert.equal(storage.get(key),savedBeforePreday,'existing 想確 mail unaffected');
+previewPreday('predayMeeting').value='2099-11-07|東京';
+previewPreday('predayMeeting').onchange();
+assert.equal(previewPreday('predayRaces').children.length,12);
+assert.match(previewPreday('predayRaces').children[0].children[1].children[0].textContent,/1番 合成サクラ1（先）/);
+previewPreday('predayRaces').children[0].children[2].onclick();
+assert.match(navigation[0],/\/my-scorecard#select=v1&date=2099-11-07&track=/);
+assert.ok(!navigation[0].includes('合成'),'names do not enter URL');
+const preSaved=storage.get(PRE);
+previewPreday('predayText').value=predayFixture('2099年11月8日（日）','東京')+'\n\n'+
+ predayFixture('2099年11月8日（日）','京都').replace('3頭立','4頭立');
+previewPreday('predayImport').onclick();
+assert.match(previewPreday('predayStatus').textContent,/取り込めません/);
+assert.equal(storage.get(PRE),preSaved,'invalid second email aborts entire update');
+previewPreday('predayText').value=predayFixture('2099年11月7日（土）','東京',11);
+previewPreday('predayImport').onclick();
+assert.match(previewPreday('predayStatus').textContent,/旧Rが欠けています/);
+assert.equal(storage.get(PRE),preSaved,'incomplete later update cannot delete an existing R');
+previewPreday('predayText').value=predayTriple;
+previewPreday('predayImport').onclick();
+assert.equal(storage.get(PRE),preSaved,'idempotent re-import does not alter records');
+assert.equal(requests.length,0,'no email contents sent to network');
+
 console.log('JRDB personal mail importer: local-only 2099 fixture, two venues, replacement, bad email block, clear and no network OK');
 
 // iPhone import: a single UTF-8 text file containing two provisional emails.
