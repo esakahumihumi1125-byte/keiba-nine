@@ -28,7 +28,7 @@ function boot(confirmDecision=true,hash='',handoff=null){
  vm.runInNewContext(js,{document:{getElementById:el,createElement:element},
   localStorage,sessionStorage,Date,Set,Number,String,JSON,Blob,URL,URLSearchParams,
   window:{location:{assign:u=>navigation.push(u),hash,pathname:'/my-tickets',search:''},
-          history:{replaceState:()=>{}}},confirm:()=>confirmDecision,prompt:()=>reply,console});
+          history:{replaceState:()=>{}}},confirm:msg=>typeof confirmDecision==='function'?confirmDecision(msg):confirmDecision,prompt:()=>reply,console});
  return {el,nodes,urls,navigation,transient,transientWrites,setPrompt:s=>{reply=s}};
 }
 const first=boot(),$=first.el;
@@ -834,6 +834,43 @@ const scratchHandoff=boot(true,'#scorebatch=v1',{
 assert.equal(scratchHandoff.el('mBulkApply').disabled,true,'scorecard transfer cannot bypass withdrawn guard');
 assert.equal(scratchHandoff.transient.size,0);
 assert.equal(storage.get(key),safeBulkSnapshot);
+// Cancellation can change WHILE the confirmation dialog is open. Both
+// single-R overwrite and all-R apply must recheck immediately before writing.
+const atSingle=storage.get(key);
+const guardSingle=boot(()=>{
+ const notes=JSON.parse(storage.get(SCRATCH));
+ storage.set(SCRATCH,JSON.stringify(notes.map(n=>
+  n.date==='2026-11-14'&&n.track==='東京'&&n.race===5?
+   {...n,numbers:[3,5,7]}:n)));
+ return true;
+}),gs=guardSingle.el;
+gs('mDate').value='2026-11-14';gs('mDate').onchange();
+gs('mTrack').value='東京';gs('mTrack').onchange();
+gs('mRace').value='5';gs('mRace').onchange();
+gs('mThird').children[3].onclick(); // remove saved #4
+gs('mThird').children[4].onclick(); // #5 still allowed before confirmation
+assert.equal(gs('mSave').disabled,false);
+gs('mSave').onclick();
+assert.equal(storage.get(key),atSingle,'post-confirm scratch recheck protects single draft');
+assert.match(gs('mMsg').textContent,/保存停止.*5番/);
+const atBulk=storage.get(key);
+const guardBulk=boot(()=>{
+ storage.set(SCRATCH,JSON.stringify([...JSON.parse(storage.get(SCRATCH)),{
+  date:'2026-11-14',track:'京都',race:1,numbers:[4],
+  savedAt:'2026-11-06T00:00:00.000Z'
+ }]));
+ return true;
+}),gb=guardBulk.el;
+gb('mDate').value='2026-11-14';gb('mDate').onchange();
+gb('mBulkPaste').value='2026-11-14 京都1R\n1着：1\n2着：2\n3着：4';
+gb('mBulkReview').onclick();
+assert.equal(gb('mBulkApply').disabled,false);
+gb('mBulkApply').onclick();
+assert.equal(storage.get(key),atBulk,'post-confirm scratch recheck protects day batch');
+assert.equal(gb('mBulkApply').disabled,true);
+assert.match(gb('mBulkStatus').textContent,/一括保存停止.*京都1R/);
+assert.equal(storage.get(purchaseKey),beforeScratchPurchase);
+
 // Corrupted scratch storage means UNKNOWN, never "no withdrawals."
 storage.set(SCRATCH,'{"wrong":"shape"}');
 const corrupt=boot(),cc=corrupt.el;
