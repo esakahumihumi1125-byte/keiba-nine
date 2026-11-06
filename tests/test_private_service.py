@@ -76,7 +76,8 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertIn('keiba-nine-owner-preday-analysis-v1', js)
         self.assertIn('jraOfficialConfirmed!==false', js)
         self.assertIn('fullFactorVerified!==false', js)
-        self.assertNotIn('fetch(', js)
+        self.assertIn("fetch('/api/owner-preday-forecast'", js)
+        self.assertIn("X-Keiba-Request", js)
         self.assertNotIn('innerHTML', js)
 
     def test_iphone_home_screen_entry_and_private_notebook_navigation(self):
