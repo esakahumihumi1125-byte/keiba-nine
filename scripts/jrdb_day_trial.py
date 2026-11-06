@@ -15,7 +15,7 @@ from jrdb_private_factor_bridge import build_private_factor_matrix, summarize_fa
 from jrdb_entry_rotation_materials import enrich_entry_materials_matrix, summarize_entry_materials_matrix
 from jrdb_personnel_body_materials import enrich_personnel_body_matrix, summarize_personnel_body_matrix
 
-VERSION = "owner-day-two-factor-trial-3"
+VERSION = "owner-day-two-factor-trial-4"
 
 
 def build_day_trial(programme, entries, training, recent, date, venue_conditions=None):
@@ -87,6 +87,17 @@ def build_day_trial(programme, entries, training, recent, date, venue_conditions
     # material-presence observations. This does NOT add rankings or API calls.
     matrix = build_private_factor_matrix(train, past)
     base = summarize_factor_materials(matrix)
+    # Keep a private race-number index only in process memory. No horse ID,
+    # previous race position, or licensed row is exposed to the browser.
+    private_pace_by = {}
+    for item in matrix:
+        key = item.get("racekey")
+        if (key not in keys or key in private_pace_by
+                or not isinstance(item.get("byNumber"), dict)):
+            raise CoverageError("Missing or duplicate private 4th-corner race")
+        private_pace_by[key] = item["byNumber"]
+    if set(private_pace_by) != keys:
+        raise CoverageError("Missing private 4th-corner material race")
     pedigree_matrix = enrich_entry_materials_matrix(
         matrix, programme, entries, recent, date
     )
@@ -152,6 +163,38 @@ def build_day_trial(programme, entries, training, recent, date, venue_conditions
                 or c.get("jockeyTrainerPerformanceAssessed") is not False
                 or c.get("bodyConditionAssessed") is not False):
             raise CoverageError("Material counts do not establish readiness")
+        # Show only the existing observation category (not actual corner
+        # order or any proprietary metric). This must agree exactly with
+        # the already audited race-level summary and the known roster.
+        positions = private_pace_by[row["racekey"]]
+        runner_numbers = {f"{h['horseNumber']:02d}" for h in r["runners"]}
+        if len(runner_numbers) != n or set(positions) != runner_numbers:
+            raise CoverageError("4th-corner identities do not match runner roster")
+        observed_counts = dict.fromkeys((
+            "frontObserved", "backObserved", "mixedObserved", "insufficient"
+        ), 0)
+        for horse in r["runners"]:
+            number = f"{horse['horseNumber']:02d}"
+            pace_slot = positions[number].get("pace")
+            if (not isinstance(pace_slot, dict)
+                    or set(pace_slot) != {"grade", "basis", "positionObservation"}
+                    or pace_slot["grade"] != "未評価"
+                    or pace_slot["basis"] != "historical_fourth_corner_only"):
+                raise CoverageError("Past position cannot become a pace grade")
+            position = pace_slot["positionObservation"]
+            if position not in observed_counts:
+                raise CoverageError("Invalid 4th-corner observation category")
+            observed_counts[position] += 1
+            horse["pastFourthCornerObservation"] = position
+        if observed_counts != a["pastFourthCorner"]:
+            raise CoverageError("Private 4th-corner counts disagree")
+        r["pastFourthCornerSummary"] = {
+            "categoryCounts": observed_counts,
+            "researchOnly": True,
+            "racePaceForecastAvailable": False,
+            "minObservedRacesForCategory": 2,
+            "notRunnerAbilityGrade": True,
+        }
         counts = {
             "training": a["provisionalGradeCounts"]["trainingProvisional"],
             "recent": a["provisionalGradeCounts"]["recentProvisional"],
@@ -202,6 +245,7 @@ def build_day_trial(programme, entries, training, recent, date, venue_conditions
         "autoTicketReady": False, "races": results,
         "warning": ("当日の各Rを調教・近走の暫定2項目のみで比較。"
                     "元データは本人専用・未検証。JRA公式出走確定・取消・馬場未照合、"
-                    "残り8項目未評価。資料の存在は能力の証明ではありません。"
+                    "残り8項目未評価。過去4角の傾向は今回の展開予想ではありません。" 
+                    "資料の存在は能力の証明ではありません."
                     "実戦予想・買い目は未作成です。"),
     }
