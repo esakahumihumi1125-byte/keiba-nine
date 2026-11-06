@@ -61,7 +61,7 @@ class PrivateProgramPreviewTests(unittest.TestCase):
     def test_official_straight_course_code_is_preserved(self):
         # /tra currently documents turn_cd='3' for Niigata straight.
         row = normalize_program_rows([sample(
-            racekey="04264b11", turn_cd="3",
+            racekey="04264b11", racecourse_cd="04", turn_cd="3",
             track_type="1", distance="1000"
         )], "20261101")[0]
         self.assertEqual(row["track"], "新潟")
