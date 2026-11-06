@@ -143,7 +143,7 @@ class JRDBTrialRouteTests(unittest.TestCase):
     def test_authenticated_html_and_scripts(self):
         app = create_app(SETTINGS)
         for path, term in (
-            ("/owner-auto-trial", "1レースの自動試算"),
+            ("/owner-auto-trial", "開催日・全Rの自動試算"),
             ("/owner-auto-trial.js", "owner-single-race-two-factor-trial-1"),
             ("/owner-auto-trial.css", ".trial-horse"),
         ):
