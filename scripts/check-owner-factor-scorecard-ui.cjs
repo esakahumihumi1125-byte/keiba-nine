@@ -564,6 +564,26 @@ assert.equal(pe('scoreHandoff').disabled,true,'no rank from all unknown factors'
 pe('scoreSeedPredayDay').onclick();
 assert.equal(pd.writes.length,1,'repeated seeding preserves current notes');
 
+// Explicit cross-screen jump may request the same one-confirmation seed.
+// Cancelling must never write notes, and malformed URL params cannot bypass it.
+const seedHash='#select=v1&date=2026-11-07&track='+encodeURIComponent('東京')+'&race=1&seed=day-v1';
+const oneClick=boot(true,{[PREDAY]:predayMeetings},seedHash);
+assert.equal(oneClick.el('scoreDate').value,'2026-11-07');
+assert.equal(oneClick.el('scoreTrack').value,'東京');
+assert.equal(JSON.parse(oneClick.store.get(NOTES)).length,36,'confirmed link seeds 36R once');
+assert.equal(oneClick.writes.length,1,'one-confirmation link makes only one atomic note write');
+assert.equal(oneClick.cleared.length,1,'used request fragment cleared from address');
+assert.equal(oneClick.links.length,0,'not a purchase or betting handoff');
+const cancelledSeed=boot(false,{[PREDAY]:predayMeetings},seedHash);
+assert.equal(cancelledSeed.writes.length,0,'declined one-click seed leaves notes untouched');
+assert.equal(cancelledSeed.store.get(NOTES),null);
+assert.equal(cancelledSeed.cleared.length,1,'declined link is one-use too');
+for(const malformed of [seedHash.replace('day-v1','invalid'),seedHash+'&seed=day-v1']){
+ const invalidLink=boot(true,{[PREDAY]:predayMeetings},malformed);
+ assert.equal(invalidLink.writes.length,0,'malformed seed must not write');
+ assert.match(invalidLink.el('scoreStatus').textContent,/受け取れませんでした/);
+}
+
 const existingNote={date:'2026-11-07',track:'東京',race:1,
  text:'1 以前の評価 S A A A A\n2 別の評価 A A A A A\n3 既存の記録 B B B B B',
  sourceMark:null,savedAt:new Date().toISOString()};
