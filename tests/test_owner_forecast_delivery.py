@@ -68,6 +68,34 @@ class PrivateForecastDeliveryTests(unittest.TestCase):
         self.assertNotIn("NOT_TO_EXPOSE", str(d))
         self.assertNotIn("JRDB", str(d))
 
+    def test_compact_36r_nonlicensed_server_configuration(self):
+        source = forecast()
+        fields = []
+        for race in source["races"]:
+            fields.append([race["time"], race["course"], race["field"],
+                           race["rank"], len(race["first"]), len(race["second"]),
+                           len(race["third"]), race["confidence"], race["headNames"]])
+        packed = {"format": "owner-compact-36r-v1",
+                  "date": "2026-11-07", "races": fields}
+        response = call(create_app({**SETTINGS, ENV_KEY: pack(packed)}),
+                        "/api/owner-preday-forecast")
+        self.assertEqual(response["status"], "200 OK")
+        result = json.loads(response["body"])["forecast"]
+        self.assertEqual(result["raceCount"], 36)
+        self.assertEqual(result["races"][0]["track"], "東京")
+        self.assertEqual(result["races"][0]["race"], 1)
+        self.assertEqual(result["races"][12]["track"], "京都")
+        self.assertEqual(result["races"][24]["track"], "福島")
+        self.assertEqual(result["races"][35]["race"], 12)
+        self.assertEqual(result["races"][0]["points"], 30)
+        self.assertFalse(result["predictionReady"])
+        self.assertFalse(result["purchased"])
+        malformed = dict(packed)
+        malformed["races"] = [*fields[:-1]]
+        bad = call(create_app({**SETTINGS, ENV_KEY: pack(malformed)}),
+                   "/api/owner-preday-forecast")
+        self.assertEqual(bad["status"], "503 Service Unavailable")
+
     def test_missing_env_safe_and_invalid_env_closed(self):
         app = create_app(SETTINGS)
         response = call(app, "/api/owner-preday-forecast")
