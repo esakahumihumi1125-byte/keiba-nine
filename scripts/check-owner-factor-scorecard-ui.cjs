@@ -292,6 +292,13 @@ const batch=boot(true,{[NOTES]:dayNotes}),be=batch.el;
 be('scoreDate').value='2026-11-07';be('scoreTrack').value='東京';be('scoreRace').value='11';
 be('scoreDayBuild').onclick();
 assert.equal(be('scoreDayBatchPreview').children.length,2,'partial and stale scores excluded');
+assert.equal(be('scoreDayBatchPreview').children[0].children[2].children.length,9,
+ 'each race exposes all 8 ranked horses when explicitly expanded');
+assert.match(be('scoreDayBatchPreview').children[0].children[2].children[0].textContent,/全馬の総合評価順/);
+assert.match(be('scoreDayBatchPreview').children[0].children[2].children[1].textContent,/1位.*総合S/);
+assert.match(be('scoreDayBatchPreview').children[0].children[2].children[1].className,/score-s/);
+assert.ok(be('scoreDayBatchPreview').children[0].children[2].children.some(x=>/score-a/.test(x.className)),
+ 'A-ranked horses are presented with existing red class');
 assert.equal(be('scoreDayTransfer').disabled,false,'complete, saved grades are transferable');
 assert.match(be('scoreDayBatchStatus').textContent,/2Rの手動採点を一括計算／40点/);
 assert.match(be('scoreDayBatchStatus').textContent,/除外：京都3R：途中／京都4R：要再確認/);
