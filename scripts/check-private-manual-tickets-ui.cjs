@@ -871,6 +871,22 @@ assert.equal(gb('mBulkApply').disabled,true);
 assert.match(gb('mBulkStatus').textContent,/一括保存停止.*京都1R/);
 assert.equal(storage.get(purchaseKey),beforeScratchPurchase);
 
+// Historical drafts must be flagged after a cancellation is learned; the
+// previous drafts are preserved unchanged, not silently removed or repurchased.
+const originalScratchNotes=storage.get(SCRATCH);
+const oldDraftOnNewScratch=storage.get(key);
+storage.set(SCRATCH,JSON.stringify(JSON.parse(originalScratchNotes).map(x=>
+ x.date==='2026-11-14'&&x.track==='東京'&&x.race===5?
+ {...x,numbers:[3,4,5,7]}:x)));
+const past=boot(),pa=past.el;
+pa('mDate').value='2026-11-14';pa('mDate').onchange();
+assert.match(pa('mDaySummary').textContent,/取消・除外メモの再確認が必要 1R/);
+assert.ok(pa('mSaved').children.some(x=>x.children[1]&&
+ /取消メモと衝突.*4番/.test(x.children[1].textContent)),
+ 'saved old drafts visibly warn after cancellation changes');
+assert.equal(storage.get(key),oldDraftOnNewScratch,'warning does not change saved drafts');
+storage.set(SCRATCH,originalScratchNotes);
+
 // Corrupted scratch storage means UNKNOWN, never "no withdrawals."
 storage.set(SCRATCH,'{"wrong":"shape"}');
 const corrupt=boot(),cc=corrupt.el;
