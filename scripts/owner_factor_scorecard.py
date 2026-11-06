@@ -27,7 +27,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button>
 <button type="button" id="scoreFromPreday" class="memo-load">JRDB前日情報からこのRの馬番を仮入力</button>
 <button type="button" id="scoreSeedPredayDay" class="memo-load">JRDB前日情報から選択日の全Rを一括仮登録（既存評価は上書きしない）</button>
-<p id="scorePredayStatus" class="hint" role="status">「前日情報」を本人用メール取り込み画面で登録してから使えます。馬番・馬名はJRDB前日資料、JRA公式の出走確定ではありません。5項目は未評価で開始します。</p><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
+<p id="scorePredayStatus" class="hint" role="status">「前日情報」を本人用メール取り込み画面で登録してから使えます。馬番・馬名はJRDB前日資料、JRA公式の出走確定ではありません。5項目は未評価で開始します。</p><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><p id="scorePaceStatus" class="hint" role="status">脚質情報は、JRDB前日情報を取り込んだレースだけ表示します。予測された展開・能力ランクではありません。</p>
+<div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
 <p class="hint">重み：調教25%／近走25%／適性20%／血統10%／展開20%。各項目をS=4、A=3、B=2、C=1として100点換算。人気やオッズは使わない。これは実績ある予測モデルではありません。</p>
 <button type="button" id="scoreReview">総合評価と3連単候補を計算</button><button type="button" id="scoreClearDraft" class="clear-note">このRの途中評価を削除</button>
 <p id="scoreStatus" role="status" class="hint">途中評価は本人用の端末内に自動保存します。サーバー送信・馬券購入・正式な予想確定はしません。</p></section>
@@ -256,6 +257,7 @@ const PREDAY_KEY='keiba-nine-jrdb-preday-runners-v1';
 let memoRows=null,researchSource=null;
 function resetMemoGrid(){
  memoRows=null;memoSourceMark=null;predaySourceMark=null;$('scoreMemoGrid').replaceChildren();
+ $('scorePaceStatus').textContent='脚質は前日情報の馬番を読み込むと表示します（未確認は未確認のまま）。';
 }
 function readPredayRace(choice){
  const raw=JSON.parse(localStorage.getItem(PREDAY_KEY)||'[]');
@@ -275,7 +277,7 @@ function readPredayRace(choice){
      used.has(h.number)||names.has(h.name))
    throw Error('前日情報の馬番・馬名・脚質が不正です。');
   used.add(h.number);names.add(h.name);
-  rows.push({number:h.number,name:h.name,grades:['?','?','?','?','?']});
+  rows.push({number:h.number,name:h.name,style:h.style,grades:['?','?','?','?','?']});
  }
  return {rows:rows.sort((a,b)=>a.number-b.number),
   sourceMark:JSON.stringify([race.postTime,race.expected,race.runners])};
@@ -438,10 +440,21 @@ function renderMemoInput(){
 
 function drawMemoGrid(){
  const grid=$('scoreMemoGrid');
+ if(predaySourceMark){
+  try{
+   const live=readPredayRace(identity());
+   const counts={逃:0,先:0,差:0,追:0,未確認:0};
+   for(const r of live.rows)counts[r.style]++;
+   $('scorePaceStatus').textContent='JRDB前日情報の脚質（本人用・未検証）：'+
+    ['逃','先','差','追','未確認'].map(k=>k+counts[k]).join('・')+
+    '。未確認の新馬などは自動補完しません。これだけで展開S/A/B/Cは付けません。';
+  }catch(_){$('scorePaceStatus').textContent='脚質情報を再確認できません。前日資料を確認してな。';}
+ }
+
  for(const row of memoRows){
    const card=document.createElement('div'),name=document.createElement('strong'),fields=document.createElement('div');
    card.className='memo-horse';fields.className='memo-horse-fields';
-   name.textContent=row.number+'番 '+row.name;card.append(name);
+   name.textContent=row.number+'番 '+row.name+(row.style?'｜脚質 '+row.style+'（前日資料）':'');card.append(name);
    for(let index=0;index<LABELS.length;index++){
     const label=document.createElement('label'),menu=document.createElement('select');
     label.textContent=LABELS[index];
@@ -611,8 +624,15 @@ function restoreCurrentNote(){
      seenNums.add(num);if(name)seenNames.add(name);
      parsed.push({number:num,name,grades});
     }
-    if(valid){memoRows=parsed;memoSourceMark=null;
-     predaySourceMark=note.predaySourceMark||null;drawMemoGrid();}
+    if(valid){
+     if(note.predaySourceMark){
+      const fresh=readPredayRace(selected);
+      const byNumber=new Map(fresh.rows.map(h=>[h.number,h.style]));
+      for(const row of parsed)row.style=byNumber.get(row.number)||'未確認';
+     }
+     memoRows=parsed;memoSourceMark=null;
+     predaySourceMark=note.predaySourceMark||null;drawMemoGrid();
+    }
    }
   }
   $('scoreInput').value=note.text;
