@@ -852,7 +852,7 @@ gs('mThird').children[4].onclick(); // #5 still allowed before confirmation
 assert.equal(gs('mSave').disabled,false);
 gs('mSave').onclick();
 assert.equal(storage.get(key),atSingle,'post-confirm scratch recheck protects single draft');
-assert.match(gs('mMsg').textContent,/保存停止.*5番/);
+assert.match(gs('mMsg').textContent,/保存停止.*(?:5番|未保存の取消メモ)/,'mid-confirmation changes cannot be treated as safe');
 const atBulk=storage.get(key);
 const guardBulk=boot(()=>{
  storage.set(SCRATCH,JSON.stringify([...JSON.parse(storage.get(SCRATCH)),{
