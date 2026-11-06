@@ -484,6 +484,72 @@ $('scoreClearDraft').onclick=()=>{
 };
 restoreCurrentNote();renderDayGrid();
 
+/* Owner-only, explicit one-time JRDB RESEARCH prefill; never an AI forecast. */
+function receiveResearchPrefill(){
+ if(typeof window==='undefined'||!window.location||
+    window.location.hash!=='#research=v1')return;
+ try{if(window.history&&typeof window.history.replaceState==='function')
+  window.history.replaceState(null,'',
+   window.location.pathname+(window.location.search||''));}catch(_){}
+ if(typeof sessionStorage==='undefined'){
+  $('scoreMemoStatus').textContent='研究用の仮入力を受け取れません：一時領域がありません。';return;
+ }
+ const KEY='keiba-nine-owner-research-scorecard-handoff-v1';
+ let raw;
+ try{raw=sessionStorage.getItem(KEY);sessionStorage.removeItem(KEY);}
+ catch(_){$('scoreMemoStatus').textContent='研究用の仮入力を読み取れません。';return;}
+ try{
+  if(!raw||raw.length>4800)throw Error('一時データが見つからないか大きすぎます。');
+  const d=JSON.parse(raw);
+  const keys=['version','createdAt','date','track','race','researchOnly',
+              'officialJraVerified','predictionReady','runners'];
+  if(!d||typeof d!=='object'||Object.keys(d).length!==keys.length||
+     keys.some(k=>!Object.hasOwn(d,k))||
+     d.version!=='jrdb-research-to-scorecard-v1'||
+     d.researchOnly!==true||d.officialJraVerified!==false||
+     d.predictionReady!==false||!dateValid(d.date)||!TRACKS.has(d.track)||
+     !Number.isInteger(d.race)||d.race<1||d.race>12||
+     !Array.isArray(d.runners)||d.runners.length<3||d.runners.length>18)
+   throw Error('研究用2項目の形式・開催情報が不正です。');
+  const when=Date.parse(d.createdAt),age=Date.now()-when;
+  if(typeof d.createdAt!=='string'||!Number.isFinite(when)||
+     !Number.isFinite(age)||age<0||age>600000)
+   throw Error('仮入力が期限切れです。');
+  const seen=new Set(),allowed=['S','A','B','C','未評価'],rows=[];
+  for(const h of d.runners){
+   if(!h||typeof h!=='object'||Object.keys(h).length!==3||
+      !Object.hasOwn(h,'number')||!Object.hasOwn(h,'training')||
+      !Object.hasOwn(h,'recent')||!Number.isInteger(h.number)||
+      h.number<1||h.number>18||seen.has(h.number)||
+      !allowed.includes(h.training)||!allowed.includes(h.recent))
+    throw Error('馬番と暫定2項目が一致していません。');
+   seen.add(h.number);
+   rows.push({number:h.number,name:'',
+    grades:[h.training==='未評価'?'?':h.training,
+            h.recent==='未評価'?'?':h.recent,'?','?','?']});
+  }
+  if(!rows.some(h=>h.grades[0]!=='?'||h.grades[1]!=='?'))
+   throw Error('引き継げる調教・近走の仮評価がありません。');
+  const existing=notesRead().find(n=>n.date===d.date&&n.track===d.track&&n.race===d.race);
+  if((existing||$('scoreInput').value.trim())&&!confirm(
+    '既存の評価をJRDB研究用の調教・近走2項目で置き換えますか？\n適性・血統・展開は未評価になります。'))return;
+  $('scoreDate').value=d.date;$('scoreTrack').value=d.track;
+  $('scoreRace').value=String(d.race);
+  changeScoreRace();
+  resetMemoGrid();memoRows=rows.sort((a,b)=>a.number-b.number);
+  memoSourceMark=null;drawMemoGrid();renderMemoInput();
+  $('scoreMemoStatus').textContent=d.track+d.race+
+   'RのJRDB研究用・未検証の調教／近走だけを仮入力。'+
+   '適性・血統・展開は全馬未評価。公式出走表・取消も未照合です。';
+  $('scoreStatus').textContent='研究用の暫定2項目を受け取りました。'+
+   '実戦AI予想や3連単は未作成です。';
+ }catch(e){
+  $('scoreMemoStatus').textContent='研究用の仮入力を受け取れません：'+
+   (e instanceof Error?e.message:'内容を確認してください。');
+ }
+}
+receiveResearchPrefill();
+
 $('scoreReview').onclick=()=>{
  invalidate();
  try{
