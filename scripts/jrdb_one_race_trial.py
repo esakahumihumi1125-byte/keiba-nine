@@ -23,7 +23,7 @@ def _select(rows, track, race, label):
     return matches[0]
 
 
-def build_one_race_trial(programme, entries, training, recent, date, track, race):
+def build_one_race_trial(programme, entries, training, recent, date, track, race, *, hints=None):
     """Produce an ephemeral private candidate comparison, never a wager.
 
     Uses the existing identity-audited provider hypotheses unchanged. Runners
@@ -33,8 +33,15 @@ def build_one_race_trial(programme, entries, training, recent, date, track, race
             or type(race) is not int or not 1 <= race <= 12):
         raise CoverageError("Invalid selected race coordinates")
     programme_row = _select(programme, track, race, "programme")
-    training_rows = build_training_hints(programme, entries, training, date)
-    recent_rows = build_recent_hints(programme, entries, recent, date)
+    if hints is None:
+        training_rows = build_training_hints(programme, entries, training, date)
+        recent_rows = build_recent_hints(programme, entries, recent, date)
+    else:
+        # Only the authenticated in-process day batch may reuse the same
+        # fully audited, date-bound snapshot. Never treat this as verified JRA.
+        if not isinstance(hints, tuple) or len(hints) != 2:
+            raise CoverageError("Invalid shared factor snapshot")
+        training_rows, recent_rows = hints
     a = _select(training_rows, track, race, "workout")
     b = _select(recent_rows, track, race, "history")
     if (a.get("racekey") != b.get("racekey")
