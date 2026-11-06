@@ -16,8 +16,22 @@ const two={...one,track:'京都',race:12,runners:[
  {horseNumber:3,trainingGrade:'A',recentGrade:'S',twoFactorPoints:7,comparisonRank:1,provisionalOnly:true},
  {horseNumber:4,trainingGrade:'A',recentGrade:'未評価',twoFactorPoints:null,comparisonRank:null,provisionalOnly:true}
 ]};
+const coverage=(runners)=>({
+ observedRunnerCount:runners.length,verifiedAbilityFactors:0,notOverallGrades:true,
+ materialCountByFactor:{
+  training:runners.filter(h=>h.trainingGrade!=='未評価').length,
+  recent:runners.filter(h=>h.recentGrade!=='未評価').length,
+  pace:0,pedigree:0,draw_weight:0,rotation:0,jockey_stable:0,
+  body_condition:0,course_distance:0,ground:0
+ },
+ experimentalFactors:['training','recent'],
+ observationOnlyFactors:['pace','pedigree','draw_weight','rotation','jockey_stable','body_condition'],
+ uncheckedFactors:['course_distance','ground']
+});
+one.factorCoverage=coverage(one.runners);
+two.factorCoverage=coverage(two.runners);
 const day={
- version:'owner-day-two-factor-trial-1',date:'20261107',raceCount:2,
+ version:'owner-day-two-factor-trial-2',date:'20261107',raceCount:2,
  runnerCount:4,twoFactorComparable:2,ungraded:2,
  officialJraVerified:false,overallRankReady:false,predictionReady:false,
  bettingReady:false,autoTicketReady:false,researchOnly:true,
@@ -63,8 +77,10 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  assert.equal($('trialDayRaces').children.length,2);
  assert.match($('trialDayRaces').children[0].children[0].textContent,/東京1R/);
  assert.match($('trialDayRaces').children[1].children[0].textContent,/京都12R/);
- assert.match($('trialDayRaces').children[0].children[2].textContent,/暫定1位/);
- assert.match($('trialDayRaces').children[0].children[3].textContent,/比較順位なし/);
+ assert.match($('trialDayRaces').children[0].children[2].children[0].textContent,/10項目の資料記録/);
+ assert.equal($('trialDayRaces').children[0].children[2].children.length,11);
+ assert.match($('trialDayRaces').children[0].children[3].textContent,/暫定1位/);
+ assert.match($('trialDayRaces').children[0].children[4].textContent,/比較順位なし/);
  assert.equal($('trialDayRun').disabled,false);
  $('trialTrack').value='東京';$('trialTrack').onchange();
  assert.equal($('trialDayRaces').children.length,2,'changing one-race picker does not erase the day snapshot');
@@ -84,6 +100,15 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  await b('trialDayRun').onclick();await tick();
  assert.match(b('trialDayStatus').textContent,/試算できません/);
  assert.equal(b('trialDayRaces').children.length,0,'duplicate race is not partially shown');
+ const forged=start(true,{...day,races:[one,{...two,factorCoverage:{
+ ...two.factorCoverage,materialCountByFactor:{
+ ...two.factorCoverage.materialCountByFactor,
+ course_distance:2
+ }} }]});
+ const fx=forged.el;await tick();
+ fx('trialDate').value='2026-11-07';fx('trialDate').onchange();
+ await fx('trialDayRun').onclick();await tick();
+ assert.equal(fx('trialDayRaces').children.length,0,'unverified course claims rejected');
  const mixed=start(true,{...day,races:[one,{...two,predictionReady:true}]});
  const x=mixed.el;await tick();
  x('trialDate').value='2026-11-07';x('trialDate').onchange();
