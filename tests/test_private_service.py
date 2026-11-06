@@ -170,6 +170,11 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertIn("const PURCHASE='keiba-nine-owner-real-purchases-v1'", script)
         self.assertIn("const conflict=outcomes.size>1", script)
         self.assertIn("function verdict(form,result)", script)
+        self.assertIn('id="reviewFactorStats"', call(self.app, '/owner-review')['body'].decode('utf-8'))
+        self.assertIn('id="reviewMode"', call(self.app, '/owner-review')['body'].decode('utf-8'))
+        self.assertIn("const FACTOR_NOTE='keiba-nine-owner-factor-notes-v1'", script)
+        self.assertIn("function sourceMatches(note,parsed,mail,numberMemos)", script)
+        self.assertIn("const displayed=model.details.filter", script)
 
     def test_manual_scorecard_is_private_not_an_ai_prediction(self):
         for path, phrase in (
