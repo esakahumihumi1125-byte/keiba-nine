@@ -51,6 +51,23 @@ class RaceContextTests(unittest.TestCase):
         self.assertFalse(output["predictionReady"])
         self.assertFalse(output["raceConditionsVerified"])
 
+    def test_official_straight_course_code_survives_context_join_without_prediction(self):
+        # Published JRDB /tra schema uses turn_cd='3' for a straight track.
+        programme = normalize_program_rows([{
+            "racekey": "04264b01", "racedate": "20261101",
+            "post_time": "0950", "track_type": "1", "turn_cd": "3",
+            "distance": "1000", "headcount": 12,
+            "race_name": "架空直線コース",
+        }], "20261101")
+        report = audit_race_context(programme, [], "20261101")
+        row = report["races"][0]
+        self.assertEqual((row["track"], row["turn"], row["distance_m"]),
+                         ("新潟", "直線", 1000))
+        self.assertTrue(row["courseInfoPresent"])
+        self.assertFalse(row["horseCourseSuitabilityAssessed"])
+        self.assertFalse(report["raceConditionsVerified"])
+        self.assertFalse(report["predictionReady"])
+
     def test_no_horse_suitability_grade_without_historical_data(self):
         report = audit_race_context(*fake(), "20261101")
         for row in report["races"]:
