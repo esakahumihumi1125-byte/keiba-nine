@@ -47,6 +47,19 @@ class DayTrialResearchTests(unittest.TestCase):
         self.assertEqual(result["runnerCount"], 3)
         self.assertEqual(result["twoFactorComparable"], 1)
         self.assertEqual(result["ungraded"], 2)
+        row = result["races"][0]["factorCoverage"]
+        self.assertEqual(row["observedRunnerCount"], 2)
+        self.assertEqual(row["verifiedAbilityFactors"], 0)
+        self.assertTrue(row["notOverallGrades"])
+        self.assertEqual(len(row["materialCountByFactor"]), 10)
+        self.assertEqual(row["materialCountByFactor"]["training"], 2)
+        self.assertEqual(row["materialCountByFactor"]["recent"], 1)
+        self.assertEqual(row["materialCountByFactor"]["pace"], 0)
+        self.assertEqual(row["materialCountByFactor"]["rotation"], 1)
+        self.assertEqual(row["materialCountByFactor"]["course_distance"], 0)
+        self.assertEqual(row["materialCountByFactor"]["ground"], 0)
+        self.assertEqual(row["uncheckedFactors"], ["course_distance", "ground"])
+        self.assertTrue(all(v == 0 for v in result["races"][1]["factorCoverage"]["materialCountByFactor"].values()))
         self.assertEqual([r["track"] for r in result["races"]], ["東京", "京都"])
         self.assertEqual([r["race"] for r in result["races"]], [1, 1])
         self.assertEqual(result["races"][0]["runners"][0]["horseNumber"], 1)
@@ -58,6 +71,29 @@ class DayTrialResearchTests(unittest.TestCase):
                     "oikirisisu", "siagarisisu", "race_back_1",
                     "private_metric", "SECRET-NOT-FOR-API"):
             self.assertNotIn(raw, repr(result))
+
+    def test_existing_provider_fields_enrich_material_presence_not_predictions(self):
+        p, e, t, z = sample_input()
+        e[0].update(sire_name="SYNTHETIC-SIRE", mare_sire_name="SYNTHETIC-MARESIRE",
+                    bracket_number="2", weight_to_carry="55.0",
+                    jockey_name="SYNTHETIC-JOCKEY", trainer_name="SYNTHETIC-TRAINER",
+                    bodytype="222222")
+        z[0].update(race_back_1_corner4_order=2, race_back_2_corner4_order=3)
+        report = build_day_trial(p, e, t, z, "20261101")
+        coverage = report["races"][0]["factorCoverage"]
+        observed = coverage["materialCountByFactor"]
+        self.assertEqual(observed["pedigree"], 1)
+        self.assertEqual(observed["draw_weight"], 1)
+        self.assertEqual(observed["jockey_stable"], 1)
+        self.assertEqual(observed["body_condition"], 1)
+        self.assertEqual(observed["pace"], 1)
+        self.assertEqual(observed["rotation"], 1)
+        self.assertEqual(coverage["verifiedAbilityFactors"], 0)
+        self.assertFalse(report["predictionReady"])
+        self.assertFalse(report["bettingReady"])
+        for leaked in ("SYNTHETIC-SIRE", "SYNTHETIC-JOCKEY", "222222",
+                       "55.0", "horse_id", "racekey"):
+            self.assertNotIn(leaked, repr(report))
 
     def test_missing_histories_not_filled_and_odds_ignored(self):
         p, e, t, z = sample_input()
