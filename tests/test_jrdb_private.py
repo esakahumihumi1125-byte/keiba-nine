@@ -199,7 +199,7 @@ class PrivateClientTests(unittest.TestCase):
         self.mock.assert_not_called()
 
     def test_api_key_control_characters_never_hit_provider(self):
-        for key in ['abc\\nvalue', 'abc value', 'abc\\rvalue']:
+        for key in ['abc' + chr(10) + 'value', 'abc value', 'abc' + chr(13) + 'value']:
             with self.subTest(key=key):
                 os.environ['JRDB_API_KEY'] = key
                 with self.assertRaisesRegex(JRDBError, 'Invalid credential format'):
