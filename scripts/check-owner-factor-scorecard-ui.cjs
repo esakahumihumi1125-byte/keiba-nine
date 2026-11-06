@@ -556,6 +556,9 @@ assert.match(pe('scoreDayStatus').textContent,/途中12R/);
 assert.equal(pe('scoreHandoff').disabled,true,'no grade or ticket invented');
 assert.equal(pd.links.length,0,'never transfer tickets on source import');
 assert.equal(pe('scoreMemoGrid').children.length,3,'loaded race has editable five-factor selectors');
+assert.match(pe('scoreMemoGrid').children[0].children[0].textContent,/脚質 先（前日資料）/);
+assert.match(pe('scorePaceStatus').textContent,/逃1・先1・差1・追0・未確認0/);
+assert.match(pe('scorePaceStatus').textContent,/これだけで展開S\/A\/B\/Cは付けません/);
 pe('scoreReview').onclick();
 assert.equal(pe('scoreHandoff').disabled,true,'no rank from all unknown factors');
 pe('scoreSeedPredayDay').onclick();
@@ -607,6 +610,8 @@ const resumed=boot(true,{[PREDAY]:predayMeetings,[NOTES]:preNotes}),re= resumed.
 re('scoreDate').value='2026-11-07';re('scoreTrack').value='福島';re('scoreRace').value='4';
 re('scoreRace').onchange();
 assert.equal(re('scoreMemoGrid').children.length,3,'iPhone relaunch restores row selectors');
+assert.match(re('scoreMemoGrid').children[0].children[0].textContent,/脚質 先（前日資料）/,'style persists as provider observation after re-open');
+assert.match(re('scorePaceStatus').textContent,/逃1・先1・差1/);
 assert.match(re('scoreInput').value,/架空サクラ4/);
 assert.equal(re('scoreHandoff').disabled,true);
 const beforeChange=JSON.stringify(predayMeetings);
