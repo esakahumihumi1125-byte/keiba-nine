@@ -17,7 +17,8 @@ TRACKS = {
     "09": "阪神", "10": "小倉",
 }
 SURFACES = {"1": "芝", "2": "ダート", "3": "障害"}
-TURNS = {"1": "右", "2": "左", "9": "直線"}
+# JRDB /tra published schema: turn_cd 1=right, 2=left, 3=straight.
+TURNS = {"1": "右", "2": "左", "3": "直線"}
 RACE_KEY = re.compile(r"[0-9a-f]{8}\Z", re.ASCII)
 POST_TIME = re.compile(r"[0-2][0-9][0-5][0-9]\Z", re.ASCII)
 RACE_DATE = re.compile(r"[0-9]{8}\Z", re.ASCII)
