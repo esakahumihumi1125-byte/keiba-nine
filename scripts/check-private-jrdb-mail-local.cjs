@@ -279,6 +279,60 @@ console.log('JRDB personal mail importer: local-only 2099 fixture, two venues, r
  assert.equal(ui('mailText').value,nextBody,'stale earlier file read cannot override latest selection');
  assert.equal(storage.get(key),saved,'file loading cannot save without explicit click');
  assert.equal(requests.length,0);
+
+ // JRDB pre-day (numbered) email supports the same iPhone TXT preview without
+ // granting automatic save or moving private material outside the browser.
+ const pre=loadPage(),pd=predayFixture('2099年11月14日（土）','東京')+'\n'+
+  predayFixture('2099年11月14日（土）','京都')+'\n'+
+  predayFixture('2099年11月14日（土）','福島');
+ const pdFile={name:'jrdb-preday-3-courses.txt',size:Buffer.byteLength(pd,'utf8'),text:async()=>pd};
+ const beforePredayFile=storage.get(PRE);
+ pre('predayTextFile').files=[pdFile];
+ await pre('predayTextFile').onchange();
+ assert.match(pre('predayFileStatus').textContent,/3開催／36Rを検査/);
+ assert.match(pre('predayFileStatus').textContent,/まだ未保存/);
+ assert.equal(pre('predayText').value,pd);
+ assert.equal(storage.get(PRE),beforePredayFile,'preview must not mutate private saved roster');
+ pre('predayImport').onclick();
+ assert.equal(pre('predayText').value,'','successful pre-day import clears raw mail');
+ assert.equal(pre('predayTextFile').value,'','successful import clears selected file');
+ assert.match(pre('predayDaySummary').textContent,/3開催／36R/);
+ assert.equal(pre('predayDayToScore').disabled,false);
+ pre('predayDayToScore').onclick();
+ assert.match(navigation[navigation.length-1],/\/my-scorecard#select=v1&date=2099-11-14&track=/);
+ assert.match(navigation[navigation.length-1],/race=1/);
+ const safePreday=storage.get(PRE);
+ pre('predayText').value='keep-edit';
+ const wrongPreday={name:'data.json',size:500,text:async()=>pd};
+ pre('predayTextFile').files=[wrongPreday];await pre('predayTextFile').onchange();
+ assert.match(pre('predayFileStatus').textContent,/\.txt/);
+ assert.equal(pre('predayText').value,'keep-edit');
+ assert.equal(storage.get(PRE),safePreday);
+ const malformedPreday={name:'broken.txt',size:500,text:async()=>pd.replace('3頭立','4頭立')};
+ pre('predayTextFile').files=[malformedPreday];await pre('predayTextFile').onchange();
+ assert.match(pre('predayFileStatus').textContent,/ファイルを読み込めません/);
+ assert.equal(pre('predayText').value,'keep-edit');
+ assert.equal(storage.get(PRE),safePreday);
+ const hugePreday={name:'huge.txt',size:192001,text:async()=>{throw Error('no read')}};
+ pre('predayTextFile').files=[hugePreday];await pre('predayTextFile').onchange();
+ assert.match(pre('predayFileStatus').textContent,/192KB/);
+ approve=false;
+ pre('predayTextFile').files=[pdFile];await pre('predayTextFile').onchange();
+ assert.equal(pre('predayText').value,'keep-edit','declining replacement must retain manual draft');
+ approve=true;
+ pre('predayText').value='';
+ let completeOlder;
+ const oldPreday={name:'old.txt',size:Buffer.byteLength(pd,'utf8'),text:()=>new Promise(done=>completeOlder=done)};
+ pre('predayTextFile').files=[oldPreday];
+ const waitingPreday=pre('predayTextFile').onchange();
+ const newerText=predayFixture('2099年11月15日（日）','東京');
+ const newerPreday={name:'new.txt',size:Buffer.byteLength(newerText,'utf8'),text:async()=>newerText};
+ pre('predayTextFile').files=[newerPreday];await pre('predayTextFile').onchange();
+ completeOlder(pd);await waitingPreday;
+ assert.equal(pre('predayText').value,newerText,'older file completion cannot override newer selection');
+ assert.equal(storage.get(PRE),safePreday,'file previews never cause auto-save');
+ assert.equal(requests.length,0);
+ console.log('JRDB pre-day TXT preview and one-tap 36R navigation PASS');
  console.log('JRDB single-file manual preview: 2 venues, invalid file, cancel, and stale file read PASS');
 })().catch(error=>{console.error(error);process.exitCode=1});
 
