@@ -552,13 +552,21 @@ function receiveRaceSelection(){
   if(fragment.length>170)throw Error('指定が長すぎます。');
   const p=new URLSearchParams(fragment.slice(1));
   const keys=['select','date','track','race'];
-  if([...p.keys()].length!==4||keys.some(k=>p.getAll(k).length!==1)||
+  const seedRequested=p.get('seed')==='day-v1';
+  const expectedKeys=seedRequested?[...keys,'seed']:keys;
+  if([...p.keys()].length!==expectedKeys.length||
+     expectedKeys.some(k=>p.getAll(k).length!==1)||
      p.get('select')!=='v1')throw Error('形式が不正です。');
   const date=p.get('date'),track=p.get('track'),race=Number(p.get('race'));
   if(!dateValid(date)||!TRACKS.has(track)||!Number.isInteger(race)||race<1||race>12)
    throw Error('日付・競馬場・Rが不正です。');
   $('scoreDate').value=date;$('scoreTrack').value=track;$('scoreRace').value=String(race);
   $('scoreStatus').textContent=date+' '+track+race+'Rを選択。本人の馬番メモを読み込むか、5項目を入力してな。';
+  if(seedRequested){
+   // Only the private pre-day link requests seeding. The scorecard's
+   // confirmation dialog and its no-overwrite checks still gate writes.
+   $('scoreSeedPredayDay').onclick();
+  }
  }catch(e){
   $('scoreStatus').textContent='レース選択を受け取れませんでした：'+
    (e instanceof Error?e.message:'形式を確認してな。');
