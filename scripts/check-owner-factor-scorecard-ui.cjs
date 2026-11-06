@@ -576,7 +576,7 @@ assert.equal(oneClick.cleared.length,1,'used request fragment cleared from addre
 assert.equal(oneClick.links.length,0,'not a purchase or betting handoff');
 const cancelledSeed=boot(false,{[PREDAY]:predayMeetings},seedHash);
 assert.equal(cancelledSeed.writes.length,0,'declined one-click seed leaves notes untouched');
-assert.equal(cancelledSeed.store.get(NOTES),null);
+assert.equal(cancelledSeed.store.has(NOTES),false,'no saved notes after cancellation');
 assert.equal(cancelledSeed.cleared.length,1,'declined link is one-use too');
 for(const malformed of [seedHash.replace('day-v1','invalid'),seedHash+'&seed=day-v1']){
  const invalidLink=boot(true,{[PREDAY]:predayMeetings},malformed);
