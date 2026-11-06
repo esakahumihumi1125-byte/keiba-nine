@@ -568,4 +568,9 @@ for(const id of ['scoreDate','scoreTrack','scoreRace']){
  field.oninput=(...args)=>{clearScoreDay();if(oldInput)oldInput(...args)};
  field.onchange=(...args)=>{clearScoreDay();if(oldChange)oldChange(...args)};
 }
+for(const id of ['scoreInput']){
+ const field=$(id),oldInput=field.oninput,oldChange=field.onchange;
+ field.oninput=(...args)=>{clearScoreDay();if(oldInput)oldInput(...args)};
+ field.onchange=(...args)=>{clearScoreDay();if(oldChange)oldChange(...args)};
+}
 })();"""
