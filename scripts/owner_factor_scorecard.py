@@ -24,7 +24,10 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </div><p id="scoreDayStatus" class="hint" role="status">日付・競馬場を選ぶと12Rの入力状況を表示します。</p><div id="scoreRaceGrid" class="score-race-grid" role="group" aria-label="選択した競馬場の1R〜12R評価メモ"></div><p class="hint">評価状況はこの端末の手入力メモのみ。公式の開催・出走・取消情報を表すものではありません。</p></section>
 <section><h2>② 馬番と5項目の評価を貼る</h2>
 <p class="hint">1頭1行で「馬番　調教　近走　適性　血統　展開」を入力。馬名は省略可。各項目は<b>S・A・B・C</b>。丸数字①〜⑱にも対応。最低3頭、最大18頭。</p>
-<button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
+<button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button>
+<button type="button" id="scoreFromPreday" class="memo-load">JRDB前日情報からこのRの馬番を仮入力</button>
+<button type="button" id="scoreSeedPredayDay" class="memo-load">JRDB前日情報から選択日の全Rを一括仮登録（既存評価は上書きしない）</button>
+<p id="scorePredayStatus" class="hint" role="status">「前日情報」を本人用メール取り込み画面で登録してから使えます。馬番・馬名はJRDB前日資料、JRA公式の出走確定ではありません。5項目は未評価で開始します。</p><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
 <p class="hint">重み：調教25%／近走25%／適性20%／血統10%／展開20%。各項目をS=4、A=3、B=2、C=1として100点換算。人気やオッズは使わない。これは実績ある予測モデルではありません。</p>
 <button type="button" id="scoreReview">総合評価と3連単候補を計算</button><button type="button" id="scoreClearDraft" class="clear-note">このRの途中評価を削除</button>
 <p id="scoreStatus" role="status" class="hint">途中評価は本人用の端末内に自動保存します。サーバー送信・馬券購入・正式な予想確定はしません。</p></section>
@@ -462,6 +465,60 @@ $('scoreFromMemo').onclick=()=>{
   $('scoreMemoStatus').textContent='読み込めません：'+(e instanceof Error?e.message:'資料を確認してな。');
  }
 };
+
+$('scoreFromPreday').onclick=()=>{
+ try{
+  const c=identity(),src=readPredayRace(c);
+  if($('scoreInput').value.trim()&&
+     !confirm(c.track+c.race+'Rの現在の入力を、JRDB前日情報の馬番だけで置き換えますか？\n評価はすべて未評価に戻ります。'))return;
+  resetMemoGrid();memoRows=src.rows;memoSourceMark=null;
+  predaySourceMark=src.sourceMark;researchSource=PREDAY_RESEARCH_TAG;
+  drawMemoGrid();renderMemoInput();
+  $('scorePredayStatus').textContent=c.track+c.race+'Rの'+src.rows.length+
+   '頭を仮入力。採点は未評価。前日資料のためJRA公式出馬表・取消を別途照合してください。';
+ }catch(e){$('scorePredayStatus').textContent='このRを取り込めません：'+
+  (e instanceof Error?e.message:'資料を確認してな。');}
+};
+$('scoreSeedPredayDay').onclick=()=>{
+ try{
+  const date=$('scoreDate').value;
+  if(!dateValid(date))throw Error('先に正しい日付を選んでな。');
+  const source=JSON.parse(localStorage.getItem(PREDAY_KEY)||'[]');
+  if(!Array.isArray(source)||source.length>48)
+   throw Error('JRDB前日情報の保存形式が不正です。');
+  const day=source.filter(x=>x&&x.date===date&&x.kind==='jrdb-preday-provisional');
+  if(!day.length)throw Error('この開催日の前日情報がありません。先にメールを取り込んでな。');
+  const all=[];
+  for(const m of day){
+   if(!TRACKS.has(m.track)||!Array.isArray(m.races)||m.races.length>12)
+    throw Error('前日情報の競馬場かレース数が不正です。');
+   for(const race of m.races){
+    const choice={date,track:m.track,race:race.race},src=readPredayRace(choice);
+    all.push({...choice,text:src.rows.map(h=>h.number+' '+h.name+' ? ? ? ? ?').join('\n'),
+     sourceMark:null,predaySourceMark:src.sourceMark,
+     researchSource:PREDAY_RESEARCH_TAG,savedAt:new Date().toISOString()});
+   }
+  }
+  if(!all.length||all.length>36||new Set(all.map(noteKey)).size!==all.length)
+   throw Error('全Rの件数または重複が不正です。');
+  const old=notesRead(),existing=new Set(old.map(noteKey));
+  const additions=all.filter(x=>!existing.has(noteKey(x)));
+  if(!additions.length){
+   $('scorePredayStatus').textContent='この日の前日情報にある全Rは登録済み。既存評価は上書きしません。';
+   return;
+  }
+  if(old.length+additions.length>MAX_NOTES)throw Error('評価メモ300Rの上限に達します。');
+  if(!confirm(date+'：JRDB前日資料'+day.length+'開催から未登録'+additions.length+
+    'Rの馬番を仮入力しますか？\n既存の途中採点・買い目・実購入記録は変更しません。'))return;
+  localStorage.setItem(NOTE_KEY,JSON.stringify(old.concat(additions)));
+  restoreCurrentNote();renderDayGrid();
+  $('scorePredayStatus').textContent=date+'：'+additions.length+'Rを馬番だけ仮登録。'+
+   '既存'+(all.length-additions.length)+'Rの評価は維持。5項目のAI自動採点・馬券は未実施。'+
+   'JRA公式出走・取消の照合も未完了です。';
+ }catch(e){$('scorePredayStatus').textContent='全R仮登録できません：'+
+  (e instanceof Error?e.message:'前日情報を確認してな。');}
+};
+
 $('scoreDate').value=new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10);
 function receiveRaceSelection(){
  if(!window.location||typeof window.location.hash!=='string'||
