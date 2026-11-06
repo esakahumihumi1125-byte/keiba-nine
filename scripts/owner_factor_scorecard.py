@@ -30,6 +30,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="scoreStatus" role="status" class="hint">途中評価は本人用の端末内に自動保存します。サーバー送信・馬券購入・正式な予想確定はしません。</p></section>
 <section><h2>③ 総合評価順と買い目候補</h2>
 <div id="scoreRanks" aria-label="総合評価順"></div>
+<div id="scoreWinnerReview" aria-label="総合3〜5位の1着候補再点検"></div>
 <p id="scoreFormation" class="hint">評価を計算すると着順候補と実点数を表示します。</p>
 <button type="button" id="scoreHandoff" disabled>3連単下書き画面へ渡す（未保存）</button>
 <p class="hint">このボタンで引き継ぐのは日付・競馬場・R・馬番の着順候補だけ。馬名・評価・元データはURLやサーバーへ渡しません。移動先でも本人確認があり、保存も馬券購入も自動では行いません。</p>
@@ -47,7 +48,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="/my-tickets">手動で3連単を作る</a></section>
 </main><script defer src="/owner-scorecard.js"></script></body></html>"""
 
-CSS = """.score-day-ranks{margin-top:10px;border-top:1px solid #456982;padding-top:6px}.score-day-ranks summary{cursor:pointer;color:#cbdcec;font-size:13px;font-weight:700}.score-day-ranks p{padding:5px 4px;margin:2px 0;font-size:13px}.score-day-ranks summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card{padding:10px;margin:9px 0;border:1px solid #5c7b93;border-radius:9px;background:#10243a}.score-day-batch-card strong{display:block;color:#e9d18c}.score-day-batch-card span{font-size:13px;color:#d4e1ed}#scoreDayBatchText{margin:12px 0;min-height:130px;font-size:14px}#scoreDayTransfer{margin-top:10px}#scoreDayBatchPreview{margin-top:10px}.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
+CSS = """.winner-review{border:1px solid #587790;border-radius:10px;padding:11px;margin:10px 0;background:#102b45}.winner-review p{margin:6px 0;font-size:13px;color:#e3e8ef}.winner-review h3{font-size:15px;color:#f2d588;margin:2px 0 8px}.winner-review-btn{font-weight:700;font-size:14px;line-height:1.5;color:#d6e3f2;background:#23445f;border:1px solid #678ca4;padding:9px;margin:5px 0;text-align:left}.winner-review-btn[aria-pressed="true"]{background:#715c2b;color:#ffe7a6;border-color:#e3c877;outline:2px solid #edca70}.winner-review small{display:block;color:#bbcddd}.winner-review .winner-review-flag{color:#ffe5a5}.score-day-ranks{margin-top:10px;border-top:1px solid #456982;padding-top:6px}.score-day-ranks summary{cursor:pointer;color:#cbdcec;font-size:13px;font-weight:700}.score-day-ranks p{padding:5px 4px;margin:2px 0;font-size:13px}.score-day-ranks summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card{padding:10px;margin:9px 0;border:1px solid #5c7b93;border-radius:9px;background:#10243a}.score-day-batch-card strong{display:block;color:#e9d18c}.score-day-batch-card span{font-size:13px;color:#d4e1ed}#scoreDayBatchText{margin:12px 0;min-height:130px;font-size:14px}#scoreDayTransfer{margin-top:10px}#scoreDayBatchPreview{margin-top:10px}.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
 
 JS = r"""(()=>{'use strict';
 /* No network or writes: read optional same-browser manually copied roster; grades remain operator-entered. */
@@ -109,18 +110,97 @@ function combinations(first,second,third){
  }
  return tickets.size;
 }
-function planFormation(rows){
+function planFormation(rows,extraFirst=null){
  const top=rows.map(x=>x.number);
+ if(extraFirst!==null&&!top.slice(2,5).includes(extraFirst))
+  throw Error('1着の追加は総合3〜5位の馬番を1頭だけ選んでください。');
  const first=top.slice(0,Math.min(2,top.length));
+ if(extraFirst!==null)first.push(extraFirst);
  const second=top.slice(0,Math.min(4,top.length));
- const third=top.slice(0,Math.min(8,top.length));
- const points=combinations(first,second,third);
+ let third=top.slice(0,Math.min(8,top.length));
+ let points=combinations(first,second,third);
+ // Three winner candidates increase points. Concentrate third choices
+ // instead of silently exceeding the 48-ticket budget.
+ if(extraFirst!==null){
+  while(points>40&&third.length>3){
+   third=third.slice(0,-1);
+   points=combinations(first,second,third);
+  }
+ }
  if(!points||points>48)throw Error('フォーメーションを48点以内に組めませんでした。');
  return {first,second,third,points};
 }
+const WIN_FACTORS=['調教','近走','適性','血統','展開'];
+function reconsiderWin(rows){
+ return rows.slice(2,5).map((horse,i)=>{
+  const basis=[0,1,2,4].filter(k=>horse.numeric[k]>=3);
+  return {
+   number:horse.number,rank:i+3,
+   gradeFactors:basis.map(k=>WIN_FACTORS[k]),
+   reviewFlag:basis.length>=2&&(horse.numeric[0]>=3||horse.numeric[4]>=3)
+  };
+ });
+}
+function displayFormation(p){
+ const formation=p.formation,rows=p.rows;
+ $('scoreFormation').className='score-form';
+ $('scoreFormation').textContent='1着 '+formation.first.join('・')+
+  '／2着 '+formation.second.join('・')+'／3着 '+formation.third.join('・')+
+  '　＝ '+formation.points+'点／100円なら'+(formation.points*100).toLocaleString('ja-JP')+
+  '円（未購入・未保存）。'+
+  (p.extraFirst!==null?'総合3〜5位の1頭を本人操作で追加。点数を40点以内にするため3着候補を絞っています。':'')+
+  (rows[0].score<70?'最高評価でも70点未満。買うか見送るかは慎重に判断してな。':'');
+}
+function renderWinnerReview(p){
+ const host=$('scoreWinnerReview');host.replaceChildren();
+ const panel=document.createElement('div'),title=document.createElement('h3'),note=document.createElement('p');
+ panel.className='winner-review';
+ title.textContent='1着候補の再点検（総合3〜5位）';
+ note.textContent='過去の反省を踏まえ、調教・近走・適性・展開のA以上が複数ある馬を再確認。これは本人入力の項目チェックであり、勝率・AI評価ではありません。候補追加は本人が明示選択した場合だけ。';
+ panel.append(title,note);
+ const defaults=document.createElement('button');
+ defaults.type='button';defaults.className='winner-review-btn';
+ defaults.setAttribute('aria-pressed',String(p.extraFirst===null));
+ defaults.textContent='1着は基本2頭のまま（'+p.rows.slice(0,2).map(x=>x.number).join('・')+'番）';
+ defaults.onclick=()=>updateWinnerChoice(null);
+ panel.append(defaults);
+ for(const item of reconsiderWin(p.rows)){
+  const b=document.createElement('button');b.type='button';
+  b.className='winner-review-btn';
+  b.setAttribute('aria-pressed',String(p.extraFirst===item.number));
+  b.textContent='総合'+item.rank+'位・'+item.number+'番を1着候補に追加'+
+   (item.reviewFlag?'｜A以上の材料：'+item.gradeFactors.join('・'):'｜勝ち切り材料は要確認');
+  b.onclick=()=>updateWinnerChoice(item.number);
+  panel.append(b);
+ }
+ const foot=document.createElement('small');
+ foot.textContent='追加すると1着候補3頭・3着候補を絞った40点以内の案に変更。追加しても保存・購入はしません。';
+ panel.append(foot);host.append(panel);
+}
+function updateWinnerChoice(number){
+ const p=preview;
+ if(!p||p.raw!==$('scoreInput').value){
+  invalidate();return;
+ }
+ try{
+  if(JSON.stringify(identity())!==JSON.stringify(p.select))
+   throw Error('別のレースへ変更されています。');
+  verifyMemoHasNotChanged();
+  p.formation=planFormation(p.rows,number);
+  p.extraFirst=number;
+  displayFormation(p);renderWinnerReview(p);
+  $('scoreStatus').textContent=number===null?
+   '基本の2頭軸に戻しました（未保存・未購入）。':
+   number+'番を1着候補に追加して再計算しました（手動見直し・未保存・未購入）。';
+ }catch(e){
+  invalidate();
+  $('scoreStatus').textContent='1着候補の見直しを停止：'+
+   (e instanceof Error?e.message:'もう一度採点してください。');
+ }
+}
 function invalidate(){
  preview=null;$('scoreHandoff').disabled=true;
- $('scoreRanks').replaceChildren();
+ $('scoreRanks').replaceChildren();$('scoreWinnerReview').replaceChildren();
  $('scoreFormation').textContent='入力が変わりました。再計算してください。';
  $('scoreStatus').textContent='未計算です。計算しても保存・購入されません。';
 }
@@ -419,15 +499,11 @@ $('scoreReview').onclick=()=>{
     r.grades[2]+'／血統 '+r.grades[3]+'／展開 '+r.grades[4];
    line.append(header,details);host.append(line);
   }
-  $('scoreFormation').className='score-form';
-  $('scoreFormation').textContent='1着 '+formation.first.join('・')+
-   '／2着 '+formation.second.join('・')+'／3着 '+formation.third.join('・')+
-   '　＝ '+formation.points+'点／100円なら'+(formation.points*100).toLocaleString('ja-JP')+
-   '円（未購入・未保存）。'+
-   (rows[0].score<70?'最高評価でも70点未満。買うか見送るかは慎重に判断してな。':'');
+  preview={raw,select,rows,formation,extraFirst:null};
+  displayFormation(preview);
+  renderWinnerReview(preview);
   $('scoreStatus').textContent=select.date+' '+select.track+select.race+'R：'+rows.length+
    '頭の手入力評価を計算しました。AI予想ではなく、人気・オッズは未使用。';
-  preview={raw,select,rows,formation};
   $('scoreHandoff').disabled=false;
  }catch(e){
   $('scoreStatus').textContent='計算できません：'+(e instanceof Error?e.message:'入力を確認してな。');
@@ -481,7 +557,7 @@ function compileScoreDay(date){
   const rows=parseGrades(note.text);
   const formation=planFormation(rows);
   if(formation.points<1||formation.points>48)throw Error(note.track+note.race+'Rの点数が不正です。');
-  ready.push({...note,formation,headcount:rows.length,topScore:rows[0].score,
+  ready.push({...note,formation,winReview:reconsiderWin(rows),headcount:rows.length,topScore:rows[0].score,
    ranked:rows.map((horse,index)=>({number:horse.number,tier:horse.tier,score:horse.score,rank:index+1}))});
  }
  const trackOrder=[...TRACKS];
@@ -527,7 +603,14 @@ $('scoreDayBuild').onclick=()=>{
       ' '+horse.score.toFixed(1)+'点';
     ranks.append(line);
    }
-   card.append(h,p,ranks);$('scoreDayBatchPreview').append(card);
+   const flagged=item.winReview.filter(x=>x.reviewFlag);
+   const warning=document.createElement('span');
+   warning.className=flagged.length?'winner-review-flag':'';
+   warning.textContent=flagged.length?
+    '1着候補の再点検：'+flagged.map(x=>x.rank+'位'+x.number+'番（'+x.gradeFactors.join('・')+'）').join('／')+
+    '。一括案は上位2頭のまま。変更するなら1Rごとに本人が見直してください。':
+    '総合3〜5位の追加1着候補は、本人入力の基準では自動抽出されませんでした。';
+   card.append(h,p,warning,ranks);$('scoreDayBatchPreview').append(card);
   }
   $('scoreDayBatchText').value=result.text;
   $('scoreDayBatchStatus').textContent=date+'：'+result.count+'Rの手動採点を一括計算／'+
