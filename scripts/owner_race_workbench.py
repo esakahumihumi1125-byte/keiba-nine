@@ -90,14 +90,14 @@ function validPredayMeetings(rows){
      new Set(m.races.map(x=>x?.race)).size!==m.races.length)return false;
   return m.races.every(r=>{
    if(!r||!Number.isInteger(r.race)||r.race<1||r.race>12||
-      typeof r.postTime!=='string'||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(r.postTime)||
+      typeof r.postTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(r.postTime)||
       !Number.isInteger(r.expected)||r.expected<3||r.expected>18||
       !Array.isArray(r.runners)||r.runners.length!==r.expected)return false;
    const nums=new Set(),names=new Set();
    return r.runners.every(h=>{
     if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
        typeof h.name!=='string'||h.name.length<1||h.name.length>35||
-       !/^[^\\s<>]+$/.test(h.name)||!['逃','先','差','追','未確認'].includes(h.style)||
+       !/^[^\s<>]+$/.test(h.name)||!['逃','先','差','追','未確認'].includes(h.style)||
        nums.has(h.number)||names.has(h.name))return false;
     nums.add(h.number);names.add(h.name);return true;
    });
@@ -113,11 +113,11 @@ function predayNoteMatches(note,race){
  if(note.predaySourceMark!==JSON.stringify([race.postTime,race.expected,race.runners]))
   return false;
  if(typeof note.text!=='string')return false;
- const lines=note.text.split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean);
+ const lines=note.text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
  if(lines.length!==race.expected)return false;
  const seen=new Map();
  for(const line of lines){
-  const m=/^([1-9]|1[0-8])\\s+([^\\s<>]+)\\s+(?:[SABC?]\\s+){4}[SABC?]$/.exec(line);
+  const m=/^([1-9]|1[0-8])\s+([^\s<>]+)\s+(?:[SABC?]\s+){4}[SABC?]$/.exec(line);
   if(!m||seen.has(+m[1]))return false;
   seen.set(+m[1],m[2]);
  }
