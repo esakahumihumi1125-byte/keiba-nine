@@ -48,7 +48,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="/my-tickets">手動で3連単を作る</a></section>
 </main><script defer src="/owner-scorecard.js"></script></body></html>"""
 
-CSS = """.winner-review{border:1px solid #587790;border-radius:10px;padding:11px;margin:10px 0;background:#102b45}.winner-review p{margin:6px 0;font-size:13px;color:#e3e8ef}.winner-review h3{font-size:15px;color:#f2d588;margin:2px 0 8px}.winner-review-btn{font-weight:700;font-size:14px;line-height:1.5;color:#d6e3f2;background:#23445f;border:1px solid #678ca4;padding:9px;margin:5px 0;text-align:left}.winner-review-btn[aria-pressed="true"]{background:#715c2b;color:#ffe7a6;border-color:#e3c877;outline:2px solid #edca70}.winner-review small{display:block;color:#bbcddd}.winner-review .winner-review-flag{color:#ffe5a5}.score-day-ranks{margin-top:10px;border-top:1px solid #456982;padding-top:6px}.score-day-ranks summary{cursor:pointer;color:#cbdcec;font-size:13px;font-weight:700}.score-day-ranks p{padding:5px 4px;margin:2px 0;font-size:13px}.score-day-ranks summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card{padding:10px;margin:9px 0;border:1px solid #5c7b93;border-radius:9px;background:#10243a}.score-day-batch-card strong{display:block;color:#e9d18c}.score-day-batch-card span{font-size:13px;color:#d4e1ed}#scoreDayBatchText{margin:12px 0;min-height:130px;font-size:14px}#scoreDayTransfer{margin-top:10px}#scoreDayBatchPreview{margin-top:10px}.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
+CSS = """.score-day-win{margin-top:10px;border-top:1px solid #58728a;padding-top:8px}.score-day-win summary{cursor:pointer;color:#edcb81;font-size:14px;font-weight:700}.score-day-first-btn{margin:5px 0;min-height:40px;padding:8px 10px;color:#e9f1fc;background:#25465d;border:1px solid #678bab;font-size:13px;text-align:left}.score-day-first-btn[aria-pressed="true"]{color:#ffe1a0;outline:2px solid #edca70;background:#655124}.score-day-win summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card .winner-review-flag{display:block;margin-top:7px;color:#ffe3a2}.winner-review{border:1px solid #587790;border-radius:10px;padding:11px;margin:10px 0;background:#102b45}.winner-review p{margin:6px 0;font-size:13px;color:#e3e8ef}.winner-review h3{font-size:15px;color:#f2d588;margin:2px 0 8px}.winner-review-btn{font-weight:700;font-size:14px;line-height:1.5;color:#d6e3f2;background:#23445f;border:1px solid #678ca4;padding:9px;margin:5px 0;text-align:left}.winner-review-btn[aria-pressed="true"]{background:#715c2b;color:#ffe7a6;border-color:#e3c877;outline:2px solid #edca70}.winner-review small{display:block;color:#bbcddd}.winner-review .winner-review-flag{color:#ffe5a5}.score-day-ranks{margin-top:10px;border-top:1px solid #456982;padding-top:6px}.score-day-ranks summary{cursor:pointer;color:#cbdcec;font-size:13px;font-weight:700}.score-day-ranks p{padding:5px 4px;margin:2px 0;font-size:13px}.score-day-ranks summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card{padding:10px;margin:9px 0;border:1px solid #5c7b93;border-radius:9px;background:#10243a}.score-day-batch-card strong{display:block;color:#e9d18c}.score-day-batch-card span{font-size:13px;color:#d4e1ed}#scoreDayBatchText{margin:12px 0;min-height:130px;font-size:14px}#scoreDayTransfer{margin-top:10px}#scoreDayBatchPreview{margin-top:10px}.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
 
 JS = r"""(()=>{'use strict';
 /* No network or writes: read optional same-browser manually copied roster; grades remain operator-entered. */
@@ -557,67 +557,111 @@ function compileScoreDay(date){
   const rows=parseGrades(note.text);
   const formation=planFormation(rows);
   if(formation.points<1||formation.points>48)throw Error(note.track+note.race+'Rの点数が不正です。');
-  ready.push({...note,formation,winReview:reconsiderWin(rows),headcount:rows.length,topScore:rows[0].score,
+  ready.push({...note,formation,extraFirst:null,gradedRows:rows,winReview:reconsiderWin(rows),headcount:rows.length,topScore:rows[0].score,
    ranked:rows.map((horse,index)=>({number:horse.number,tier:horse.tier,score:horse.score,rank:index+1}))});
  }
  const trackOrder=[...TRACKS];
  ready.sort((a,b)=>trackOrder.indexOf(a.track)-trackOrder.indexOf(b.track)||a.race-b.race);
- const text=ready.map(x=>[
+ return recomputeScoreDay({
+  date,ready,skipped,
+  // Detect edits to saved notes and source provenance before navigating.
+  snapshot:JSON.stringify(day),
+ });
+}
+function recomputeScoreDay(day){
+ const text=day.ready.map(x=>[
   x.date+' '+x.track+x.race+'R',
   '1着：'+x.formation.first.join('・'),
   '2着：'+x.formation.second.join('・'),
   '3着：'+x.formation.third.join('・'),
  ].join('\n')).join('\n\n');
- if(text.length>25000||ready.length>36)throw Error('一括入力の上限を超えています。');
- return {
-  date,ready,skipped,text,
-  count:ready.length,
-  points:ready.reduce((n,x)=>n+x.formation.points,0),
-  // Detect edits to saved notes and source provenance before navigating.
-  snapshot:JSON.stringify(day),
- };
+ if(text.length>25000||day.ready.length>36)
+  throw Error('一括入力の上限を超えています。');
+ day.text=text;day.count=day.ready.length;
+ day.points=day.ready.reduce((n,x)=>n+x.formation.points,0);
+ return day;
+}
+function renderScoreDayBatch(result){
+ const host=$('scoreDayBatchPreview');host.replaceChildren();
+ for(const item of result.ready){
+  const card=document.createElement('div');card.className='score-day-batch-card';
+  const h=document.createElement('strong'),p=document.createElement('span');
+  h.textContent=item.track+item.race+'R｜'+item.formation.points+
+   '点／'+(item.formation.points*100).toLocaleString('ja-JP')+'円相当';
+  p.textContent='1着 '+item.formation.first.join('・')+
+   ' ／ 2着 '+item.formation.second.join('・')+
+   ' ／ 3着 '+item.formation.third.join('・')+
+   '（'+item.headcount+'頭の本人入力評価から計算。未購入）';
+  const flagged=item.winReview.filter(x=>x.reviewFlag);
+  const warning=document.createElement('span');
+  warning.className=flagged.length?'winner-review-flag':'';
+  warning.textContent=flagged.length?
+   '1着候補の再点検：'+flagged.map(x=>x.rank+'位'+x.number+'番（'+x.gradeFactors.join('・')+'）').join('／')+
+   '。追加する場合は下のボタンで選択してください。':
+   '総合3〜5位の追加1着候補は、本人入力の基準では自動抽出されませんでした。';
+  const ranks=document.createElement('details'),title=document.createElement('summary');
+  ranks.className='score-day-ranks';
+  title.textContent='全馬の総合評価順を見る（手入力5項目）';
+  ranks.append(title);
+  for(const horse of item.ranked){
+   const line=document.createElement('p');
+   line.className='score-'+horse.tier.toLowerCase();
+   line.textContent=horse.rank+'位 '+horse.number+'番　総合'+horse.tier+
+     ' '+horse.score.toFixed(1)+'点';
+   ranks.append(line);
+  }
+  const controls=document.createElement('details'),heading=document.createElement('summary');
+  controls.className='score-day-win';
+  heading.textContent='このRの1着候補を見直す（上位2頭／最大3頭）';
+  controls.append(heading);
+  const choices=[{number:null,rank:0,reviewFlag:false},...item.winReview];
+  for(const choice of choices){
+   const button=document.createElement('button');button.type='button';
+   button.className='score-day-first-btn';
+   button.setAttribute('aria-pressed',String(item.extraFirst===choice.number));
+   button.textContent=choice.number===null?
+    '基本2頭のまま（'+item.gradedRows.slice(0,2).map(h=>h.number).join('・')+'）':
+    '総合'+choice.rank+'位 '+choice.number+'番を1着に追加'+
+    (choice.reviewFlag?'｜A以上 '+choice.gradeFactors.join('・'):'｜勝ち切り根拠は要確認');
+   button.onclick=()=>changeScoreDayWinner(noteKey(item),choice.number);
+   controls.append(button);
+  }
+  card.append(h,p,warning,ranks,controls);host.append(card);
+ }
+ $('scoreDayBatchText').value=result.text;
+ $('scoreDayBatchStatus').textContent=result.date+'：'+result.count+
+  'Rの手動採点を一括計算／'+result.points+'点、100円換算'+
+  (result.points*100).toLocaleString('ja-JP')+'円（未購入）。'+
+  (result.skipped.length?'除外：'+result.skipped.join('／')+'。':'')+
+  '3〜5位の1着候補追加は本人選択のみ。JRA公式出走・取消は未照合。';
+}
+function changeScoreDayWinner(key,extraFirst){
+ const pending=pendingScoreDay;
+ if(!pending||pending.date!==$('scoreDate').value)return;
+ try{
+  const current=compileScoreDay(pending.date);
+  if(current.snapshot!==pending.snapshot)
+   throw Error('保存済み評価の元データが変更されました。');
+  const item=pending.ready.find(x=>noteKey(x)===key);
+  const source=current.ready.find(x=>noteKey(x)===key);
+  if(!item||!source||pending.ready.length!==current.ready.length)
+   throw Error('対象Rが変更されました。');
+  const next=planFormation(source.gradedRows,extraFirst);
+  item.formation=next;item.extraFirst=extraFirst;
+  recomputeScoreDay(pending);
+  renderScoreDayBatch(pending);
+  $('scoreDayTransfer').disabled=false;
+ }catch(e){
+  clearScoreDay('1着候補を変更できません：'+
+   (e instanceof Error?e.message:'再計算してください。'));
+ }
 }
 $('scoreDayBuild').onclick=()=>{
  clearScoreDay();
  try{
   const date=$('scoreDate').value,result=compileScoreDay(date);
   if(!result.count)throw Error('この日に手入力の5項目が完成したレースはありません。');
-  for(const item of result.ready){
-   const card=document.createElement('div');
-   card.className='score-day-batch-card';
-   const h=document.createElement('strong'),p=document.createElement('span');
-   h.textContent=item.track+item.race+'R｜'+item.formation.points+
-    '点／'+(item.formation.points*100).toLocaleString('ja-JP')+'円相当';
-   p.textContent='1着 '+item.formation.first.join('・')+
-    ' ／ 2着 '+item.formation.second.join('・')+
-    ' ／ 3着 '+item.formation.third.join('・')+
-    '（'+item.headcount+'頭の本人入力評価から計算。未購入）';
-   const ranks=document.createElement('details'),title=document.createElement('summary');
-   ranks.className='score-day-ranks';
-   title.textContent='全馬の総合評価順を見る（手入力5項目）';
-   ranks.append(title);
-   for(const horse of item.ranked){
-    const line=document.createElement('p');
-    line.className='score-'+horse.tier.toLowerCase();
-    line.textContent=horse.rank+'位 '+horse.number+'番　総合'+horse.tier+
-      ' '+horse.score.toFixed(1)+'点';
-    ranks.append(line);
-   }
-   const flagged=item.winReview.filter(x=>x.reviewFlag);
-   const warning=document.createElement('span');
-   warning.className=flagged.length?'winner-review-flag':'';
-   warning.textContent=flagged.length?
-    '1着候補の再点検：'+flagged.map(x=>x.rank+'位'+x.number+'番（'+x.gradeFactors.join('・')+'）').join('／')+
-    '。一括案は上位2頭のまま。変更するなら1Rごとに本人が見直してください。':
-    '総合3〜5位の追加1着候補は、本人入力の基準では自動抽出されませんでした。';
-   card.append(h,p,warning,ranks);$('scoreDayBatchPreview').append(card);
-  }
-  $('scoreDayBatchText').value=result.text;
-  $('scoreDayBatchStatus').textContent=date+'：'+result.count+'Rの手動採点を一括計算／'+
-   result.points+'点、100円換算'+(result.points*100).toLocaleString('ja-JP')+
-   '円（未購入）。'+
-   (result.skipped.length?'除外：'+result.skipped.join('／')+'。':'')+
-   'JRA公式出走・取消は未照合。';
+  renderScoreDayBatch(result);
   pendingScoreDay=result;
   $('scoreDayTransfer').disabled=false;
  }catch(e){
@@ -636,8 +680,22 @@ $('scoreDayTransfer').onclick=()=>{
   clearScoreDay('保存元の再検査に失敗：'+(e instanceof Error?e.message:'再計算してください。'));return;
  }
  if(!current.count||current.snapshot!==planned.snapshot||
-    current.text!==planned.text||current.points!==planned.points){
+    current.ready.length!==planned.ready.length){
   clearScoreDay('端末内の評価や元資料が更新されています。もう一度一括計算してな。');return;
+ }
+ try{
+  for(let i=0;i<current.ready.length;i++){
+   const now=current.ready[i],old=planned.ready[i];
+   if(noteKey(now)!==noteKey(old))throw Error('レースの順序が変わりました。');
+   now.formation=planFormation(now.gradedRows,old.extraFirst);
+  }
+  recomputeScoreDay(current);
+  if(current.text!==planned.text||current.points!==planned.points||
+     planned.text!==$('scoreDayBatchText').value)
+   throw Error('候補を再検証できません。');
+ }catch(e){
+  clearScoreDay('1着候補・点数が変更されています：'+
+   (e instanceof Error?e.message:'再計算してください。'));return;
  }
  if(typeof sessionStorage==='undefined'){
   $('scoreDayBatchStatus').textContent='このブラウザーでは一時的な引き継ぎを使えません。下のテキストを手動でコピーしてな。';
