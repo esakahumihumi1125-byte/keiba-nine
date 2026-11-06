@@ -209,7 +209,8 @@ function savedNoteValid(x){
   Number.isInteger(x.race)&&x.race>=1&&x.race<=12&&
   typeof x.text==='string'&&x.text.length>0&&x.text.length<=4000&&
   typeof x.savedAt==='string'&&x.savedAt.length>=10&&x.savedAt.length<=32&&
-  (x.sourceMark===null||(typeof x.sourceMark==='string'&&x.sourceMark.length>0&&x.sourceMark.length<=1500));
+  (x.sourceMark===null||(typeof x.sourceMark==='string'&&x.sourceMark.length>0&&x.sourceMark.length<=1500))&&
+  (!Object.hasOwn(x,'researchSource')||x.researchSource===RESEARCH_DRAFT_TAG);
 }
 function noteKey(x){return x.date+'|'+x.track+'|'+x.race}
 function notesRead(){
@@ -227,7 +228,8 @@ function saveDraft(){
   const rest=saved.filter(x=>noteKey(x)!==id);
   if(raw.trim()){
    if(rest.length>=MAX_NOTES)throw Error('途中評価の保存上限300Rです。');
-   rest.push({...choice,text:raw,sourceMark:memoSourceMark,savedAt:new Date().toISOString()});
+   rest.push({...choice,text:raw,sourceMark:memoSourceMark,
+    ...(researchSource?{researchSource}:{}),savedAt:new Date().toISOString()});
   }
   localStorage.setItem(NOTE_KEY,JSON.stringify(rest));
   $('scoreDraftStatus').textContent=raw.trim()?
@@ -239,7 +241,8 @@ function saveDraft(){
  renderDayGrid();
 }
 const LABELS=['調教','近走','適性','血統','展開'];
-let memoRows=null;
+const RESEARCH_DRAFT_TAG='jrdb-two-factor-research-v1';
+let memoRows=null,researchSource=null;
 function resetMemoGrid(){
  memoRows=null;memoSourceMark=null;$('scoreMemoGrid').replaceChildren();
 }
@@ -263,8 +266,8 @@ function scoreNoteState(note){
   try{if(!memoNoteMatches(note))return {text:'要再確認',className:'score-stale'};}
   catch(_){return {text:'要再確認',className:'score-stale'};}
  }
- try{parseGrades(note.text);return {text:'採点済',className:'score-done'};}
- catch(_){return {text:'途中',className:'score-partial'};}
+ try{parseGrades(note.text);return {text:note.researchSource?'採点済・研究用':'採点済',className:'score-done'};}
+ catch(_){return {text:note.researchSource?'途中・研究用':'途中',className:'score-partial'};}
 }
 function renderDayGrid(){
  const grid=$('scoreRaceGrid');
@@ -308,7 +311,7 @@ function renderDayGrid(){
   '同日の全会場の保存メモ'+today.length+'R（公式出走表は未照合）。';
 }
 function changeScoreRace(){
- resetMemoGrid();invalidate();restoreCurrentNote();renderDayGrid();
+ resetMemoGrid();researchSource=null;invalidate();restoreCurrentNote();renderDayGrid();
  $('scoreMemoStatus').textContent='本人の馬番メモは必要なら読み込み直してな。';
 }
 for(const id of ['scoreDate','scoreTrack','scoreRace']){
@@ -393,7 +396,7 @@ $('scoreFromMemo').onclick=()=>{
   const roster=readMatchingMemo(choice);
   if($('scoreInput').value.trim()&&!confirm('現在の5項目入力を置き換えて、本人の馬番・馬名メモから'+
    roster.rows.length+'頭を読み込みますか？ 現在の評価入力は上書きされます。'))return;
-  resetMemoGrid();
+  resetMemoGrid();researchSource=null;
   memoRows=roster.rows;memoSourceMark=roster.sourceMark;
   drawMemoGrid();
   renderMemoInput();
@@ -433,6 +436,7 @@ function restoreCurrentNote(){
  try{
   const selected=identity();
   const note=notesRead().find(x=>noteKey(x)===noteKey(selected));
+  researchSource=note?.researchSource||null;
   if(!note){
    $('scoreDraftStatus').textContent='このレースの途中評価はまだ保存されていません。';
    return;
@@ -484,7 +488,8 @@ function restoreCurrentNote(){
   }
   $('scoreInput').value=note.text;
   $('scoreDraftStatus').textContent=selected.track+selected.race+
-   'Rの途中評価を端末から復元しました（未購入・未確定）。';
+   'Rの途中評価を端末から復元しました（未購入・未確定）。'+
+   (researchSource?'JRDB研究用の未検証2項目を含みます。公式未照合。':'');
  }catch(e){
   resetMemoGrid();
   $('scoreInput').value='';
@@ -499,7 +504,7 @@ $('scoreClearDraft').onclick=()=>{
    'Rの途中評価を、この端末内から削除しますか？\n3連単下書きと購入記録は変更しません。'))return;
   const rest=notesRead().filter(x=>noteKey(x)!==noteKey(selected));
   localStorage.setItem(NOTE_KEY,JSON.stringify(rest));
-  resetMemoGrid();$('scoreInput').value='';invalidate();
+  resetMemoGrid();researchSource=null;$('scoreInput').value='';invalidate();
   $('scoreDraftStatus').textContent='このRの途中評価を削除しました。購入・下書きには変更なし。';
   renderDayGrid();
  }catch(e){
@@ -562,7 +567,8 @@ function receiveResearchPrefill(){
   $('scoreRace').value=String(d.race);
   changeScoreRace();
   resetMemoGrid();memoRows=rows.sort((a,b)=>a.number-b.number);
-  memoSourceMark=null;drawMemoGrid();renderMemoInput();
+  memoSourceMark=null;researchSource=RESEARCH_DRAFT_TAG;
+  drawMemoGrid();renderMemoInput();
   $('scoreMemoStatus').textContent=d.track+d.race+
    'RのJRDB研究用・未検証の調教／近走だけを仮入力。'+
    '適性・血統・展開は全馬未評価。公式出走表・取消も未照合です。';
