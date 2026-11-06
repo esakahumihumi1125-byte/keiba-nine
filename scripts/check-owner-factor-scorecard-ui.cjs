@@ -527,6 +527,7 @@ assert.equal(declinedResearch.tempStore.size,0);
 assert.equal(dr('scoreMemoGrid').children.length,0);
 
 
+{
 // The three Saturday venues can be seeded with numbered JRDB pre-day
 // rosters in ONE owner action. These remain five-factor UNKNOWN drafts.
 const PREDAY='keiba-nine-jrdb-preday-runners-v1';
@@ -611,4 +612,5 @@ rf('scoreFromPreday').onclick();
 assert.equal(refused.writes.length,0,'existing manual grades cannot be overwritten without consent');
 assert.equal(JSON.parse(refused.store.get(NOTES))[0].text,existingNote.text);
 
+}
 console.log('Owner manual 5-factor scoring: 36-point ranks, validation, cancel, no-network handoff PASS');
