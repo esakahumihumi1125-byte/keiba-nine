@@ -555,6 +555,14 @@ const predayMeetings=['東京','京都','福島'].map(track=>({
  races:Array.from({length:12},(_,i)=>fakeRace(i+1))
 }));
 const pd=boot(true,{[PREDAY]:predayMeetings}),pe=pd.el;
+assert.equal(pe('scoreDate').value,'2026-11-07',
+ 'opening manual scorecard chooses upcoming imported meeting date');
+assert.equal(pe('scoreTrack').value,'福島',
+ 'first saved upcoming venue is selected without requiring manual picker');
+assert.equal(pe('scoreRace').value,'1');
+assert.match(pe('scorePredayStatus').textContent,/自動選択したで/);
+assert.equal(pd.writes.length,0,'opening scorecard never seeds or writes notes');
+assert.equal(pe('scoreHandoff').disabled,true,'no auto-grade or ticket on page open');
 pe('scoreDate').value='2026-11-07';pe('scoreTrack').value='東京';pe('scoreRace').value='1';
 pe('scoreSeedPredayDay').onclick();
 assert.match(pe('scorePredayStatus').textContent,/36Rを馬番だけ仮登録/);
@@ -588,9 +596,18 @@ assert.equal(pd.writes.length,1,'repeated seeding preserves current notes');
 
 // Explicit cross-screen jump may request the same one-confirmation seed.
 // Cancelling must never write notes, and malformed URL params cannot bypass it.
+const brokenPreday=JSON.parse(JSON.stringify(predayMeetings));
+brokenPreday[0].races[0].race=99;
+const badStartup=boot(true,{[PREDAY]:brokenPreday});
+assert.equal(badStartup.el('scoreTrack').value,'',
+ 'invalid imported data must not be auto-selected');
+assert.match(badStartup.el('scorePredayStatus').textContent,/保存形式に問題/);
+assert.equal(badStartup.writes.length,0,'invalid source cannot create any score note');
 const seedHash='#select=v1&date=2026-11-07&track='+encodeURIComponent('東京')+'&race=1&seed=day-v1';
 const oneClick=boot(true,{[PREDAY]:predayMeetings},seedHash);
 assert.equal(oneClick.el('scoreDate').value,'2026-11-07');
+assert.equal(oneClick.el('scoreTrack').value,'東京',
+ 'explicit URL deep-link overrides suggested saved venue');
 assert.equal(oneClick.el('scoreTrack').value,'東京');
 assert.equal(JSON.parse(oneClick.store.get(NOTES)).length,36,'confirmed link seeds 36R once');
 assert.equal(oneClick.writes.length,1,'one-confirmation link makes only one atomic note write');
