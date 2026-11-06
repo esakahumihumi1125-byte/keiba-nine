@@ -117,4 +117,54 @@ assert.equal(app.writes,0);
 assert.ok(!js.includes('fetch('),'no network fetch in private review');
 assert.ok(!js.includes('XMLHttpRequest'),'no XHR in private review');
 assert.ok(!js.includes('innerHTML'),'no injecting saved user text into HTML');
+
+// Descriptive 5-factor comparisons use only completed, pre-day owner notes.
+// Retroactive same-day edits, stale source mappings and contradictory results never count.
+const SCORE='keiba-nine-owner-factor-notes-v1';
+const MAIL='keiba-nine-jrdb-personal-mail-v1';
+const MEMO='keiba-nine-owner-manual-numbers-v1';
+const factorNote=(race,text,savedAt='2099-02-13T06:00:00Z',sourceMark=null)=>({
+ ...key(race),text,savedAt,sourceMark
+});
+const noteRows=[
+ factorNote(1,'1 架空A S S A B A\n2 架空B A A S A B\n3 架空C B B B B B\n4 架空D B A B B B'),
+ factorNote(2,'1 架空A S S S S S\n2 架空B A A A B B\n4 架空D B B S B A'),
+ factorNote(3,'1 架空A S S S S S\n2 架空B A A A B B\n4 架空D B B B B B','2099-02-14T01:00:00Z'),
+ factorNote(4,'1 架空A S S S S S\n2 架空B A A A B B\n3 架空C B B B B B\n4 架空D B B B B B','2099-02-13T06:00:00Z','stale-mark')
+];
+const gradeData={...fixture(),[SCORE]:noteRows,[MAIL]:[],[MEMO]:[]};
+const grading=boot(gradeData),ge=grading.el;
+assert.match(ge('reviewDraftStats').children.map(x=>x.textContent).join(' '),/4件／6件/);
+const gradeSummary=ge('reviewFactorStats').children.map(x=>x.textContent).join('\n');
+assert.match(gradeSummary,/有効な本人採点 2R／参考集計外 2R/);
+assert.match(gradeSummary,/1着候補から漏れた勝ち馬の採点 1R／1着候補に含めた勝ち馬の採点 1R/);
+assert.match(gradeSummary,/調教/);
+assert.match(gradeSummary,/1着漏れ S:0・A:0・B:1・C:0/);
+assert.match(gradeSummary,/適性/);
+const gRows=ge('reviewDetails').children;
+const rowFor=n=>gRows.find(x=>x.children[0].textContent===date+' 東京'+n+'R');
+assert.match(rowFor(1).children.at(-2).textContent,/勝ち馬2番.*2\/4位.*調教A／近走A／適性S/);
+assert.match(rowFor(2).children.at(-2).textContent,/勝ち馬4番.*調教B／近走B／適性S/);
+assert.match(rowFor(3).children.at(-2).textContent,/当日以降に編集された採点/);
+assert.match(rowFor(4).children.at(-2).textContent,/元資料・馬番メモと不一致/);
+assert.equal(grading.writes,0,'factor summaries cannot mutate owner storage');
+const matchedNames=['架空1','架空2','架空3','架空4'];
+const mark=JSON.stringify(['09:55',4,matchedNames]);
+const withSource=boot({...fixture(),
+ [SCORE]:[factorNote(4,matchedNames.map((name,i)=>(i+1)+' '+name+' S A B A B').join('\n'),'2099-02-13T06:00:00Z',mark)],
+ [MAIL]:[{kind:'jrdb-provisional',date,track,races:[{race:4,postTime:'09:55',expected:4,horses:matchedNames}]}],
+ [MEMO]:[{...key(4),sourceMark:mark,rows:matchedNames.map((name,i)=>({number:i+1,name}))}]
+});
+assert.match(withSource.el('reviewFactorStats').children.map(x=>x.textContent).join(' '),/有効な本人採点 1R/);
+const staleSource=boot({...fixture(),
+ [SCORE]:[factorNote(4,matchedNames.map((name,i)=>(i+1)+' '+name+' S A B A B').join('\n'),'2099-02-13T06:00:00Z',mark)],
+ [MAIL]:[{kind:'jrdb-provisional',date,track,races:[{race:4,postTime:'09:55',expected:4,horses:matchedNames}]}],
+ [MEMO]:[{...key(4),sourceMark:'changed-source',rows:matchedNames.map((name,i)=>({number:i+1,name}))}]
+});
+assert.match(staleSource.el('reviewFactorStats').children.map(x=>x.textContent).join(' '),/有効な本人採点 0R/);
+const malformed=boot({...fixture(),[SCORE]:[{...noteRows[0],race:19}]});
+assert.match(malformed.el('reviewStatus').textContent,/対象 9R/,'bad factor memo does not erase valid outcome comparison');
+assert.match(malformed.el('reviewFactorStats').children[0].textContent,/採点の比較は停止/);
+assert.equal(malformed.writes,0);
+
 console.log('Owner race-result diagnostics: separated draft/purchase, 1st-3rd misses, dedup, conflict and privacy PASS');
