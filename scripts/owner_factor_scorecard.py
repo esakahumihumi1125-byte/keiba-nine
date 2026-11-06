@@ -373,9 +373,7 @@ function renderDayGrid(){
   button.onclick=()=>{
    try{
     const from=identity(),fresh=notesRead();
-    const current=fresh.find(x=>noteKey(x)===noteKey(from));
-    if((!current||scoreNoteState(current).className!=='score-stale')&&
-       $('scoreInput').value!==(current?.text||'')){
+    if(currentScoreHasUnsavedInput()){
      $('scoreVenueStatus').textContent='現在の入力と保存済み評価が違います。移動せず入力を確認してな。';
      return;
     }
@@ -427,11 +425,8 @@ $('scoreNextPending').onclick=()=>{
  try{
   const selected=identity(),all=notesRead();
   const today=all.filter(x=>x.date===selected.date);
-  const current=all.find(x=>noteKey(x)===noteKey(selected));
-  // Prevent navigation from silently losing unsaved textarea changes.
-  // Stale source notes intentionally cannot be restored into the editor.
-  if((!current||scoreNoteState(current).className!=='score-stale')&&
-    $('scoreInput').value!==(current?.text||'')){
+  // Do not bypass protection for stale-source notes with newly typed text.
+  if(currentScoreHasUnsavedInput()){
    $('scoreNextPendingStatus').textContent='このRの入力が保存済みメモと違います。現在の評価を確認してから移動してな。';
    return;
   }
@@ -459,22 +454,23 @@ $('scoreNextPending').onclick=()=>{
  }
 };
 let lastScoreSelection=null;
+function currentScoreHasUnsavedInput(){
+ // The current textarea belongs to lastScoreSelection, not necessarily the
+ // newly selected controls. A corrupt storage snapshot must block navigation.
+ if(!lastScoreSelection)return Boolean($('scoreInput').value.trim());
+ try{
+  const previous=notesRead().find(x=>noteKey(x)===noteKey(lastScoreSelection));
+  const stale=previous&&scoreNoteState(previous).className==='score-stale';
+  const raw=$('scoreInput').value;
+  return stale?Boolean(raw.trim()):raw!==(previous?.text||'');
+ }catch(_){return true;}
+}
 function changeScoreRace(){
  let requested;
  try{requested=identity();}catch(_){requested=null;}
  if(lastScoreSelection&&(!requested||
      noteKey(lastScoreSelection)!==noteKey(requested))){
-  let keepCurrent=false;
-  try{
-   const previous=notesRead().find(x=>noteKey(x)===noteKey(lastScoreSelection));
-   const stale=previous&&scoreNoteState(previous).className==='score-stale';
-   const raw=$('scoreInput').value;
-   // A stale note is deliberately not restored. Its empty textarea is not
-   // an unsaved edit, but newly typed text must still be protected.
-   keepCurrent=stale?Boolean(raw.trim()):
-    raw!==(previous?.text||'');
-  }catch(_){keepCurrent=true;}
-  if(keepCurrent){
+  if(currentScoreHasUnsavedInput()){
    $('scoreDate').value=lastScoreSelection.date;
    $('scoreTrack').value=lastScoreSelection.track;
    $('scoreRace').value=String(lastScoreSelection.race);
@@ -650,6 +646,7 @@ $('scoreSeedPredayDay').onclick=()=>{
    return;
   }
   if(old.length+additions.length>MAX_NOTES)throw Error('評価メモ300Rの上限に達します。');
+  if(currentScoreHasUnsavedInput())throw Error('現在のRに未保存の評価があります。再保存してから一括仮登録してな。');
   if(!confirm(date+'：JRDB前日資料'+day.length+'開催から未登録'+additions.length+
     'Rの馬番を仮入力しますか？\n既存の途中採点・買い目・実購入記録は変更しません。'))return;
   localStorage.setItem(NOTE_KEY,JSON.stringify(old.concat(additions)));
@@ -840,12 +837,20 @@ function receiveResearchPrefill(){
   }
   if(!rows.some(h=>h.grades[0]!=='?'||h.grades[1]!=='?'))
    throw Error('引き継げる調教・近走の仮評価がありません。');
+  const target={date:d.date,track:d.track,race:d.race};
+  // Opening the research transfer must not silently replace the previous
+  // race's unsaved text, even if the owner agreed to replace the target R.
+  if(lastScoreSelection&&noteKey(lastScoreSelection)!==noteKey(target)&&
+      currentScoreHasUnsavedInput())
+   throw Error('現在のRに未保存の評価があります。再保存してから研究用データを開いてな。');
   const existing=notesRead().find(n=>n.date===d.date&&n.track===d.track&&n.race===d.race);
   if((existing||$('scoreInput').value.trim())&&!confirm(
     '既存の評価をJRDB研究用の調教・近走2項目で置き換えますか？\n適性・血統・展開は未評価になります。'))return;
   $('scoreDate').value=d.date;$('scoreTrack').value=d.track;
   $('scoreRace').value=String(d.race);
   changeScoreRace();
+  if(noteKey(identity())!==noteKey(target))
+   throw Error('現在のRに未保存の評価があります。研究用の引き継ぎを停止しました。');
   resetMemoGrid();memoRows=rows.sort((a,b)=>a.number-b.number);
   memoSourceMark=null;researchSource=RESEARCH_DRAFT_TAG;
   drawMemoGrid();renderMemoInput();
