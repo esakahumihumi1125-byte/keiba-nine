@@ -14,7 +14,8 @@ const payload={
  ],warning:'2項目だけの試算、買い目未生成'
 };
 function mock(connected=true,result=payload,hash=''){
- const nodes=new Map(),fetches=[];
+ const nodes=new Map(),fetches=[],navigations=[],stored=new Map();
+ const sessionStorage={getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),removeItem:k=>stored.delete(k)};
  function element(){
   return {value:'',textContent:'',disabled:false,children:[],onchange:null,onclick:null,
     className:'',append(...nodes){this.children.push(...nodes)},
@@ -27,8 +28,9 @@ function mock(connected=true,result=payload,hash=''){
   return url==='/api/status'?respond({jrdbConfigured:connected}):respond(result);
  };
  vm.runInNewContext(src,{document:{getElementById:el,createElement:element},
-  window:{location:{hash}},Date,JSON,Set,Number,String,Error,URLSearchParams,fetch});
- return {el,fetches};
+  window:{location:{hash,assign:url=>navigations.push(url)}},
+  sessionStorage,confirm:()=>true,Date,JSON,Set,Number,String,Error,URLSearchParams,fetch});
+ return {el,fetches,navigations,stored};
 }
 async function tick(){await new Promise(resolve=>setImmediate(resolve));}
 (async()=>{
@@ -82,6 +84,43 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  const badJump=mock(true,payload,'#select=v1&date=2026-11-07&track=%E6%9D%B1%E4%BA%AC&race=8&token=secret');
  await tick();
  assert.equal(badJump.el('trialTrack').value,'','fragment with extra data ignored');
+ const sample3={...payload,runnersObserved:3,twoFactorComparable:1,ungraded:2,runners:[
+  ...payload.runners,
+  {horseNumber:4,trainingGrade:'B',recentGrade:'未評価',twoFactorPoints:null,comparisonRank:null,provisionalOnly:true},
+ ]};
+ const forward=mock(true,sample3),fe=forward.el;
+ await tick();
+ fe('trialDate').value=date;fe('trialDate').onchange();
+ fe('trialTrack').value='東京';fe('trialTrack').onchange();
+ fe('trialRace').value='1';fe('trialRace').onchange();
+ await fe('trialRun').onclick();await tick();
+ assert.equal(fe('trialGradeHandoff').disabled,false,'3 horses with provisional factors allow operator prefill');
+ assert.equal(forward.navigations.length,0,'no navigation without the user pressing the transfer button');
+ fe('trialGradeHandoff').onclick();
+ assert.equal(forward.navigations[0],'/my-scorecard#research=v1');
+ const payloadRaw=JSON.parse(forward.stored.get('keiba-nine-owner-research-scorecard-handoff-v1'));
+ assert.equal(payloadRaw.version,'jrdb-research-to-scorecard-v1');
+ assert.equal(payloadRaw.researchOnly,true);
+ assert.equal(payloadRaw.predictionReady,false);
+ assert.equal(payloadRaw.officialJraVerified,false);
+ assert.equal(payloadRaw.runners.length,3);
+ assert.deepEqual(Array.from(payloadRaw.runners,h=>h.number),[2,3,4]);
+ assert.deepEqual(Array.from(payloadRaw.runners,h=>h.recent),['A','未評価','未評価']);
+ assert.ok(!JSON.stringify(payloadRaw).includes('twoFactorPoints'),'licensed indices must not transfer');
+ assert.ok(!JSON.stringify(payloadRaw).includes('comparisonRank'),'research rank must not transfer');
+ assert.ok(!forward.navigations[0].includes('runner'),'no grades in URL fragment');
+ fe('trialDate').value='2026-11-08';fe('trialDate').onchange();
+ assert.equal(fe('trialGradeHandoff').disabled,true,'changing date invalidates previous factor transfer');
+ const ungraded=mock(true,{...sample3,runners:sample3.runners.map(h=>({
+  ...h,trainingGrade:'未評価',recentGrade:'未評価',twoFactorPoints:null,comparisonRank:null
+ })),twoFactorComparable:0,ungraded:3}),ug=ungraded.el;
+ await tick();
+ ug('trialDate').value=date;ug('trialDate').onchange();
+ ug('trialTrack').value='東京';ug('trialTrack').onchange();
+ ug('trialRace').value='1';ug('trialRace').onchange();
+ await ug('trialRun').onclick();await tick();
+ assert.equal(ug('trialGradeHandoff').disabled,true,'no fabricated grades when provider has no data');
+ assert.equal(ungraded.navigations.length,0);
  assert.ok(!src.includes('localStorage'),'never persist provider-derived per-horse data');
  assert.ok(!src.includes('innerHTML'),'no untrusted HTML');
  console.log('JRDB one-race research iPhone pilot: auth readiness, explicit-click, no predictions and no storage PASS');
