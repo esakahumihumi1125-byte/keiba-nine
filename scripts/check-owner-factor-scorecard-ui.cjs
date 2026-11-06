@@ -480,6 +480,17 @@ assert.match(researchNote[0].text,/1  S A \? \? \?/);
 assert.equal(researchNote[0].sourceMark,null);
 assert.ok(research.writes.every(k=>k===NOTES),'never write actual ticket or purchased ledgers');
 assert.equal(research.links.length,0);
+const afterResearch=boot(true,{[NOTES]:researchNote}),ar=afterResearch.el;
+ar('scoreDate').value='2026-11-07';ar('scoreTrack').value='東京';
+ar('scoreRace').value='6';ar('scoreRace').onchange();
+assert.equal(ar('scoreMemoGrid').children.length,3,
+ 'research-derived incomplete grades reopen editable dropdowns after iPhone relaunch');
+assert.equal(ar('scoreMemoGrid').children[0].children[1].children[0].children[0].value,'S');
+assert.equal(ar('scoreMemoGrid').children[0].children[1].children[1].children[0].value,'A');
+assert.equal(ar('scoreMemoGrid').children[0].children[1].children[2].children[0].value,'');
+assert.match(ar('scoreInput').value,/\? \? \?/);
+assert.equal(ar('scoreHandoff').disabled,true);
+
 for(const [title,bad] of [
  ['injected names',{...researchPayload,runners:[{...researchPayload.runners[0],name:'SECRET'},...researchPayload.runners.slice(1)]}],
  ['false official verification',{...researchPayload,officialJraVerified:true}],
