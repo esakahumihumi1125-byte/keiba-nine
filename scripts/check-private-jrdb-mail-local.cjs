@@ -173,7 +173,7 @@ function predayFixture(date,venue,count=12){
   lines.push(race+'Ｒ'+(race===11?' 合成特別競走':''));
   lines.push('２歳・未勝利(馬齢)　ダ・左1600M　3頭立','');
   lines.push('騎情ID前 B馬名 性齢 騎手 斤量 脚 前評IDM 情 騎 基オ(人)');
-  lines.push('◎◎◎◎ 1 合成サクラ'+race+' 牝2 架空騎手55 先 25: 21 1 0: 8.0( 1)');
+  lines.push('◎◎◎◎ 1 合成サクラ'+race+' 牝2 架空騎手55'+(race===6?'':' 先')+' 25: 21 1 0: 8.0( 1)');
   lines.push('△△ 2 B合成ナイン'+race+' 牡3 架空騎手56 逃 12: 12 0 0: 30.0( 7)');
   lines.push(' 3 合成ドリーム'+race+' セ4 架空騎手57 差 11: 10 1 0: 99.0(12)');
   lines.push('','≪推奨買い目≫');
@@ -198,6 +198,7 @@ const pre=JSON.parse(storage.get(PRE));
 assert.equal(pre.length,3);
 assert.ok(pre.every(x=>x.date==='2099-11-07'&&x.races.length===12));
 assert.equal(pre.find(x=>x.track==='東京').races[0].runners.length,3);
+assert.equal(pre.find(x=>x.track==='東京').races[5].runners[0].style,'未確認','debut race unknown running style is not fabricated');
 assert.deepEqual(pre.find(x=>x.track==='東京').races[0].runners[1],{
  number:2,name:'合成ナイン1',style:'逃'
 });
