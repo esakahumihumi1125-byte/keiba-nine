@@ -21,7 +21,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <option>札幌</option><option>函館</option><option>福島</option><option>新潟</option><option>東京</option><option>中山</option><option>中京</option><option>京都</option><option>阪神</option><option>小倉</option>
 </select>
 <label for="scoreRace">レース（1〜12R）</label><input id="scoreRace" type="number" min="1" max="12" step="1" value="1">
-</div><p id="scoreDayStatus" class="hint" role="status">日付・競馬場を選ぶと12Rの入力状況を表示します。</p><p id="scoreAllDayStatus" class="hint" role="status">同日の保存済みRを確認します。未登録の開催を36Rと数えません。</p><button type="button" id="scoreNextPending" class="memo-load" disabled>次の未評価・要再確認Rへ</button><p id="scoreNextPendingStatus" class="hint" role="status">採点済みのRを飛ばし、同日に保存された未評価・要再確認Rへ移動します。予想や馬券は自動作成しません。</p><div id="scoreRaceGrid" class="score-race-grid" role="group" aria-label="選択した競馬場の1R〜12R評価メモ"></div><p class="hint">評価状況はこの端末の手入力メモのみ。公式の開催・出走・取消情報を表すものではありません。</p></section>
+</div><p id="scoreDayStatus" class="hint" role="status">日付・競馬場を選ぶと12Rの入力状況を表示します。</p><p id="scoreAllDayStatus" class="hint" role="status">同日の保存済みRを確認します。未登録の開催を36Rと数えません。</p><div id="scoreVenueGrid" class="score-venue-grid" role="group" aria-label="保存済み会場別の採点進捗"></div><p id="scoreVenueStatus" class="hint" role="status">会場をタップすると、その会場の未評価Rへ移動できます。未登録の場は表示しません。</p><button type="button" id="scoreNextPending" class="memo-load" disabled>次の未評価・要再確認Rへ</button><p id="scoreNextPendingStatus" class="hint" role="status">採点済みのRを飛ばし、同日に保存された未評価・要再確認Rへ移動します。予想や馬券は自動作成しません。</p><div id="scoreRaceGrid" class="score-race-grid" role="group" aria-label="選択した競馬場の1R〜12R評価メモ"></div><p class="hint">評価状況はこの端末の手入力メモのみ。公式の開催・出走・取消情報を表すものではありません。</p></section>
 <section><h2>② 馬番と5項目の評価を貼る</h2>
 <p class="hint">1頭1行で「馬番　調教　近走　適性　血統　展開」を入力。馬名は省略可。各項目は<b>S・A・B・C</b>。丸数字①〜⑱にも対応。最低3頭、最大18頭。</p>
 <button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button>
@@ -52,7 +52,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="/my-tickets">手動で3連単を作る</a></section>
 </main><script defer src="/owner-scorecard.js"></script></body></html>"""
 
-CSS = """.score-day-win{margin-top:10px;border-top:1px solid #58728a;padding-top:8px}.score-day-win summary{cursor:pointer;color:#edcb81;font-size:14px;font-weight:700}.score-day-first-btn{margin:5px 0;min-height:40px;padding:8px 10px;color:#e9f1fc;background:#25465d;border:1px solid #678bab;font-size:13px;text-align:left}.score-day-first-btn[aria-pressed="true"]{color:#ffe1a0;outline:2px solid #edca70;background:#655124}.score-day-win summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card .winner-review-flag{display:block;margin-top:7px;color:#ffe3a2}.winner-review{border:1px solid #587790;border-radius:10px;padding:11px;margin:10px 0;background:#102b45}.winner-review p{margin:6px 0;font-size:13px;color:#e3e8ef}.winner-review h3{font-size:15px;color:#f2d588;margin:2px 0 8px}.winner-review-btn{font-weight:700;font-size:14px;line-height:1.5;color:#d6e3f2;background:#23445f;border:1px solid #678ca4;padding:9px;margin:5px 0;text-align:left}.winner-review-btn[aria-pressed="true"]{background:#715c2b;color:#ffe7a6;border-color:#e3c877;outline:2px solid #edca70}.winner-review small{display:block;color:#bbcddd}.winner-review .winner-review-flag{color:#ffe5a5}.score-day-ranks{margin-top:10px;border-top:1px solid #456982;padding-top:6px}.score-day-ranks summary{cursor:pointer;color:#cbdcec;font-size:13px;font-weight:700}.score-day-ranks p{padding:5px 4px;margin:2px 0;font-size:13px}.score-day-ranks summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card{padding:10px;margin:9px 0;border:1px solid #5c7b93;border-radius:9px;background:#10243a}.score-day-batch-card strong{display:block;color:#e9d18c}.score-day-batch-card span{font-size:13px;color:#d4e1ed}#scoreDayBatchText{margin:12px 0;min-height:130px;font-size:14px}#scoreDayTransfer{margin-top:10px}#scoreDayBatchPreview{margin-top:10px}.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
+CSS = """.score-day-win{margin-top:10px;border-top:1px solid #58728a;padding-top:8px}.score-day-win summary{cursor:pointer;color:#edcb81;font-size:14px;font-weight:700}.score-day-first-btn{margin:5px 0;min-height:40px;padding:8px 10px;color:#e9f1fc;background:#25465d;border:1px solid #678bab;font-size:13px;text-align:left}.score-day-first-btn[aria-pressed="true"]{color:#ffe1a0;outline:2px solid #edca70;background:#655124}.score-day-win summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card .winner-review-flag{display:block;margin-top:7px;color:#ffe3a2}.winner-review{border:1px solid #587790;border-radius:10px;padding:11px;margin:10px 0;background:#102b45}.winner-review p{margin:6px 0;font-size:13px;color:#e3e8ef}.winner-review h3{font-size:15px;color:#f2d588;margin:2px 0 8px}.winner-review-btn{font-weight:700;font-size:14px;line-height:1.5;color:#d6e3f2;background:#23445f;border:1px solid #678ca4;padding:9px;margin:5px 0;text-align:left}.winner-review-btn[aria-pressed="true"]{background:#715c2b;color:#ffe7a6;border-color:#e3c877;outline:2px solid #edca70}.winner-review small{display:block;color:#bbcddd}.winner-review .winner-review-flag{color:#ffe5a5}.score-day-ranks{margin-top:10px;border-top:1px solid #456982;padding-top:6px}.score-day-ranks summary{cursor:pointer;color:#cbdcec;font-size:13px;font-weight:700}.score-day-ranks p{padding:5px 4px;margin:2px 0;font-size:13px}.score-day-ranks summary:focus-visible{outline:2px solid #edca70}.score-day-batch-card{padding:10px;margin:9px 0;border:1px solid #5c7b93;border-radius:9px;background:#10243a}.score-day-batch-card strong{display:block;color:#e9d18c}.score-day-batch-card span{font-size:13px;color:#d4e1ed}#scoreDayBatchText{margin:12px 0;min-height:130px;font-size:14px}#scoreDayTransfer{margin-top:10px}#scoreDayBatchPreview{margin-top:10px}.clear-note{background:#344a62;color:#ffda9e;border:1px solid #ab826f;margin-top:10px}*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#09172b;color:#f1f5ff;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;padding:20px 14px 50px;margin:auto}h1{font-size:27px}h2{font-size:20px;margin:0 0 10px}a{color:#edca70}section{background:#142f4a;border:1px solid #456780;border-radius:14px;padding:17px;margin:16px 0}.warning{padding:12px;background:#322b22;border:1px solid #ae8755;border-radius:10px;color:#ffe7aa;font-size:14px}.hint{font-size:13px;color:#d0dfef;line-height:1.7}.fields{display:grid;gap:5px}.fields label{font-weight:700;margin-top:7px}input,select,textarea{width:100%;font:inherit;background:#0a2238;color:#f4f7ff;border:1px solid #7190ae;border-radius:9px;padding:11px;min-height:46px}textarea{min-height:225px;line-height:1.6}button{width:100%;min-height:49px;font:inherit;font-weight:800;color:#10253d;background:#edca70;border:0;border-radius:10px;padding:12px}button:disabled{opacity:.45}#scoreRaceGrid{margin:9px 0}.score-race-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.score-race-grid button{margin:0;min-height:54px;padding:8px 4px;font-size:13px;line-height:1.35;background:#24415c;color:#e4edf8;border:1px solid #5c7891}.score-race-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.score-race-grid button.score-done{background:#2c5945}.score-race-grid button.score-stale{background:#5b3943}.score-race-grid button.score-partial{background:#51482d}.score-venue-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}.score-venue-grid button{font-size:13px;line-height:1.5;text-align:left;background:#26435e;color:#f0f4f9;border:1px solid #6d8ca2;min-height:62px;padding:11px}.score-venue-grid button[aria-pressed="true"]{outline:2px solid #edca70;outline-offset:1px}.memo-load{background:#2f506a;color:#ffe5a6;border:1px solid #9eacb8;margin-bottom:9px}.memo-horse{border:1px solid #54758e;border-radius:10px;padding:11px;margin:10px 0}.memo-horse strong{display:block;margin-bottom:5px}.memo-horse-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.memo-horse-fields label{display:block;font-size:12px;color:#d5e7f4}.memo-horse-fields select{min-height:45px;padding:7px}.memo-horse-fields label:nth-child(5){grid-column:1/-1}.score-row{padding:12px;border-bottom:1px solid #365778}.score-row strong{display:block}.score-s{color:#f7d36e}.score-a{color:#ff8f88}.score-b{color:#a3d0fa}.score-c{color:#c9ced5}.score-row small{display:block;font-size:12px;color:#bbccdd}.score-form{padding:13px;background:#11273a;border:1px solid #516f8a;border-radius:9px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}"""
 
 JS = r"""(()=>{'use strict';
 /* No network or writes: read optional same-browser manually copied roster; grades remain operator-entered. */
@@ -325,9 +325,9 @@ function scoreNoteState(note){
  catch(_){return {text:note.researchSource?'途中・研究用':'途中',className:'score-partial'};}
 }
 function renderDayGrid(){
- const grid=$('scoreRaceGrid');
+ const grid=$('scoreRaceGrid'),venueGrid=$('scoreVenueGrid');
  $('scoreNextPending').disabled=true;
- grid.replaceChildren();
+ grid.replaceChildren();venueGrid.replaceChildren();
  let selected;
  try{selected=identity();}
  catch(_){
@@ -354,6 +354,50 @@ function renderDayGrid(){
   (today.length===36?'36Rの入力枠あり。':'未登録の開催・Rは集計対象外。')+
   'JRA公式出走・取消未照合。';
  $('scoreNextPending').disabled=totalPartial+totalStale===0;
+ // Render only venues backed by notes on the selected date. A 36R count
+ // is not evidence that JRA actually has those starts or runners confirmed.
+ for(const track of TRACKS){
+  const entries=today.filter(x=>x.track===track);
+  if(!entries.length)continue;
+  const states=entries.map(x=>scoreNoteState(x).className);
+  const graded=states.filter(x=>x==='score-done').length;
+  const stale=states.filter(x=>x==='score-stale').length;
+  const pending=states.filter(x=>x==='score-partial').length;
+  const button=document.createElement('button');
+  button.type='button';
+  button.className=stale?'score-stale':pending?'score-partial':'score-done';
+  button.textContent=track+'　'+entries.length+'/12R｜採点済'+graded+
+   '・途中'+pending+'・再確認'+stale;
+  button.setAttribute('aria-pressed',String(track===selected.track));
+  button.onclick=()=>{
+   try{
+    const from=identity(),fresh=notesRead();
+    const current=fresh.find(x=>noteKey(x)===noteKey(from));
+    if((!current||scoreNoteState(current).className!=='score-stale')&&
+       $('scoreInput').value!==(current?.text||'')){
+     $('scoreVenueStatus').textContent='現在の入力と保存済み評価が違います。移動せず入力を確認してな。';
+     return;
+    }
+    const actual=fresh.filter(x=>x.date===from.date&&x.track===track);
+    if(!actual.length)throw Error('この会場の保存済みRがなくなりました。');
+    const target=actual.filter(x=>{
+     const state=scoreNoteState(x).className;
+     return state==='score-partial'||state==='score-stale';
+    }).sort((a,b)=>a.race-b.race)[0]||
+     actual.slice().sort((a,b)=>a.race-b.race)[0];
+    if(track!==from.track||target.race!==from.race){
+     $('scoreTrack').value=track;$('scoreRace').value=String(target.race);
+     changeScoreRace();
+    }
+    $('scoreVenueStatus').textContent=from.date+' '+track+target.race+
+     'Rを開きました（'+scoreNoteState(target).text+'）。JRA公式未照合。';
+   }catch(e){
+    $('scoreVenueStatus').textContent='会場を移動できません：'+
+     (e instanceof Error?e.message:'保存内容を確認してな。');
+   }
+  };
+  venueGrid.append(button);
+ }
  const mine=today.filter(x=>x.track===selected.track);
  const byRace=new Map(mine.map(x=>[x.race,x]));
  let done=0,partial=0,stale=0;
