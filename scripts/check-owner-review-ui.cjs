@@ -138,7 +138,7 @@ assert.match(ge('reviewDraftStats').children.map(x=>x.textContent).join(' '),/4�
 const nestedText=node=>(node.textContent||'')+' '+(node.children||[]).map(nestedText).join(' ');
 const gradeSummary=nestedText(ge('reviewFactorStats'));
 assert.match(gradeSummary,/有効な本人採点 2R／参考集計外 2R/);
-assert.match(gradeSummary,/1着候補から漏れた勝ち馬の採点 1R／1着候補に含めた勝ち馬の採点 1R/);
+assert.match(gradeSummary,/1着候補から漏れた勝ち馬の採点 1R（総合採点2位以内だった勝ち馬 0R）／1着候補に含めた勝ち馬の採点 1R/);
 assert.match(gradeSummary,/調教/);
 assert.match(gradeSummary,/1着漏れ S:0・A:0・B:1・C:0/);
 assert.match(gradeSummary,/適性/);
