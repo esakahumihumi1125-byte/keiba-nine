@@ -9,7 +9,8 @@ function boot(decision=true,saved={},hash='',researchHandoff=null){
  ]]:[]);
  const store=new Map(Object.entries(saved).map(([k,v])=>[k,JSON.stringify(v)]));
  const NOTE='keiba-nine-owner-factor-notes-v1';
- const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>{if(k!==NOTE)throw Error('Unexpected write: '+k);writes.push(k);store.set(k,v)}};
+ const storageBehavior={failWrites:false};
+ const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>{if(k!==NOTE)throw Error('Unexpected write: '+k);if(storageBehavior.failWrites)throw Error('Storage quota exceeded');writes.push(k);store.set(k,v)}};
  const sessionStorage={getItem:k=>tempStore.get(k)||null,setItem:(k,v)=>{tempWrites.push(k);tempStore.set(k,v)},removeItem:k=>tempStore.delete(k)};
  function element(tag='div'){
   return {tag,value:'',textContent:'',className:'',disabled:false,children:[],
@@ -34,7 +35,7 @@ function boot(decision=true,saved={},hash='',researchHandoff=null){
   confirm:()=>decision,console
  };
  vm.runInNewContext(source,ctx);
- return {el:get,links,alerts,writes,store,cleared,tempStore,tempWrites};
+ return {el:get,links,alerts,writes,store,cleared,tempStore,tempWrites,storageBehavior};
 }
 const fixture=[
  '① 架空馬A S S A A S',
@@ -725,4 +726,39 @@ assert.equal(refused.writes.length,0,'existing manual grades cannot be overwritt
 assert.equal(JSON.parse(refused.store.get(NOTES))[0].text,existingNote.text);
 
 }
+// A failed Safari/localStorage write must never silently erase unsaved
+// factor edits when switching 1R -> 2R, venue or date.
+const quota=boot(),qe=quota.el;
+qe('scoreDate').value='2026-11-07';qe('scoreTrack').value='東京';qe('scoreRace').value='1';
+qe('scoreRace').onchange();
+quota.storageBehavior.failWrites=true;
+qe('scoreInput').value=fixture;qe('scoreInput').oninput();
+assert.match(qe('scoreDraftStatus').textContent,/保存に失敗/);
+assert.equal(quota.store.has(NOTES),false,'storage failure must not create a phantom note');
+qe('scoreRaceGrid').children[1].onclick();
+assert.equal(qe('scoreRace').value,'1','race card blocked until draft persisted');
+assert.equal(qe('scoreInput').value,fixture,'draft text stays visible after failed navigation');
+assert.match(qe('scoreNavigationStatus').textContent,/未保存の評価/);
+qe('scoreTrack').value='京都';qe('scoreTrack').onchange();
+assert.equal(qe('scoreTrack').value,'東京','venue selector must restore previous value');
+qe('scoreDate').value='2026-11-08';qe('scoreDate').onchange();
+assert.equal(qe('scoreDate').value,'2026-11-07','date selector must restore previous value');
+assert.equal(qe('scoreInput').value,fixture);
+quota.storageBehavior.failWrites=false;
+qe('scoreRetryDraft').onclick();
+assert.equal(JSON.parse(quota.store.get(NOTES))[0].text,fixture);
+assert.match(qe('scoreDraftStatus').textContent,/保存しました/);
+qe('scoreRaceGrid').children[1].onclick();
+assert.equal(qe('scoreRace').value,'2','after successful retry next race is available');
+assert.equal(qe('scoreInput').value,'','other race does not inherit previous 1R scores');
+qe('scoreRaceGrid').children[0].onclick();
+assert.equal(qe('scoreInput').value,fixture,'saved 1R scores can be reopened safely');
+// Even without an oninput event, edited DOM text must block navigation.
+qe('scoreInput').value=fixture+' unsaved';
+qe('scoreRace').value='3';qe('scoreRace').onchange();
+assert.equal(qe('scoreRace').value,'1');
+assert.equal(qe('scoreInput').value,fixture+' unsaved');
+assert.equal(JSON.parse(quota.store.get(NOTES))[0].text,fixture);
+console.log('Owner scorecard storage-error retry and unsaved navigation guards PASS');
+
 console.log('Owner manual 5-factor scoring: 36-point ranks, validation, cancel, no-network handoff PASS');
