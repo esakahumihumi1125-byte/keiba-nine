@@ -13,7 +13,7 @@ const payload={
   {horseNumber:3,trainingGrade:'A',recentGrade:'未評価',twoFactorPoints:null,comparisonRank:null,provisionalOnly:true},
  ],warning:'2項目だけの試算、買い目未生成'
 };
-function mock(connected=true,result=payload){
+function mock(connected=true,result=payload,hash=''){
  const nodes=new Map(),fetches=[];
  function element(){
   return {value:'',textContent:'',disabled:false,children:[],onchange:null,onclick:null,
@@ -27,7 +27,7 @@ function mock(connected=true,result=payload){
   return url==='/api/status'?respond({jrdbConfigured:connected}):respond(result);
  };
  vm.runInNewContext(src,{document:{getElementById:el,createElement:element},
-  window:{},Date,JSON,Set,Number,String,Error,URLSearchParams,fetch});
+  window:{location:{hash}},Date,JSON,Set,Number,String,Error,URLSearchParams,fetch});
  return {el,fetches};
 }
 async function tick(){await new Promise(resolve=>setImmediate(resolve));}
@@ -73,6 +73,15 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  await c('trialRun').onclick();await tick();
  assert.match(c('trialStatus').textContent,/検証できません/);
  assert.equal(c('trialRows').children.length,0,'unsafe data not displayed');
+ const jump=mock(true,payload,'#select=v1&date=2026-11-07&track=%E6%9D%B1%E4%BA%AC&race=8');
+ const je=jump.el;await tick();
+ assert.equal(je('trialDate').value,'2026-11-07');
+ assert.equal(je('trialTrack').value,'東京');
+ assert.equal(je('trialRace').value,'8');
+ assert.equal(jump.fetches.length,1,'36R navigation must not automatically fetch JRDB data');
+ const badJump=mock(true,payload,'#select=v1&date=2026-11-07&track=%E6%9D%B1%E4%BA%AC&race=8&token=secret');
+ await tick();
+ assert.equal(badJump.el('trialTrack').value,'','fragment with extra data ignored');
  assert.ok(!src.includes('localStorage'),'never persist provider-derived per-horse data');
  assert.ok(!src.includes('innerHTML'),'no untrusted HTML');
  console.log('JRDB one-race research iPhone pilot: auth readiness, explicit-click, no predictions and no storage PASS');
