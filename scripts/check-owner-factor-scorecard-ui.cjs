@@ -330,6 +330,19 @@ const noComplete=boot(true,{[NOTES]:[dayNotes[2],dayNotes[3]]}),nc=noComplete.el
 nc('scoreDate').value='2026-11-07';nc('scoreDayBuild').onclick();
 assert.equal(nc('scoreDayTransfer').disabled,true);
 assert.match(nc('scoreDayBatchStatus').textContent,/完成したレースはありません/);
+const all36=['福島','東京','京都'].flatMap(track=>
+ Array.from({length:12},(_,i)=>dayNote(track,i+1,fixture)));
+const maxBatch=boot(true,{[NOTES]:all36}),mb=maxBatch.el;
+mb('scoreDate').value='2026-11-07';mb('scoreDayBuild').onclick();
+assert.equal(mb('scoreDayBatchPreview').children.length,36,'three venues times 12 races');
+assert.match(mb('scoreDayBatchStatus').textContent,/36Rの手動採点を一括計算／1296点/);
+assert.equal((mb('scoreDayBatchText').value.match(/^2026-11-07 /gm)||[]).length,36);
+assert.ok(mb('scoreDayBatchText').value.length<25000);
+assert.equal(mb('scoreDayTransfer').disabled,false);
+const overflow=boot(true,{[NOTES]:[...all36,dayNote('中山',1,fixture)]}),ov=overflow.el;
+ov('scoreDate').value='2026-11-07';ov('scoreDayBuild').onclick();
+assert.equal(ov('scoreDayTransfer').disabled,true,'more than 36 must not silently truncate');
+assert.match(ov('scoreDayBatchStatus').textContent,/36Rを超えています/);
 const invalidateBatch=boot(true,{[NOTES]:dayNotes}),ib=invalidateBatch.el;
 ib('scoreDate').value='2026-11-07';ib('scoreDayBuild').onclick();
 ib('scoreDate').value='2026-11-08';ib('scoreDate').onchange();
