@@ -321,9 +321,9 @@ const notEnough=boot(),me=notEnough.el;
 me('scoreDate').value='2026-11-07';me('scoreTrack').value='東京';me('scoreRace').value='1';
 me('scoreInput').value='1 C C C C C\n2 C C C C C\n3 C C C C C';
 me('scoreReview').onclick();
-assert.equal(me('scoreWinnerReview').children[0].children.length,4,'3-runner race offers no rank 4 or 5');
+assert.equal(me('scoreWinnerReview').children[0].children.length,5,'3-runner race offers only rank 3 (plus reset)');
 me('scoreWinnerReview').children[0].children[3].onclick();
-assert.match(me('scoreFormation').textContent,/4点／100円なら400円/,'no padding of short races');
+assert.match(me('scoreFormation').textContent,/6点／100円なら600円/,'3 heads are 6 permutations, not padded to 30');
 assert.match(me('scoreFormation').textContent,/最高評価でも70点未満/);
 
 // The saved 5-factor notes can now be compiled for an entire meeting date,
