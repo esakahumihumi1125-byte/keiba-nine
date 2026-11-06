@@ -21,7 +21,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <option>札幌</option><option>函館</option><option>福島</option><option>新潟</option><option>東京</option><option>中山</option><option>中京</option><option>京都</option><option>阪神</option><option>小倉</option>
 </select>
 <label for="scoreRace">レース（1〜12R）</label><input id="scoreRace" type="number" min="1" max="12" step="1" value="1">
-</div><p id="scoreDayStatus" class="hint" role="status">日付・競馬場を選ぶと12Rの入力状況を表示します。</p><div id="scoreRaceGrid" class="score-race-grid" role="group" aria-label="選択した競馬場の1R〜12R評価メモ"></div><p class="hint">評価状況はこの端末の手入力メモのみ。公式の開催・出走・取消情報を表すものではありません。</p></section>
+</div><p id="scoreDayStatus" class="hint" role="status">日付・競馬場を選ぶと12Rの入力状況を表示します。</p><p id="scoreAllDayStatus" class="hint" role="status">同日の保存済みRを確認します。未登録の開催を36Rと数えません。</p><button type="button" id="scoreNextPending" class="memo-load" disabled>次の未評価・要再確認Rへ</button><p id="scoreNextPendingStatus" class="hint" role="status">採点済みのRを飛ばし、同日に保存された未評価・要再確認Rへ移動します。予想や馬券は自動作成しません。</p><div id="scoreRaceGrid" class="score-race-grid" role="group" aria-label="選択した競馬場の1R〜12R評価メモ"></div><p class="hint">評価状況はこの端末の手入力メモのみ。公式の開催・出走・取消情報を表すものではありません。</p></section>
 <section><h2>② 馬番と5項目の評価を貼る</h2>
 <p class="hint">1頭1行で「馬番　調教　近走　適性　血統　展開」を入力。馬名は省略可。各項目は<b>S・A・B・C</b>。丸数字①〜⑱にも対応。最低3頭、最大18頭。</p>
 <button type="button" id="scoreFromMemo" class="memo-load">本人の馬番・馬名メモから読み込む（採点は空欄）</button>
@@ -326,11 +326,13 @@ function scoreNoteState(note){
 }
 function renderDayGrid(){
  const grid=$('scoreRaceGrid');
+ $('scoreNextPending').disabled=true;
  grid.replaceChildren();
  let selected;
  try{selected=identity();}
  catch(_){
   $('scoreDayStatus').textContent='日付・競馬場・1〜12Rを選んでな。';
+  $('scoreAllDayStatus').textContent='正しい日付と競馬場を選択してな。';
   return;
  }
  let notes;
@@ -338,9 +340,20 @@ function renderDayGrid(){
  catch(e){
   $('scoreDayStatus').textContent='保存済み評価の読み込み不可：'+
    (e instanceof Error?e.message:'端末の記録を確認してな。');
+  $('scoreAllDayStatus').textContent='保存済みの全場の進捗を安全に読み取れません。';
   return;
  }
  const today=notes.filter(x=>x.date===selected.date);
+ const allStates=today.map(x=>scoreNoteState(x).className);
+ const totalDone=allStates.filter(x=>x==='score-done').length;
+ const totalStale=allStates.filter(x=>x==='score-stale').length;
+ const totalPartial=allStates.filter(x=>x==='score-partial').length;
+ $('scoreAllDayStatus').textContent=selected.date+' 全場合計：'+today.length+
+  'R登録／採点済'+totalDone+'R／途中'+totalPartial+
+  'R／要再確認'+totalStale+'R。'+
+  (today.length===36?'36Rの入力枠あり。':'未登録の開催・Rは集計対象外。')+
+  'JRA公式出走・取消未照合。';
+ $('scoreNextPending').disabled=totalPartial+totalStale===0;
  const mine=today.filter(x=>x.track===selected.track);
  const byRace=new Map(mine.map(x=>[x.race,x]));
  let done=0,partial=0,stale=0;
@@ -365,6 +378,41 @@ function renderDayGrid(){
   'R／未着手'+(12-done-partial-stale)+'R。'+
   '同日の全会場の保存メモ'+today.length+'R（公式出走表は未照合）。';
 }
+$('scoreNextPending').onclick=()=>{
+ try{
+  const selected=identity(),all=notesRead();
+  const today=all.filter(x=>x.date===selected.date);
+  const current=all.find(x=>noteKey(x)===noteKey(selected));
+  // Prevent navigation from silently losing unsaved textarea changes.
+  // Stale source notes intentionally cannot be restored into the editor.
+  if((!current||scoreNoteState(current).className!=='score-stale')&&
+    $('scoreInput').value!==(current?.text||'')){
+   $('scoreNextPendingStatus').textContent='このRの入力が保存済みメモと違います。現在の評価を確認してから移動してな。';
+   return;
+  }
+  const candidates=today.filter(x=>{
+   const state=scoreNoteState(x).className;
+   return state==='score-partial'||state==='score-stale';
+  }).sort((a,b)=>a.race-b.race||
+     [...TRACKS].indexOf(a.track)-[...TRACKS].indexOf(b.track));
+  if(!candidates.length){
+   $('scoreNextPendingStatus').textContent='選択日の保存済みRに未評価・要再確認はありません（未登録Rは含みません）。';
+   renderDayGrid();return;
+  }
+  const currentIndex=candidates.findIndex(x=>noteKey(x)===noteKey(selected));
+  const next=candidates[(currentIndex+1)%candidates.length];
+  const currentKey=noteKey(selected);
+  if(noteKey(next)!==currentKey){
+   $('scoreTrack').value=next.track;$('scoreRace').value=String(next.race);
+   changeScoreRace();
+  }
+  $('scoreNextPendingStatus').textContent=selected.date+' '+next.track+next.race+
+   'Rへ移動。'+scoreNoteState(next).text+'。前日資料に基づく手動評価で、公式出走・取消は未照合。';
+ }catch(e){
+  $('scoreNextPendingStatus').textContent='次のRを開けません：'+
+   (e instanceof Error?e.message:'保存内容を確認してな。');
+ }
+};
 function changeScoreRace(){
  resetMemoGrid();researchSource=null;invalidate();restoreCurrentNote();renderDayGrid();
  $('scoreMemoStatus').textContent='本人の馬番メモは必要なら読み込み直してな。';
