@@ -15,6 +15,22 @@ class JRDBError(RuntimeError):
     """Safe error without response bodies, data, or credential-bearing URLs."""
 
 
+# Only provider-published HTTPS origins may receive member credentials.
+# The existing dev origin stays default until JRDB issues a beta account.
+ALLOWED_API_BASES = frozenset({
+    "https://dev.api.bigtime.world/v1",
+    "https://api.bigtime.world/v1",
+})
+
+
+def _api_base_url():
+    raw = os.environ.get("JRDB_API_BASE_URL", "").strip()
+    base = raw or "https://dev.api.bigtime.world/v1"
+    if base not in ALLOWED_API_BASES:
+        raise JRDBError("Unapproved JRDB API endpoint configuration")
+    return base
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -49,13 +65,16 @@ def _fetch_endpoint(endpoint, parameters):
             datetime.datetime.strptime(racedate, "%Y%m%d")
         except ValueError:
             raise JRDBError("Invalid calendar date") from None
+    # Check endpoint before reading credentials or constructing the request.
+    api_base = _api_base_url()
     api_key = os.environ.get("JRDB_API_KEY", "").strip()
     auth_key = os.environ.get("JRDB_AUTH_KEY", "").strip()
     if not api_key or not auth_key:
         raise JRDBError("JRDB credentials are not configured")
-    if any(ord(c) < 32 or ord(c) > 126 for c in auth_key):
+    if (any(ord(c) < 33 or ord(c) > 126 for c in auth_key)
+            or any(ord(c) < 33 or ord(c) > 126 for c in api_key)):
         raise JRDBError("Invalid credential format")
-    url = "https://dev.api.bigtime.world/v1/" + endpoint + "?" + urllib.parse.urlencode({"api_key": api_key})
+    url = api_base + "/" + endpoint + "?" + urllib.parse.urlencode({"api_key": api_key})
     request = urllib.request.Request(url, data=json.dumps(parameters).encode(),
         headers={"Content-Type": "application/json", "x-user-key": auth_key}, method="POST")
     try:
@@ -70,11 +89,27 @@ def _fetch_endpoint(endpoint, parameters):
         raise JRDBError("JRDB request failed (HTTP %s)" % status) from None
     except (OSError, ValueError, urllib.error.URLError):
         raise JRDBError("JRDB request or response failed") from None
-    if not isinstance(payload, dict) or payload.get("success") is False:
+    if not isinstance(payload, dict):
         raise JRDBError("JRDB returned an unsuccessful response")
     result = payload.get("result")
-    rows = result.get("data") if isinstance(result, dict) else None
-    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+    # The provider's published β schema uses result.status=success/error;
+    # earlier beta mocks use success=true/false. Reject either error signal.
+    if (payload.get("success") is False or
+            not isinstance(result, dict) or
+            result.get("status") not in (None, "success") or
+            payload.get("success") not in (None, True)):
+        raise JRDBError("JRDB returned an unsuccessful response")
+    # When present, the server's request echo must match the exact request
+    # issued, preventing a stale/cross-date response from being accepted.
+    echoed = payload.get("request")
+    if echoed is not None:
+        if (not isinstance(echoed, dict) or
+                any(key in echoed and echoed[key] != value
+                    for key, value in parameters.items())):
+            raise JRDBError("JRDB returned a different race request")
+    rows = result.get("data")
+    if (not isinstance(rows, list) or len(rows) > 50000
+            or not all(isinstance(row, dict) for row in rows)):
         raise JRDBError("Unexpected JRDB response format")
     return rows
 
