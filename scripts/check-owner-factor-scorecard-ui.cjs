@@ -591,6 +591,25 @@ uf('scoreDate').value='2026-11-07';
 uf('scoreTrack').value='東京';uf('scoreRace').value='1';uf('scoreRace').onchange();
 assert.match(uf('scoreAllDayStatus').textContent,/36R登録／採点済0R／途中36R／要再確認0R/);
 assert.equal(uf('scoreNextPending').disabled,false);
+assert.equal(uf('scoreVenueGrid').children.length,3,'three venue cards for saved 36R only');
+assert.ok(uf('scoreVenueGrid').children.some(x=>/東京.*12\/12R｜採点済0・途中12/.test(x.textContent)),
+ 'Tokyo venue card reports 12 incomplete notes');
+assert.ok(uf('scoreVenueGrid').children.some(x=>/京都.*12\/12R｜採点済0・途中12/.test(x.textContent)),
+ 'Kyoto venue card reports 12 incomplete notes');
+const venueWrites=unfinished.writes.length;
+uf('scoreVenueGrid').children.find(x=>x.textContent.startsWith('京都')).onclick();
+assert.equal(uf('scoreTrack').value,'京都','venue tap jumps across tracks');
+assert.equal(uf('scoreRace').value,'1','venue tap opens first unfinished R');
+assert.equal(unfinished.writes.length,venueWrites,'venue tap cannot change stored scores or tickets');
+assert.match(uf('scoreVenueStatus').textContent,/京都1Rを開きました/);
+const venueOld=uf('scoreTrack').value+'|'+uf('scoreRace').value;
+uf('scoreInput').value+=' not saved';
+uf('scoreVenueGrid').children.find(x=>x.textContent.startsWith('福島')).onclick();
+assert.equal(uf('scoreTrack').value+'|'+uf('scoreRace').value,venueOld,
+ 'venue switching blocks unsaved input');
+assert.match(uf('scoreVenueStatus').textContent,/移動せず入力を確認/);
+uf('scoreRace').onchange(); // Restore stored text for next button tests.
+
 const beforeNextWrites=unfinished.writes.length;
 const initial=uf('scoreTrack').value+'|'+uf('scoreRace').value;
 uf('scoreNextPending').onclick();
@@ -630,6 +649,7 @@ ae('scoreDate').value='2026-11-07';ae('scoreTrack').value='東京';ae('scoreRace
 assert.match(ae('scoreAllDayStatus').textContent,/0R登録/);
 assert.match(ae('scoreAllDayStatus').textContent,/未登録の開催・Rは集計対象外/);
 assert.equal(ae('scoreNextPending').disabled,true);
+assert.equal(ae('scoreVenueGrid').children.length,0,'unknown venues must not appear as 0/12 completed');
 
 const existingNote={date:'2026-11-07',track:'東京',race:1,
  text:'1 以前の評価 S A A A A\n2 別の評価 A A A A A\n3 既存の記録 B B B B B',
