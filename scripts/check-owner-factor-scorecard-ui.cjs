@@ -579,6 +579,26 @@ assert.match(se('scoreInput').value,/架空サクラ4 \? \? \? \? \?/);
 assert.equal(se('scoreMemoGrid').children.length,3);
 assert.equal(se('scoreHandoff').disabled,true);
 const preNotes=JSON.parse(single.store.get(NOTES));
+// Users can type all five grades directly into the textarea without losing
+// the original pre-day provenance or silently breaking the saved-note schema.
+const rawBeforeScore=se('scoreInput').value;
+se('scoreInput').value=rawBeforeScore.replaceAll(' ? ? ? ? ?',' S A A B S');
+se('scoreInput').oninput();
+const withEnteredGrades=JSON.parse(single.store.get(NOTES));
+assert.equal(withEnteredGrades[0].researchSource,'jrdb-preday-roster-v1');
+assert.equal(typeof withEnteredGrades[0].predaySourceMark,'string');
+se('scoreReview').onclick();
+assert.equal(se('scoreHandoff').disabled,false,'manually completed grades may produce review-only formation');
+assert.match(se('scoreStatus').textContent,/JRDB前日資料の仮馬番/);
+se('scoreInput').value=se('scoreInput').value.replace('架空サクラ4','架空馬名変更');
+se('scoreInput').oninput();
+se('scoreReview').onclick();
+assert.equal(se('scoreHandoff').disabled,true,'renamed provider horse cannot be ranked using stale source');
+assert.match(se('scoreStatus').textContent,/計算できません.*馬番・馬名/);
+const afterBadRaw=JSON.parse(single.store.get(NOTES));
+assert.equal(afterBadRaw[0].researchSource,'jrdb-preday-roster-v1','tampering never strips source provenance');
+assert.equal(afterBadRaw[0].predaySourceMark,withEnteredGrades[0].predaySourceMark);
+
 assert.equal(preNotes.length,1);
 assert.equal(preNotes[0].predaySourceMark,JSON.stringify([
  predayMeetings[2].races[3].postTime,
