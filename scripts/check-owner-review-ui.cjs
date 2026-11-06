@@ -135,7 +135,8 @@ const noteRows=[
 const gradeData={...fixture(),[SCORE]:noteRows,[MAIL]:[],[MEMO]:[]};
 const grading=boot(gradeData),ge=grading.el;
 assert.match(ge('reviewDraftStats').children.map(x=>x.textContent).join(' '),/4件／6件/);
-const gradeSummary=ge('reviewFactorStats').children.map(x=>x.textContent).join('\n');
+const nestedText=node=>(node.textContent||'')+' '+(node.children||[]).map(nestedText).join(' ');
+const gradeSummary=nestedText(ge('reviewFactorStats'));
 assert.match(gradeSummary,/有効な本人採点 2R／参考集計外 2R/);
 assert.match(gradeSummary,/1着候補から漏れた勝ち馬の採点 1R／1着候補に含めた勝ち馬の採点 1R/);
 assert.match(gradeSummary,/調教/);
