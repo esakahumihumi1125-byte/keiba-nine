@@ -13,8 +13,9 @@ const payload={
   {horseNumber:3,trainingGrade:'A',recentGrade:'未評価',twoFactorPoints:null,comparisonRank:null,provisionalOnly:true},
  ],warning:'2項目だけの試算、買い目未生成'
 };
-function mock(connected=true,result=payload,hash=''){
+function mock(connected=true,result=payload,hash='',deferTrial=false){
  const nodes=new Map(),fetches=[],navigations=[],stored=new Map();
+ let resumeTrial=null;
  const sessionStorage={getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),removeItem:k=>stored.delete(k)};
  function element(){
   return {value:'',textContent:'',disabled:false,children:[],onchange:null,onclick:null,
@@ -25,12 +26,14 @@ function mock(connected=true,result=payload,hash=''){
  const respond=(data,ok=true)=>({ok,json:async()=>data});
  const fetch=async(url,opts)=>{
   fetches.push([url,opts]);
-  return url==='/api/status'?respond({jrdbConfigured:connected}):respond(result);
+  if(url==='/api/status')return respond({jrdbConfigured:connected});
+  if(deferTrial)return new Promise(resolve=>{resumeTrial=()=>resolve(respond(result));});
+  return respond(result);
  };
  vm.runInNewContext(src,{document:{getElementById:el,createElement:element},
   window:{location:{hash,assign:url=>navigations.push(url)}},
   sessionStorage,confirm:()=>true,Date,JSON,Set,Number,String,Error,URLSearchParams,fetch});
- return {el,fetches,navigations,stored};
+ return {el,fetches,navigations,stored,finish:()=>{if(!resumeTrial)throw Error('No pending trial');resumeTrial();}};
 }
 async function tick(){await new Promise(resolve=>setImmediate(resolve));}
 (async()=>{
