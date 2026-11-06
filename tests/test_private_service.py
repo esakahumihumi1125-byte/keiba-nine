@@ -763,6 +763,20 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertFalse(setup['liveConnectionVerified'])
         fetch.assert_not_called()
 
+    def test_preview_service_cannot_accidentally_enable_licensed_api(self):
+        cfg = {**SETTINGS, 'KEIBA_RENDER_PREVIEW_ONLY': '1',
+               'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'test-only',
+               'JRDB_AUTH_KEY': 'test-only'}
+        with patch('private_service.fetch_race_program') as fetch, \
+             self.assertRaisesRegex(ValueError, 'Render preview mode'):
+            create_app(cfg)
+        fetch.assert_not_called()
+        safe = create_app({**SETTINGS, 'KEIBA_RENDER_PREVIEW_ONLY': '1',
+                           'JRDB_PRIVATE_ENABLED': '0'})
+        response = call(safe, '/api/setup')
+        self.assertFalse(json.loads(response['body'])['jrdbConfigured'])
+
     def test_owner_only_one_request_connection_check_no_data_returned(self):
         cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
                'JRDB_API_KEY': 'synthetic-app-key',
