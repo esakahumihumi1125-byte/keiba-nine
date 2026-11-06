@@ -271,7 +271,7 @@ function readPredayRace(choice){
  for(const h of race.runners){
   if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
      typeof h.name!=='string'||!h.name||h.name.length>35||
-     !/^[^\s<>]+$/.test(h.name)||!['逃','先','差','追'].includes(h.style)||
+     !/^[^\s<>]+$/.test(h.name)||!['逃','先','差','追','未確認'].includes(h.style)||
      used.has(h.number)||names.has(h.name))
    throw Error('前日情報の馬番・馬名・脚質が不正です。');
   used.add(h.number);names.add(h.name);
