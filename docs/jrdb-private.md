@@ -84,3 +84,16 @@ https://jrdb-api.keiba.bigtime.world/docs/authentication
 β版接続後、本人用の `/tra` 番組読み込みは、racekeyの完全一致の重複だけでなく、**競馬場＋R番号が同一なのにracekeyが異なる**曖昧な番組もエラーで停止する。提供元の `racecourse_cd` がある場合は `racekey` の競馬場コードとの一致を必須とする。両者が矛盾したまま36Rに数えたり、馬別調教・近走を別の開催へ誤結合しないための事前安全策である。
 
 `racecourse_cd` がない旧β版レスポンスは引き続き受け入れる。実際のJRDB β版キーを使ったライブ照合は未実行で、独立したJRA公式の出走・取消確認や実戦予想が完了したという意味ではない。合成データのPython回帰テストで同一競馬場の複数R・コード相違・同一R二重掲載・新潟直線を確認。
+
+## 2026-11-06: 公開β版ドキュメントの応答形式差異を安全に吸収
+
+JRDB公式の `/docs/request-response` は `result.status="success"` と `request.racedate` を記載する一方、`/docs/endpoints/today/tra` は `result.status=200`（整数）・`request.parameters.racedate` を例示している。2026-11-06時点で公開資料に差があるため、**専用キーで実通信を検証するまでは形式を1種類に決め打ちしない**。本人専用 `jrdb_private.py` は文字列 `"success"` と整数 `200` のみを成功とみなし、旧合成テストのトップレベル `success=true`・statusなしも保守的に許容する。失敗コード、明示エラー、未指定の成功条件は拒否する。
+
+レスポンスにリクエストエコーがあれば、直下と `request.parameters` の両形式で実際に送った日付・レースキーが一致することを確認する。返答に `endpoint_uri` または `result_count` があれば、要求したAPIと返却配列に一致しなければ停止する。公開GitHubやPagesへのデータ保存はしない。実データは未受信。
+
+なお、`/docs/fields` の `turn_cd` は直線コード3、`/docs/endpoints/today/tra` は直線コード9と記載されているため、どちらも暫定的に直線として受け入れる。ベータの実応答を確認できたら正式な値に確定する。**確認したのはデータ形式への対応であり、直線適性・勝率・自動3連単の完成ではない。**
+
+参照：
+- https://jrdb-api.keiba.bigtime.world/docs/request-response
+- https://jrdb-api.keiba.bigtime.world/docs/endpoints/today/tra
+- https://jrdb-api.keiba.bigtime.world/docs/fields
