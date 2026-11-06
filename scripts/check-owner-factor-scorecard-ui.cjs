@@ -478,6 +478,7 @@ const researchNote=JSON.parse(research.store.get(NOTES));
 assert.equal(researchNote.length,1,'consented incomplete draft is saved only to score notes');
 assert.match(researchNote[0].text,/1  S A \? \? \?/);
 assert.equal(researchNote[0].sourceMark,null);
+assert.equal(researchNote[0].researchSource,'jrdb-two-factor-research-v1','unverified research provenance persists in note');
 assert.ok(research.writes.every(k=>k===NOTES),'never write actual ticket or purchased ledgers');
 assert.equal(research.links.length,0);
 const afterResearch=boot(true,{[NOTES]:researchNote}),ar=afterResearch.el;
@@ -490,6 +491,7 @@ assert.equal(ar('scoreMemoGrid').children[0].children[1].children[1].children[0]
 assert.equal(ar('scoreMemoGrid').children[0].children[1].children[2].children[0].value,'');
 assert.match(ar('scoreInput').value,/\? \? \?/);
 assert.equal(ar('scoreHandoff').disabled,true);
+assert.match(ar('scoreDraftStatus').textContent,/JRDB研究用の未検証2項目/);
 
 for(const [title,bad] of [
  ['injected names',{...researchPayload,runners:[{...researchPayload.runners[0],name:'SECRET'},...researchPayload.runners.slice(1)]}],
@@ -506,6 +508,13 @@ for(const [title,bad] of [
  assert.match(q('scoreMemoStatus').textContent,/受け取れません/,title+' must explain refusal');
  assert.equal(x.tempStore.size,0,title+' must delete one-time data');
 }
+const badResearchTag=boot(true,{[NOTES]:[{
+ ...researchNote[0],researchSource:'fake-published-verified'
+}]}),br=badResearchTag.el;
+br('scoreDate').value='2026-11-07';br('scoreTrack').value='東京';
+br('scoreRace').value='6';br('scoreRace').onchange();
+assert.match(br('scoreDraftStatus').textContent,/復元できません/,'unknown research status rejected');
+assert.equal(br('scoreInput').value,'');
 const savedResearch={
  date:'2026-11-07',track:'東京',race:6,
  text:'1 C C C C C\n2 C C C C C\n3 C C C C C',
