@@ -981,6 +981,11 @@ def create_app(settings=None):
     # Codespaces synthetic previews intentionally use this exception but disable JRDB.
     if settings.get("KEIBA_ALLOW_LOCAL_HTTP") == "1" and settings.get("JRDB_PRIVATE_ENABLED") == "1":
         raise ValueError("Private JRDB integration requires HTTPS-only service mode")
+    # The public-repo Render free preview is not a licensed data vault.
+    # Operator must explicitly provision a vetted owner-only live service.
+    if (settings.get("KEIBA_RENDER_PREVIEW_ONLY") == "1"
+            and settings.get("JRDB_PRIVATE_ENABLED") == "1"):
+        raise ValueError("JRDB integration is prohibited in Render preview mode")
     expected = hashlib.sha256((username + ':' + password).encode()).digest()
     raw_sha = settings.get('RENDER_GIT_COMMIT', '')
     release_sha = raw_sha[:12] if isinstance(raw_sha, str) and re.fullmatch(
