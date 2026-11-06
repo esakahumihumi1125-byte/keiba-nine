@@ -46,8 +46,9 @@ const NUMBERS='keiba-nine-owner-manual-numbers-v1';
 const SCORES='keiba-nine-owner-factor-notes-v1';
 const DRAFTS='keiba-nine-owner-ticket-drafts-v1';
 const PURCHASES='keiba-nine-owner-real-purchases-v1';
+const PREDAY='keiba-nine-jrdb-preday-runners-v1';
 const TRACKS=['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'];
-const KEYS=[MAIL,NUMBERS,SCORES,DRAFTS,PURCHASES],LIMITS=[48,576,300,300,500];
+const KEYS=[MAIL,NUMBERS,SCORES,DRAFTS,PURCHASES,PREDAY],LIMITS=[48,576,300,300,500,48];
 const MAX_RACES=36;
 let current=null,additions=new Set(),onlyActions=false;
 function jstDate(){
@@ -69,6 +70,8 @@ function readData(){
    throw Error('端末内の保存データを確認してください（'+(i+1)+'番目）。');
   result[k]=value;
  }
+ if(!validPredayMeetings(result[PREDAY]))
+  throw Error('JRDB前日情報の件数・馬番・脚質・重複を確認できません。');
  if(!result[PURCHASES].every(validPurchaseRecord)||
     new Set(result[PURCHASES].map(x=>x.id)).size!==result[PURCHASES].length)
   throw Error('購入記録に金額・買い目の不整合かID重複があります。データを保護するため集計を停止しました。');
@@ -76,6 +79,49 @@ function readData(){
 }
 function meetingFor(data,date,track){
  return data[MAIL].find(x=>x.kind==='jrdb-provisional'&&x.date===date&&x.track===track);
+}
+function validPredayMeetings(rows){
+ if(!Array.isArray(rows)||rows.length>48||
+    new Set(rows.map(x=>x.date+'|'+x.track)).size!==rows.length)return false;
+ return rows.every(m=>{
+  if(m.kind!=='jrdb-preday-provisional'||!validDate(m.date)||
+     !TRACKS.includes(m.track)||!Array.isArray(m.races)||
+     m.races.length<1||m.races.length>12||
+     new Set(m.races.map(x=>x?.race)).size!==m.races.length)return false;
+  return m.races.every(r=>{
+   if(!r||!Number.isInteger(r.race)||r.race<1||r.race>12||
+      typeof r.postTime!=='string'||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(r.postTime)||
+      !Number.isInteger(r.expected)||r.expected<3||r.expected>18||
+      !Array.isArray(r.runners)||r.runners.length!==r.expected)return false;
+   const nums=new Set(),names=new Set();
+   return r.runners.every(h=>{
+    if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
+       typeof h.name!=='string'||h.name.length<1||h.name.length>35||
+       !/^[^\\s<>]+$/.test(h.name)||!['逃','先','差','追','未確認'].includes(h.style)||
+       nums.has(h.number)||names.has(h.name))return false;
+    nums.add(h.number);names.add(h.name);return true;
+   });
+  });
+ });
+}
+function predayRace(data,date,track,race){
+ const meeting=data[PREDAY].find(x=>x.date===date&&x.track===track);
+ return meeting&&meeting.races.find(x=>x.race===race);
+}
+function predayNoteMatches(note,race){
+ if(!note?.predaySourceMark||!race)return false;
+ if(note.predaySourceMark!==JSON.stringify([race.postTime,race.expected,race.runners]))
+  return false;
+ if(typeof note.text!=='string')return false;
+ const lines=note.text.split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean);
+ if(lines.length!==race.expected)return false;
+ const seen=new Map();
+ for(const line of lines){
+  const m=/^([1-9]|1[0-8])\\s+([^\\s<>]+)\\s+(?:[SABC?]\\s+){4}[SABC?]$/.exec(line);
+  if(!m||seen.has(+m[1]))return false;
+  seen.set(+m[1],m[2]);
+ }
+ return race.runners.every(h=>seen.get(h.number)===h.name);
 }
 function nameMemoMatches(memo,source){
  if(!memo||!source||!Array.isArray(source.horses)||
@@ -150,6 +196,7 @@ function summarizePurchases(data,date){
 function raceStatus(data,date,track,race){
  const m=meetingFor(data,date,track);
  const source=m&&Array.isArray(m.races)&&m.races.find(x=>x.race===race);
+ const preday=predayRace(data,date,track,race);
  const memo=data[NUMBERS].find(x=>x.date===date&&x.track===track&&x.race===race);
  const note=data[SCORES].find(x=>x.date===date&&x.track===track&&x.race===race);
  const ticket=data[DRAFTS].find(x=>x.date===date&&x.track===track&&x.race===race);
@@ -158,17 +205,25 @@ function raceStatus(data,date,track,race){
  const reviewed=actual.filter(x=>validFinish(x.result));
  const reviewPending=actual.filter(x=>x.payout!==null&&!validFinish(x.result));
  const matching=nameMemoMatches(memo,source);
- const stale=!!(memo&&!matching)||!!(note&&note.sourceMark!==null&&note.sourceMark!==undefined&&
-   (!matching||note.sourceMark!==memo.sourceMark));
- const graded=scoreCompleted(note)&&(!note.sourceMark||matching)&&!stale;
+ const predayStale=!!(note&&
+   (note.predaySourceMark||note.researchSource==='jrdb-preday-roster-v1')&&
+   !predayNoteMatches(note,preday));
+ const stale=predayStale||!!(memo&&!matching)||
+   !!(note&&note.sourceMark!==null&&note.sourceMark!==undefined&&
+      (!matching||!memo||note.sourceMark!==memo.sourceMark));
+ const graded=scoreCompleted(note)&&(!note.sourceMark||matching)&&
+   (!note?.predaySourceMark||predayNoteMatches(note,preday))&&
+   !predayStale&&!stale;
  const points=draftPoints(ticket),hasTicket=!!ticket&&points>0;
  const state=stale?'stale':unsettled.length?'pending':actual.length?'actual':hasTicket?'draft':graded?'graded':note?'partial':
-   matching?'roster':source?'mail':'empty';
+   matching?'roster':preday?'preday':source?'mail':'empty';
  const labels={stale:'資料再確認',pending:'払戻入力待ち',actual:'購入記録',draft:'3連単下書',graded:'採点入力済',
-  partial:'評価途中',roster:'馬番メモ',mail:'JRDB想定',empty:'未取込'};
- return {state,label:labels[state],source:!!source,matching,hasMemo:!!memo,
-  hasScore:!!note,graded,stale,points,actual:actual.length,pending:unsettled.length,
-  reviewed:reviewed.length,reviewPending:reviewPending.length,post:source&&source.postTime};
+  partial:'評価途中',roster:'馬番メモ',preday:'前日馬番',mail:'JRDB想定',empty:'未取込'};
+ return {state,label:labels[state],source:!!source,preday:!!preday,
+  predayStale,matching,hasMemo:!!memo,hasScore:!!note,graded,stale,points,
+  actual:actual.length,pending:unsettled.length,
+  reviewed:reviewed.length,reviewPending:reviewPending.length,
+  post:preday?.postTime||(source&&source.postTime)};
 }
 function tracksFor(data,date){
  const tracks=new Set(additions);
@@ -193,6 +248,7 @@ function create(tag,text){
 }
 function statusText(s){
  return [
+  s.preday?'JRDB前日情報：馬番・脚質の仮登録あり（JRA公式照合ではない）':'JRDB前日情報：未取込',
   s.source?'JRDB想定確定メール：登録あり（JRA公式照合ではない）':'JRDB想定確定メール：未取込',
   s.matching?'馬番・馬名メモ：想定メールと一致（本人転記）':s.hasMemo?'馬番メモ：元資料との不一致・再確認':'馬番メモ：未登録',
   s.hasScore?s.stale?'5項目評価：元資料を再確認':s.graded?'5項目評価：本人入力が全項目完了':'5項目評価：保存途中':'5項目評価：未入力',
@@ -203,13 +259,16 @@ function statusText(s){
 
 function nextAction(s){
  // Requires real locally stored progress, never invents a race or predicts a winner.
- if(s.stale)return {priority:0,label:'資料が不一致・再確認',link:'/jrdb-mail-local',cta:'馬番メモを確認'};
+ if(s.stale)return s.predayStale?
+  {priority:0,label:'前日馬番・評価の元資料を再確認',link:'/jrdb-mail-local#predayPanel',cta:'前日情報を再確認'}:
+  {priority:0,label:'資料が不一致・再確認',link:'/jrdb-mail-local',cta:'馬番メモを確認'};
  if(s.pending>0)return {priority:1,label:'払戻未確定 '+s.pending+'件',link:'/my-tickets',cta:'払戻を入力'};
  if(s.reviewPending>0)return {priority:1.5,label:'着順の振り返り未入力 '+s.reviewPending+'件',link:'/my-tickets',cta:'着順を記録'};
  if(s.actual>0)return null;
  if(s.graded&&!s.points)return {priority:2,label:'評価入力済・買い目未作成',link:'/my-tickets',cta:'3連単を作る'};
  if(s.hasScore&&!s.graded&&!s.points)return {priority:3,label:'手動評価の入力途中',link:'/my-scorecard',cta:'評価を続ける'};
  if(s.matching&&!s.hasScore&&!s.points)return {priority:4,label:'馬番メモあり・評価未入力',link:'/my-scorecard',cta:'評価を始める'};
+ if(s.preday&&!s.hasScore&&!s.points)return {priority:4.5,label:'前日馬番あり・未評価',link:'/my-scorecard',cta:'馬番を評価に取り込む'};
  if(s.source&&!s.matching&&!s.hasScore&&!s.points)return {priority:5,label:'想定メールあり・馬番未照合',link:'/jrdb-mail-local',cta:'馬番を照合'};
  if(s.points>0&&!s.actual)return {priority:6,label:'3連単下書きあり・購入記録なし',link:'/my-tickets',cta:'下書きを確認'};
  return null;
@@ -227,7 +286,7 @@ function renderNextQueue(items,date){
   const name=create('strong',item.track+item.race+'R｜'+item.action.label);
   const explanation=create('p','端末内の資料から判断。JRA出走確定・取消・公式時刻は別途確認。');
   const link=create('a',item.action.cta);
-  link.href=item.action.link==='/jrdb-mail-local'?item.action.link:
+  link.href=item.action.link.startsWith('/jrdb-mail-local')?item.action.link:
    jumpUrl(item.action.link,date,item.track,item.race);
   div.append(name,link,explanation);root.append(div);
  }
@@ -250,7 +309,7 @@ function render(){
    $('workSummary').textContent='表示0R';
    return;
   }
-  let rows=0,countMail=0,countMemo=0,countGrade=0,countTicket=0,countActual=0,stale=0,reviewQueue=0;
+  let rows=0,countMail=0,countPreday=0,countMemo=0,countGrade=0,countTicket=0,countActual=0,stale=0,reviewQueue=0;
   const nextItems=[];
   for(const venue of venues){
    const section=create('section');section.className='venue';
@@ -263,7 +322,7 @@ function render(){
     const s=raceStatus(data,date,venue,race);
     const action=nextAction(s);
     if(action)nextItems.push({track:venue,race,action});
-    countMail+=Number(s.source);countMemo+=Number(s.matching);
+    countMail+=Number(s.source);countPreday+=Number(s.preday);countMemo+=Number(s.matching);
     countGrade+=Number(s.graded);countTicket+=Number(s.points>0);
     countActual+=Number(s.actual>0);stale+=Number(s.stale);
     reviewQueue+=Number(s.reviewPending>0);
@@ -278,7 +337,7 @@ function render(){
      tile.setAttribute('aria-pressed','true');detail.replaceChildren();
      detail.append(create('strong',date+' '+venue+race+'R｜'+s.label),
       create('p',statusText(s)),
-      create('p','想定メールの発走情報：'+(s.post||'未取込')+'。公式発走時刻ではありません。'));
+      create('p',(s.preday?'JRDB前日情報の発走予定：':'想定メールの発走情報：')+(s.post||'未取込')+'。公式発走時刻ではありません。'));
      if(s.stale)detail.append(create('p','元の資料に差異があります。馬番メモと評価を再確認してください。'));
      const actions=create('div');actions.className='actions';
      for(const [label,path] of [['評価する','/my-scorecard'],['3連単を作る','/my-tickets'],['調教・近走の試算','/owner-auto-trial']]){
@@ -292,7 +351,7 @@ function render(){
    $('workMeetings').append(section);
   }
   renderNextQueue(nextItems,date);
-  $('workSummary').textContent=rows+'R表示／JRDB想定'+countMail+'R／馬番メモ一致'+countMemo+
+  $('workSummary').textContent=rows+'R表示／JRDB前日'+countPreday+'R／JRDB想定'+countMail+'R／馬番メモ一致'+countMemo+
    'R／評価入力完了'+countGrade+'R／3連単下書き'+countTicket+'R／実購入記録'+countActual+
    'R／着順メモ未入力'+reviewQueue+'R／元資料要再確認'+stale+'R';
   $('workStatus').textContent=date+'：'+venues.join('・')+
