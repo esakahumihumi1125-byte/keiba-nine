@@ -105,6 +105,47 @@ def validate_owner_forecast(value):
     }
 
 
+def _expand_compact_owner_snapshot(data):
+    """Rebuild only editorial pick fields from compact 3x12R env data.
+
+    In preview mode no provider rows/indices or source headlines are stored.
+    Race/track identity is positional and validated for exactly 36 entries.
+    """
+    if (not isinstance(data, dict)
+            or data.get("format") != "owner-compact-36r-v1"
+            or not _safe_date(data.get("date"))
+            or not isinstance(data.get("races"), list)
+            or len(data["races"]) != 36):
+        return data
+    out = []
+    for index, packed in enumerate(data["races"]):
+        if (not isinstance(packed, list) or len(packed) != 9):
+            raise OwnerForecastError("Invalid compact owner record")
+        time, course, field, rank, a, b, c, confidence, names = packed
+        if (type(a) is not int or type(b) is not int or
+                type(c) is not int or type(confidence) is not int or
+                not isinstance(rank, list)):
+            raise OwnerForecastError("Invalid compact owner formation")
+        first, second, third = rank[:a], rank[:b], rank[:c]
+        tickets = {(x, y, z) for x in first for y in second for z in third
+                   if x != y and x != z and y != z}
+        out.append({
+            "track": ("東京", "京都", "福島")[index // 12],
+            "race": index % 12 + 1,
+            "time": time, "course": course, "field": field,
+            "rank": rank, "first": first, "second": second, "third": third,
+            "confidence": confidence,
+            "points": len(tickets),
+            "status": "見送り" if confidence <= 2 else "買い候補",
+            "headNames": names,
+            "note": "前日資料による参考候補。調教・血統の全頭確認と当日の取消・馬場照合は未完了。",
+            "provisional": True,
+            "jraOfficialConfirmed": False,
+            "fullFactorVerified": False,
+        })
+    return {"schema": SCHEMA, "date": data["date"], "races": out}
+
+
 def decode_forecast(value):
     if not isinstance(value, str) or not 1 <= len(value) <= MAX_COMPRESSED or not re.fullmatch(r"[A-Za-z0-9_-]+={0,2}", value):
         raise OwnerForecastError("No valid owner forecast configured")
@@ -116,6 +157,6 @@ def decode_forecast(value):
         if (len(text) > MAX_DOCUMENT or not decompress.eof or
                 decompress.unconsumed_tail or decompress.unused_data):
             raise OwnerForecastError("Compressed owner forecast is invalid")
-        return validate_owner_forecast(json.loads(text.decode("utf-8")))
+        return validate_owner_forecast(_expand_compact_owner_snapshot(json.loads(text.decode("utf-8"))))
     except (ValueError, UnicodeDecodeError, zlib.error) as exc:
         raise OwnerForecastError("Private forecast failed validation") from exc
