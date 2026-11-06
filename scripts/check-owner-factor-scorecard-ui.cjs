@@ -584,6 +584,53 @@ for(const malformed of [seedHash.replace('day-v1','invalid'),seedHash+'&seed=day
  assert.match(invalidLink.el('scoreStatus').textContent,/受け取れませんでした/);
 }
 
+// Full-day owner navigation must never confuse 36 saved entry placeholders with
+// 36 completed real AI predictions. It only selects incomplete saved notes.
+const unfinished=boot(true,{[PREDAY]:predayMeetings,[NOTES]:seeded}),uf=unfinished.el;
+uf('scoreDate').value='2026-11-07';
+uf('scoreTrack').value='東京';uf('scoreRace').value='1';uf('scoreRace').onchange();
+assert.match(uf('scoreAllDayStatus').textContent,/36R登録／採点済0R／途中36R／要再確認0R/);
+assert.equal(uf('scoreNextPending').disabled,false);
+const beforeNextWrites=unfinished.writes.length;
+const initial=uf('scoreTrack').value+'|'+uf('scoreRace').value;
+uf('scoreNextPending').onclick();
+assert.notEqual(uf('scoreTrack').value+'|'+uf('scoreRace').value,initial);
+assert.equal(unfinished.writes.length,beforeNextWrites,'navigation must not save, score, or overwrite');
+assert.equal(unfinished.links.length,0,'navigation does not initiate ticket handoff');
+assert.match(uf('scoreNextPendingStatus').textContent,/前日資料に基づく手動評価/);
+const beforeUnsaved=uf('scoreTrack').value+'|'+uf('scoreRace').value;
+uf('scoreInput').value+=' changed without save';
+uf('scoreNextPending').onclick();
+assert.equal(uf('scoreTrack').value+'|'+uf('scoreRace').value,beforeUnsaved,
+ 'unsaved edit must stop navigation');
+assert.match(uf('scoreNextPendingStatus').textContent,/入力が保存済みメモと違います/);
+
+// Graded notes are skipped, and source mismatches are counted as stale rather
+// than silently converted into valid grades.
+const complete=seeded.map(x=>({...x}));
+complete[0].text=complete[0].text.replaceAll(' ? ? ? ? ?',' S A A B S');
+const graded=boot(true,{[PREDAY]:predayMeetings,[NOTES]:complete}),ge=graded.el;
+ge('scoreDate').value='2026-11-07';ge('scoreTrack').value='東京';ge('scoreRace').value='1';
+ge('scoreRace').onchange();
+assert.match(ge('scoreAllDayStatus').textContent,/採点済1R／途中35R/);
+ge('scoreNextPending').onclick();
+assert.notEqual(ge('scoreTrack').value+'|'+ge('scoreRace').value,'東京|1',
+ 'completed score must not be chosen');
+const staleRoster=JSON.parse(JSON.stringify(predayMeetings));
+staleRoster[0].races[0].runners[0].name='架空サクラ訂正';
+const modified=boot(true,{[PREDAY]:staleRoster,[NOTES]:complete}),me=modified.el;
+me('scoreDate').value='2026-11-07';me('scoreTrack').value='東京';me('scoreRace').value='1';
+me('scoreRace').onchange();
+assert.match(me('scoreAllDayStatus').textContent,/要再確認1R/);
+assert.equal(me('scoreNextPending').disabled,false);
+
+// A day without any imported notes is not silently treated as 0/36 complete.
+const absent=boot(),ae=absent.el;
+ae('scoreDate').value='2026-11-07';ae('scoreTrack').value='東京';ae('scoreRace').onchange();
+assert.match(ae('scoreAllDayStatus').textContent,/0R登録/);
+assert.match(ae('scoreAllDayStatus').textContent,/未登録の開催・Rは集計対象外/);
+assert.equal(ae('scoreNextPending').disabled,true);
+
 const existingNote={date:'2026-11-07',track:'東京',race:1,
  text:'1 以前の評価 S A A A A\n2 別の評価 A A A A A\n3 既存の記録 B B B B B',
  sourceMark:null,savedAt:new Date().toISOString()};
