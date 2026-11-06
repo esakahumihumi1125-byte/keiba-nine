@@ -658,7 +658,42 @@ $('scoreSeedPredayDay').onclick=()=>{
   (e instanceof Error?e.message:'前日情報を確認してな。');}
 };
 
-$('scoreDate').value=new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10);
+function chooseRecentPredayAsDefault(){
+ // Auto-select the next saved owner pre-day meeting after the current JST
+ // date. Only reading localStorage: never writes, grades, seeds or buys.
+ const today=new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10);
+ $('scoreDate').value=today;
+ let raw=null;
+ try{raw=localStorage.getItem(PREDAY_KEY);}
+ catch(_){return;}
+ if(!raw)return;
+ try{
+  const meetings=JSON.parse(raw);
+  if(!Array.isArray(meetings)||meetings.length>48||
+    new Set(meetings.map(x=>x?.date+'|'+x?.track)).size!==meetings.length||
+    !meetings.every(x=>x&&x.kind==='jrdb-preday-provisional'&&
+      dateValid(x.date)&&TRACKS.has(x.track)&&Array.isArray(x.races)&&
+      x.races.length>=1&&x.races.length<=12&&
+      x.races.every(r=>r&&Number.isInteger(r.race)&&r.race>=1&&r.race<=12)))
+   throw Error('invalid pre-day records');
+  const order=[...TRACKS];
+  const upcoming=meetings.filter(x=>x.date>=today).sort((a,b)=>
+    a.date.localeCompare(b.date)||order.indexOf(a.track)-order.indexOf(b.track));
+  if(!upcoming.length)return;
+  const m=upcoming[0],races=m.races.map(x=>x.race);
+  $('scoreDate').value=m.date;
+  $('scoreTrack').value=m.track;
+  $('scoreRace').value=String(races.includes(1)?1:Math.min(...races));
+  const count=meetings.filter(x=>x.date===m.date).length;
+  $('scorePredayStatus').textContent=m.date+'の前日情報を検出。'+
+   count+'競馬場から'+m.track+'を自動選択したで。'+
+   '全R仮登録は下のボタンで本人確認後に実施。JRA公式未照合。';
+ }catch(_){
+  $('scorePredayStatus').textContent='前日情報の保存形式に問題があります。'+
+   '確認するまで自動選択せず、元の記録は上書きしません。';
+ }
+}
+chooseRecentPredayAsDefault();
 function receiveRaceSelection(){
  if(!window.location||typeof window.location.hash!=='string'||
     !window.location.hash.startsWith('#select='))return;
