@@ -62,6 +62,18 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.match($('trialSummary').textContent,/買い目は未作成/);
  assert.match($('trialStatus').textContent,/買い目未生成/);
  assert.equal($('trialRun').disabled,false,'safe re-run possible');
+ const slow=mock(true,payload,'',true),sl=slow.el;
+ await tick();
+ sl('trialDate').value=date;sl('trialDate').onchange();
+ sl('trialTrack').value='東京';sl('trialTrack').onchange();
+ sl('trialRace').value='1';sl('trialRace').onchange();
+ const pending=sl('trialRun').onclick();
+ assert.equal(sl('trialRun').disabled,true);
+ await sl('trialRun').onclick();
+ assert.equal(slow.fetches.length,2,'one status and one research request');
+ slow.finish();await pending;await tick();
+ assert.equal(sl('trialRows').children.length,2);
+ assert.equal(sl('trialRun').disabled,false);
  const absent=mock(false),b=absent.el;
  await tick();
  b('trialDate').value=date;b('trialDate').onchange();
