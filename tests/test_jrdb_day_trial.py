@@ -8,6 +8,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from jrdb_day_trial import build_day_trial, VERSION
+from jrdb_program_preview import normalize_program_rows
 from jrdb_coverage import CoverageError
 from private_service import create_app
 from test_private_service import SETTINGS, call
@@ -95,6 +96,56 @@ class DayTrialResearchTests(unittest.TestCase):
                        "55.0", "horse_id", "racekey"):
             self.assertNotIn(leaked, repr(report))
 
+    def test_venue_context_is_separate_from_horse_ability(self):
+        raw, entries, training, previous, venue = source()
+        programme = normalize_program_rows(raw, "20261101")
+        before = copy.deepcopy((programme, entries, training, previous, venue))
+        day = build_day_trial(programme, entries, training, previous,
+                              "20261101", venue)
+        self.assertEqual(day["courseInfoPresentCount"], 2)
+        self.assertEqual(day["goingAvailableCount"], 1)
+        tokyo, kyoto = day["races"]
+        self.assertEqual(tokyo["raceContext"]["surface"], "芝")
+        self.assertEqual(tokyo["raceContext"]["distance_m"], 1600)
+        self.assertEqual(tokyo["raceContext"]["turn"], "左")
+        self.assertEqual(tokyo["raceContext"]["going"], "重")
+        self.assertTrue(tokyo["raceContext"]["goingAvailable"])
+        self.assertEqual(kyoto["raceContext"]["going"], "未確認")
+        self.assertFalse(kyoto["raceContext"]["conditionSnapshotPresent"])
+        for row in day["races"]:
+            self.assertFalse(row["raceContext"]["officialJraVerified"])
+            self.assertFalse(row["raceContext"]["horseCourseSuitabilityAssessed"])
+            self.assertFalse(row["raceContext"]["horseGoingSuitabilityAssessed"])
+            self.assertFalse(row["raceContext"]["raceConditionsVerified"])
+            self.assertEqual(row["factorCoverage"]["materialCountByFactor"]["course_distance"], 0)
+            self.assertEqual(row["factorCoverage"]["materialCountByFactor"]["ground"], 0)
+        self.assertEqual((programme, entries, training, previous, venue), before)
+        for secret in ("LICENSED-GOING-PRIVATE", "holdingkey", "racekey",
+                       "private_notes", "updated_at"):
+            self.assertNotIn(secret, repr(day))
+
+    def test_invalid_venue_conditions_rejected_without_fabricating_going(self):
+        raw, entries, training, previous, venue = source()
+        programme = normalize_program_rows(raw, "20261101")
+        for bad in ({"turf_condition_cd":"5"},
+                    {"racedate":"20261102"},
+                    {"holdingkey":"invalid"},
+                    {"updated_at":"not-a-timestamp"}):
+            with self.subTest(bad=bad):
+                broken = copy.deepcopy(venue)
+                broken[0].update(bad)
+                with self.assertRaises(ValueError):
+                    build_day_trial(programme, entries, training, previous,
+                                    "20261101", broken)
+        with self.assertRaises(ValueError):
+            build_day_trial(programme, entries, training, previous,
+                            "20261101", venue+copy.deepcopy(venue))
+        unreported = build_day_trial(programme, entries, training, previous,
+                                     "20261101", [])
+        self.assertEqual(unreported["goingAvailableCount"], 0)
+        self.assertTrue(all(r["raceContext"]["going"] == "未確認"
+                            for r in unreported["races"]))
+
     def test_missing_histories_not_filled_and_odds_ignored(self):
         p, e, t, z = sample_input()
         z.clear()
@@ -157,36 +208,42 @@ class DayTrialRouteTests(unittest.TestCase):
                                  "400 Bad Request")
             source.assert_not_called()
 
-    def test_one_day_uses_four_provider_calls_not_four_per_race(self):
-        p, e, t, z, _ = source()
+    def test_one_day_uses_five_provider_calls_not_five_per_race(self):
+        p, e, t, z, holding = source()
         app = owner()
         with (patch("private_service.fetch_race_program", return_value=p) as p_fetch,
               patch("private_service.fetch_horse_entries", return_value=e) as e_fetch,
               patch("private_service.fetch_training_analysis", return_value=t) as t_fetch,
-              patch("private_service.fetch_recent_runs", return_value=z) as z_fetch):
+              patch("private_service.fetch_recent_runs", return_value=z) as z_fetch,
+              patch("private_service.fetch_venue_conditions", return_value=holding) as going_fetch):
             r = call(app, PATH, QUERY_STRING=QUERY)
         self.assertEqual(r["status"], "200 OK")
         payload = json.loads(r["body"])
         self.assertEqual(payload["raceCount"], 2)
         self.assertEqual(payload["runnerCount"], 3)
         self.assertEqual(payload["version"], VERSION)
+        self.assertEqual(payload["courseInfoPresentCount"], 2)
+        self.assertEqual(payload["goingAvailableCount"], 1)
+        self.assertEqual(payload["races"][0]["raceContext"]["going"], "重")
+        self.assertFalse(payload["races"][0]["raceContext"]["raceConditionsVerified"])
         self.assertFalse(payload["predictionReady"])
         self.assertFalse(payload["bettingReady"])
         self.assertIn("no-store", r["headers"]["Cache-Control"])
-        for fetch in (p_fetch, e_fetch, t_fetch, z_fetch):
+        for fetch in (p_fetch, e_fetch, t_fetch, z_fetch, going_fetch):
             fetch.assert_called_once_with("20261101")
         for secret in ("horse_id", "racekey", "NONPUBLIC", "synthetic-api-key",
                        "private_metric", "oikirisisu", "race_back_1"):
             self.assertNotIn(secret, repr(payload))
 
     def test_bad_source_fails_closed_without_publishing(self):
-        p, e, t, z, _ = source()
+        p, e, t, z, holding = source()
         p[0]["headcount"] = 12
         app = owner()
         with (patch("private_service.fetch_race_program", return_value=p),
               patch("private_service.fetch_horse_entries", return_value=e),
               patch("private_service.fetch_training_analysis", return_value=t),
-              patch("private_service.fetch_recent_runs", return_value=z)):
+              patch("private_service.fetch_recent_runs", return_value=z),
+              patch("private_service.fetch_venue_conditions", return_value=holding)):
             r = call(app, PATH, QUERY_STRING=QUERY)
         self.assertEqual(r["status"], "502 Bad Gateway")
         self.assertNotIn("races", json.loads(r["body"]))
