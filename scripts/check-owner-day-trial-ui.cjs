@@ -173,7 +173,7 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  assert.ok(!JSON.stringify(packet).includes('pastFourthCornerObservation'));
  rr('trialDate').value='2026-11-08';rr('trialDate').onchange();
  transfer.onclick();
- assert.equal(forResearch.navigation.length,1,'previous day's button refuses stale navigation');
+ assert.equal(forResearch.navigation.length,1,'previous day button refuses stale navigation');
 
  const bad=start(true,{...day,races:[one,{...one}]});
  const b=bad.el;await tick();
