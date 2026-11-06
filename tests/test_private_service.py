@@ -59,6 +59,26 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(call(self.app, '/api/deploy-status', method='POST')['status'],
                          '404 Not Found')
 
+    def test_private_preday_forecast_page_assets_and_login(self):
+        home = call(self.app, '/')['body'].decode()
+        self.assertIn('href="/owner-preday-forecast"', home)
+        for path, media in (
+                ('/owner-preday-forecast', 'text/html'),
+                ('/owner-preday-forecast.js', 'text/javascript'),
+                ('/owner-preday-forecast.css', 'text/css')):
+            ok = call(self.app, path)
+            self.assertEqual(ok['status'], '200 OK')
+            self.assertIn(media, ok['headers']['Content-Type'])
+            self.assertIn('no-store', ok['headers']['Cache-Control'])
+            denied = call(self.app, path, auth='')
+            self.assertIn(denied['status'][:3], ('303','401'))
+        js = call(self.app, '/owner-preday-forecast.js')['body'].decode()
+        self.assertIn('keiba-nine-owner-preday-analysis-v1', js)
+        self.assertIn('jraOfficialConfirmed!==false', js)
+        self.assertIn('fullFactorVerified!==false', js)
+        self.assertNotIn('fetch(', js)
+        self.assertNotIn('innerHTML', js)
+
     def test_iphone_home_screen_entry_and_private_notebook_navigation(self):
         # Pure HTML navigation: no new public route, credentials or storage.
         home = call(self.app, '/')
