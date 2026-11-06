@@ -526,4 +526,89 @@ assert.equal(JSON.parse(declinedResearch.store.get(NOTES))[0].text,savedResearch
 assert.equal(declinedResearch.tempStore.size,0);
 assert.equal(dr('scoreMemoGrid').children.length,0);
 
+
+// The three Saturday venues can be seeded with numbered JRDB pre-day
+// rosters in ONE owner action. These remain five-factor UNKNOWN drafts.
+const PREDAY='keiba-nine-jrdb-preday-runners-v1';
+const fakeRace=(race)=>({race,postTime:'10:00',expected:3,runners:[
+ {number:1,name:'架空サクラ'+race,style:'先'},
+ {number:2,name:'架空ナイン'+race,style:'逃'},
+ {number:3,name:'架空ドリーム'+race,style:'差'}
+]});
+const predayMeetings=['東京','京都','福島'].map(track=>({
+ kind:'jrdb-preday-provisional',date:'2026-11-07',track,
+ races:Array.from({length:12},(_,i)=>fakeRace(i+1))
+}));
+const pd=boot(true,{[PREDAY]:predayMeetings}),pe=pd.el;
+pe('scoreDate').value='2026-11-07';pe('scoreTrack').value='東京';pe('scoreRace').value='1';
+pe('scoreSeedPredayDay').onclick();
+assert.match(pe('scorePredayStatus').textContent,/36Rを馬番だけ仮登録/);
+assert.equal(pd.writes.length,1,'all 36R seeded in one atomic note write');
+const seeded=JSON.parse(pd.store.get(NOTES));
+assert.equal(seeded.length,36);
+assert.equal(new Set(seeded.map(n=>n.date+'|'+n.track+'|'+n.race)).size,36);
+assert.ok(seeded.every(n=>n.researchSource==='jrdb-preday-roster-v1'&&
+ n.sourceMark===null&&typeof n.predaySourceMark==='string'&&
+ n.text.split('\n').length===3&&n.text.includes(' ? ? ? ? ?')));
+assert.equal(pe('scoreRaceGrid').children.length,12);
+assert.match(pe('scoreDayStatus').textContent,/途中12R/);
+assert.equal(pe('scoreHandoff').disabled,true,'no grade or ticket invented');
+assert.equal(pd.links.length,0,'never transfer tickets on source import');
+assert.equal(pe('scoreMemoGrid').children.length,3,'loaded race has editable five-factor selectors');
+pe('scoreReview').onclick();
+assert.equal(pe('scoreHandoff').disabled,true,'no rank from all unknown factors');
+pe('scoreSeedPredayDay').onclick();
+assert.equal(pd.writes.length,1,'repeated seeding preserves current notes');
+
+const existingNote={date:'2026-11-07',track:'東京',race:1,
+ text:'1 以前の評価 S A A A A\n2 別の評価 A A A A A\n3 既存の記録 B B B B B',
+ sourceMark:null,savedAt:new Date().toISOString()};
+const keep=boot(true,{[PREDAY]:predayMeetings,[NOTES]:[existingNote]}),ke=keep.el;
+ke('scoreDate').value='2026-11-07';ke('scoreTrack').value='京都';
+ke('scoreSeedPredayDay').onclick();
+assert.equal(JSON.parse(keep.store.get(NOTES)).length,36);
+assert.equal(JSON.parse(keep.store.get(NOTES)).find(x=>x.track==='東京'&&x.race===1).text,
+ existingNote.text,'existing owner assessment never overwritten');
+
+const single=boot(true,{[PREDAY]:predayMeetings}),se=single.el;
+se('scoreDate').value='2026-11-07';se('scoreTrack').value='福島';se('scoreRace').value='4';
+se('scoreFromPreday').onclick();
+assert.match(se('scorePredayStatus').textContent,/3頭を仮入力/);
+assert.match(se('scoreInput').value,/架空サクラ4 \? \? \? \? \?/);
+assert.equal(se('scoreMemoGrid').children.length,3);
+assert.equal(se('scoreHandoff').disabled,true);
+const preNotes=JSON.parse(single.store.get(NOTES));
+assert.equal(preNotes.length,1);
+assert.equal(preNotes[0].predaySourceMark,JSON.stringify([
+ predayMeetings[2].races[3].postTime,
+ 3,predayMeetings[2].races[3].runners]));
+const resumed=boot(true,{[PREDAY]:predayMeetings,[NOTES]:preNotes}),re= resumed.el;
+re('scoreDate').value='2026-11-07';re('scoreTrack').value='福島';re('scoreRace').value='4';
+re('scoreRace').onchange();
+assert.equal(re('scoreMemoGrid').children.length,3,'iPhone relaunch restores row selectors');
+assert.match(re('scoreInput').value,/架空サクラ4/);
+assert.equal(re('scoreHandoff').disabled,true);
+const beforeChange=JSON.stringify(predayMeetings);
+const changedPreday=JSON.parse(beforeChange);
+changedPreday[2].races[3].runners[0].name='架空サクラ変更';
+const stale=boot(true,{[PREDAY]:changedPreday,[NOTES]:preNotes}),st=stale.el;
+st('scoreDate').value='2026-11-07';st('scoreTrack').value='福島';st('scoreRace').value='4';
+st('scoreRace').onchange();
+assert.match(st('scoreDraftStatus').textContent,/復元できません/);
+assert.equal(st('scoreInput').value,'','stale source cannot silently restore old horse number associations');
+assert.match(st('scoreDayStatus').textContent,/要再確認1R/);
+st('scoreDayBuild').onclick();
+assert.equal(st('scoreDayTransfer').disabled,true,'stale pre-day note never enters 36R betting batch');
+const missingSource=boot(true,{[NOTES]:preNotes}),ms=missingSource.el;
+ms('scoreDate').value='2026-11-07';ms('scoreTrack').value='福島';ms('scoreRace').value='4';
+ms('scoreRace').onchange();
+assert.equal(ms('scoreInput').value,'','deleted pre-day mail is not interpreted as verified');
+assert.match(ms('scoreDraftStatus').textContent,/復元できません/);
+const refused=boot(false,{[PREDAY]:predayMeetings,[NOTES]:[existingNote]}),rf=refused.el;
+rf('scoreDate').value='2026-11-07';rf('scoreTrack').value='東京';rf('scoreRace').value='1';
+rf('scoreRace').onchange();
+rf('scoreFromPreday').onclick();
+assert.equal(refused.writes.length,0,'existing manual grades cannot be overwritten without consent');
+assert.equal(JSON.parse(refused.store.get(NOTES))[0].text,existingNote.text);
+
 console.log('Owner manual 5-factor scoring: 36-point ranks, validation, cancel, no-network handoff PASS');
