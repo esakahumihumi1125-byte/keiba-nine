@@ -52,7 +52,7 @@ class PrivateProgramPreviewTests(unittest.TestCase):
 
     def test_turn_codes_are_separate_from_surface(self):
         for code, expected in (("1", "右"), ("2", "左"), ("3", "直線"),
-                               ("9", None), (None, None)):
+                               ("9", "直線"), ("7", None), (None, None)):
             with self.subTest(code=code):
                 row = normalize_program_rows([sample(turn_cd=code)], "20261101")[0]
                 self.assertEqual(row["turn"], expected)
@@ -67,6 +67,15 @@ class PrivateProgramPreviewTests(unittest.TestCase):
         self.assertEqual(row["track"], "新潟")
         self.assertEqual(row["turn"], "直線")
         self.assertEqual(row["distance_m"], 1000)
+        self.assertFalse(row["horsesVerified"])
+
+    def test_documented_tra_endpoint_straight_code_9_is_also_preserved(self):
+        row = normalize_program_rows([sample(
+            racekey="04264b11", racecourse_cd="04",
+            turn_cd="9", track_type="1", distance="1000"
+        )], "20261101")[0]
+        self.assertEqual(row["track"], "新潟")
+        self.assertEqual(row["turn"], "直線")
         self.assertFalse(row["horsesVerified"])
 
     def test_date_mismatch_fails_closed(self):
