@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('/tmp/keiba-owner-scorecard.js','utf8');
-function boot(decision=true,saved={},hash='',researchHandoff=null){
+function boot(decision=true,saved={},hash='',researchHandoff=null,stagedUnsavedResearch=false){
  const nodes=new Map(),links=[],alerts=[],writes=[],cleared=[],tempWrites=[];
  const tempStore=new Map(researchHandoff?[[
   'keiba-nine-owner-research-scorecard-handoff-v1',JSON.stringify(researchHandoff)
@@ -34,7 +34,11 @@ function boot(decision=true,saved={},hash='',researchHandoff=null){
   Date,JSON,Set,Map,Object,String,Number,Error,URLSearchParams,localStorage,sessionStorage,
   confirm:()=>decision,console
  };
- vm.runInNewContext(source,ctx);
+ const runSource=stagedUnsavedResearch?source.replace('receiveResearchPrefill();',
+  "$('scoreDate').value='2026-11-07';$('scoreTrack').value='京都';"+
+  "$('scoreRace').value='1';changeScoreRace();"+
+  "$('scoreInput').value='1 UNSAVED ? ? ? ? ?';receiveResearchPrefill();"):source;
+ vm.runInNewContext(runSource,ctx);
  return {el:get,links,alerts,writes,store,cleared,tempStore,tempWrites,storageBehavior};
 }
 const fixture=[
@@ -482,6 +486,15 @@ assert.equal(researchNote[0].sourceMark,null);
 assert.equal(researchNote[0].researchSource,'jrdb-two-factor-research-v1','unverified research provenance persists in note');
 assert.ok(research.writes.every(k=>k===NOTES),'never write actual ticket or purchased ledgers');
 assert.equal(research.links.length,0);
+// A research transfer to Tokyo 6R must NOT erase an unsaved edit in Kyoto
+// 1R. The target-replacement confirmation is not consent to lose source work.
+const blockedResearch=boot(true,{},'#research=v1',researchPayload,true),brr=blockedResearch.el;
+assert.equal(brr('scoreTrack').value,'京都');
+assert.equal(brr('scoreRace').value,'1');
+assert.equal(brr('scoreInput').value,'1 UNSAVED ? ? ? ? ?');
+assert.equal(blockedResearch.writes.length,0,'no cross-race write when source input is unsaved');
+assert.match(brr('scoreMemoStatus').textContent,/未保存の評価/);
+assert.equal(blockedResearch.tempStore.size,0,'failed handoff never lingers in one-use session storage');
 const afterResearch=boot(true,{[NOTES]:researchNote}),ar=afterResearch.el;
 ar('scoreDate').value='2026-11-07';ar('scoreTrack').value='東京';
 ar('scoreRace').value='6';ar('scoreRace').onchange();
@@ -556,6 +569,14 @@ assert.equal(pe('scoreRaceGrid').children.length,12);
 assert.match(pe('scoreDayStatus').textContent,/途中12R/);
 assert.equal(pe('scoreHandoff').disabled,true,'no grade or ticket invented');
 assert.equal(pd.links.length,0,'never transfer tickets on source import');
+const guardSeed=boot(true,{[PREDAY]:predayMeetings}),gs=guardSeed.el;
+gs('scoreDate').value='2026-11-07';gs('scoreTrack').value='東京';gs('scoreRace').value='1';
+gs('scoreRace').onchange();
+gs('scoreInput').value=fixture; // failed storage write left this draft only in the editor
+gs('scoreSeedPredayDay').onclick();
+assert.match(gs('scorePredayStatus').textContent,/未保存の評価/);
+assert.equal(guardSeed.store.has(NOTES),false,'bulk pre-day seed must not discard unsaved editor');
+assert.equal(gs('scoreInput').value,fixture);
 assert.equal(pe('scoreMemoGrid').children.length,3,'loaded race has editable five-factor selectors');
 assert.match(pe('scoreMemoGrid').children[0].children[0].textContent,/脚質 先（前日資料）/);
 assert.match(pe('scorePaceStatus').textContent,/逃1・先1・差1・追0・未確認0/);
@@ -711,6 +732,17 @@ st('scoreRace').onchange();
 assert.match(st('scoreDraftStatus').textContent,/復元できません/);
 assert.equal(st('scoreInput').value,'','stale source cannot silently restore old horse number associations');
 assert.match(st('scoreDayStatus').textContent,/要再確認1R/);
+// A stale pre-day source is deliberately blank on restore, but typing
+// fresh notes makes it unsaved and blocks both queue and venue shortcuts.
+st('scoreInput').value='1 手入力 ? ? ? ? ?';
+const staleBefore=st('scoreTrack').value+'|'+st('scoreRace').value;
+st('scoreNextPending').onclick();
+assert.equal(st('scoreTrack').value+'|'+st('scoreRace').value,staleBefore);
+assert.match(st('scoreNextPendingStatus').textContent,/保存済みメモと違います/);
+st('scoreVenueGrid').children.find(x=>x.textContent.startsWith('東京')).onclick();
+assert.equal(st('scoreTrack').value+'|'+st('scoreRace').value,staleBefore);
+assert.match(st('scoreVenueStatus').textContent,/移動せず入力を確認/);
+st('scoreInput').value='';
 st('scoreDayBuild').onclick();
 assert.equal(st('scoreDayTransfer').disabled,true,'stale pre-day note never enters 36R betting batch');
 const missingSource=boot(true,{[NOTES]:preNotes}),ms=missingSource.el;
