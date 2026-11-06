@@ -396,7 +396,8 @@ assert.ok(!JSON.stringify(customPayload).includes('架空馬'),'personal private
 assert.ok(!JSON.stringify(customPayload).includes('調教'));
 const changedDay=boot(true,{[NOTES]:dayNotes}),dy=changedDay.el;
 dy('scoreDate').value='2026-11-07';dy('scoreDayBuild').onclick();
-changedDay.store.set(NOTES,JSON.stringify(changedNotes));
+changedDay.store.set(NOTES,JSON.stringify(dayNotes.map(n=>
+ n.race===11?{...n,text:n.text.replace('架空馬A S S','架空馬A C C')}:n)));
 dy('scoreDayBatchPreview').children[0].children[4].children[4].onclick();
 assert.equal(dy('scoreDayTransfer').disabled,true,'changed note blocks old winner choice');
 assert.match(dy('scoreDayBatchStatus').textContent,/元データが変更/);
