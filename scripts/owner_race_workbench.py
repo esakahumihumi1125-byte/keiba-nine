@@ -281,7 +281,7 @@ function render(){
       create('p','想定メールの発走情報：'+(s.post||'未取込')+'。公式発走時刻ではありません。'));
      if(s.stale)detail.append(create('p','元の資料に差異があります。馬番メモと評価を再確認してください。'));
      const actions=create('div');actions.className='actions';
-     for(const [label,path] of [['評価する','/my-scorecard'],['3連単を作る','/my-tickets']]){
+     for(const [label,path] of [['評価する','/my-scorecard'],['3連単を作る','/my-tickets'],['調教・近走の試算','/owner-auto-trial']]){
       const a=create('a',label);a.href=jumpUrl(path,date,venue,race);actions.append(a);
      }
      const memoLink=create('a','馬番メモへ');memoLink.href='/jrdb-mail-local';
