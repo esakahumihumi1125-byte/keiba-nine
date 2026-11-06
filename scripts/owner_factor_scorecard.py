@@ -600,7 +600,9 @@ $('scoreReview').onclick=()=>{
   displayFormation(preview);
   renderWinnerReview(preview);
   $('scoreStatus').textContent=select.date+' '+select.track+select.race+'R：'+rows.length+
-   '頭の手入力評価を計算しました。AI予想ではなく、人気・オッズは未使用。';
+   '頭の保存評価を計算しました。'+
+   (researchSource?'JRDB研究用の未検証2項目を含み、公式未照合。':'本人入力による仮評価。')+
+   'AIの実戦予想ではなく、人気・オッズは未使用。';
   $('scoreHandoff').disabled=false;
  }catch(e){
   $('scoreStatus').textContent='計算できません：'+(e instanceof Error?e.message:'入力を確認してな。');
@@ -617,8 +619,10 @@ $('scoreHandoff').onclick=()=>{
  try{verifyMemoHasNotChanged()}catch(e){
   invalidate();$('scoreStatus').textContent='引き継ぎ停止：'+(e instanceof Error?e.message:'馬番メモが更新されました。');return;
  }
- if(!confirm('本人入力の5項目から計算した3連単'+p.formation.points+
-  '点を、未保存の下書きとして渡しますか？\nAIの実馬予想ではありません。移動先でも確認してください。'))return;
+ if(!confirm('本人の5項目から計算した3連単'+p.formation.points+
+  '点を、未保存の下書きとして渡しますか？\n'+
+  (researchSource?'JRDB研究用の未検証2項目を含みます。公式確認が必要です。\n':'')+
+  'AIの実馬予想ではありません。移動先でも確認してください。'))return;
  const query=new URLSearchParams();
  query.set('import','v1');query.set('date',current.date);
  query.set('track',current.track);query.set('race',String(current.race));
@@ -723,6 +727,8 @@ function renderScoreDayBatch(result){
    button.onclick=()=>changeScoreDayWinner(noteKey(item),choice.number);
    controls.append(button);
   }
+  if(item.researchSource===RESEARCH_DRAFT_TAG)
+   warning.textContent+='【研究用】JRDBの未検証な調教・近走の仮評価を含みます。JRA公式未照合。';
   card.append(h,p,warning,ranks,controls);host.append(card);
  }
  $('scoreDayBatchText').value=result.text;
