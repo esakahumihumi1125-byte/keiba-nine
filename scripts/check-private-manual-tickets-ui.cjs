@@ -750,4 +750,102 @@ assert.equal(noTransfer.el('mBulkApply').disabled,true);
 assert.equal(noTransfer.transient.size,1,'do not read a temporary payload without the exact URL token');
 assert.equal(storage.get(key),beforeHandoffDrafts,'all transfer cases leave purchase and draft ledgers intact');
 
+
+// Manually confirmed JRA scratch/withdrawn numbers are LOCAL memos, not
+// provider-verified data. Fail closed on unsaved notes, conflicts and corruption.
+const SCRATCH='keiba-nine-owner-scratch-notes-v1';
+const beforeScratchDraft=storage.get(key);
+const beforeScratchPurchase=storage.get(purchaseKey);
+const ws=boot(),w=ws.el;
+w('mDate').value='2026-11-14';w('mDate').onchange();
+w('mTrack').value='東京';w('mTrack').onchange();
+w('mRace').value='5';w('mRace').onchange();
+w('mFirst').children[0].onclick();    // 1
+w('mSecond').children[1].onclick();   // 2
+w('mThird').children[2].onclick();    // 3
+w('mThird').children[3].onclick();    // 4
+assert.equal(w('mCount').textContent,'2点');
+assert.equal(w('mSave').disabled,false);
+assert.match(w('mScratchStatus').textContent,/未確認/);
+w('mScratchInput').value='③';w('mScratchInput').oninput();
+assert.equal(w('mSave').disabled,true,'unsaved withdrawal note prevents saving');
+assert.match(w('mScratchStatus').textContent,/未保存/);
+w('mScratchSave').onclick();
+assert.equal(JSON.parse(storage.get(SCRATCH)).length,1);
+assert.deepEqual(JSON.parse(storage.get(SCRATCH))[0].numbers,[3]);
+assert.equal(w('mSave').disabled,true,'withdrawn horse included in ticket candidates');
+assert.match(w('mScratchStatus').textContent,/保存停止.*3番/);
+w('mSave').onclick(); // direct handler invocation cannot bypass disabled button
+assert.equal(storage.get(key),beforeScratchDraft);
+assert.equal(storage.get(purchaseKey),beforeScratchPurchase);
+w('mThird').children[2].onclick(); // drop 3
+assert.equal(w('mSave').disabled,false,'safe ticket becomes savable after excluding withdrawn horse');
+w('mSave').onclick();
+assert.ok(JSON.parse(storage.get(key)).some(x=>
+ x.date==='2026-11-14'&&x.track==='東京'&&x.race===5&&
+ x.third.length===1&&x.third[0]===4));
+const afterScratchSafe=storage.get(key);
+w('mScratchInput').value='③⑦';w('mScratchInput').oninput();
+assert.equal(w('mSave').disabled,true,'note edits must be explicitly stored first');
+w('mScratchSave').onclick();
+assert.deepEqual(JSON.parse(storage.get(SCRATCH))[0].numbers,[3,7]);
+assert.equal(storage.get(key),afterScratchSafe,'scratch notes do not mutate stored drafts');
+w('mScratchInput').value='③③';w('mScratchSave').onclick();
+assert.deepEqual(JSON.parse(storage.get(SCRATCH))[0].numbers,[3,7],
+ 'duplicate numbers rejected without overwriting valid scratch memo');
+w('mScratchInput').value='③⑦';w('mScratchInput').oninput();
+assert.equal(w('mSave').disabled,false);
+w('mDate').value='2026-11-15';w('mDate').onchange();
+assert.equal(w('mScratchInput').value,'','date-switch cannot leak previous race scratch notes');
+w('mDate').value='2026-11-14';w('mDate').onchange();
+assert.equal(w('mScratchInput').value,'3・7','saved scratch memo restored per race');
+
+// 36R preview is rechecked at final save, even if another browser/tab adds a
+// scratch after preview. No purchase or draft data can be overwritten.
+const dayScratch=boot(),ds=dayScratch.el;
+ds('mDate').value='2026-11-14';ds('mDate').onchange();
+ds('mBulkPaste').value=[
+ '2026-11-14 東京1R','1着：1','2着：2','3着：3',
+ '','2026-11-14 京都1R','1着：1','2着：2','3着：4'
+].join('\n');
+ds('mBulkReview').onclick();
+assert.equal(ds('mBulkApply').disabled,false,'initial safe candidate was reviewed');
+const safeBulkSnapshot=storage.get(key);
+const scratchBeforeInterleave=JSON.parse(storage.get(SCRATCH));
+storage.set(SCRATCH,JSON.stringify([...scratchBeforeInterleave,{
+ date:'2026-11-14',track:'東京',race:1,numbers:[3],
+ savedAt:'2026-11-06T00:00:00.000Z'
+}]));
+ds('mBulkApply').onclick();
+assert.equal(ds('mBulkApply').disabled,true,'new withdrawal after preview invalidates pending save');
+assert.match(ds('mBulkStatus').textContent,/一括保存停止.*東京1R/);
+assert.equal(storage.get(key),safeBulkSnapshot,'interleaving must preserve old drafts');
+assert.equal(storage.get(purchaseKey),beforeScratchPurchase);
+ds('mBulkReview').onclick();
+assert.equal(ds('mBulkApply').disabled,true,'bulk review detects cancelled third candidate');
+assert.match(ds('mBulkStatus').textContent,/一括検査できません.*東京1R/);
+// The same guard applies when 36R are received from the scorecard handoff.
+const scratchHandoff=boot(true,'#scorebatch=v1',{
+ version:'scorecard-bulk-v1',createdAt:new Date().toISOString(),
+ date:'2026-11-14',count:1,points:1,
+ text:'2026-11-14 東京1R\n1着：1\n2着：2\n3着：3'
+});
+assert.equal(scratchHandoff.el('mBulkApply').disabled,true,'scorecard transfer cannot bypass withdrawn guard');
+assert.equal(scratchHandoff.transient.size,0);
+assert.equal(storage.get(key),safeBulkSnapshot);
+// Corrupted scratch storage means UNKNOWN, never "no withdrawals."
+storage.set(SCRATCH,'{"wrong":"shape"}');
+const corrupt=boot(),cc=corrupt.el;
+cc('mDate').value='2026-11-14';cc('mDate').onchange();
+cc('mTrack').value='東京';cc('mTrack').onchange();
+cc('mRace').value='5';cc('mRace').onchange();
+assert.match(cc('mScratchStatus').textContent,/破損/);
+assert.equal(cc('mSave').disabled,true);
+cc('mBulkPaste').value='2026-11-14 京都1R\n1着：1\n2着：2\n3着：4';
+cc('mBulkReview').onclick();
+assert.equal(cc('mBulkApply').disabled,true,'malformed global notes block all bulk saves');
+assert.match(cc('mBulkStatus').textContent,/一括検査できません/);
+storage.delete(SCRATCH);
+assert.equal(storage.get(purchaseKey),beforeScratchPurchase);
+
 console.log('Manual private 3連単 notebook: 35+ offline points, storage, date and safety checks passed');
