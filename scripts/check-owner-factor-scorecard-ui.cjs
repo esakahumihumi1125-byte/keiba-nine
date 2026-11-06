@@ -2,9 +2,11 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('/tmp/keiba-owner-scorecard.js','utf8');
-function boot(decision=true,saved={},hash=''){
+function boot(decision=true,saved={},hash='',researchHandoff=null){
  const nodes=new Map(),links=[],alerts=[],writes=[],cleared=[],tempWrites=[];
- const tempStore=new Map();
+ const tempStore=new Map(researchHandoff?[[
+  'keiba-nine-owner-research-scorecard-handoff-v1',JSON.stringify(researchHandoff)
+ ]]:[]);
  const store=new Map(Object.entries(saved).map(([k,v])=>[k,JSON.stringify(v)]));
  const NOTE='keiba-nine-owner-factor-notes-v1';
  const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>{if(k!==NOTE)throw Error('Unexpected write: '+k);writes.push(k);store.set(k,v)}};
@@ -444,5 +446,64 @@ ib('scoreDate').value='2026-11-07';ib('scoreDayBuild').onclick();
 ib('scoreDate').value='2026-11-08';ib('scoreDate').onchange();
 assert.equal(ib('scoreDayTransfer').disabled,true);
 assert.equal(ib('scoreDayBatchText').value,'');
+
+
+// Two JRDB-derived *provisional* grades may be copied into an incomplete
+// manual scorecard after a deliberate owner action. Never infer the other 3.
+const researchPayload={
+ version:'jrdb-research-to-scorecard-v1',createdAt:new Date().toISOString(),
+ date:'2026-11-07',track:'東京',race:6,researchOnly:true,
+ officialJraVerified:false,predictionReady:false,
+ runners:[
+  {number:1,training:'S',recent:'A'},
+  {number:2,training:'A',recent:'未評価'},
+  {number:3,training:'未評価',recent:'B'},
+ ],
+};
+const research=boot(true,{},'#research=v1',researchPayload),re=research.el;
+assert.equal(re('scoreDate').value,'2026-11-07');
+assert.equal(re('scoreTrack').value,'東京');
+assert.equal(re('scoreRace').value,'6');
+assert.equal(re('scoreMemoGrid').children.length,3);
+assert.equal(re('scoreInput').value,
+ '1  S A ? ? ?\n2  A ? ? ? ?\n3  ? B ? ? ?');
+assert.match(re('scoreMemoStatus').textContent,/JRDB研究用・未検証/);
+assert.equal(re('scoreHandoff').disabled,true,'incomplete research grades cannot propose any ticket');
+re('scoreReview').onclick();
+assert.equal(re('scoreHandoff').disabled,true,'three blank factors block ranking');
+assert.match(re('scoreStatus').textContent,/計算できません/);
+assert.equal(research.tempStore.size,0,'one-time provisional data consumed and deleted');
+assert.deepEqual(research.cleared,['/my-scorecard'],'clear one-time URL token');
+const researchNote=JSON.parse(research.store.get(NOTES));
+assert.equal(researchNote.length,1,'consented incomplete draft is saved only to score notes');
+assert.match(researchNote[0].text,/1  S A \? \? \?/);
+assert.equal(researchNote[0].sourceMark,null);
+assert.ok(research.writes.every(k=>k===NOTES),'never write actual ticket or purchased ledgers');
+assert.equal(research.links.length,0);
+for(const [title,bad] of [
+ ['injected names',{...researchPayload,runners:[{...researchPayload.runners[0],name:'SECRET'},...researchPayload.runners.slice(1)]}],
+ ['false official verification',{...researchPayload,officialJraVerified:true}],
+ ['finished prediction',{...researchPayload,predictionReady:true}],
+ ['unknown grade',{...researchPayload,runners:[{...researchPayload.runners[0],training:'Z'},...researchPayload.runners.slice(1)]}],
+ ['duplicate number',{...researchPayload,runners:[researchPayload.runners[0],researchPayload.runners[0],researchPayload.runners[2]]}],
+ ['expired',{...researchPayload,createdAt:'2020-01-01T00:00:00Z'}],
+ ['no assessed factors',{...researchPayload,runners:researchPayload.runners.map(x=>({...x,training:'未評価',recent:'未評価'}))}],
+]){
+ const x=boot(true,{},'#research=v1',bad),q=x.el;
+ assert.equal(x.writes.length,0,title+' must not save anything');
+ assert.equal(q('scoreMemoGrid').children.length,0,title+' must not render untrusted horse grades');
+ assert.match(q('scoreMemoStatus').textContent,/受け取れません/,title+' must explain refusal');
+ assert.equal(x.tempStore.size,0,title+' must delete one-time data');
+}
+const savedResearch={
+ date:'2026-11-07',track:'東京',race:6,
+ text:'1 C C C C C\n2 C C C C C\n3 C C C C C',
+ sourceMark:null,savedAt:new Date().toISOString(),
+};
+const declinedResearch=boot(false,{[NOTES]:[savedResearch]},'#research=v1',researchPayload),dr=declinedResearch.el;
+assert.equal(declinedResearch.writes.length,0,'operator declines to replace existing assessments');
+assert.equal(JSON.parse(declinedResearch.store.get(NOTES))[0].text,savedResearch.text);
+assert.equal(declinedResearch.tempStore.size,0);
+assert.equal(dr('scoreMemoGrid').children.length,0);
 
 console.log('Owner manual 5-factor scoring: 36-point ranks, validation, cancel, no-network handoff PASS');
