@@ -1,4 +1,4 @@
-"""Private one-day JRDB research comparison (max 36 R, 4 provider calls).
+"""Private one-day JRDB research comparison (max 36 R, five provider reads).
 
 Builds ALL selected day races from one date-bound, identity-audited snapshot.
 No JRA official validation, outcome forecasts, S/A/B/C overall ratings, bets,
@@ -7,6 +7,7 @@ writes, scheduler, logs, external calls, or public publishing.
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import _valid_date
 from jrdb_program_preview import TRACKS
+from jrdb_race_context import audit_race_context, RaceContextError
 from jrdb_training_hypothesis import build_training_hints
 from jrdb_recent_hypothesis import build_recent_hints
 from jrdb_one_race_trial import build_one_race_trial, VERSION as ONE_R_VERSION
@@ -14,10 +15,10 @@ from jrdb_private_factor_bridge import build_private_factor_matrix, summarize_fa
 from jrdb_entry_rotation_materials import enrich_entry_materials_matrix, summarize_entry_materials_matrix
 from jrdb_personnel_body_materials import enrich_personnel_body_matrix, summarize_personnel_body_matrix
 
-VERSION = "owner-day-two-factor-trial-2"
+VERSION = "owner-day-two-factor-trial-3"
 
 
-def build_day_trial(programme, entries, training, recent, date):
+def build_day_trial(programme, entries, training, recent, date, venue_conditions=None):
     """Use one consistent provider snapshot, refuse duplicate/ambiguous races.
 
     The caller fetches /tra, /tky, /tcy, /tze ONCE each and must be a private,
@@ -41,12 +42,15 @@ def build_day_trial(programme, entries, training, recent, date):
             raise CoverageError("Ambiguous day race schedule")
         keys.add(key)
         coords.add((course, race))
+    if venue_conditions is None:
+        venue_conditions = []
     if not programme:
-        if entries or training or recent:
+        if entries or training or recent or venue_conditions:
             raise CoverageError("Source data exists without scheduled races")
         return {
             "version": VERSION, "date": date, "raceCount": 0,
             "runnerCount": 0, "twoFactorComparable": 0, "ungraded": 0,
+            "courseInfoPresentCount": 0, "goingAvailableCount": 0,
             "researchOnly": True, "officialJraVerified": False,
             "overallRankReady": False, "predictionReady": False,
             "bettingReady": False, "autoTicketReady": False,
@@ -55,6 +59,22 @@ def build_day_trial(programme, entries, training, recent, date):
         }
     if len({row["track"] for row in programme}) > 3:
         raise CoverageError("Unexpected number of simultaneous racecourses")
+    # This is current venue metadata, NOT independent JRA verification nor
+    # evidence of any horse's course/ground suitability. In particular, a
+    # provider timestamp is not proof the condition is fresh at post time.
+    context = audit_race_context(programme, venue_conditions, date)
+    if (context.get("raceCount") != len(programme)
+            or context.get("raceConditionsVerified") is not False
+            or context.get("predictionReady") is not False):
+        raise CoverageError("Unverified day course/going snapshot")
+    conditions = {}
+    for row in context["races"]:
+        coordinate = (row["track"], row["race"])
+        if coordinate in conditions:
+            raise CoverageError("Duplicate conditions for day race")
+        conditions[coordinate] = row
+    if set(conditions) != coords:
+        raise CoverageError("Course/going snapshot race set mismatch")
     # Perform the costly joins once, not per R. These existing builders audit
     # source dates, race/horse identity and duplicate provider observations.
     train = build_training_hints(programme, entries, training, date)
@@ -99,6 +119,27 @@ def build_day_trial(programme, entries, training, recent, date):
                 or r["bettingReady"] is not False or r["autoTicketReady"] is not False):
             raise CoverageError("Non-research result in shared day snapshot")
         coord = row["track"], row["race"]
+        current = conditions[coord]
+        if (current.get("predictionReady") is not False
+                or current.get("horseCourseSuitabilityAssessed") is not False
+                or current.get("horseGoingSuitabilityAssessed") is not False):
+            raise CoverageError("Unverified course/going aptitude")
+        # Use the already vetted, redacted /tra+/tka presentation, not
+        # provider row IDs, odds or unpublished timestamps.
+        r["raceContext"] = {
+            "surface": current["surface"],
+            "distance_m": current["distance_m"],
+            "turn": current["turn"],
+            "going": current["going"],
+            "courseInfoPresent": current["courseInfoPresent"],
+            "goingAvailable": current["goingAvailable"],
+            "conditionSnapshotPresent": current["conditionSnapshotPresent"],
+            "conditionUpdateRecorded": current["conditionUpdateRecorded"],
+            "officialJraVerified": False,
+            "horseCourseSuitabilityAssessed": False,
+            "horseGoingSuitabilityAssessed": False,
+            "raceConditionsVerified": False,
+        }
         a, b, c = (base_by[coord], pedigree_by[coord], personnel_by[coord])
         n = r["runnersObserved"]
         if (any(x.get("runnerCount") != n for x in (a, b, c))
@@ -154,6 +195,8 @@ def build_day_trial(programme, entries, training, recent, date):
         "version": VERSION, "date": date, "raceCount": len(results),
         "runnerCount": observed, "twoFactorComparable": compared,
         "ungraded": missing, "researchOnly": True,
+        "courseInfoPresentCount": context["courseInfoPresentCount"],
+        "goingAvailableCount": context["goingAvailableCount"],
         "officialJraVerified": False, "overallRankReady": False,
         "predictionReady": False, "bettingReady": False,
         "autoTicketReady": False, "races": results,
