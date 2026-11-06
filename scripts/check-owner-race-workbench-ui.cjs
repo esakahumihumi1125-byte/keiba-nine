@@ -255,6 +255,58 @@ assert.equal(twelve.el('workNext').children.length,7);
 assert.match(twelve.el('workNext').children[6].textContent,/ほか6R/);
 assert.equal(twelve.writes.length,0);
 
+// New JRDB numbered pre-day mail should appear in the main owner 36R
+// workbench even without the legacy assumed-horse mail.
+const predayRace=(race)=>({race,postTime:'10:05',expected:3,runners:[
+ {number:1,name:'架空A',style:'先'},{number:2,name:'架空B',style:'逃'},
+ {number:3,name:'架空C',style:'差'}
+]});
+const predayMeetings=['東京','京都','福島'].map(track=>({
+ kind:'jrdb-preday-provisional',date,track,
+ races:Array.from({length:12},(_,i)=>predayRace(i+1))
+}));
+const predayOnly=boot({[keys.preday]:predayMeetings}),po=predayOnly.el;
+assert.match(po('workSummary').textContent,/36R表示／JRDB前日36R／JRDB想定0R/);
+assert.match(po('workSummary').textContent,/評価入力完了0R/);
+assert.equal(po('workMeetings').children.length,3);
+assert.equal(po('workNext').children.length,7,'six displayed plus 30 remaining tasks');
+assert.match(po('workNext').children[0].children[0].textContent,/前日馬番あり・未評価/);
+const predayHref=po('workNext').children[0].children[1].href;
+assert.ok(predayHref.startsWith('/my-scorecard#select=v1&'));
+assert.equal(new URLSearchParams(predayHref.split('#')[1]).size,4);
+assert.ok(!predayHref.includes('架空A'),'horse names never enter navigation URLs');
+const ownerTokyo=po('workMeetings').children.find(x=>x.children[0].textContent.startsWith('東京'));
+assert.equal(ownerTokyo.children[1].children[0].dataset.stage,'preday');
+ownerTokyo.children[1].children[0].onclick();
+assert.match(ownerTokyo.children[2].children[1].textContent,/前日情報：馬番・脚質の仮登録あり/);
+assert.match(ownerTokyo.children[2].children[2].textContent,/前日情報の発走予定：10:05/);
+assert.equal(predayOnly.writes.length,0,'workbench read-only');
+
+const gradedNote={date,track:'東京',race:1,
+ text:finished,sourceMark:null,researchSource:'jrdb-preday-roster-v1',
+ predaySourceMark:JSON.stringify(['10:05',3,predayMeetings[0].races[0].runners]),
+ savedAt:'2099-01-08T15:00:00Z'};
+const donePreday=boot({[keys.preday]:predayMeetings,[keys.score]:[gradedNote]}),dp=donePreday.el;
+assert.match(dp('workSummary').textContent,/評価入力完了1R/);
+const firstDone=dp('workMeetings').children.find(x=>x.children[0].textContent.startsWith('東京')).children[1].children[0];
+assert.equal(firstDone.dataset.stage,'graded');
+const changedPreday=JSON.parse(JSON.stringify(predayMeetings));
+changedPreday[0].races[0].runners[0].name='架空訂正';
+const invalidated=boot({[keys.preday]:changedPreday,[keys.score]:[gradedNote]}),ip=invalidated.el;
+assert.match(ip('workSummary').textContent,/評価入力完了0R/);
+assert.match(ip('workSummary').textContent,/元資料要再確認1R/);
+assert.equal(ip('workMeetings').children.find(x=>x.children[0].textContent.startsWith('東京')).children[1].children[0].dataset.stage,'stale');
+assert.match(ip('workNext').children[0].children[0].textContent,/前日馬番・評価の元資料を再確認/);
+assert.equal(ip('workNext').children[0].children[1].href,'/jrdb-mail-local#predayPanel');
+const missingPreday=boot({[keys.score]:[gradedNote]}),mp=missingPreday.el;
+assert.match(mp('workSummary').textContent,/元資料要再確認1R/);
+const badPreday=JSON.parse(JSON.stringify(predayMeetings));
+badPreday[0].races[1].runners[1].number=1;
+const corrupt=boot({[keys.preday]:badPreday}),cp=corrupt.el;
+assert.match(cp('workStatus').textContent,/読み込めません/);
+assert.match(cp('workSummary').textContent,/不正な記録を無視/);
+assert.equal(cp('workMeetings').children.length,0);
+assert.equal(corrupt.writes.length,0);
 assert.ok(!js.includes('fetch('),'no data transmitted');
 assert.ok(!js.includes('XMLHttpRequest'),'no data transmitted');
 assert.ok(!js.includes('localStorage.setItem'),'read-only');
