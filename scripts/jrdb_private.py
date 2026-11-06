@@ -23,12 +23,18 @@ ALLOWED_API_BASES = frozenset({
 })
 
 
+def approved_api_base(raw):
+    """Pure check for owner diagnostics; returns no secrets or provider data."""
+    return isinstance(raw, str) and (
+        raw.strip() or "https://dev.api.bigtime.world/v1"
+    ) in ALLOWED_API_BASES
+
+
 def _api_base_url():
-    raw = os.environ.get("JRDB_API_BASE_URL", "").strip()
-    base = raw or "https://dev.api.bigtime.world/v1"
-    if base not in ALLOWED_API_BASES:
+    raw = os.environ.get("JRDB_API_BASE_URL", "")
+    if not approved_api_base(raw):
         raise JRDBError("Unapproved JRDB API endpoint configuration")
-    return base
+    return raw.strip() or "https://dev.api.bigtime.world/v1"
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
