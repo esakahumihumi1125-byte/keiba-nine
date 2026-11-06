@@ -1429,9 +1429,9 @@ def create_app(settings=None):
                     'error': '当日の馬体・パドック資料を安全に照合できませんでした。'})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/one-day-trial':
-            # Explicit owner-click only. Four date-scoped source reads ONCE
-            # for the entire day, not 4 calls per race. All horse data is
-            # ephemeral and is never saved or published.
+            # Explicit owner-click only. Five date-scoped source reads
+            # ONCE for the entire day (including venue conditions /tka),
+            # not one request per race. Do not claim official JRA verification.
             if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
                     or settings.get('GITHUB_ACTIONS') == 'true'
                     or not all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
@@ -1447,10 +1447,11 @@ def create_app(settings=None):
                 programme = normalize_program_rows(fetch_race_program(date), date)
                 trial = build_day_trial(
                     programme, fetch_horse_entries(date),
-                    fetch_training_analysis(date), fetch_recent_runs(date), date
+                    fetch_training_analysis(date), fetch_recent_runs(date), date,
+                    fetch_venue_conditions(date)
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,
-                    ValueError, KeyError, TypeError):
+                    RaceContextError, ValueError, KeyError, TypeError):
                 return response('502 Bad Gateway', {
                     'error': '全Rの調教・近走データを安全に照合できませんでした。'
                              'API接続または対象日の元資料を確認してください。'})
