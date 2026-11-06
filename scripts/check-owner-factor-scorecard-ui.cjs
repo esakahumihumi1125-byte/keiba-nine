@@ -571,6 +571,8 @@ assert.equal(pilotCoords.get('track'),'福島');
 assert.equal(pilotCoords.get('race'),'1');
 assert.equal(pilotCoords.size,4);
 assert.equal(pd.writes.length,0);
+pd.links.length=0; // Mocked navigation is consumed before legacy seed tests.
+
 
 assert.equal(pe('scoreHandoff').disabled,true,'no auto-grade or ticket on page open');
 pe('scoreDate').value='2026-11-07';pe('scoreTrack').value='東京';pe('scoreRace').value='1';
