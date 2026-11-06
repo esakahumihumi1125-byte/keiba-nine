@@ -69,7 +69,8 @@ const day={
  races:[one,two],warning:'実戦予想・買い目未作成'
 };
 function start(isConfigured=true,reply=day){
- const elements=new Map(),calls=[];
+ const elements=new Map(),calls=[],navigation=[],temp=new Map();
+ const sessionStorage={getItem:k=>temp.get(k)||null,setItem:(k,v)=>temp.set(k,v),removeItem:k=>temp.delete(k)};
  function element(){
   return {value:'',textContent:'',disabled:false,children:[],className:'',
    append(...r){this.children.push(...r)},replaceChildren(...r){this.children=[...r]},
@@ -85,10 +86,24 @@ function start(isConfigured=true,reply=day){
  };
  vm.runInNewContext(source,{
   document:{getElementById:el,createElement:element},
-  window:{location:{hash:''}},Date,JSON,Set,Number,String,Error,URLSearchParams,fetch,
+  window:{location:{hash:'',assign:url=>navigation.push(url)}},
+  sessionStorage,confirm:()=>true,
+  Date,JSON,Set,Number,String,Error,URLSearchParams,fetch,
  });
- return {el,calls};
+ return {el,calls,navigation,temp};
 }
+const thirdHorse={
+ horseNumber:5,trainingGrade:'B',recentGrade:'未評価',
+ twoFactorPoints:null,comparisonRank:null,provisionalOnly:true,
+ pastFourthCornerObservation:'insufficient'
+};
+const three={...one,runners:[...one.runners,thirdHorse],
+ runnersObserved:3,twoFactorComparable:1,ungraded:2};
+three.factorCoverage=coverage(three.runners);
+three.factorCoverage.materialCountByFactor.pace=1;
+three.pastFourthCornerSummary=positionSummary(three.runners);
+const dayThree={...day,runnerCount:5,ungraded:3,races:[three,two]};
+
 const tick=async()=>new Promise(r=>setImmediate(r));
 (async()=>{
  const app=start(),$=app.el;
@@ -136,6 +151,30 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  m('trialDate').value='2026-11-07';m('trialDate').onchange();
  assert.equal(m('trialDayRun').disabled,true);
  assert.equal(missing.calls.length,1);
+ const forResearch=start(true,dayThree),rr=forResearch.el;
+ await tick();
+ rr('trialDate').value='2026-11-07';rr('trialDate').onchange();
+ await rr('trialDayRun').onclick();await tick();
+ assert.equal(rr('trialDayRaces').children.length,2);
+ const transfer=rr('trialDayRaces').children[0].children[7];
+ assert.match(transfer.textContent,/手動5項目へ仮入力/);
+ assert.equal(forResearch.navigation.length,0,'no automatic prefill from a day-wide batch');
+ transfer.onclick();
+ assert.equal(forResearch.navigation.length,1,'only explicit click transfers two grades');
+ assert.equal(forResearch.navigation[0],'/my-scorecard#research=v1');
+ const packet=JSON.parse(forResearch.temp.get('keiba-nine-owner-research-scorecard-handoff-v1'));
+ assert.equal(packet.runners.length,3);
+ assert.equal(packet.date,'2026-11-07');
+ assert.equal(packet.track,'東京');
+ assert.equal(packet.race,1);
+ assert.equal(packet.researchOnly,true);
+ assert.equal(packet.runners[2].recent,'未評価');
+ assert.ok(!JSON.stringify(packet).includes('horse_id'));
+ assert.ok(!JSON.stringify(packet).includes('pastFourthCornerObservation'));
+ rr('trialDate').value='2026-11-08';rr('trialDate').onchange();
+ transfer.onclick();
+ assert.equal(forResearch.navigation.length,1,'previous day's button refuses stale navigation');
+
  const bad=start(true,{...day,races:[one,{...one}]});
  const b=bad.el;await tick();
  b('trialDate').value='2026-11-07';b('trialDate').onchange();
