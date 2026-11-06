@@ -759,6 +759,16 @@ qe('scoreRace').value='3';qe('scoreRace').onchange();
 assert.equal(qe('scoreRace').value,'1');
 assert.equal(qe('scoreInput').value,fixture+' unsaved');
 assert.equal(JSON.parse(quota.store.get(NOTES))[0].text,fixture);
+const firstDeepLink=boot(true,{},'#select=v1&date=2026-11-07&track='+encodeURIComponent('東京')+'&race=1');
+const de=firstDeepLink.el;
+firstDeepLink.storageBehavior.failWrites=true;
+de('scoreInput').value=fixture;
+de('scoreInput').oninput();
+de('scoreRaceGrid').children[1].onclick();
+assert.equal(de('scoreRace').value,'1','first deep-link navigation must protect unsaved score');
+assert.equal(de('scoreInput').value,fixture);
+assert.match(de('scoreNavigationStatus').textContent,/未保存の評価/);
+assert.equal(firstDeepLink.store.has(NOTES),false);
 console.log('Owner scorecard storage-error retry and unsaved navigation guards PASS');
 
 console.log('Owner manual 5-factor scoring: 36-point ranks, validation, cancel, no-network handoff PASS');
