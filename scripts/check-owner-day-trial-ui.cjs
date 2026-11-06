@@ -118,6 +118,8 @@ const tick=async()=>new Promise(r=>setImmediate(r));
  assert.equal($('trialDayRaces').children[0].children[3].children.length,11);
  assert.match($('trialDayRaces').children[0].children[4].textContent,/暫定1位/);
  assert.match($('trialDayRaces').children[0].children[4].textContent,/前方での通過を複数回観測/);
+ assert.match($('trialDayRaces').children[0].children[4].className,/trial-front/);
+ assert.doesNotMatch($('trialDayRaces').children[1].children[4].className,/trial-front/);
  assert.match($('trialDayRaces').children[0].children[5].textContent,/比較順位なし/);
  assert.match($('trialDayRaces').children[0].children[5].textContent,/4角位置の観測不足/);
  assert.match($('trialDayRaces').children[1].children[4].textContent,/後方寄りの通過を観測/);
