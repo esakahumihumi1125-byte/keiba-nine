@@ -763,6 +763,81 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertFalse(setup['liveConnectionVerified'])
         fetch.assert_not_called()
 
+    def test_owner_only_one_request_connection_check_no_data_returned(self):
+        cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'synthetic-app-key',
+               'JRDB_AUTH_KEY': 'synthetic-user-key'}
+        app = create_app(cfg)
+        for denied in (
+                call(app, '/api/jrdb/connection-test', auth='',
+                     QUERY_STRING='date=20261107'),
+                call(app, '/api/jrdb/connection-test',
+                     QUERY_STRING='date=20261107',
+                     HTTP_X_KEIBA_REQUEST='')):
+            self.assertIn(denied['status'][:3], ('401', '403'))
+        with patch('private_service.fetch_race_program', return_value=[
+                {'licensed_field': 'secret-value'}]) as read, \
+             patch('private_service.normalize_program_rows', return_value=[{}, {}]) as normalize:
+            out = call(app, '/api/jrdb/connection-test',
+                       QUERY_STRING='date=20261107')
+        self.assertEqual(out['status'], '200 OK')
+        report = json.loads(out['body'])
+        self.assertEqual(report, {'date': '20261107',
+                                'connectionVerified': True,
+                                'programmeCount': 2,
+                                'providerDataStored': False,
+                                'predictionReady': False})
+        self.assertNotIn(b'licensed_field', out['body'])
+        self.assertNotIn(b'secret-value', out['body'])
+        self.assertNotIn(b'synthetic-app-key', out['body'])
+        self.assertIn('no-store', out['headers']['Cache-Control'])
+        read.assert_called_once_with('20261107')
+        normalize.assert_called_once()
+
+    def test_connection_check_disabled_or_bad_query_never_fetches(self):
+        for cfg in (SETTINGS, {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+                'JRDB_API_KEY': 'fake', 'JRDB_AUTH_KEY': 'fake',
+                'JRDB_API_BASE_URL': 'https://untrusted.example/v1'}):
+            with patch('private_service.fetch_race_program') as fetch:
+                out = call(create_app(cfg), '/api/jrdb/connection-test',
+                           QUERY_STRING='date=20261107')
+                self.assertTrue(out['status'].startswith('503'))
+                fetch.assert_not_called()
+        cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'fake', 'JRDB_AUTH_KEY': 'fake'}
+        for query in ('', 'date=20261107&extra=1',
+                      'date=20261107&date=20261108',
+                      'date=20260230', 'date=20261107%0D'):
+            with self.subTest(query=query), patch('private_service.fetch_race_program') as fetch:
+                out = call(create_app(cfg), '/api/jrdb/connection-test',
+                           QUERY_STRING=query)
+                self.assertTrue(out['status'].startswith('400'))
+                fetch.assert_not_called()
+
+    def test_connection_check_sanitized_provider_failures(self):
+        cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'secret-app-should-not-appear',
+               'JRDB_AUTH_KEY': 'secret-user-should-not-appear'}
+        for status in (401, 403, 429):
+            with self.subTest(status=status), patch(
+                 'private_service.fetch_race_program',
+                 side_effect=JRDBError('JRDB request failed (HTTP %s)' % status)):
+                out = call(create_app(cfg), '/api/jrdb/connection-test',
+                           QUERY_STRING='date=20261107')
+                self.assertEqual(out['status'], '502 Bad Gateway')
+                self.assertNotIn(b'secret-app', out['body'])
+                self.assertNotIn(b'secret-user', out['body'])
+                self.assertIn('error', json.loads(out['body']))
+
+    def test_owner_connection_button_only_enabled_after_setup(self):
+        home = call(self.app, '/')['body'].decode()
+        js = call(self.app, '/app.js')['body'].decode()
+        self.assertIn('id="jrdbConnectTest"', home)
+        self.assertIn('id="jrdbConnectResult"', home)
+        self.assertIn('disabled>JRDB', home)
+        self.assertIn("request('/api/jrdb/connection-test?date='", js)
+        self.assertIn("el('jrdbConnectTest').disabled=!enabled", js)
+
     def test_history_setup_explicit_gate_without_provider_fetch(self):
         cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
                'JRDB_API_KEY': 'synthetic-api-not-real',
