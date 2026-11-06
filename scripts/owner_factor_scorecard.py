@@ -420,7 +420,7 @@ function renderMemoInput(){
   row.number+' '+row.name+' '+row.grades.join(' ')).join('\n');
  invalidate();
  const missing=memoRows.reduce((n,row)=>n+row.grades.filter(x=>x==='?').length,0);
- $('scoreMemoStatus').textContent='本人メモから'+memoRows.length+'頭を表示。未評価'+missing+
+ $('scoreMemoStatus').textContent=(researchSource===PREDAY_RESEARCH_TAG?'JRDB前日資料から':'本人メモから')+memoRows.length+'頭を表示。未評価'+missing+
   '項目。すべてS/A/B/Cで選んでから計算してな（公式馬番・取消は未確認）。';
  saveDraft();
 }
@@ -607,7 +607,9 @@ function restoreCurrentNote(){
   $('scoreInput').value=note.text;
   $('scoreDraftStatus').textContent=selected.track+selected.race+
    'Rの途中評価を端末から復元しました（未購入・未確定）。'+
-   (researchSource?'JRDB研究用の未検証2項目を含みます。公式未照合。':'');
+   (researchSource===PREDAY_RESEARCH_TAG?
+     'JRDB前日資料の馬番を使った本人評価。JRA公式未照合。':
+     (researchSource?'JRDB研究用の未検証2項目を含みます。公式未照合。':''));
  }catch(e){
   resetMemoGrid();
   $('scoreInput').value='';
@@ -719,7 +721,9 @@ $('scoreReview').onclick=()=>{
   renderWinnerReview(preview);
   $('scoreStatus').textContent=select.date+' '+select.track+select.race+'R：'+rows.length+
    '頭の保存評価を計算しました。'+
-   (researchSource?'JRDB研究用の未検証2項目を含み、公式未照合。':'本人入力による仮評価。')+
+   (researchSource===PREDAY_RESEARCH_TAG?
+     'JRDB前日資料の仮馬番を使用（JRA公式未照合）。5項目は本人入力。':
+     (researchSource?'JRDB研究用の未検証2項目を含み、公式未照合。':'本人入力による仮評価。'))+
    'AIの実戦予想ではなく、人気・オッズは未使用。';
   $('scoreHandoff').disabled=false;
  }catch(e){
@@ -739,7 +743,9 @@ $('scoreHandoff').onclick=()=>{
  }
  if(!confirm('本人の5項目から計算した3連単'+p.formation.points+
   '点を、未保存の下書きとして渡しますか？\n'+
-  (researchSource?'JRDB研究用の未検証2項目を含みます。公式確認が必要です。\n':'')+
+  (researchSource===PREDAY_RESEARCH_TAG?
+     'JRDB前日資料の仮馬番です。JRA公式照合が必要です。\n':
+     (researchSource?'JRDB研究用の未検証2項目を含みます。公式確認が必要です。\n':''))+
   'AIの実馬予想ではありません。移動先でも確認してください。'))return;
  const query=new URLSearchParams();
  query.set('import','v1');query.set('date',current.date);
@@ -847,6 +853,8 @@ function renderScoreDayBatch(result){
   }
   if(item.researchSource===RESEARCH_DRAFT_TAG)
    warning.textContent+='【研究用】JRDBの未検証な調教・近走の仮評価を含みます。JRA公式未照合。';
+  if(item.researchSource===PREDAY_RESEARCH_TAG)
+   warning.textContent+='【前日資料】JRDBの仮馬番に基づく本人評価で、JRA公式出走・取消は未照合。';
   card.append(h,p,warning,ranks,controls);host.append(card);
  }
  $('scoreDayBatchText').value=result.text;
