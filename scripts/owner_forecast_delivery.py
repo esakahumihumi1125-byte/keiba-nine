@@ -65,14 +65,14 @@ def validate_owner_forecast(value):
                 or not 1 <= r["confidence"] <= 5):
             raise OwnerForecastError("Provisional source status/fields invalid")
         ranking = r.get("rank")
-        if (not isinstance(ranking, list) or len(ranking) != 7
+        if (not isinstance(ranking, list) or not 3 <= len(ranking) <= min(7, field)
                 or any(type(n) is not int or n < 1 or n > field for n in ranking)
                 or len(set(ranking)) != len(ranking)):
             raise OwnerForecastError("Invalid selection order")
         first, second, third = (r.get("first"), r.get("second"), r.get("third"))
         if (not all(isinstance(a, list) for a in (first, second, third))
                 or not 1 <= len(first) <= 3
-                or not len(first) <= len(second) <= len(third) <= 7
+                or not len(first) <= len(second) <= len(third) <= len(ranking)
                 or any(a != ranking[:len(a)] for a in (first, second, third))):
             raise OwnerForecastError("Invalid formation")
         combos = {(a, b, c) for a in first for b in second for c in third
@@ -124,7 +124,7 @@ def _expand_compact_owner_snapshot(data):
         time, course, field, rank, a, b, c, confidence, names = packed
         if (type(a) is not int or type(b) is not int or
                 type(c) is not int or type(confidence) is not int or
-                not isinstance(rank, list)):
+                not isinstance(rank, list) or not 3 <= len(rank) <= 7):
             raise OwnerForecastError("Invalid compact owner formation")
         first, second, third = rank[:a], rank[:b], rank[:c]
         tickets = {(x, y, z) for x in first for y in second for z in third
