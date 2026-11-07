@@ -124,6 +124,27 @@ class PrivateForecastDeliveryTests(unittest.TestCase):
         self.assertIn("点数を減らす",result["races"][14]["note"])
         self.assertFalse(result["officialJraVerified"])
 
+    def test_private_plain_json_preferred_and_same_origin_protected(self):
+        source=forecast()
+        source["date"]="2026-11-08"
+        packed={"format":"owner-compact-36r-v2","date":source["date"],
+            "races":[[r["time"],r["course"],r["field"],r["rank"],
+                      len(r["first"]),len(r["second"]),len(r["third"]),
+                      r["confidence"],r["headNames"],"勝負度と買い目を調整する暫定案。"]
+                     for r in source["races"]]}
+        settings={**SETTINGS,"KEIBA_OWNER_FORECAST_JSON":json.dumps(packed,ensure_ascii=False),
+                  ENV_KEY:pack(forecast())}
+        app=create_app(settings)
+        r=call(app,"/api/owner-preday-forecast")
+        self.assertEqual(r["status"],"200 OK")
+        self.assertEqual(json.loads(r["body"])["forecast"]["date"],"2026-11-08")
+        self.assertEqual(call(app,"/api/owner-preday-forecast",auth="")["status"],"401 Unauthorized")
+        self.assertEqual(call(app,"/api/owner-preday-forecast",
+                              HTTP_X_KEIBA_REQUEST="")["status"],"403 Forbidden")
+        settings["KEIBA_OWNER_FORECAST_JSON"]="bad-json"
+        self.assertEqual(call(create_app(settings),"/api/owner-preday-forecast")["status"],
+                         "503 Service Unavailable")
+
     def test_missing_env_safe_and_invalid_env_closed(self):
         app = create_app(SETTINGS)
         response = call(app, "/api/owner-preday-forecast")
