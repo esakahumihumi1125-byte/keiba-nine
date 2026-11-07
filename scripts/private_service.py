@@ -57,7 +57,7 @@ from owner_backup import HTML as BACKUP_HTML, JS as BACKUP_JS, CSS as BACKUP_CSS
 from owner_factor_scorecard import HTML as SCORE_HTML, JS as SCORE_JS, CSS as SCORE_CSS
 from owner_race_workbench import HTML as WORKBENCH_HTML, JS as WORKBENCH_JS, CSS as WORKBENCH_CSS
 from owner_preday_forecast_ui import HTML as FORECAST_HTML, JS as FORECAST_JS, CSS as FORECAST_CSS
-from owner_forecast_delivery import decode_forecast, OwnerForecastError, ENV_KEY as OWNER_FORECAST_ENV_KEY
+from owner_forecast_delivery import decode_forecast, decode_plain_owner_snapshot, OwnerForecastError, ENV_KEY as OWNER_FORECAST_ENV_KEY
 from owner_live_notes import parse_live_notes, LiveNoteError, ENV_KEY as OWNER_LIVE_ENV_KEY
 from owner_result_review import HTML as REVIEW_HTML, JS as REVIEW_JS, CSS as REVIEW_CSS
 from owner_daily_review_snapshot import decode_review, ReviewError, ENV_KEY as OWNER_DAILY_REVIEW_ENV_KEY
@@ -1275,11 +1275,13 @@ def create_app(settings=None):
             # Only owner-authenticated, same-origin requests reach this endpoint.
             # Render's private env holds a compressed editorial forecast, not
             # licensed JRDB email rows, provider indices or actual wagers.
+            stored_plain = settings.get('KEIBA_OWNER_FORECAST_JSON', '')
             stored_forecast = settings.get(OWNER_FORECAST_ENV_KEY, '')
-            if not stored_forecast:
+            if not stored_plain and not stored_forecast:
                 return response('200 OK', {'available': False, 'forecast': None})
             try:
-                forecast = decode_forecast(stored_forecast)
+                forecast = (decode_plain_owner_snapshot(stored_plain)
+                            if stored_plain else decode_forecast(stored_forecast))
             except OwnerForecastError:
                 return response('503 Service Unavailable', {
                     'error': '本人用の予想データの検証に失敗しました。'})
