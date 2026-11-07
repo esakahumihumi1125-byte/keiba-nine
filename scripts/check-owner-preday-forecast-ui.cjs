@@ -42,6 +42,20 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  const server=boot(true),se=server.$;
  await tick();
  assert.equal(se('fpRaces').children.length,1,'show only one R by default');
+ const firstCard=se('fpRaces').children[0];
+ const alternative=firstCard.children.find(x=>x.className==='selective');
+ assert.ok(alternative,'an alternative selective individual-ticket view appears');
+ assert.match(alternative.children[0].textContent,/10点/);
+ assert.equal(alternative.children[2].children.length,10,'10 distinct single tickets');
+ const tickets=alternative.children[2].children.map(x=>x.textContent);
+ assert.equal(new Set(tickets).size,10,'alternative ticket list has no duplicates');
+ for(const ticket of tickets){
+  const numbers=ticket.split(' → ').map(Number);
+  assert.ok([1,2].includes(numbers[0])&&[1,2,3,4].includes(numbers[1])
+    &&[1,2,3,4,5,6,7].includes(numbers[2]),'singles are part of formation');
+  assert.equal(new Set(numbers).size,3,'three horses are distinct');
+ }
+ assert.equal(server.writes.length,0,'alternative is read-only');
  assert.equal(se('fpVenueTabs').children.length,3,'three venue tabs appear');
  assert.equal(se('fpRaceTabs').children.length,12,'12 race buttons appear');
  assert.equal(server.writes.length,0,'server auto-read does not overwrite local storage');
