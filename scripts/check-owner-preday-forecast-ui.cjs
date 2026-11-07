@@ -22,7 +22,16 @@ function boot(serverReady=false){
   navigator:{clipboard:{writeText:async()=>{}}},
   fetch:async(url,options)=>{
    calls.push({url,options});
-   return {ok:true,json:async()=>url==='/api/owner-live-notes'?(serverReady?{
+   return {ok:true,json:async()=>url==='/api/owner-race-evidence'?(serverReady?{
+    available:true,evidence:{schema:'keiba-nine-private-evidence-v1',date:'2026-11-07',
+     sourceKind:'owner-editorial-limited-evidence',finalVerified:false,predictionRevised:false,
+     races:['東京','京都','福島'].flatMap(track=>Array.from({length:12},(_,i)=>({track,race:i+1,
+      lead:[{number:1,name:'架空A',reason:'事前の参考候補。'}],
+      pace:'先行の仮説。',secondThird:'相手候補を比較。',singles:'削減の検証。',
+      risk:'当日確認が必要。',verifiedFacts:[],coverage:{officialPastRuns:false,
+       publicTrainingChecked:false,officialPedigreeChecked:false,officialEntryCompared:false,
+       allHorseTrainingChecked:false,dayOfScratchesAndTrackChecked:false}})))}
+   }:{available:false,evidence:null}):url==='/api/owner-live-notes'?(serverReady?{
     available:true,notes:{date:'2026-11-07',sourceKind:'owner-edited-live-brief',
      officialJraVerified:false,predictionReady:false,races:[{track:'東京',race:1,
       time:'12:00',observedAt:'11:45',ground:'稍重',paddock:[5,6],note:'試験用の短い観察メモ'}]}
@@ -59,7 +68,11 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.equal(se('fpVenueTabs').children.length,3,'three venue tabs appear');
  assert.equal(se('fpRaceTabs').children.length,12,'12 race buttons appear');
  assert.equal(server.writes.length,0,'server auto-read does not overwrite local storage');
- assert.equal(server.calls.length,2,'forecast and private live brief requests on startup');
+ assert.equal(server.calls.length,3,'forecast, private live brief and evidence requests on startup');
+ assert.equal(server.calls[2].url,'/api/owner-race-evidence');
+ assert.equal(server.calls[2].options.headers['X-Keiba-Request'],'private');
+ assert.ok(se('fpRaces').children[0].children.some(x=>x.className==='race-evidence'));
+ assert.equal(server.writes.length,0,'evidence is not written to purchase storage');
  assert.equal(server.calls[1].url,'/api/owner-live-notes');
  assert.equal(server.calls[1].options.headers['X-Keiba-Request'],'private');
  assert.equal(se('fpRaces').children[0].children.some(x=>x.className==='live-brief'),true,
