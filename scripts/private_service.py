@@ -58,6 +58,7 @@ from owner_factor_scorecard import HTML as SCORE_HTML, JS as SCORE_JS, CSS as SC
 from owner_race_workbench import HTML as WORKBENCH_HTML, JS as WORKBENCH_JS, CSS as WORKBENCH_CSS
 from owner_preday_forecast_ui import HTML as FORECAST_HTML, JS as FORECAST_JS, CSS as FORECAST_CSS
 from owner_forecast_delivery import decode_forecast, OwnerForecastError, ENV_KEY as OWNER_FORECAST_ENV_KEY
+from owner_live_notes import parse_live_notes, LiveNoteError, ENV_KEY as OWNER_LIVE_ENV_KEY
 from owner_result_review import HTML as REVIEW_HTML, JS as REVIEW_JS, CSS as REVIEW_CSS
 from jrdb_one_race_trial import build_one_race_trial
 from jrdb_day_trial import build_day_trial
@@ -1241,6 +1242,16 @@ def create_app(settings=None):
                 'renderCommit=' + sha + '\n'
                 'note=認証済みの配信コードの識別情報。JRDBやレースの実データは取得しません。'
             ), 'text/plain; charset=utf-8')
+        if method == 'GET' and path == '/api/owner-live-notes':
+            stored = settings.get(OWNER_LIVE_ENV_KEY, '')
+            if not stored:
+                return response('200 OK', {'available': False, 'notes': None})
+            try:
+                notes = parse_live_notes(stored)
+            except LiveNoteError:
+                return response('503 Service Unavailable', {
+                    'error': '当日の追加情報を検証できません。'})
+            return response('200 OK', {'available': True, 'notes': notes})
         if method == 'GET' and path == '/api/owner-preday-forecast':
             # Only owner-authenticated, same-origin requests reach this endpoint.
             # Render's private env holds a compressed editorial forecast, not
