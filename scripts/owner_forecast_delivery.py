@@ -82,7 +82,7 @@ def validate_owner_forecast(value):
             raise OwnerForecastError("Invalid unique ticket count")
         names = r.get("headNames")
         note = r.get("note")
-        if (not isinstance(names, list) or len(names) != 2
+        if (not isinstance(names, list) or len(names) != len(first)
                 or any(n is not None and
                        (not isinstance(n, str) or not 1 <= len(n) <= 35 or
                         any(c in n for c in "<>\n\r"))
@@ -112,16 +112,17 @@ def _expand_compact_owner_snapshot(data):
     Race/track identity is positional and validated for exactly 36 entries.
     """
     if (not isinstance(data, dict)
-            or data.get("format") != "owner-compact-36r-v1"
+            or data.get("format") not in ("owner-compact-36r-v1", "owner-compact-36r-v2")
             or not _safe_date(data.get("date"))
             or not isinstance(data.get("races"), list)
             or len(data["races"]) != 36):
         return data
     out = []
     for index, packed in enumerate(data["races"]):
-        if (not isinstance(packed, list) or len(packed) != 9):
+        if (not isinstance(packed, list) or len(packed) != (10 if data["format"] == "owner-compact-36r-v2" else 9)):
             raise OwnerForecastError("Invalid compact owner record")
-        time, course, field, rank, a, b, c, confidence, names = packed
+        time, course, field, rank, a, b, c, confidence, names = packed[:9]
+        note = packed[9] if len(packed) == 10 else "前日資料による参考候補。調教・血統の全頭確認と当日の取消・馬場照合は未完了。"
         if (type(a) is not int or type(b) is not int or
                 type(c) is not int or type(confidence) is not int or
                 not isinstance(rank, list) or not 3 <= len(rank) <= 7):
@@ -138,7 +139,7 @@ def _expand_compact_owner_snapshot(data):
             "points": len(tickets),
             "status": "見送り" if confidence <= 2 else "買い候補",
             "headNames": names,
-            "note": "前日資料による参考候補。調教・血統の全頭確認と当日の取消・馬場照合は未完了。",
+            "note": note,
             "provisional": True,
             "jraOfficialConfirmed": False,
             "fullFactorVerified": False,
