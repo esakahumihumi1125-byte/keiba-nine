@@ -22,10 +22,14 @@ function boot(serverReady=false){
   navigator:{clipboard:{writeText:async()=>{}}},
   fetch:async(url,options)=>{
    calls.push({url,options});
-   return {ok:true,json:async()=>serverReady?{
+   return {ok:true,json:async()=>url==='/api/owner-live-notes'?(serverReady?{
+    available:true,notes:{date:'2026-11-07',sourceKind:'owner-edited-live-brief',
+     officialJraVerified:false,predictionReady:false,races:[{track:'東京',race:1,
+      time:'12:00',observedAt:'11:45',ground:'稍重',paddock:[5,6],note:'試験用の短い観察メモ'}]}
+   }:{available:false,notes:null}):(serverReady?{
     available:true,forecast:{...data(),sourceKind:'owner-private-authored-preday',
       predictionReady:false,officialJraVerified:false,purchased:false,raceCount:36}
-   }:{available:false,forecast:null}};
+   }:{available:false,forecast:null})};
   },
   localStorage:{getItem:k=>store.get(k)||null,
    setItem(k,v){writes.push(k);store.set(k,v)},
@@ -41,7 +45,11 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.equal(se('fpVenueTabs').children.length,3,'three venue tabs appear');
  assert.equal(se('fpRaceTabs').children.length,12,'12 race buttons appear');
  assert.equal(server.writes.length,0,'server auto-read does not overwrite local storage');
- assert.equal(server.calls.length,1,'one same-origin request on startup');
+ assert.equal(server.calls.length,2,'forecast and private live brief requests on startup');
+ assert.equal(server.calls[1].url,'/api/owner-live-notes');
+ assert.equal(server.calls[1].options.headers['X-Keiba-Request'],'private');
+ assert.equal(se('fpRaces').children[0].children.some(x=>x.className==='live-brief'),true,
+  'only matching private prestart note shown on selected race');
  assert.equal(server.calls[0].url,'/api/owner-preday-forecast');
  assert.equal(server.calls[0].options.headers['X-Keiba-Request'],'private');
  assert.match(se('fpCloudStatus').textContent,/自動表示/);
