@@ -2,6 +2,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const js=fs.readFileSync('/tmp/keiba-owner-preday-forecast.js','utf8');
 const KEY='keiba-nine-owner-preday-analysis-v1';
+class TestDate extends Date {constructor(...args){super(...(args.length?args:['2026-11-07T01:00:00Z']));}static now(){return Date.parse('2026-11-07T01:00:00Z');}}
 const data=()=>({schema:'keiba-nine-private-preday-review-v1',date:'2026-11-07',
  races:['東京','京都','福島'].flatMap(track=>Array.from({length:12},(_,i)=>({
   track,race:i+1,time:'12:00',course:'芝1400',field:9,
@@ -13,11 +14,11 @@ const data=()=>({schema:'keiba-nine-private-preday-review-v1',date:'2026-11-07',
 function boot(serverReady=false){
  const nodes=new Map(),store=new Map([['other','preserved']]),writes=[],calls=[];
  const node=()=>({textContent:'',value:'',files:[],children:[],checked:false,
-  onclick:null,onchange:null,append(...a){this.children.push(...a)},
+  onclick:null,onchange:null,setAttribute(k,v){this[k]=v},append(...a){this.children.push(...a)},
   replaceChildren(...a){this.children=[...a]}});
  const $=id=>{if(!nodes.has(id))nodes.set(id,node());return nodes.get(id)};
  vm.runInNewContext(js,{document:{getElementById:$,createElement:node},
-  Date,JSON,Set,Map,Number,String,Error,URLSearchParams,console,
+  Date:TestDate,JSON,Set,Map,Number,String,Error,URLSearchParams,console,
   navigator:{clipboard:{writeText:async()=>{}}},
   fetch:async(url,options)=>{
    calls.push({url,options});
@@ -36,14 +37,22 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
 (async()=>{
  const server=boot(true),se=server.$;
  await tick();
- assert.equal(se('fpRaces').children.length,36,'36R render directly on page open');
+ assert.equal(se('fpRaces').children.length,1,'show only one R by default');
+ assert.equal(se('fpVenueTabs').children.length,3,'three venue tabs appear');
+ assert.equal(se('fpRaceTabs').children.length,12,'12 race buttons appear');
  assert.equal(server.writes.length,0,'server auto-read does not overwrite local storage');
  assert.equal(server.calls.length,1,'one same-origin request on startup');
  assert.equal(server.calls[0].url,'/api/owner-preday-forecast');
  assert.equal(server.calls[0].options.headers['X-Keiba-Request'],'private');
  assert.match(se('fpCloudStatus').textContent,/自動表示/);
- se('fpTrack').value='福島';se('fpTrack').onchange();
- assert.equal(se('fpRaces').children.length,12,'viewer supports venue filter without file');
+ se('fpVenueTabs').children[2].onclick();
+ assert.match(se('fpSummary').textContent,/福島/);
+ assert.equal(se('fpRaces').children.length,1,'tab switches venue');
+ se('fpRaceTabs').children[5].onclick();
+ assert.match(se('fpSummary').textContent,/6R/);
+ assert.equal(se('fpRaces').children.length,1,'single 6R selected');
+ se('fpShowAll').onclick();
+ assert.equal(se('fpRaces').children.length,12,'show full venue on demand');
  se('fpDelete').onclick();await tick();
  assert.equal(se('fpRaces').children.length,12,'deleting local upload leaves server forecast visible');
  const b=boot(),el=b.$;
@@ -51,7 +60,8 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  const source=JSON.stringify(data());
  el('fpFile').files=[{size:source.length,text:async()=>source}];
  await el('fpImport').onclick();
- assert.equal(el('fpRaces').children.length,36);
+ assert.equal(el('fpRaces').children.length,1);
+ assert.equal(el('fpVenueTabs').children.length,3);
  assert.equal(b.writes.length,1);
  assert.equal(b.writes[0],KEY);
  assert.equal(JSON.parse(b.store.get(KEY)).races.length,36);
@@ -67,7 +77,10 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  un('fpFile').files=[{size:wrong.length,text:async()=>wrong}];
  await un('fpImport').onclick();
  assert.equal(unsafe.writes.length,0);
- el('fpTrack').value='京都';el('fpTrack').onchange();
+ el('fpVenueTabs').children[1].onclick();
+ assert.match(el('fpSummary').textContent,/京都/);
+ assert.equal(el('fpRaces').children.length,1);
+ el('fpShowAll').onclick();
  assert.equal(el('fpRaces').children.length,12);
  el('fpDelete').onclick();
  assert.equal(b.store.has(KEY),false);
