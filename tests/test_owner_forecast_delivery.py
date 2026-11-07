@@ -96,6 +96,34 @@ class PrivateForecastDeliveryTests(unittest.TestCase):
                    "/api/owner-preday-forecast")
         self.assertEqual(bad["status"], "503 Service Unavailable")
 
+    def test_tomorrow_six_horses_and_three_win_candidates(self):
+        raw = forecast()
+        raw["date"] = "2026-11-08"
+        six = raw["races"][14]  # Kyoto 3R
+        self.assertEqual((six["track"], six["race"]), ("京都", 3))
+        six.update(field=6, rank=[4, 6, 1, 3, 2, 5],
+                   first=[4], second=[4, 6, 1, 3], third=[4, 6, 1, 3, 2, 5],
+                   points=12, headNames=["架空堅実軸"])
+        crowded = raw["races"][13]
+        crowded.update(rank=[7, 4, 2, 1, 9, 6, 3], first=[7, 4, 2],
+                       second=[7, 4, 2, 1], third=[7, 4, 2, 1, 9, 6, 3],
+                       points=45, headNames=["架空先行", "架空差し", "架空大穴"])
+        validated = validate_owner_forecast(raw)
+        self.assertEqual(validated["races"][14]["points"],12)
+        self.assertEqual(len(validated["races"][13]["headNames"]),3)
+        fields=[]
+        for r in raw["races"]:
+            fields.append([r["time"],r["course"],r["field"],r["rank"],len(r["first"]),
+                           len(r["second"]),len(r["third"]),r["confidence"],r["headNames"],
+                           "堅いレースは点数を減らす。混戦は3〜5番手の勝ち切りを再点検。"])
+        snapshot={"format":"owner-compact-36r-v2","date":"2026-11-08","races":fields}
+        result=decode_forecast(pack(snapshot))
+        self.assertEqual(result["date"],"2026-11-08")
+        self.assertEqual(result["races"][14]["field"],6)
+        self.assertEqual(result["races"][13]["points"],45)
+        self.assertIn("点数を減らす",result["races"][14]["note"])
+        self.assertFalse(result["officialJraVerified"])
+
     def test_missing_env_safe_and_invalid_env_closed(self):
         app = create_app(SETTINGS)
         response = call(app, "/api/owner-preday-forecast")
