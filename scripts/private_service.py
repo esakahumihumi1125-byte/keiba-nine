@@ -59,6 +59,7 @@ from owner_race_workbench import HTML as WORKBENCH_HTML, JS as WORKBENCH_JS, CSS
 from owner_preday_forecast_ui import HTML as FORECAST_HTML, JS as FORECAST_JS, CSS as FORECAST_CSS
 from owner_forecast_delivery import decode_forecast, decode_plain_owner_snapshot, OwnerForecastError, ENV_KEY as OWNER_FORECAST_ENV_KEY
 from owner_live_notes import parse_live_notes, LiveNoteError, ENV_KEY as OWNER_LIVE_ENV_KEY
+from owner_race_evidence import decode_evidence, EvidenceError, ENV_KEY as OWNER_EVIDENCE_ENV_KEY
 from owner_result_review import HTML as REVIEW_HTML, JS as REVIEW_JS, CSS as REVIEW_CSS
 from owner_daily_review_snapshot import decode_review, ReviewError, ENV_KEY as OWNER_DAILY_REVIEW_ENV_KEY
 from owner_daily_review_ui import HTML as DAILY_REVIEW_HTML, JS as DAILY_REVIEW_JS, CSS as DAILY_REVIEW_CSS
@@ -1251,6 +1252,16 @@ def create_app(settings=None):
                 'renderCommit=' + sha + '\n'
                 'note=認証済みの配信コードの識別情報。JRDBやレースの実データは取得しません。'
             ), 'text/plain; charset=utf-8')
+        if method == 'GET' and path == '/api/owner-race-evidence':
+            raw = settings.get(OWNER_EVIDENCE_ENV_KEY, '')
+            if not raw:
+                return response('200 OK', {'available': False, 'evidence': None})
+            try:
+                research = decode_evidence(raw)
+            except EvidenceError:
+                return response('503 Service Unavailable',
+                                {'error': '本人用の根拠メモを確認できません。'})
+            return response('200 OK', {'available': True, 'evidence': research})
         if method == 'GET' and path == '/api/owner-daily-review':
             raw = settings.get(OWNER_DAILY_REVIEW_ENV_KEY, '')
             if not raw:
