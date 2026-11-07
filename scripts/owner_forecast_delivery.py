@@ -147,6 +147,20 @@ def _expand_compact_owner_snapshot(data):
     return {"schema": SCHEMA, "date": data["date"], "races": out}
 
 
+def decode_plain_owner_snapshot(value):
+    """Read minimal, authored personal rankings from a private env only.
+
+    Does not expose or store raw provider rows, protected indices or credentials.
+    """
+    if not isinstance(value, str) or not 1 <= len(value) <= MAX_DOCUMENT:
+        raise OwnerForecastError("Invalid private JSON size")
+    try:
+        return validate_owner_forecast(
+            _expand_compact_owner_snapshot(json.loads(value)))
+    except (ValueError, TypeError) as exc:
+        raise OwnerForecastError("Private JSON forecast failed validation") from exc
+
+
 def decode_forecast(value):
     if not isinstance(value, str) or not 1 <= len(value) <= MAX_COMPRESSED or not re.fullmatch(r"[A-Za-z0-9_-]+={0,2}", value):
         raise OwnerForecastError("No valid owner forecast configured")
