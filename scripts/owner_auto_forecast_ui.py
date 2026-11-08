@@ -12,9 +12,10 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 資料が不足したレースは見送り。実際の投票・購入・記録への保存は一切行いません。</p>
 <section>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
-<button id="autoRun" type="button">全場・全Rの自動暫定予想を作成</button>
-<p class="muted">本人が押したときだけJRDBの番組・出走馬・調教・近走を各1回取得。
-当日発走済みレースの3連単は後付けで作成しません。</p>
+<button id="autoRun" type="button">全場・全Rを再分析する</button>
+<p class="muted">画面を開いたら本人用の当日分を一度だけ自動取得。
+再分析ボタンを押した場合も番組・出走馬・調教・近走を各1回取得します。
+バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
 <a href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
@@ -251,7 +252,9 @@ $('autoDay').onchange=()=>{
  $('autoStatus').textContent='開催日を選んでな。';
 };
 $('autoRun').onclick=async()=>{
- const seq=++request,button=$('autoRun'),day=$('autoDay').value.replaceAll('-','');
+ const button=$('autoRun');
+ if(button.disabled)return;
+ const seq=++request,day=$('autoDay').value.replaceAll('-','');
  if(!/^20[0-9]{6}$/.test(day)){
   $('autoStatus').textContent='開催日を選択してください。';return;
  }
@@ -277,4 +280,7 @@ $('autoRun').onclick=async()=>{
   $('autoSummary').textContent='予想は未作成';}}
  finally{if(seq===request)button.disabled=false;}
 };
+// Opening the authenticated owner page is the only automatic trigger.
+// No timers, background provider polling, or auto-purchase.
+if(document.visibilityState!=='hidden')$('autoRun').onclick();
 })();"""
