@@ -68,6 +68,18 @@ summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
 JS = r"""(()=>{'use strict';
 const $=id=>document.getElementById(id);
 const GRADES=new Set(['S','A','B','C','未評価']);
+const MISSING={
+ missing_training_indices:'調教：追切・仕上指数の片方または両方が不足',
+ no_linked_training_record:'調教：この馬に照合できる資料なし',
+ no_usable_history:'近走：評価に使える過去走なし',
+ only_one_usable_run:'近走：使える資料が1走のみ（現基準は2走必要）',
+ insufficient_scored_runs:'近走：着順と指数がそろう資料が2走未満',
+ no_linked_recent_record:'近走：この馬に照合できる資料なし',
+ training_unassessed:'調教：資料不足・理由の再確認が必要',
+ recent_unassessed:'近走：資料不足・理由の再確認が必要'
+};
+function missingText(h){return (Array.isArray(h.missingReasons)?h.missingReasons:[])
+ .filter(k=>Object.hasOwn(MISSING,k)).map(k=>MISSING[k]).join('／');}
 const RECEIPTS_KEY='keiba-nine-owner-server-receipts-v1';
 const REASONS={
  missing_research:'このレースの資料に不整合あり・自動判定を見送り',
@@ -149,6 +161,7 @@ function runnerView(h,index){
   dom('span','調教 '+h.training,'grade '+h.training),
   dom('span','近走 '+h.recent,'grade '+h.recent),
   dom('span',POS[h.pastFourthCorner]+' ※脚質確定ではない','notes'));
+ if(missingText(h))p.append(dom('span',missingText(h),'notes'));
  return p;
 }
 function formation(r){

@@ -12,6 +12,7 @@ NOT a validated 10-factor or real betting recommendation.
 from datetime import datetime, timezone, timedelta
 import re
 
+from owner_factor_diagnostics import TRAINING, RECENT
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import _valid_date
 from jrdb_program_preview import TRACKS
@@ -74,7 +75,13 @@ def _normalize_runners(research):
             score = None
             if r.get("researchOrder") is not None:
                 raise CoverageError("Unassessed runner must not be ranked")
+        reasons = r.get("missingReasons", [])
+        if not isinstance(reasons, list) or any(
+                not isinstance(v, str) or v not in TRAINING | RECENT | {"training_unassessed", "recent_unassessed"}
+                for v in reasons):
+            raise CoverageError("Invalid missing-factor reasons")
         normalized.append({
+            "missingReasons": reasons,
             "number": r["number"], "training": r["training"],
             "recent": r["recent"], "twoFactorGrade": _grade(score) if score is not None else "未評価",
             "pastFourthCorner": r["pastFourthCorner"], "twoFactorPoints": score,

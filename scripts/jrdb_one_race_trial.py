@@ -4,6 +4,7 @@ This is an uncalibrated training/recent research preview from permitted JRDB
 materials, never a validated overall prediction, JRA racecard verification,
 3連単 proposal, public feed or automatic purchase. No calls or persistence here.
 """
+from owner_factor_diagnostics import missing_reasons
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import _valid_date
 from jrdb_program_preview import TRACKS
@@ -72,6 +73,8 @@ def build_one_race_trial(programme, entries, training, recent, date, track, race
         points = VALUES[workout] + VALUES[form] if workout in VALUES and form in VALUES else None
         comparisons.append({
             "horseNumber": int(number),
+            "missingReasons": missing_reasons(workout, form,
+                a.get("assessmentStatusByNumber", {}).get(number), history.get("assessmentStatus")),
             "trainingGrade": workout,
             "recentGrade": form,
             "twoFactorPoints": points,

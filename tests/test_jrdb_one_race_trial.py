@@ -40,6 +40,7 @@ class JRDBOneRaceTrialTests(unittest.TestCase):
         self.assertEqual(result["runners"][0], {
             "horseNumber": 1, "trainingGrade": "S", "recentGrade": "A",
             "twoFactorPoints": 7, "provisionalOnly": True, "comparisonRank": 1,
+            "missingReasons": [],
         })
         self.assertIsNone(result["runners"][1]["comparisonRank"])
         self.assertIsNone(result["runners"][1]["twoFactorPoints"])

@@ -149,6 +149,10 @@ def build_recent_hints(programme, entries, previous, requested_date):
         past_three = history[:3]
         observations[(key, joined)] = {
             "grade": _provisional(history),
+            "assessmentStatus": ("assessed" if _provisional(history) != "未評価"
+                else "no_usable_history" if not history
+                else "only_one_usable_run" if len(history) == 1 and history[0]["finish"] is not None and history[0]["idm"] is not None
+                else "insufficient_scored_runs"),
             "datedRuns": len(history),
             "completedRuns": sum(r["finish"] is not None for r in history),
             "topThree": sum(r["finish"] is not None and r["finish"] <= 3 for r in past_three),
@@ -162,7 +166,7 @@ def build_recent_hints(programme, entries, previous, requested_date):
         stats = {}
         for n in sorted(roster[key]):
             stats[n] = observations.get((key, n), {
-                "grade": "未評価", "datedRuns": 0, "completedRuns": 0,
+                "grade": "未評価", "assessmentStatus": "no_linked_recent_record", "datedRuns": 0, "completedRuns": 0,
                 "topThree": 0, "frontAtFourth": 0, "fourthObserved": 0,
                 "late3fObserved": 0
             })

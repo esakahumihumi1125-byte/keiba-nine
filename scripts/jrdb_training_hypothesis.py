@@ -51,6 +51,7 @@ def build_training_hints(programme, entries, training, requested_date):
             identities[(key, hid)] = number
 
     matched = {}
+    statuses = {}
     for row in training:
         key, num, hid = row["racekey"], row.get("horse_number"), row.get("horse_id")
         if key not in valid_keys:
@@ -67,6 +68,8 @@ def build_training_hints(programme, entries, training, requested_date):
         if race_number in matched:
             raise CoverageError("Duplicate workout analysis for same runner")
         matched[race_number] = _grade(_index(row.get("oikirisisu")), _index(row.get("siagarisisu")))
+        statuses[race_number] = ("missing_training_indices"
+            if matched[race_number] == "未評価" else "assessed")
 
     by_race = []
     for race in programme:
@@ -76,7 +79,9 @@ def build_training_hints(programme, entries, training, requested_date):
             grades[number] = matched.get((key, number), "未評価")
         by_race.append({
             "racekey": key, "track": race["track"], "race": race["race"],
-            "gradesByNumber": grades, "researchOnly": True,
+            "gradesByNumber": grades,
+            "assessmentStatusByNumber": {n: statuses.get((key, n), "no_linked_training_record") for n in grades},
+            "researchOnly": True,
             "predictionReady": False
         })
     return by_race

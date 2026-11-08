@@ -5,6 +5,7 @@ values, horse names, identifiers, sources or credentials are returned.
 Two experimental factor grades ARE NOT an overall grade, a win probability,
 a betting selection, or a final official JRA start list.
 """
+from owner_factor_diagnostics import missing_reasons
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import NUMBER
 from jrdb_dual_factor_readiness import KNOWN
@@ -66,6 +67,8 @@ def owner_runner_research(training_hints, recent_hints, track, race):
         subtotal = VALUES[a] + VALUES[b] if completeness == 2 else None
         result.append({
             "number": int(number), "training": a, "recent": b,
+            "missingReasons": missing_reasons(a, b,
+                t.get("assessmentStatusByNumber", {}).get(number), past.get("assessmentStatus")),
             "pastFourthCorner": position,
             "completeFactors": completeness,
             "researchOrder": None,

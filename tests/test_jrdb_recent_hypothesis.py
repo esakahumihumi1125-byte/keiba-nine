@@ -52,6 +52,21 @@ class RecentHypothesisTests(unittest.TestCase):
         self.assertEqual(rows[0]["byNumber"]["01"]["late3fObserved"], 3)
         self.assertFalse(rows[0]["predictionReady"])
 
+    def test_missing_reasons_distinguish_absence_one_run_and_partial_fields(self):
+        p, e, z = fixture()
+        missing = self.audit((p, e, []))[0]["byNumber"]["01"]
+        self.assertEqual(missing["assessmentStatus"], "no_linked_recent_record")
+        for key in list(z[0]):
+            if key.startswith(("race_back_2_", "race_back_3_")):
+                del z[0][key]
+        one = self.audit((p, e, z))[0]["byNumber"]["01"]
+        self.assertEqual(one["assessmentStatus"], "only_one_usable_run")
+        self.assertEqual(one["grade"], "未評価")
+        del z[0]["race_back_1_idm"]
+        partial = self.audit((p, e, z))[0]["byNumber"]["01"]
+        self.assertEqual(partial["assessmentStatus"], "insufficient_scored_runs")
+        self.assertEqual(partial["grade"], "未評価")
+
     def test_odds_do_not_influence_grade(self):
         first = self.audit()
         p, e, z = fixture()
