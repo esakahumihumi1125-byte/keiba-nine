@@ -335,6 +335,43 @@ function withFiveFactor(report){
  };
  return report;
 }
+function withTenFactor(report){
+ withFiveFactor(report);
+ const five=report.fiveFactorHypotheses.races[0].runners;
+ const items=five.map(x=>({
+  number:x.number,provisionalBands:{...x.bands},
+  sourceStates:{
+   pedigree:x.number===1?'complete_fields_observed':'partial_fields_observed',
+   draw_weight:'complete_fields_observed',
+   jockey_stable:'complete_fields_observed',
+   rotation:x.number<=4?'days14to55':'unknown',
+   body_condition:'race_day_bodyweight_unavailable'
+  },
+  bodyShapeCodePresent:x.number===1,
+  verifiedGrades:0,overallScore:null,overallRank:null
+ }));
+ const count=key=>items.filter(h=>key==='rotation'
+  ?h.sourceStates.rotation!=='unknown':
+  key==='body_condition'?false:
+   h.sourceStates[key]==='complete_fields_observed').length;
+ const weights=Object.fromEntries(POLICY.map(row=>[row[0],row[2]]));
+ report.tenFactorSourceInventory={
+  version:'owner-ten-factor-source-inventory-1',policyVersion:'research-5',
+  raceCount:1,factorCount:10,totalWeight:100,factorWeights:weights,
+  independentJraVerified:false,overallPredictionReady:false,
+  verifiedGrades:0,researchOnly:true,privateOwnerOnly:true,
+  bettingReady:false,autoPurchase:false,
+  races:[{
+   track:'東京',race:1,runnerCount:items.length,runners:items,
+   remainingFieldCoverage:Object.fromEntries(
+    ['pedigree','draw_weight','jockey_stable','rotation','body_condition']
+      .map(k=>[k,count(k)])),
+   verifiedGrades:0,overallReady:false,independentJraVerified:false,
+   bettingReady:false
+  }]
+ };
+ return report;
+}
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
  let next=resultWith('a'.repeat(64)),historicalResponse=historical(),
@@ -500,6 +537,24 @@ function boot(){
  assert.match(fivePanel.children[2].textContent,/1番｜調教 S／近走 S/);
  assert.match(fivePanel.children[2].textContent,/研究用・総合点なし/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
+ // Ten-source inventory: all ten slots can be inspected without turning
+ // a present field into a grade or modifying an earlier signed 3連単.
+ a.setHistorical(withTenFactor(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const tenPanel=a.get('autoHistoryAuditRaces').children[0].children.find(
+  x=>x.tag==='details'&&/10項目の資料状況/.test(x.children[0]?.textContent||''));
+ assert.ok(tenPanel);
+ assert.equal(tenPanel.children.length,9);
+ assert.match(tenPanel.children[2].textContent,/1番｜血統 資料あり/);
+ assert.match(tenPanel.children[2].textContent,/当日馬体重未取得/);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ const tamperedTen=withTenFactor(historical());
+ tamperedTen.tenFactorSourceInventory.races[0].runners[0]
+  .sourceStates.body_condition='good_bodyweight';
+ a.setHistorical(tamperedTen);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
  const alteredFive=withFiveFactor(historical());
  alteredFive.fiveFactorHypotheses.races[0].runners[0].bands.ground='S';
  a.setHistorical(alteredFive);
