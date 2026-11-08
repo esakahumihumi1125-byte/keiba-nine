@@ -40,6 +40,13 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <div id="autoHistoryAuditRaces"></div>
 </section>
 <section>
+<h2>当日の馬体重資料（任意）</h2>
+<p class="muted">押したときだけJRDB直前情報から馬体重・前走比の記録件数を照合。原数値・オッズ・パドック指数は画面に出しません。JRA公式の確定値や馬体評価ではありません。</p>
+<button id="autoPrestartBody" type="button">今日の馬体重資料を確認</button>
+<p id="autoPrestartStatus" class="muted" role="status">本人操作時だけ追加API照合。予想・買い目・回収率は変更しません。</p>
+<div id="autoPrestartRaces"></div>
+</section>
+<section>
 <h2>発走前に固定した買い目の履歴</h2>
 <p id="autoHistoryStatus" class="muted" role="status">この端末の固定記録を読み込み中です。</p>
 <div id="autoHistory"></div>
@@ -673,10 +680,15 @@ function saveAutoReceipts(data,day){
 
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
+ prestartSeq=0,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
+ prestartSeq++;
+ $('autoPrestartRaces').replaceChildren();
+ $('autoPrestartStatus').textContent='本人操作時だけ追加API照合。予想や買い目は変更しません。';
+ $('autoPrestartBody').disabled=false;
  historySeq++;historyDay='';historyCoordinates=new Set();
  historyRosters=new Map();historyReboundWatch=new Map();historyStyles=new Map();
  historyGrades=new Map();historyStatuses=new Map();
@@ -1626,6 +1638,85 @@ $('autoHistoryAudit').onclick=async()=>{
    '過去資料の照合ができません。履歴機能の設定・資料形式を確認してください。'+
    '予想と固定済みの買い目は変更していません。';
  }}finally{if(seq===historySeq&&day===historyDay)button.disabled=false;}
+};
+// Never use source count alone to grade body condition or change a ticket.
+function validatePrestartBody(raw,day){
+ if(!raw||raw.version!=='private-prestart-body-1'||raw.date!==day||
+    !Number.isInteger(raw.raceCount)||raw.raceCount<0||raw.raceCount>120||
+    !Array.isArray(raw.races)||raw.races.length!==raw.raceCount||
+    raw.rawHorseRecordsIncluded!==false||raw.oddsUsed!==false||
+    raw.officialBodyWeightVerified!==false||raw.bodyConditionGraded!==false||
+    raw.realPredictionReady!==false||raw.purchaseReady!==false||
+    !Array.isArray(raw.sourceRequestsRequired)||
+    raw.sourceRequestsRequired.join('|')!=='tra|tky|tpd'||
+    !raw.summary)throw Error('直前馬体資料の形式不正');
+ const countKeys=['registered','prestartRowsMatched','prestartRowsMissing',
+  'bodyWeightRecords','weightChangeRecords','paddockRecords',
+  'bodyStateCodeRecords','providerWithdrawnReports'];
+ const totals={matchedRows:0,weightRecords:0,paddockRecords:0,missingRows:0};
+ const seen=new Set();
+ for(const row of raw.races){
+  const id=row?.track+'|'+row?.race;
+  if(!row||typeof row.track!=='string'||!row.track||
+     !Number.isInteger(row.race)||row.race<1||row.race>12||
+     seen.has(id)||countKeys.some(k=>!Number.isInteger(row[k])||
+      row[k]<0||row[k]>18)||
+     row.registered!==row.prestartRowsMatched+row.prestartRowsMissing||
+     ['bodyWeightRecords','weightChangeRecords','paddockRecords',
+      'bodyStateCodeRecords','providerWithdrawnReports'].some(k=>
+       row[k]>row.prestartRowsMatched)||
+     row.weightChangeRecords>row.bodyWeightRecords||
+     row.sourceDataUpdatedAtVerified!==false||
+     row.officialBodyWeightVerified!==false||
+     row.bodyConditionGraded!==false||
+     row.realPredictionReady!==false||row.ticketReady!==false)
+   throw Error('直前馬体資料の頭数不一致');
+  seen.add(id);
+  totals.matchedRows+=row.prestartRowsMatched;
+  totals.weightRecords+=row.bodyWeightRecords;
+  totals.paddockRecords+=row.paddockRecords;
+  totals.missingRows+=row.prestartRowsMissing;
+ }
+ if(Object.keys(totals).some(k=>raw.summary[k]!==totals[k]))
+  throw Error('直前馬体資料の集計不一致');
+ return raw.races;
+}
+$('autoPrestartBody').onclick=async()=>{
+ const button=$('autoPrestartBody');
+ if(button.disabled)return;
+ const day=$('autoDay').value.replaceAll('-','');
+ if(day!==jstToday().replaceAll('-')){
+  $('autoPrestartStatus').textContent='直前情報は日本時間の当日のみ照合できます。';
+  return;
+ }
+ const seq=++prestartSeq;
+ button.disabled=true;$('autoPrestartRaces').replaceChildren();
+ $('autoPrestartStatus').textContent='当日の馬体資料を照合中…';
+ try{
+  const r=await fetch('/api/jrdb/prestart-body?date='+encodeURIComponent(day),{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  const raw=await r.json();
+  if(seq!==prestartSeq||$('autoDay').value.replaceAll('-','')!==day)return;
+  if(!r.ok)throw Error('直前資料が利用不可');
+  const rows=validatePrestartBody(raw,day);
+  for(const row of rows){
+   const card=dom('div',undefined,'history-coverage');
+   card.append(dom('strong',row.track+' '+row.race+'R'),
+    dom('p','馬体重 '+row.bodyWeightRecords+'/'+row.registered+
+     '頭／前走比 '+row.weightChangeRecords+'頭／未照合 '+
+     row.prestartRowsMissing+'頭（JRA公式未確認・採点なし）','muted'));
+   $('autoPrestartRaces').append(card);
+  }
+  $('autoPrestartStatus').textContent='直前資料 '+raw.summary.matchedRows+
+   '頭照合／馬体重記録 '+raw.summary.weightRecords+
+   '頭。総合点・保存済み3連単・仮想収支は変更しません。';
+ }catch(_){if(seq===prestartSeq){
+  $('autoPrestartRaces').replaceChildren();
+  $('autoPrestartStatus').textContent=
+   '直前資料を照合できません。本人用の設定・接続を確認。既存記録は無変更です。';
+ }}finally{if(seq===prestartSeq)button.disabled=false;}
 };
 $('autoWatchResultCheck').onclick=async()=>{
  const button=$('autoWatchResultCheck'),seq=++watchResultSeq,
