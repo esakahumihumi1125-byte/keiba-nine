@@ -2084,14 +2084,15 @@ def create_app(settings=None):
                     saved = save_first_and_read(
                         settings, signing_secret, selected_day, receipts)
                     report['archiveRecordCount'] = len(saved)
-                    expected = {
+                    fresh_receipts_by_race = {
                         (x['snapshot']['track'], x['snapshot']['race']): x
                         for x in receipts
                     }
                     matches, conflicts = [], 0
                     for original in saved:
                         snapshot = original['snapshot']
-                        current = expected.get((snapshot['track'], snapshot['race']))
+                        current = fresh_receipts_by_race.get(
+                            (snapshot['track'], snapshot['race']))
                         if current is None:
                             continue
                         # Never replace an earlier, immutable forecast with
