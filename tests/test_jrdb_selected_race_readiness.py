@@ -124,6 +124,30 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         with self.assertRaises(CoverageError):
             self.check(track="京都", race=2)
 
+    def test_unrelated_race_anomalies_do_not_fail_selected_race(self):
+        p, e, t, z, h = records()
+        # The response is for Tokyo 1R only; unrelated Kyoto records must not
+        # be joined to it, even if another race's beta rows need repair.
+        e[2]["racedate"] = "20261102"
+        e[2]["withdrawn_flag"] = "UNSUPPORTED"
+        t.append({"racekey": "08264b01", "racedate": "20261101",
+                  "horse_id": "not-a-verified-id"})
+        z.append({"racekey": "08264b01", "racedate": "20261101",
+                  "race_back_1_racedate": "20990101"})
+        h.append({"holdingkey": "08264b", "racedate": "20261101",
+                  "turf_condition_cd": "unknown"})
+        report = self.check(p, e, t, z, h)
+        self.assertEqual((report["track"], report["race"]), ("東京", 1))
+        self.assertEqual(report["observedEntries"], 2)
+        self.assertFalse(report["predictionReady"])
+        self.assertFalse(report["officialJraFinalVerification"])
+
+    def test_selected_race_mismatches_remain_blocking(self):
+        p, e, t, z, h = records()
+        e[0]["withdrawn_flag"] = "UNSUPPORTED"
+        with self.assertRaises(CoverageError):
+            self.check(p, e, t, z, h)
+
     def test_source_mismatch_fails_closed(self):
         p, e, t, z, h = records()
         e[0]["racedate"] = "20261102"
