@@ -489,6 +489,7 @@ function boot(){
  assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?')).length,0);
  const beforeBody=a.storage.get(STORAGE);
  await a.get('autoPrestartBody').onclick();
+ assert.equal(a.get('autoPrestartStatus').textContent.includes('当日のみ') ? 'wrong_day' : (a.get('autoPrestartBody').disabled ? 'still_disabled' : 'handled'), 'handled');
  const bodyRequests=a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?'));
  assert.equal(bodyRequests.length,1);
  assert.equal(bodyRequests[0].url,'/api/jrdb/prestart-body?date='+day);
