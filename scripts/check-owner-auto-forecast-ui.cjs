@@ -233,8 +233,27 @@ function populateReboundReview(report,sourceRunners=runners){
  };
  return report;
 }
+function populateCapture(report){
+ const row=report.reboundContextReview.races[0];
+ const originals=row.watch.map(x=>({number:x.number,reviewState:x.reviewState}));
+ report.watchCapture={
+  version:'owner-rebound-watch-receipt-1',date:day,
+  serverSigned:true,officialFeedConnected:false,jraScheduleVerified:false,
+  officialResultsVerified:false,actualPurchase:false,purchaseReady:false,
+  receiptCount:originals.length?1:0,postOffOrMissingTimeRaces:0,
+  receipts:originals.length?[{
+   snapshot:{version:'owner-rebound-watch-receipt-1',date:day,
+    track:'東京',race:1,sourceKind:'server-prestart-research-watch',
+    capturedAt:'2099-01-01T00:00:00+00:00',
+    scheduledOffAt:'2099-01-01T03:00:00+00:00',
+    watch:originals,researchOnly:true,officialJraVerified:false,
+    actualPurchase:false,winnerPickReady:false,captureAuditVerified:false
+   },signature:'a'.repeat(64)}]:[]
+ };
+ return report;
+}
 function historical(){
- return populateReboundReview(populatePace(populateHistoricalBands({
+ return populateCapture(populateReboundReview(populatePace(populateHistoricalBands({
   version:'bounded-history-1',date:day,predictionReady:false,
   goingSuitabilityAssessed:false,historyComplete:false,
   referencedPastRaces:2,selectedPastRaces:1,deferredPastRaces:1,
@@ -274,7 +293,7 @@ function historical(){
    version:'real-assessment-preflight-1',realGradeReady:false,
    realPredictionReady:false,purchaseReady:false
   }
- })));
+ }))));
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
@@ -307,6 +326,15 @@ function boot(){
   if(pause)await pause;
   if(url==='/api/jrdb/history')
    return {ok:historyOk,json:async()=>structuredClone(historicalResponse)};
+  if(url==='/api/owner-rebound-verify'){
+   const args=JSON.parse(options.body);
+   return {ok:true,json:async()=>({
+    available:true,serverSigned:true,jraScheduleVerified:false,
+    officialFeedConnected:false,
+    review:{reviewedRaces:0,pendingRaces:args.receipts.length,
+      outcomeCalibrationReady:false}
+   })};
+  }
   return {ok:true,json:async()=>structuredClone(next)};
  };
  class FakeDate extends Date{
@@ -334,6 +362,11 @@ function boot(){
  const oldRecord=a.storage.get(STORAGE);
  await a.get('autoHistoryAudit').onclick();
  assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,1);
+ assert.equal(a.requests.filter(r=>r.url==='/api/owner-rebound-verify').length,1);
+ const capturedFirst=a.storage.get('keiba-nine-owner-rebound-watch-receipts-v1');
+ assert.ok(capturedFirst);
+ assert.equal(JSON.parse(capturedFirst).length,1);
+ assert.match(a.get('autoHistoryWatchSave').textContent,/新規 1R/);
  const auditRequest=a.requests.find(r=>r.url==='/api/jrdb/history');
  assert.equal(auditRequest.options.method,'POST');
  assert.equal(auditRequest.options.credentials,'same-origin');
@@ -381,7 +414,7 @@ function boot(){
  positive.privateHistoryFactors.races[0].runnersWithKnownGoingComparable=4;
  positive.privateHistoryFactors.races[0].runnersMatchingCurrentGoing=3;
  positive.privateHistoryFactors.races[0].runnersWithWetComparable=3;
- populateReboundReview(populateHistoricalBands(positive));
+ populateCapture(populateReboundReview(populateHistoricalBands(positive)));
  a.setHistorical(positive);
  await a.get('autoHistoryAudit').onclick();
  const reviewed=a.get('autoHistoryAuditRaces').children[0];
@@ -394,6 +427,9 @@ function boot(){
   /巻き返し再審査/.test(x.children[0]?.textContent||''));
  assert.match(correlated.children[1].textContent,/同一過去走に基づく材料のみ/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
+ assert.equal(a.storage.get('keiba-nine-owner-rebound-watch-receipts-v1'),
+  capturedFirst,'newer result must not replace first watch receipt');
+ assert.match(a.get('autoHistoryWatchSave').textContent,/既存 1R/);
  a.setHistorical(historical());
  assert.match(a.get('autoHistoryAuditRaces').children[0].children[1].textContent,/5\/7頭/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
@@ -422,6 +458,12 @@ function boot(){
  a.setHistorical(badFrontCount);
  await a.get('autoHistoryAudit').onclick();
  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ const badCapture=historical();
+ badCapture.watchCapture.receipts[0].snapshot.watch[0].reviewState='cross_source_review';
+ a.setHistorical(badCapture);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ assert.equal(a.storage.get('keiba-nine-owner-rebound-watch-receipts-v1'),capturedFirst);
  const badReview=historical();
  badReview.reboundContextReview.races[0].watch[0].reviewState='cross_source_review';
  a.setHistorical(badReview);
