@@ -46,10 +46,28 @@ def _decimal(raw, *, minimum, maximum, label):
 
 
 def _place(value, field):
-    num = _decimal(value, minimum=1, maximum=30, label=field)
+    # Official beta /tze uses 0 for unavailable finish/corner data.
+    # It is never a finishing position or a top-four observation.
+    num = _decimal(value, minimum=0, maximum=30, label=field)
     if num is not None and not num.is_integer():
         raise CoverageError("Non-integer past position")
-    return int(num) if num is not None else None
+    return None if num is None or num == 0 else int(num)
+
+
+def _last3f(value):
+    # JRDB documents one-tenth-of-a-second integers: 360 means 36.0 s.
+    # Accept fractional seconds in test/older normalized data, but never
+    # interpret 360 as 360 seconds or count a 0 placeholder as a workout.
+    number = _decimal(value, minimum=0, maximum=900, label="last3F")
+    if number is None or number == 0:
+        return None
+    if number >= 200:
+        if not number.is_integer():
+            raise CoverageError("Unexpected fractional tenths of a second")
+        number /= 10
+    if not 20 <= number <= 90:
+        raise CoverageError("Out-of-range previous-run last3F")
+    return number
 
 
 def _extract(row, target_date):
@@ -65,18 +83,26 @@ def _extract(row, target_date):
             row.get(prefix + "later3f_time"),
             row.get(prefix + "corner4_order"),
         )
+        placing = _place(fields[0], "finish")
+        idm = _decimal(fields[1], minimum=-100, maximum=200, label="IDM")
+        later = _last3f(fields[2])
+        fourth = _place(fields[3], "corner4")
+        # Unfilled beta columns can carry a race date with four zero-value
+        # placeholders. These are NOT four additional completed starts.
+        blank = (placing is None and later is None and fourth is None
+                 and (idm is None or idm == 0))
         if day is None or day == "":
-            if any(value is not None and value != "" for value in fields):
+            if not blank:
                 raise CoverageError("Past performance without a race date")
             continue
-        if not _valid_date(day) or day >= last_date or day in seen_dates:
+        if not _valid_date(day) or day >= target_date:
+            raise CoverageError("Invalid or future previous-run date")
+        if blank:
+            continue
+        if day >= last_date or day in seen_dates:
             raise CoverageError("Duplicate, future or disordered previous-run date")
         seen_dates.add(day)
         last_date = day
-        placing = _place(fields[0], "finish")
-        idm = _decimal(fields[1], minimum=-100, maximum=200, label="IDM")
-        later = _decimal(fields[2], minimum=20, maximum=90, label="last3F")
-        fourth = _place(fields[3], "corner4")
         runs.append({
             "date": day, "finish": placing, "idm": idm,
             "later3f": later, "corner4": fourth
