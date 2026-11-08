@@ -30,6 +30,38 @@ def _only(rows, track, race):
     return matches[0]
 
 
+def _scope_selected_race(programme, entries, training, previous, holding,
+                         track, race):
+    """Restrict a single-race check to its own provider keys in private memory.
+
+    All source lists remain unmodified, ambiguous selected races still fail.
+    Other races on the day cannot corrupt the selected-race evidence report.
+    This is NOT a confirmed starter list or an official JRA verification.
+    """
+    if not isinstance(programme, list):
+        raise CoverageError("Invalid programme collection")
+    matches = [r for r in programme if isinstance(r, dict)
+               and r.get("track") == track and r.get("race") == race]
+    if len(matches) != 1:
+        raise CoverageError("Selected race missing or ambiguous")
+    selected = matches[0]
+    key = selected.get("racekey")
+    if not isinstance(key, str) or len(key) != 8:
+        raise CoverageError("Selected race has no valid key")
+    collections = (entries, training, previous, holding)
+    if not all(isinstance(rows, list) for rows in collections):
+        raise CoverageError("Invalid selected-race source collection")
+    if not all(isinstance(row, dict) for rows in collections for row in rows):
+        raise CoverageError("Malformed selected-race source row")
+    # Rows with no race key are never treated as verified target evidence.
+    scope = lambda rows: [row for row in rows if row.get("racekey") == key]
+    track_prefix = key[:2]
+    venues = [row for row in holding
+              if isinstance(row.get("holdingkey"), str)
+              and row["holdingkey"].startswith(track_prefix)]
+    return [selected], scope(entries), scope(training), scope(previous), venues
+
+
 def selected_race_readiness(
     programme, entries, training, previous, holding, date, track, race, checked_at,
     *, diagnostic=None
@@ -41,6 +73,11 @@ def selected_race_readiness(
     """
     if not _valid_date(date) or track not in TRACKS.values() or type(race) is not int or not 1 <= race <= 12:
         raise CoverageError("Invalid selected race coordinates")
+    if diagnostic is not None:
+        diagnostic["stage"] = "source_selection"
+    programme, entries, training, previous, holding = _scope_selected_race(
+        programme, entries, training, previous, holding, track, race
+    )
     if diagnostic is not None:
         diagnostic["stage"] = "evidence_and_entries"
     evidence = audit_evidence_coverage(programme, entries, training, previous, date)
