@@ -68,7 +68,10 @@ function boot(){
   requests.push({url,options});
   return {ok:true,json:async()=>structuredClone(next)};
  };
- const context={document,localStorage,fetch,Intl,Date,JSON,Set,Map,Number,
+ class FakeDate extends Date{
+  constructor(...args){super(...(args.length?args:['2099-01-01T00:00:00Z']))}
+ }
+ const context={document,localStorage,fetch,Intl,Date:FakeDate,JSON,Set,Map,Number,
   String,Array,Error,Promise,Object};
  vm.runInNewContext(js,context);
  get('autoDay').value=date;
