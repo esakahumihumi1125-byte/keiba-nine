@@ -57,6 +57,18 @@ const research=()=>({
  sourceReadCount:4,unitYen:100,raceCount:1,draftCount:1,holdCount:0,holdReasons:{},
  serverStamped:true,captureAuditVerified:false,researchReceiptCount:1,
  archiveEnabled:false,archiveRecordCount:0,archiveConflictCount:0,
+ raceContext:{
+  version:'race-context-1',raceCount:1,courseInfoPresentCount:1,
+  goingAvailableCount:1,raceConditionsVerified:false,predictionReady:false,
+  conditionProviderReadCount:1,conditionProviderFetchStatus:'received',
+  races:[{
+   track:'東京',race:1,surface:'芝',distance_m:2000,turn:'左',
+   going:'重',goingAvailable:true,conditionSnapshotPresent:true,
+   conditionUpdateRecorded:true,courseInfoPresent:true,
+   horseCourseSuitabilityAssessed:false,
+   horseGoingSuitabilityAssessed:false,predictionReady:false
+  }]
+ },
  sourceMaterials:{version:'owner-draft-material-coverage-1',status:'unavailable',
   observedFactorSlots:0,gradedNewFactors:0,officialJraVerified:false,races:[]},
  races:[{
@@ -132,6 +144,11 @@ function boot(){
  assert.equal(a.get('autoSummary').textContent.includes('1R中、研究用自動案 1R'),true);
  assert.equal(a.get('autoTenWeights').children.length,10);
  assert.match(a.get('autoTenStatus').textContent,/残り8項目は未評価/);
+ assert.match(a.get('autoSummary').textContent,/馬場資料の存在 1R/);
+ assert.match(a.get('autoRaces').children[0].children[0].children[1].textContent,
+  /芝／2000m／左／重（JRDB資料）/);
+ assert.match(a.get('autoRaces').children[0].children[0].children[2].textContent,
+  /過去4角の位置取り観測/);
  const firstDetail=a.get('autoRaces').children[0].children[0];
  assert.equal(firstDetail.children.filter(x=>x.className==='ten-horse').length,7);
  const firstTen=firstDetail.children.find(x=>x.className==='ten-horse');
@@ -165,6 +182,14 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.match(a.get('autoTenStatus').textContent,/確認できません/);
  assert.equal(a.get('autoTenWeights').children.length,0);
+ assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
+ // A corrupt current-going source must not be displayed as a trusted
+ // racing condition or cause any new receipt write.
+ const badCondition=resultWith('a'.repeat(64));
+ badCondition.raceContext.races[0].going='unsupported';
+ a.setServerRaw(badCondition);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoTenStatus').textContent,/確認できません/);
  assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
  // A bad response signature must not mutate frozen picks or purchases.
  const corrupted=resultWith('not-an-authentic-signature');
