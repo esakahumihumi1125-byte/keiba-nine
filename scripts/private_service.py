@@ -74,6 +74,8 @@ from owner_100yen_snapshot import decode_frozen_snapshots, FrozenSnapshotError
 from keiba_100yen_review import review_100yen, ReviewInputError
 from owner_prestart_receipt import (issue_preview_receipts, verify_preview_receipts,
                                     ReceiptError)
+from owner_receipt_archive import (archive_enabled, save_first_and_read,
+                                   read_day as read_archived_day, ArchiveUnavailable)
 from jrdb_one_race_trial import build_one_race_trial
 from jrdb_day_trial import build_day_trial
 from owner_one_race_trial_ui import HTML as AUTO_HTML, JS as AUTO_JS, CSS as AUTO_CSS
@@ -1511,9 +1513,19 @@ def create_app(settings=None):
                         return response('409 Conflict', {
                             'error': '指定日のサーバー予想がありません。'})
                     report = issue_preview_receipts(forecast, password, selected)
-                except (OwnerForecastError, ReceiptError, ReviewInputError):
+                    if archive_enabled(settings):
+                        archived = save_first_and_read(
+                            settings, password, selected, report['receipts'])
+                        report['receipts'] = archived
+                        report['archiveEnabled'] = True
+                        report['archiveRecordCount'] = len(archived)
+                    else:
+                        report['archiveEnabled'] = False
+                        report['archiveRecordCount'] = 0
+                except (OwnerForecastError, ReceiptError, ReviewInputError,
+                        ArchiveUnavailable):
                     return response('503 Service Unavailable', {
-                        'error': '予想を安全に確定できませんでした。既存記録は変更されません。'})
+                        'error': '予想の発走前記録または安全な保存に失敗しました。既存記録は変更されません。'})
                 return response('200 OK', {'available': bool(report['receipts']), **report})
             try:
                 predictions = verify_preview_receipts(
@@ -1529,6 +1541,42 @@ def create_app(settings=None):
                 'review': report if report['races'] else None,
                 'serverSigned': True,
                 'captureAuditVerified': False,
+                'officialScheduleVerified': False,
+                'officialFeedConnected': False})
+        if method == 'GET' and path == '/api/owner-100yen-archived':
+            # Read-only, derived summary of archived signed tickets.
+            # Never return raw paid JRDB records, credentials, or receipts.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {'error': '本人専用サービスでのみ利用できます。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date'} or len(query['date']) != 1):
+                return response('400 Bad Request', {'error': '開催日を選択してください。'})
+            selected = query['date'][0]
+            try:
+                if (not isinstance(selected, str)
+                        or not re.fullmatch(r'20\d{2}-\d{2}-\d{2}', selected)
+                        or datetime.strptime(selected, '%Y-%m-%d').date().isoformat()
+                        != selected):
+                    raise ValueError()
+            except ValueError:
+                return response('400 Bad Request', {'error': '開催日を選択してください。'})
+            if not archive_enabled(settings):
+                return response('200 OK', {
+                    'archiveEnabled': False, 'available': False, 'review': None,
+                    'officialScheduleVerified': False,
+                    'officialFeedConnected': False})
+            try:
+                saved = read_archived_day(settings, password, selected)
+                predictions = verify_preview_receipts(saved, password, selected)
+                report = review_100yen(predictions, [])
+            except (ArchiveUnavailable, ReceiptError, ReviewInputError):
+                return response('503 Service Unavailable', {
+                    'error': '本人専用の保存済み記録を安全に照合できません。'})
+            return response('200 OK', {
+                'archiveEnabled': True, 'available': bool(report['races']),
+                'review': report if report['races'] else None,
                 'officialScheduleVerified': False,
                 'officialFeedConnected': False})
         if method == 'GET' and path == '/api/owner-100yen-review':
