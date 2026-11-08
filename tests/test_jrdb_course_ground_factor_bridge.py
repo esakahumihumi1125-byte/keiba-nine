@@ -37,6 +37,7 @@ class CourseGroundFactorBridgeTests(unittest.TestCase):
         self.assertEqual(runner["ground"]["knownComparableRuns"], 2)
         self.assertEqual(runner["ground"]["wetComparableRuns"], 2)
         self.assertEqual(runner["ground"]["matchingCurrentGoingRuns"], 1)
+        self.assertEqual(history[0]["byNumber"]["01"]["sameCurrentGoingTopThreeRuns"], 1)
         self.assertEqual(runner["ground"]["grade"], "未評価")
         self.assertTrue(runner["ground"]["historyLookupComplete"])
         self.assertEqual(runner["pace"]["grade"], "未評価")
@@ -120,6 +121,7 @@ class CourseGroundFactorBridgeTests(unittest.TestCase):
                              ("missingPastProgrammes", -1),
                              ("heavyComparableRuns", 3),
                              ("sameCurrentGoingComparableRuns", 3),
+                             ("sameCurrentGoingTopThreeRuns", 2),
                              ("unknownGoingComparableRuns", True)):
             base, history = prepare()
             history[0]["byNumber"]["01"][field] = value

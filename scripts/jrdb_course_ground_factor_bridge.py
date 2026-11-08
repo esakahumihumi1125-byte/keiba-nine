@@ -22,6 +22,7 @@ COUNTS = (
     "knownGoingComparableRuns", "unknownGoingComparableRuns",
     "heavyComparableRuns", "poorComparableRuns", "sameCurrentGoingComparableRuns",
     "heavyTopThreeRuns", "poorTopThreeRuns",
+    "sameCurrentGoingTopThreeRuns",
 )
 
 
@@ -57,7 +58,9 @@ def _check_stats(row, known_current):
             or stats["heavyTopThreeRuns"] > stats["heavyComparableRuns"]
             or stats["poorTopThreeRuns"] > stats["poorComparableRuns"]
             or stats["sameCurrentGoingComparableRuns"] > stats["knownGoingComparableRuns"]
-            or (not known_current and stats["sameCurrentGoingComparableRuns"])):
+            or stats["sameCurrentGoingTopThreeRuns"] > stats["sameCurrentGoingComparableRuns"]
+            or (not known_current and (stats["sameCurrentGoingComparableRuns"]
+                                       or stats["sameCurrentGoingTopThreeRuns"]))):
         raise CoverageError("Course/going observation counts disagree")
     return stats
 
@@ -181,6 +184,7 @@ def summarize_owner_runner_course_going(enriched, historical):
                 "comparableTopThreeRuns": stats["topThreeComparableRuns"],
                 "knownGoingRuns": ground["knownComparableRuns"],
                 "matchingCurrentGoingRuns": ground["matchingCurrentGoingRuns"],
+                "matchingCurrentGoingTopThreeRuns": stats["sameCurrentGoingTopThreeRuns"],
                 "wetGoingRuns": wet,
                 "wetTopThreeRuns": wet_top_three,
                 "missingPastProgrammes": course["unlinkedRuns"],
@@ -196,7 +200,7 @@ def summarize_owner_runner_course_going(enriched, historical):
     if len(output) != len(by_coord):
         raise CoverageError("Per-horse historical race count mismatch")
     return {
-        "version": "owner-runner-course-going-observation-1",
+        "version": "owner-runner-course-going-observation-2",
         "raceCount": len(output), "races": output,
         "researchOnly": True, "privateOwnerOnly": True,
         "officialJraVerified": False, "gradeReady": False,

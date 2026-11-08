@@ -48,6 +48,7 @@ class GoingHistoryTests(unittest.TestCase):
         self.assertEqual(first["heavyTopThreeRuns"], 1)
         self.assertEqual(first["poorTopThreeRuns"], 0)
         self.assertEqual(first["sameCurrentGoingComparableRuns"], 1)
+        self.assertEqual(first["sameCurrentGoingTopThreeRuns"], 1)
         self.assertEqual(races[0]["byNumber"]["02"]["knownGoingComparableRuns"], 0)
         self.assertFalse(races[0]["goingSuitabilityAssessed"])
         self.assertFalse(races[0]["predictionReady"])
@@ -61,6 +62,7 @@ class GoingHistoryTests(unittest.TestCase):
         self.assertEqual(row["heavyTopThreeRuns"], 1)
         self.assertEqual(row["poorComparableRuns"], 1)
         self.assertEqual(row["matchingCurrentGoingRuns"], 1)
+        self.assertEqual(row["matchingCurrentGoingTopThreeRuns"], 1)
         self.assertFalse(report["predictionReady"])
         for forbidden in ("horse_id", "horse_number", "racekey", "byNumber",
                           "05264a01", "PAID-SECRET", "PRIVATE-HORSE",
@@ -83,6 +85,7 @@ class GoingHistoryTests(unittest.TestCase):
         output = self.audit(data)
         self.assertFalse(output[0]["currentGoingRecorded"])
         self.assertEqual(output[0]["byNumber"]["01"]["sameCurrentGoingComparableRuns"], 0)
+        self.assertEqual(output[0]["byNumber"]["01"]["sameCurrentGoingTopThreeRuns"], 0)
         self.assertEqual(output[0]["byNumber"]["01"]["heavyComparableRuns"], 1)
 
     def test_invalid_condition_codes_are_rejected(self):
@@ -141,6 +144,10 @@ class GoingHistoryTests(unittest.TestCase):
     def test_summary_rejects_contradictory_aggregates(self):
         result = self.audit()
         result[0]["byNumber"]["01"]["poorComparableRuns"] = 10
+        with self.assertRaises(ValueError):
+            summarize_going_history_observations(result)
+        result=self.audit()
+        result[0]["byNumber"]["01"]["sameCurrentGoingTopThreeRuns"]=2
         with self.assertRaises(ValueError):
             summarize_going_history_observations(result)
 

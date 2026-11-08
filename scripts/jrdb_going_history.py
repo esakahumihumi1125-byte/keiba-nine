@@ -20,7 +20,7 @@ COUNTERS = (
     "knownGoingComparableRuns", "unknownGoingComparableRuns",
     "heavyComparableRuns", "poorComparableRuns",
     "heavyTopThreeRuns", "poorTopThreeRuns",
-    "sameCurrentGoingComparableRuns",
+    "sameCurrentGoingComparableRuns", "sameCurrentGoingTopThreeRuns",
 )
 
 
@@ -132,13 +132,15 @@ def build_going_history_observations(programme, entries, previous, historical,
                 stats["unknownGoingComparableRuns"] += 1
                 continue
             stats["knownGoingComparableRuns"] += 1
+            placing = _place(row.get(prefix + "order_of_finish"), "finish")
             if current_condition is not None and condition == current_condition:
                 stats["sameCurrentGoingComparableRuns"] += 1
+                if placing is not None and placing <= 3:
+                    stats["sameCurrentGoingTopThreeRuns"] += 1
             if condition in ("重", "不良"):
                 category = "heavy" if condition == "重" else "poor"
                 stats[category + "ComparableRuns"] += 1
-                finish = _place(row.get(prefix + "order_of_finish"), "finish")
-                if finish is not None and finish <= 3:
+                if placing is not None and placing <= 3:
                     stats[category + "TopThreeRuns"] += 1
     return list(records.values())
 
@@ -174,8 +176,10 @@ def summarize_going_history_observations(races):
                     or row["heavyTopThreeRuns"] > row["heavyComparableRuns"]
                     or row["poorTopThreeRuns"] > row["poorComparableRuns"]
                     or row["sameCurrentGoingComparableRuns"] > row["knownGoingComparableRuns"]
+                    or row["sameCurrentGoingTopThreeRuns"] > row["sameCurrentGoingComparableRuns"]
                     or (not race["currentGoingRecorded"]
-                        and row["sameCurrentGoingComparableRuns"] != 0)):
+                        and (row["sameCurrentGoingComparableRuns"] != 0
+                             or row["sameCurrentGoingTopThreeRuns"] != 0))):
                 raise ValueError("Going count contradiction")
         output.append({
             "track": name, "race": number, "runnerCount": len(stats),
@@ -188,6 +192,9 @@ def summarize_going_history_observations(races):
             "poorTopThreeRuns": sum(x["poorTopThreeRuns"] for x in stats),
             "matchingCurrentGoingRuns": sum(x["sameCurrentGoingComparableRuns"]
                                             for x in stats),
+            "matchingCurrentGoingTopThreeRuns": sum(
+                x["sameCurrentGoingTopThreeRuns"] for x in stats
+            ),
             "goingSuitabilityAssessed": False, "predictionReady": False,
         })
     return {
