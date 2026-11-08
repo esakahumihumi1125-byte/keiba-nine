@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from owner_receipt_archive import (
-    FLAG, DSN_KEY, INSERT, SELECT, ArchiveUnavailable, archive_config,
+    FLAG, DSN_KEY, SIGNING_KEY, INSERT, SELECT, ArchiveUnavailable, archive_config,
     save_first_and_read, read_day)
 from owner_prestart_receipt import issue_preview_receipts
 from test_owner_prestart_receipt import DAY, sample_race, forecast, setup, post
@@ -20,6 +20,7 @@ ARCHIVE_CONFIG = {
     **setup(sample_race()),
     FLAG: "1",
     DSN_KEY: "postgresql://fake_owner:fake_password@db.invalid/keiba_private",
+    SIGNING_KEY: "synthetic-independent-signing-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 }
 
 
@@ -71,7 +72,7 @@ class Transaction:
 class OwnerArchiveTests(unittest.TestCase):
     def setUp(self):
         self.db = MemoryPostgres()
-        self.password = SETTINGS["KEIBA_OWNER_PASSWORD"]
+        self.password = ARCHIVE_CONFIG[SIGNING_KEY]
         self.receipts = issue_preview_receipts(
             forecast(sample_race()), self.password, DAY,
             now=datetime(2099,4,11,10,tzinfo=timezone.utc))["receipts"]
@@ -83,6 +84,8 @@ class OwnerArchiveTests(unittest.TestCase):
             {**ARCHIVE_CONFIG, "KEIBA_RENDER_PREVIEW_ONLY":"1"},
             {**ARCHIVE_CONFIG, "GITHUB_ACTIONS":"true"},
             {**ARCHIVE_CONFIG, DSN_KEY:""},
+            {**ARCHIVE_CONFIG, SIGNING_KEY:""},
+            {**ARCHIVE_CONFIG, SIGNING_KEY:"too-weak"},
             {**ARCHIVE_CONFIG, DSN_KEY:"file:///tmp/archive.db"},
             {**ARCHIVE_CONFIG, DSN_KEY:"postgresql://fake_owner/db"},
         ):
@@ -90,6 +93,10 @@ class OwnerArchiveTests(unittest.TestCase):
                 with self.assertRaises(ArchiveUnavailable):
                     archive_config(config)
         self.assertEqual(archive_config(ARCHIVE_CONFIG), ARCHIVE_CONFIG[DSN_KEY])
+        # A login password rotation does not rotate the durable archive key.
+        changed_login = {**ARCHIVE_CONFIG,
+                         "KEIBA_OWNER_PASSWORD": "rotated-owner-login-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
+        self.assertEqual(archive_config(changed_login), ARCHIVE_CONFIG[DSN_KEY])
 
     def test_first_saved_ticket_is_never_replaced_by_later_forecast(self):
         saved = save_first_and_read(
