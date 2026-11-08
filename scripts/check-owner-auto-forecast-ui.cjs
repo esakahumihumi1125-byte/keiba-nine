@@ -49,6 +49,7 @@ function resultWith(signature){
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
  let next=resultWith('a'.repeat(64)),holdFetch=null;
+ let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
    tag,children:[],textContent:'',className:'',value:'',disabled:false,
@@ -61,7 +62,9 @@ function boot(){
  }
  function get(id){if(!elements.has(id))elements.set(id,node('div'));return elements.get(id)}
  const document={
-  getElementById:get,createElement:node,createDocumentFragment:()=>node('fragment')
+  visibilityState:'visible',
+  getElementById:get,createElement:node,createDocumentFragment:()=>node('fragment'),
+  addEventListener:(name,fn)=>{if(name==='visibilitychange')onVisibility=fn}
  };
  const localStorage={
   getItem:k=>storage.get(k)||null,
@@ -74,14 +77,15 @@ function boot(){
   return {ok:true,json:async()=>structuredClone(next)};
  };
  class FakeDate extends Date{
-  constructor(...args){super(...(args.length?args:['2099-01-01T00:00:00Z']))}
+  constructor(...args){super(...(args.length?args:[now]))}
  }
  const context={document,localStorage,fetch,Intl,Date:FakeDate,JSON,Set,Map,Number,
   String,Array,Error,Promise,Object};
  vm.runInNewContext(js,context);
  get('autoDay').value=date;
  return {get,storage,requests,setServer:x=>next=x,
-  waitNextFetch:promise=>{holdFetch=promise}};
+  waitNextFetch:promise=>{holdFetch=promise},
+  advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
 }
 (async()=>{
  const a=boot();
@@ -176,6 +180,30 @@ function boot(){
  assert.match(b.get('autoSavedStatus').textContent,/固定済み研究記録 1R/);
  assert.equal(b.get('autoHistory').children.length,1);
  assert.equal(b.get('autoRun').disabled,false);
+ // A long-running PWA that crosses midnight should select the new JST day
+ // exactly once when visible, without background polling.
+ const c=boot();
+ await new Promise(r=>setImmediate(r));
+ const nextDay=resultWith('d'.repeat(64));
+ nextDay.date='20990102';
+ nextDay.researchReceipts[0].snapshot.date='2099-01-02';
+ nextDay.researchReceipts[0].snapshot.lockedAt='2099-01-02T09:00:00+09:00';
+ nextDay.researchReceipts[0].snapshot.scheduledOffAt='2099-01-02T12:00:00+09:00';
+ c.setServer(nextDay);
+ c.advanceClock('2099-01-01T16:00:00Z');
+ c.resume();
+ await new Promise(r=>setImmediate(r));
+ assert.equal(c.get('autoDay').value,'2099-01-02');
+ assert.equal(c.requests.length,2);
+ assert.equal(c.get('autoHistory').children.length,1);
+ c.resume();
+ assert.equal(c.requests.length,2);
+ // A deliberately chosen old date cannot be replaced by resume events.
+ c.get('autoDay').value='2099-01-01';c.get('autoDay').onchange();
+ c.advanceClock('2099-01-02T16:00:00Z');
+ c.resume();
+ assert.equal(c.get('autoDay').value,'2099-01-01');
+ assert.equal(c.requests.length,2);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');

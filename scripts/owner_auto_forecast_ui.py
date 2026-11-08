@@ -465,8 +465,9 @@ function saveAutoReceipts(data,day){
   '保存先はこのiPhone内のみ（Safariとホーム画面で別の場合あり）。';
 }
 
-let request=0;
-$('autoDay').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+let request=0,followingToday=true;
+function jstToday(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});}
+$('autoDay').value=jstToday();
 function updateReviewLink(){
  const day=$('autoDay').value;
  const valid=/^20\d{2}-\d{2}-\d{2}$/.test(day)&&
@@ -476,6 +477,8 @@ function updateReviewLink(){
   (valid?'?date='+encodeURIComponent(day):'');
 }
 $('autoDay').onchange=()=>{
+ // Preserve an explicitly selected day across subsequent app resumes.
+ followingToday=false;
  // Invalidate the old response and unlock the button. A slow old request
  // must not leave the new day permanently disabled on iPhone.
  request++;$('autoRun').disabled=false;
@@ -537,7 +540,28 @@ $('autoSavedStatus').textContent=localReceiptStatus(
  $('autoDay').value.replaceAll('-',''));
 showFixedHistory($('autoDay').value.replaceAll('-',''));
 updateReviewLink();
-// Opening the authenticated owner page is the only automatic trigger.
+// If the iPhone PWA stays open over midnight, the next foreground visit
+// automatically selects the NEW JST calendar day and triggers once.
+// Never poll in background. Never override a user-selected historical date.
+function resumeOwnerDay(){
+ if(document.visibilityState==='hidden'||!followingToday)return;
+ const today=jstToday();
+ if(today===$('autoDay').value)return;
+ request++;$('autoRun').disabled=false;
+ $('autoDay').value=today;
+ updateReviewLink();
+ $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoSummary').textContent='未取得';
+ $('autoSavedStatus').textContent=localReceiptStatus(today.replaceAll('-',''));
+ showFixedHistory(today.replaceAll('-',''));
+ $('autoStatus').textContent='新しい開催日の研究用自動案を確認します。';
+ $('autoRun').onclick();
+}
+if(typeof document.addEventListener==='function')
+ document.addEventListener('visibilitychange',resumeOwnerDay);
+if(typeof window!=='undefined'&&typeof window.addEventListener==='function')
+ window.addEventListener('pageshow',event=>{if(event.persisted)resumeOwnerDay();});
+// Opening the authenticated owner page triggers the initial day once.
 // No timers, background provider polling, or auto-purchase.
 if(document.visibilityState!=='hidden')$('autoRun').onclick();
 })();"""
