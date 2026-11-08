@@ -105,9 +105,13 @@ class TestPrivateReboundProviderCheck(unittest.TestCase):
     def test_observed_first_in_watch_is_not_official_hit(self):
         snaps=signed_watches()
         initial=copy.deepcopy(snaps)
-        results=[row(horse="04",finish="01"),row(horse="05",finish="02"),
-                 row(horse="09",finish="03"),row(track="08",race="02",
-                                             horse="05",finish="1")]
+        results=[
+            row(horse="04",finish="01"),row(horse="05",finish="02"),
+            row(horse="09",finish="03"),
+            row(track="08",race="02",horse="05",finish="1"),
+            row(track="08",race="02",horse="06",finish="2"),
+            row(track="08",race="02",horse="07",finish="3")
+        ]
         out=summarize_provider_watch_results(
             snaps,results,DAY,datetime(2099,4,12,3,0,tzinfo=timezone.utc))
         self.assertEqual(out["raceCount"],2)
