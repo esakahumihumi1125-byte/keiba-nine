@@ -21,7 +21,7 @@ const research=()=>({
  version:'jrdb-owner-auto-draft-1',date:day,researchOnly:true,
  privateOwnerOnly:true,officialJraVerified:false,
  overallPredictionReady:false,bettingReady:false,autoPurchase:false,
- sourceReadCount:4,unitYen:100,raceCount:1,draftCount:1,holdCount:0,
+ sourceReadCount:4,unitYen:100,raceCount:1,draftCount:1,holdCount:0,holdReasons:{},
  serverStamped:true,captureAuditVerified:false,researchReceiptCount:1,
  archiveEnabled:false,archiveRecordCount:0,archiveConflictCount:0,
  races:[{
@@ -110,7 +110,7 @@ function boot(){
  bad.races=[{...bad.races[0],status:'hold',reason:'invalid_two_factor',
   validationIssue:'runner_shape',runners:[],first:[],second:[],third:[],
   tickets:[],points:0,amountYen:0}];
- bad.draftCount=0;bad.holdCount=1;
+ bad.draftCount=0;bad.holdCount=1;bad.holdReasons={invalid_two_factor:1};
  bad.researchReceipts=[];bad.researchReceiptCount=0;
  a.setServer(bad);
  await a.get('autoRun').onclick();
@@ -120,7 +120,7 @@ function boot(){
  const empty=research();
  empty.races=[{...empty.races[0],status:'hold',reason:'after_provisional_off',
   first:[],second:[],third:[],tickets:[],points:0,amountYen:0}];
- empty.draftCount=0;empty.holdCount=1;
+ empty.draftCount=0;empty.holdCount=1;empty.holdReasons={after_provisional_off:1};
  empty.researchReceipts=[];empty.researchReceiptCount=0;
  a.setServer(empty);
  await a.get('autoRun').onclick();

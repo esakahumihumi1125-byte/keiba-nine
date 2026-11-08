@@ -218,9 +218,6 @@ def _draft_for_race(row, research, day, now):
     if len(runners) < 4:
         output["reason"] = "too_few_runners"
         return output
-    if any(x["twoFactorPoints"] is None for x in runners):
-        output["reason"] = "missing_factors"
-        return output
     off_text = row.get("post_time")
     if not isinstance(off_text, str) or not re.fullmatch(
             r"(?:[01]\d|2[0-3]):[0-5]\d", off_text):
@@ -229,6 +226,9 @@ def _draft_for_race(row, research, day, now):
     off = datetime.strptime(day + off_text, "%Y%m%d%H:%M").replace(tzinfo=JST)
     if now >= off:
         output["reason"] = "after_provisional_off"
+        return output
+    if any(x["twoFactorPoints"] is None for x in runners):
+        output["reason"] = "missing_factors"
         return output
     sizes = _safe_formation_sizes(runners)
     if sizes is None:
@@ -295,10 +295,16 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
             row, item.get("research") if item["status"] == "research_only" else None,
             day, now)
         out.append(output)
+    reasons = {}
+    for race in out:
+        if race["status"] == "hold":
+            code = race["reason"]
+            reasons[code] = reasons.get(code, 0) + 1
     return {
         "version": VERSION, "date": day, "raceCount": len(out),
         "draftCount": sum(x["status"] == "provisional_draft" for x in out),
         "holdCount": sum(x["status"] == "hold" for x in out),
+        "holdReasons": reasons,
         "races": out, "sourceReadCount": 4, "unitYen": STAKE,
         "comparedFactors": ["調教", "近走"], "unverifiedFactors": 8,
         "researchOnly": True, "privateOwnerOnly": True,

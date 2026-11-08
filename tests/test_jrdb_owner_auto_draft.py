@@ -83,6 +83,7 @@ class AutoDraftTests(unittest.TestCase):
         self.assertEqual(out["version"], VERSION)
         self.assertEqual(out["raceCount"], 1)
         self.assertEqual((out["draftCount"], out["holdCount"]), (1, 0))
+        self.assertEqual(out["holdReasons"], {})
         self.assertFalse(out["officialJraVerified"])
         self.assertFalse(out["overallPredictionReady"])
         self.assertFalse(out["bettingReady"])
@@ -142,6 +143,13 @@ class AutoDraftTests(unittest.TestCase):
         missing = generate(programme(7),research(pairs))["races"][0]
         self.assertEqual(missing["reason"],"missing_factors")
         self.assertEqual(missing["tickets"],[])
+        past_with_missing=generate(
+            programme(7), research(pairs),
+            now=datetime(2099,1,1,12,30,tzinfo=JST))
+        self.assertEqual(past_with_missing["races"][0]["reason"],
+                         "after_provisional_off")
+        self.assertEqual(past_with_missing["holdReasons"],
+                         {"after_provisional_off":1})
         no_time = generate(programme(time=None),research())["races"][0]
         self.assertEqual(no_time["reason"],"missing_post_time")
         self.assertEqual(no_time["points"],0)
@@ -222,6 +230,7 @@ class AutoDraftTests(unittest.TestCase):
         self.assertEqual(result["races"][1]["validationIssue"], "completeness")
         self.assertEqual(result["races"][1]["runners"], [])
         self.assertEqual(result["races"][1]["tickets"], [])
+        self.assertEqual(result["holdReasons"], {"invalid_two_factor":1})
         signed=seal_auto_research_drafts(
             result, SETTINGS["KEIBA_OWNER_PASSWORD"],
             now=datetime(2099,1,1,9,0,tzinfo=JST))

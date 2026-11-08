@@ -115,6 +115,12 @@ const REASONS={
  ambiguous_equal_grade_boundary:'同評価の馬が候補の境界にいるため選定保留',
  invalid_two_factor:'このレースの調教・近走の資料検証に不一致があり、安全のため見送り'
 };
+const SHORT_HOLDS={
+ after_provisional_off:'発走済み',missing_factors:'調教・近走不足',
+ ambiguous_equal_grade_boundary:'候補同点',missing_research:'資料確認',
+ invalid_two_factor:'2項目不整合',runner_count_mismatch:'頭数不一致',
+ too_few_runners:'少頭数',missing_post_time:'発走時刻未確認'
+};
 const RUNNER_ISSUES={
  contract:'2項目評価の形式',runner_shape:'馬番別資料の形式',
  completeness:'評価済み項目数',rank_order:'評価順位',
@@ -140,7 +146,13 @@ function validate(data,day){
   data.sourceReadCount!==4||data.unitYen!==100||
   !Array.isArray(data.races)||data.races.length>120||
   data.raceCount!==data.races.length||
-  data.draftCount+data.holdCount!==data.raceCount)
+  data.draftCount+data.holdCount!==data.raceCount||
+  !data.holdReasons||typeof data.holdReasons!=='object'||
+  Array.isArray(data.holdReasons)||
+  Object.entries(data.holdReasons).some(([key,n])=>
+    !Object.hasOwn(SHORT_HOLDS,key)||!Number.isInteger(n)||
+    n<=0||n>data.raceCount)||
+  Object.values(data.holdReasons).reduce((total,n)=>total+n,0)!==data.holdCount)
   throw Error('自動暫定予想の形式が不正です');
  const seen=new Set();
  for(const r of data.races){
@@ -247,8 +259,12 @@ function render(input,day){
   button.onclick=()=>show(track);tabs.append(button);
  }
  show('');
+ const breakdown=Object.entries(data.holdReasons).sort((a,b)=>b[1]-a[1])
+  .map(([reason,count])=>SHORT_HOLDS[reason]+' '+count+'R').join('／');
  $('autoSummary').textContent=data.raceCount+'R中、研究用自動案 '+data.draftCount+
-  'R／見送り '+data.holdCount+'R。JRDBの2項目だけを使用。JRA公式照合や正式な投票は未実施。';
+  'R／見送り '+data.holdCount+'R。'+
+  (breakdown?'内訳：'+breakdown+'。':'')+
+  'JRDBの2項目だけを使用。JRA公式照合や正式な投票は未実施。';
 }
 function saveAutoReceipts(data,day){
  if(data.serverStamped!==true||data.captureAuditVerified!==false||
