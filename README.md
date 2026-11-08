@@ -9,15 +9,16 @@
 - [買い目の構成・時系列検証](docs/research-pipeline.md)
 - [JRDBの非公開接続準備](docs/jrdb-private.md)
 - [JRDB-API β版承認後の本人専用接続手順（2026-11-08）](docs/jrdb-api-beta-activation.md)
-- [本人認証付きの接続確認サービス（未設置）](docs/private-service.md)
+- [本人用10項目の資料確認・直前馬体重の件数チェック（2026-11-09）](docs/owner-ten-factor-source-inventory.md)
+- [本人認証付き接続サービスの実装と設定](docs/private-service.md)
 - [本人用サーバーの設置準備](docs/private-deployment.md)
 - [iPhoneだけで作る本人用・架空データ画面（Render Free・任意）](docs/render-iphone-preview.md)
 
-研究機能は架空データ限定で、公開予想には未接続です。
+合成テストと本人専用JRDB研究用の処理を実装しています。公開予想への自動連携・正式なJRA独立照合・10項目の本採点は未完成です。
 `python -m unittest discover -s tests -p 'test_*.py'` で動作確認できます。
 
 ## iPhoneからの本人用プレビュー（任意）
 
-Render用のBlueprintを追加しています。**Renderのアカウント操作と作成はまだ行っていません**。
-サービスはBasic認証で保護する公開URLの架空データ研究画面であり、有料JRDBの実データ取得と本番のJRA予想は起動時に無効化します。
+Render用の設定を追加しています。既存プレビューとJRDB本人専用サービスは**別々に管理**してください。
+プレビューには有料JRDBの認証情報を絶対に入れません。本人専用JRDBの設定・稼働・最新コミット反映はRenderで別途確認が必要です。
 [Safariからの設定手順](docs/render-iphone-preview.md)を参照してください。
