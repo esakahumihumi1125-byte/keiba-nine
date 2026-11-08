@@ -76,8 +76,10 @@ function boot(){
 }
 (async()=>{
  const a=boot();
- await a.get('autoRun').onclick();
+ // Visiting the owner-only page triggers the first read automatically.
+ await new Promise(r=>setImmediate(r));
  assert.equal(a.requests.length,1);
+ assert.equal(a.get('autoRun').disabled,false);
  assert.match(a.requests[0].url,/\/api\/jrdb\/owner-auto-draft\?date=20990101$/);
  assert.equal(a.requests[0].options.headers['X-Keiba-Request'],'private');
  assert.equal(a.get('autoSummary').textContent.includes('1R中、研究用自動案 1R'),true);
