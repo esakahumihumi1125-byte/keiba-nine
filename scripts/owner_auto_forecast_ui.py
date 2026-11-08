@@ -709,12 +709,12 @@ function storedWatchDay(day){
  }
  return selected;
 }
-function refreshWatchResultsAvailability(){
+function refreshWatchResultsAvailability(preserveStatus=false){
  const day=$('autoDay').value.replaceAll('-','');
  try{
   const saved=storedWatchDay(day);
   $('autoWatchResultCheck').disabled=!saved.length;
-  if(saved.length){
+  if(saved.length&&!preserveStatus){
    $('autoWatchResultStatus').textContent=
     '発走前の署名付き巻き返し候補：'+saved.length+
     'R。JRDB成績の参考照合は押したときだけ実行。';
@@ -1503,7 +1503,7 @@ $('autoWatchResultCheck').onclick=async()=>{
    '公式成績や保存済み候補は変更していません。';
  }}finally{
   if(seq===watchResultSeq)
-   refreshWatchResultsAvailability();
+   refreshWatchResultsAvailability(true);
  }
 };
 refreshWatchResultsAvailability();
