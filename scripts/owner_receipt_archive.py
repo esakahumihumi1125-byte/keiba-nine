@@ -14,6 +14,7 @@ from owner_prestart_receipt import (
 
 FLAG = "KEIBA_OWNER_RECEIPT_ARCHIVE_ENABLED"
 DSN_KEY = "KEIBA_OWNER_RECEIPT_ARCHIVE_DATABASE_URL"
+SIGNING_KEY = "KEIBA_OWNER_RECEIPT_SIGNING_SECRET"
 MAX_DAY = 36
 
 INSERT = """
@@ -37,6 +38,21 @@ def archive_enabled(settings):
     return settings.get(FLAG) == "1"
 
 
+def archive_signing_secret(settings):
+    """Use an independent long-lived secret, never the owner's login password.
+
+    Enabling persistence without it must fail closed. A changed login password
+    must not invalidate the separately signed historical research receipts.
+    """
+    if not archive_enabled(settings):
+        raise ArchiveUnavailable("Archive is disabled")
+    value = settings.get(SIGNING_KEY)
+    if (not isinstance(value, str) or len(value) < 48
+            or len(value) > 512 or len(set(value)) < 16):
+        raise ArchiveUnavailable("Independent archive signing key missing")
+    return value
+
+
 def archive_config(settings):
     """Configuration validation without ever logging connection details."""
     if settings.get(FLAG) != "1":
@@ -46,6 +62,7 @@ def archive_config(settings):
         raise ArchiveUnavailable("Private service required")
     if settings.get("GITHUB_ACTIONS") == "true":
         raise ArchiveUnavailable("CI must not contact archive")
+    archive_signing_secret(settings)
     dsn = settings.get(DSN_KEY)
     if not isinstance(dsn, str) or not 30 <= len(dsn) <= 4096:
         raise ArchiveUnavailable("Persistent Postgres not configured")
