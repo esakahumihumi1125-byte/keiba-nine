@@ -72,7 +72,7 @@ def ten_factor_contract(two_factor_drafts):
         if coord in seen:
             raise CoverageError("Repeated ten-factor race")
         seen.add(coord)
-        numbers, horses = set(), []
+        numbers, horses, watch = set(), [], []
         for raw in race["runners"]:
             if (not isinstance(raw, dict)
                     or type(raw.get("number")) is not int
@@ -82,6 +82,13 @@ def ten_factor_contract(two_factor_drafts):
                            for key in PROVISIONAL)):
                 raise CoverageError("Invalid ten-factor runner")
             numbers.add(raw["number"])
+            # Low recent grade is NOT a veto on a well-trained horse.
+            # This watch list is NOT a winner selection or new bet, and is
+            # limited to races with prestart provisional drafts.
+            if (race["status"] == "provisional_draft"
+                    and raw["training"] in ("S", "A")
+                    and raw["recent"] in ("B", "C")):
+                watch.append(raw["number"])
             slots = {key: (raw[key] if key in PROVISIONAL else UNASSESSED)
                      for key in FACTORS}
             n_provisional = sum(slots[k] in GRADE for k in PROVISIONAL)
@@ -97,6 +104,9 @@ def ten_factor_contract(two_factor_drafts):
             "runnerCount": len(horses), "horses": horses,
             "fullTenFactorCount": 0, "overallReady": False,
             "sourceGradeMode": "two_factor_provisional_only",
+            "trainingLedRecheckNumbers": sorted(watch),
+            "trainingLedRecheckNeeds": ["course_distance", "pace", "ground"],
+            "trainingLedRecheckIsWinPick": False,
         })
     return {
         "version": VERSION, "policyVersion": POLICY_VERSION,

@@ -195,7 +195,11 @@ function validateTen(data){
   const id=r.track+'|'+r.race,actual=source.get(id);
   if(!actual||seen.has(id)||r.overallReady!==false||
      r.fullTenFactorCount!==0||!Array.isArray(r.horses)||
-     r.runnerCount!==actual.runners.length||r.horses.length!==actual.runners.length)
+     r.runnerCount!==actual.runners.length||r.horses.length!==actual.runners.length||
+     r.trainingLedRecheckIsWinPick!==false||
+     !Array.isArray(r.trainingLedRecheckNumbers)||
+     !Array.isArray(r.trainingLedRecheckNeeds)||
+     r.trainingLedRecheckNeeds.join('|')!=='course_distance|pace|ground')
    throw Error('10項目レースの不一致');
   seen.add(id);
   const horses=new Map(actual.runners.map(h=>[h.number,h]));
@@ -219,6 +223,15 @@ function validateTen(data){
    if(h.provisionalFactorCount!==count||h.missing.length!==10-count)
      throw Error('10項目の採点数が不一致');
   }
+  const watch=r.horses.filter(h=>
+   actual.status==='provisional_draft'&&
+   ['S','A'].includes(h.grades.training)&&
+   ['B','C'].includes(h.grades.recent))
+   .map(h=>h.number).sort((a,b)=>a-b);
+  const declared=r.trainingLedRecheckNumbers;
+  if(declared.length!==watch.length||
+     declared.some((n,i)=>n!==watch[i]))
+   throw Error('巻き返し資料の照合が不一致');
  }
  return p;
 }
@@ -440,6 +453,14 @@ function render(input,day){
      Object.hasOwn(RUNNER_ISSUES,race.validationIssue)
      ?'（'+RUNNER_ISSUES[race.validationIssue]+'）':'';
    detail.append(dom('p',REASONS[race.reason]+extra,'hold'));
+  }
+  const tenRace=tenRows.get(race.track+'|'+race.race);
+  if(tenRace.trainingLedRecheckNumbers.length){
+   detail.append(dom('p','巻き返し条件の確認待ち：'+
+     tenRace.trainingLedRecheckNumbers.map(n=>n+'番').join('・')+
+     '。調教の仮評価が高く近走評価が低い馬。'+
+     'コース距離・展開・馬場を確認してから1着候補を再審査（自動追加・購入なし）。',
+     'hold'));
   }
   if(race.runners.length){
    detail.append(dom('p','調教30：近走3での仮順位（10項目総合評価ではない）','muted'));

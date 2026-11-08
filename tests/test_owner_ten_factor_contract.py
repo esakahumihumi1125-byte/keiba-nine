@@ -70,11 +70,26 @@ class TenFactorContractTests(unittest.TestCase):
         self.assertEqual(len(last["missing"]),9)
         self.assertEqual(converted["fullPredictionRaceCount"],0)
 
+    def test_high_training_low_recent_is_flagged_for_more_evidence_not_bet(self):
+        report=generate(r=research([
+            ("S","C"),("S","A"),("A","B"),("A","C"),
+            ("B","S"),("B","C"),("C","C")]))
+        preview=ten_factor_contract(report)
+        row=preview["races"][0]
+        self.assertEqual(row["trainingLedRecheckNumbers"],[1,3,4])
+        self.assertFalse(row["trainingLedRecheckIsWinPick"])
+        self.assertEqual(row["trainingLedRecheckNeeds"],
+                         ["course_distance","pace","ground"])
+        self.assertFalse(row["overallReady"])
+        self.assertTrue(all(h["overallRank"] is None for h in row["horses"]))
+        self.assertTrue(all(h["score"] is None for h in row["horses"]))
+
     def test_poststart_holds_have_no_retrospective_horse_ranks(self):
         data=generate(now=datetime(2099,1,1,12,10,tzinfo=JST))
         self.assertEqual(data["races"][0]["reason"],"after_provisional_off")
         converted=ten_factor_contract(data)
         self.assertEqual(converted["races"][0]["horses"],[])
+        self.assertEqual(converted["races"][0]["trainingLedRecheckNumbers"],[])
         self.assertEqual(converted["fullPredictionRaceCount"],0)
 
     def test_invalid_or_swapped_temporary_draft_cannot_create_10f(self):

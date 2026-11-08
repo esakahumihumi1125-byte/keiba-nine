@@ -40,6 +40,11 @@ function withTenPreview(r){
    track:row.track,race:row.race,runnerCount:row.runners.length,
    overallReady:false,fullTenFactorCount:0,
    sourceGradeMode:'two_factor_provisional_only',
+   trainingLedRecheckIsWinPick:false,
+   trainingLedRecheckNeeds:['course_distance','pace','ground'],
+   trainingLedRecheckNumbers:(row.status==='provisional_draft'
+    ?row.runners.filter(h=>['S','A'].includes(h.training)&&
+      ['B','C'].includes(h.recent)).map(h=>h.number).sort((a,b)=>a-b):[]),
    horses:row.runners.map(h=>{
     const grades=Object.fromEntries(POLICY.map(([key])=>
      [key,key==='training'?h.training:key==='recent'?h.recent:'未評価']));
@@ -160,6 +165,10 @@ function boot(){
  const firstTen=firstDetail.children.find(x=>x.className==='ten-horse');
  assert.match(firstTen.children[0].textContent,/総合 未評価/);
  assert.equal(firstTen.children[1].children.length,10);
+ const watchText=a.get('autoRaces').children[0].children[0].children
+  .map(x=>x.textContent||'').join(' ');
+ assert.match(watchText,/巻き返し条件の確認待ち/);
+ assert.match(watchText,/コース距離・展開・馬場を確認/);
  assert.match(firstTen.children[1].children[0].children[1].textContent,/S（仮）/);
  assert.match(firstTen.children[1].children[2].children[1].textContent,/未評価/);
  assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
