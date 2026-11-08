@@ -65,7 +65,12 @@ class Owner100YenPageTests(unittest.TestCase):
         self.assertIn("実購入・実際の払戻ではありません", page)
         self.assertIn("未確定", js)
         self.assertNotIn("innerHTML", js)
-        self.assertNotIn("localStorage", js)
+        self.assertIn("keiba-nine-owner-server-receipts-v1", js)
+        self.assertIn("/api/owner-100yen-verify-receipts", js)
+        # Read-only dashboard may inspect signed receipts on this device,
+        # but must never edit, replace or remove the saved forecast receipts.
+        self.assertNotIn("localStorage.setItem", js)
+        self.assertNotIn("localStorage.removeItem", js)
 
     def test_unconfigured_returns_empty_not_fake_losses(self):
         private = create_app({**SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY":"1",
