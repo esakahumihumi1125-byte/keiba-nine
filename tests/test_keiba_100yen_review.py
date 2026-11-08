@@ -112,6 +112,18 @@ class HypotheticalReviewTests(unittest.TestCase):
         self.assertIsNone(report["races"][0]["firstCandidateHit"])
         self.assertEqual(report["totalInvestedYen"], 100)
 
+    def test_dead_heat_refund_or_abandoned_race_wait_for_full_settlement(self):
+        for flag in ("deadHeat", "refundRequired", "raceAbandoned"):
+            with self.subTest(flag=flag):
+                o = outcome()
+                o[flag] = True
+                report = review_100yen([snapshot()], [o])
+                self.assertEqual(report["reviewedRaces"], 0)
+                self.assertEqual(report["pendingRaces"], 1)
+                self.assertEqual(report["totalInvestedYen"], 0)
+                self.assertIsNone(report["roiPercent"])
+                self.assertEqual(report["pendingStakeYen"], 300)
+
     def test_postoff_forecast_never_backtests_as_prerace(self):
         p=snapshot()
         p["lockedAt"] = p["scheduledOffAt"]
