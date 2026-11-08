@@ -273,6 +273,10 @@ class AutoDraftHTTPTests(unittest.TestCase):
             "JRDB_API_KEY":"synthetic-api","JRDB_AUTH_KEY":"synthetic-auth"
         }
         self.app=create_app(self.config)
+        self.venue_patch = patch("private_service.fetch_venue_conditions",
+                                 return_value=[])
+        self.mock_venue = self.venue_patch.start()
+        self.addCleanup(self.venue_patch.stop)
 
     def test_mobile_page_and_auto_route_are_private(self):
         root=call(self.app,"/")["body"].decode()
@@ -307,6 +311,12 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["draftCount"],1)
         self.assertEqual(body["races"][0]["points"],40)
         self.assertEqual(body["sourceReadCount"],4)
+        self.assertEqual(body["raceContext"]["version"],"race-context-1")
+        self.assertEqual(body["raceContext"]["conditionProviderReadCount"],1)
+        self.assertEqual(body["raceContext"]["conditionProviderFetchStatus"],"received")
+        self.assertEqual(body["raceContext"]["races"][0]["going"],"未確認")
+        self.assertFalse(body["raceContext"]["raceConditionsVerified"])
+        self.mock_venue.assert_called_once_with(DAY)
         preview=body["tenFactorPreview"]
         self.assertEqual(preview["factorCount"],10)
         self.assertEqual(preview["totalWeight"],100)
@@ -352,6 +362,7 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["sourceReadCount"],4)
         self.assertEqual(body["tenFactorPreview"]["factorCount"],10)
         self.assertEqual(body["tenFactorPreview"]["fullPredictionRaceCount"],0)
+        self.assertEqual(body["raceContext"]["conditionProviderFetchStatus"],"received")
         self.assertFalse(body["officialJraVerified"])
         for forbidden in ("racekey","horse_id","PRIVATE-SIRE",
                           "PRIVATE-JOCKEY","PRIVATE-MATERNAL"):
@@ -381,6 +392,63 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["sourceMaterials"]["races"],[])
         self.assertEqual(body["tenFactorPreview"]["factorCount"],10)
         self.assertEqual(body["tenFactorPreview"]["fullPredictionRaceCount"],0)
+
+    def test_optional_current_conditions_attach_to_each_race_without_grades(self):
+        p=programme()
+        p[0].update(surface="芝",distance_m=2000,turn="左")
+        # The five-source response is owner-private and the venue condition
+        # is NOT independent JRA verification or horse suitability.
+        self.mock_venue.return_value=[{
+            "holdingkey":"0526ff","racedate":DAY,
+            "turf_condition_cd":"3","dirt_condition_cd":"1",
+            "updated_at":"2099-01-01T08:30:00+09:00",
+            "horse_name":"REDACT-ME"
+        }]
+        with (patch("private_service.fetch_race_program",return_value=[]),
+              patch("private_service.normalize_program_rows",return_value=p),
+              patch("private_service.fetch_horse_entries",return_value=[]),
+              patch("private_service.fetch_training_analysis",return_value=[]),
+              patch("private_service.fetch_recent_runs",return_value=[]),
+              patch("private_service.owner_day_research",return_value=research()),
+              patch("private_service._now_in_jst",
+                    return_value="2099-01-01T09:00:00+09:00")):
+            result=call(self.app,"/api/jrdb/owner-auto-draft",
+                        QUERY_STRING="date="+DAY)
+        self.assertEqual(result["status"],"200 OK")
+        body=json.loads(result["body"])
+        ctx=body["raceContext"]
+        self.assertEqual(ctx["conditionProviderFetchStatus"],"received")
+        row=ctx["races"][0]
+        self.assertEqual((row["surface"],row["distance_m"],row["turn"],row["going"]),
+                         ("芝",2000,"左","重"))
+        self.assertFalse(row["horseCourseSuitabilityAssessed"])
+        self.assertFalse(row["horseGoingSuitabilityAssessed"])
+        self.assertFalse(ctx["raceConditionsVerified"])
+        self.assertFalse(body["overallPredictionReady"])
+        self.assertEqual(body["tenFactorPreview"]["fullPredictionRaceCount"],0)
+        self.assertNotIn("REDACT-ME",result["body"].decode())
+
+    def test_optional_condition_api_failure_preserves_signed_research_receipt(self):
+        from jrdb_private import JRDBError
+        self.mock_venue.side_effect=JRDBError("SECRET-PAID-RESPONSE")
+        with (patch("private_service.fetch_race_program",return_value=[]),
+              patch("private_service.normalize_program_rows",return_value=programme()),
+              patch("private_service.fetch_horse_entries",return_value=[]),
+              patch("private_service.fetch_training_analysis",return_value=[]),
+              patch("private_service.fetch_recent_runs",return_value=[]),
+              patch("private_service.owner_day_research",return_value=research()),
+              patch("private_service._now_in_jst",
+                    return_value="2099-01-01T09:00:00+09:00")):
+            result=call(self.app,"/api/jrdb/owner-auto-draft",
+                        QUERY_STRING="date="+DAY)
+        self.assertEqual(result["status"],"200 OK")
+        body=json.loads(result["body"])
+        self.assertEqual(body["researchReceiptCount"],1)
+        self.assertEqual(body["draftCount"],1)
+        self.assertEqual(body["raceContext"]["conditionProviderFetchStatus"],"unavailable")
+        self.assertEqual(body["raceContext"]["conditionProviderReadCount"],1)
+        self.assertEqual(body["raceContext"]["races"][0]["going"],"未確認")
+        self.assertNotIn("SECRET-PAID-RESPONSE",result["body"].decode())
 
     def test_optional_server_archive_first_write_wins(self):
         from owner_receipt_archive import FLAG, SIGNING_KEY, DSN_KEY

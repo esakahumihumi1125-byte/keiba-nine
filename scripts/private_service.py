@@ -2148,6 +2148,27 @@ def create_app(settings=None):
                 except (CoverageError, ValueError, TypeError, KeyError):
                     logging.warning('KEIBA_AUTO_DRAFT_MATERIALS=unavailable')
                     report['sourceMaterials'] = unavailable_draft_materials()
+                # Fifth, optional owner-private source read: current /tka
+                # ground condition context. Never derive a horse aptitude
+                # grade from a venue condition. A missing/invalid response
+                # must NOT affect already-sealed prestart forecasts.
+                # The normalized /tra programme is still usable when /tka
+                # is temporarily unavailable.
+                report['raceContext'] = audit_race_context(programme, [], day)
+                report['raceContext']['conditionProviderReadCount'] = 0
+                report['raceContext']['conditionProviderFetchStatus'] = 'unavailable'
+                if programme:
+                    report['raceContext']['conditionProviderReadCount'] = 1
+                    try:
+                        conditions = fetch_venue_conditions(day)
+                        checked = audit_race_context(programme, conditions, day)
+                        checked['conditionProviderReadCount'] = 1
+                        checked['conditionProviderFetchStatus'] = 'received'
+                        report['raceContext'] = checked
+                    except (JRDBError, RaceContextError, ValueError,
+                            TypeError, KeyError):
+                        # Fixed label only; never log source data.
+                        logging.warning('KEIBA_AUTO_DRAFT_CONTEXT=unavailable')
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError) as exc:
                 if isinstance(exc, JRDBError):
