@@ -12,6 +12,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs
+from pathlib import Path
 from owner_session_auth import (owner_credentials_match, session_cookie, session_cookie_valid,
                                 new_login_form_csrf, login_form_csrf_valid)
 
@@ -57,6 +58,7 @@ from owner_backup import HTML as BACKUP_HTML, JS as BACKUP_JS, CSS as BACKUP_CSS
 from owner_factor_scorecard import HTML as SCORE_HTML, JS as SCORE_JS, CSS as SCORE_CSS
 from owner_race_workbench import HTML as WORKBENCH_HTML, JS as WORKBENCH_JS, CSS as WORKBENCH_CSS
 from owner_preday_forecast_ui import HTML as FORECAST_HTML, JS as FORECAST_JS, CSS as FORECAST_CSS
+from owner_gmail_setup_ui import HTML as GMAIL_SETUP_HTML, JS as GMAIL_SETUP_JS, CSS as GMAIL_SETUP_CSS
 from owner_forecast_delivery import decode_forecast, decode_plain_owner_snapshot, OwnerForecastError, ENV_KEY as OWNER_FORECAST_ENV_KEY
 from owner_live_notes import parse_live_notes, LiveNoteError, ENV_KEY as OWNER_LIVE_ENV_KEY
 from owner_mail_bridge import load_owner_live_notes, BridgeUnavailable
@@ -1100,7 +1102,7 @@ def create_app(settings=None):
                             extra=[('Location', '/login?session=check'),
                                    ('Set-Cookie', session_cookie(expected))])
         if not valid:
-            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/my-scorecard', '/owner-races', '/owner-preday-forecast', '/owner-review', '/owner-daily-review', '/owner-auto-trial', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
+            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/my-scorecard', '/owner-races', '/owner-preday-forecast', '/owner-gmail-setup', '/owner-review', '/owner-daily-review', '/owner-auto-trial', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
                 return response('303 See Other', '', 'text/plain; charset=utf-8',
                                 extra=[('Location', '/login')])
             # Do not summon an iPhone native Basic-password popup when an
@@ -1110,7 +1112,7 @@ def create_app(settings=None):
                 '/app.js', '/app.css', '/my-tickets.js',
                 '/my-tickets.css', '/my-purchases.js', '/research-batch-demo.css',
                 '/day-pipeline.css', '/day-pipeline.js',
-                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/owner-scorecard.js', '/owner-scorecard.css', '/owner-race-workbench.js', '/owner-race-workbench.css', '/owner-preday-forecast.js', '/owner-preday-forecast.css', '/owner-review.js', '/owner-review.css', '/owner-daily-review.js', '/owner-daily-review.css', '/owner-auto-trial.js', '/owner-auto-trial.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
+                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/owner-scorecard.js', '/owner-scorecard.css', '/owner-race-workbench.js', '/owner-race-workbench.css', '/owner-preday-forecast.js', '/owner-preday-forecast.css', '/owner-gmail-setup.js', '/owner-gmail-setup.css', '/owner-review.js', '/owner-review.css', '/owner-daily-review.js', '/owner-daily-review.css', '/owner-auto-trial.js', '/owner-auto-trial.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
             ):
                 return response('401 Unauthorized', {'error': 'ログインが必要です。'})
             return response('401 Unauthorized', {'error': '本人認証が必要です。'},
@@ -1151,6 +1153,27 @@ def create_app(settings=None):
                 '/owner-review.css': (REVIEW_CSS, 'text/css; charset=utf-8'),
             }[path]
             return response('200 OK', page, mime)
+        if method == 'GET' and path in ('/owner-gmail-setup', '/owner-gmail-setup.js', '/owner-gmail-setup.css'):
+            page, mime = {
+                '/owner-gmail-setup': (GMAIL_SETUP_HTML, 'text/html; charset=utf-8'),
+                '/owner-gmail-setup.js': (GMAIL_SETUP_JS, 'text/javascript; charset=utf-8'),
+                '/owner-gmail-setup.css': (GMAIL_SETUP_CSS, 'text/css; charset=utf-8'),
+            }[path]
+            return response('200 OK', page, mime)
+        if method == 'GET' and path == '/api/owner-gmail-script-code':
+            # Fixed public source file; no account credential or private mail.
+            # The endpoint still requires authentication and a same-origin header.
+            try:
+                script_file = (Path(__file__).resolve().parents[1] /
+                               'integrations/google_apps_script/Code.gs')
+                script_code = script_file.read_text(encoding='utf-8')
+            except (OSError, UnicodeError):
+                return response('503 Service Unavailable',
+                                {'error': 'セットアップコードを取得できません。'})
+            if not 1000 <= len(script_code) <= 25000:
+                return response('503 Service Unavailable',
+                                {'error': 'セットアップコードの検査に失敗しました。'})
+            return response('200 OK', script_code, 'text/plain; charset=utf-8')
         if method == 'GET' and path in ('/owner-preday-forecast', '/owner-preday-forecast.js', '/owner-preday-forecast.css'):
             page, mime = {
                 '/owner-preday-forecast': (FORECAST_HTML, 'text/html; charset=utf-8'),
