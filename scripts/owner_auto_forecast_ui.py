@@ -99,7 +99,14 @@ const REASONS={
  missing_factors:'一部の馬の調教または近走が未評価',
  missing_post_time:'暫定発走時刻を安全に確認できない',
  after_provisional_off:'暫定発走時刻を過ぎたため後付け買い目なし',
- ambiguous_equal_grade_boundary:'同評価の馬が候補の境界にいるため選定保留'
+ ambiguous_equal_grade_boundary:'同評価の馬が候補の境界にいるため選定保留',
+ invalid_two_factor:'このレースの調教・近走の資料検証に不一致があり、安全のため見送り'
+};
+const RUNNER_ISSUES={
+ contract:'2項目評価の形式',runner_shape:'馬番別資料の形式',
+ completeness:'評価済み項目数',rank_order:'評価順位',
+ incomplete_rank:'未評価馬の順位',missing_reasons:'未評価の理由',
+ summary_count:'評価済み頭数'
 };
 const POS={
  frontObserved:'過去4角：前方観測',
@@ -145,7 +152,9 @@ function validate(data,day){
   }
   if(r.status==='hold'){
    if(!Object.hasOwn(REASONS,r.reason)||r.points!==0||
-      r.first.length||r.second.length||r.third.length)
+      r.first.length||r.second.length||r.third.length||
+      (r.reason==='invalid_two_factor'&&
+       (!Object.hasOwn(RUNNER_ISSUES,r.validationIssue)||r.runners.length!==0)))
     throw Error('見送り理由が不正です');
   }else{
    if(r.reason!=='two_factor_only'||r.first.length<2||r.first.length>3||
@@ -194,7 +203,12 @@ function render(input,day){
    race.track+' '+race.race+'R '+
    (race.status==='provisional_draft'?'研究用自動案 '+race.points+'点':'見送り'));
   detail.append(title);
-  if(race.status==='hold')detail.append(dom('p',REASONS[race.reason],'hold'));
+  if(race.status==='hold'){
+   const extra=race.reason==='invalid_two_factor'&&
+     Object.hasOwn(RUNNER_ISSUES,race.validationIssue)
+     ?'（'+RUNNER_ISSUES[race.validationIssue]+'）':'';
+   detail.append(dom('p',REASONS[race.reason]+extra,'hold'));
+  }
   if(race.runners.length){
    detail.append(dom('p','調教・近走の仮評価順（総合評価ではない）','muted'));
    for(const [i,h] of race.runners.entries())detail.append(runnerView(h,i));

@@ -104,6 +104,17 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),before);
  assert.match(a.get('autoSavedStatus').textContent,/保存はできませんでした/);
  assert.equal(a.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // A malformed runner source holds only that race and never saves tickets.
+ const bad=research();
+ bad.races=[{...bad.races[0],status:'hold',reason:'invalid_two_factor',
+  validationIssue:'runner_shape',runners:[],first:[],second:[],third:[],
+  tickets:[],points:0,amountYen:0}];
+ bad.draftCount=0;bad.holdCount=1;
+ bad.researchReceipts=[];bad.researchReceiptCount=0;
+ a.setServer(bad);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoRaces').children[0].children[1].textContent,/馬番別資料の形式/);
+ assert.equal(a.storage.get(STORAGE),before);
  // No new prestart forecast means no new record, not a fabricated loss.
  const empty=research();
  empty.races=[{...empty.races[0],status:'hold',reason:'after_provisional_off',

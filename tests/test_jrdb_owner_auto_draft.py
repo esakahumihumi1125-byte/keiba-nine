@@ -191,14 +191,42 @@ class AutoDraftTests(unittest.TestCase):
             generate(r=r)
         r=research()
         r["races"][0]["research"]["runners"][0]["number"]=2
-        with self.assertRaises(CoverageError):
-            generate(r=r)
+        held=generate(r=r)["races"][0]
+        self.assertEqual(held["reason"], "invalid_two_factor")
+        self.assertEqual(held["validationIssue"], "runner_shape")
+        self.assertEqual(held["runners"], [])
+        self.assertEqual(held["tickets"], [])
         r=research()
         r["races"][0]["race"]=2
         with self.assertRaises(CoverageError):
             generate(r=r)
         with self.assertRaises(CoverageError):
             generate(p=programme()+programme())
+
+    def test_one_invalid_race_holds_without_blocking_another_race(self):
+        p=programme()
+        second=copy.deepcopy(p[0])
+        second.update(track="京都", race=2, racekey="0826ff02")
+        p.append(second)
+        report=research()
+        invalid=copy.deepcopy(report["races"][0])
+        invalid.update(track="京都", race=2)
+        invalid["research"].update(track="京都", race=2)
+        invalid["research"]["runners"][0]["completeFactors"]=0
+        report["races"].append(invalid)
+        report["raceCount"]=2
+        result=generate(p=p, r=report)
+        self.assertEqual((result["draftCount"], result["holdCount"]), (1, 1))
+        self.assertEqual(result["races"][0]["points"], 40)
+        self.assertEqual(result["races"][1]["reason"], "invalid_two_factor")
+        self.assertEqual(result["races"][1]["validationIssue"], "completeness")
+        self.assertEqual(result["races"][1]["runners"], [])
+        self.assertEqual(result["races"][1]["tickets"], [])
+        signed=seal_auto_research_drafts(
+            result, SETTINGS["KEIBA_OWNER_PASSWORD"],
+            now=datetime(2099,1,1,9,0,tzinfo=JST))
+        self.assertEqual(len(signed), 1)
+        self.assertEqual(signed[0]["snapshot"]["track"], "東京")
 
     def test_needs_review_only_holds(self):
         r=research()

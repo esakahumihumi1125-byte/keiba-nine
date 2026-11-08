@@ -27,6 +27,17 @@ OBSERVED = frozenset(("frontObserved", "backObserved",
                       "mixedObserved", "insufficient"))
 MAX_RACES = 120
 STAKE = 100
+# Only trusted, constant error messages originating in _normalize_runners.
+# Never send provider values or exception strings to the client or logs.
+RUNNER_ISSUES = {
+    "Bad two-factor research contract": "contract",
+    "Invalid research runner": "runner_shape",
+    "Factor completeness mismatch": "completeness",
+    "Invalid research order": "rank_order",
+    "Unassessed runner must not be ranked": "incomplete_rank",
+    "Invalid missing-factor reasons": "missing_reasons",
+    "Complete runner count mismatch": "summary_count",
+}
 
 
 def _grade(score):
@@ -171,7 +182,18 @@ def _draft_for_race(row, research, day, now):
             or research.get("track") != track
             or research.get("race") != number):
         raise CoverageError("Day research identity mismatch")
-    runners = _normalize_runners(research)
+    try:
+        runners = _normalize_runners(research)
+    except CoverageError as exc:
+        # A malformed horse-level research record must never create tickets
+        # or prevent other, independent races from being inspected. The
+        # cross-race and source identity checks above still fail closed.
+        issue = RUNNER_ISSUES.get(str(exc))
+        if issue is None:
+            raise
+        output["reason"] = "invalid_two_factor"
+        output["validationIssue"] = issue
+        return output
     output["runners"] = runners
     if (row.get("headcount") is not None
             and row["headcount"] != len(runners)):
