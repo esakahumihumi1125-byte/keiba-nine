@@ -1157,6 +1157,9 @@ def create_app(settings=None):
             # session secret. The token must match a host-only HttpOnly cookie.
             csrf_token, csrf_cookie = new_login_form_csrf()
             html = LOGIN_HTML.replace('__ERROR__', error).replace('__CSRF__', csrf_token)
+            if settings.get('KEIBA_RENDER_PRIVATE_ONLY') == '1':
+                html = (html.replace('keiba-nine-owner-preview', 'keiba-nine-owner-jrdb')
+                            .replace('本人用プレビューへのログイン', 'JRDB本人専用β版へのログイン'))
             return response(status, html, 'text/html; charset=utf-8',
                             extra=[('Set-Cookie', csrf_cookie)])
 
@@ -1249,6 +1252,11 @@ def create_app(settings=None):
                           '/app.css': (CSS, 'text/css; charset=utf-8')}[path]
             if path in ('/', '/preview-v2'):
                 text = text.replace('__OWNER_RELEASE__', release_tag)
+                if settings.get('KEIBA_RENDER_PRIVATE_ONLY') == '1':
+                    text = (text.replace('競馬ナイン｜本人用プレビュー',
+                                         '競馬ナイン｜JRDB本人専用β版')
+                                .replace('JRDB API連携後の2項目研究用試算（API発行待ち）',
+                                         'JRDB β版の2項目研究用試算（本人専用）'))
             return response('200 OK', text, mime)
         if method == 'GET' and path in ('/owner-auto-trial', '/owner-auto-trial.js', '/owner-auto-trial.css'):
             data, mime = {
