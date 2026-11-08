@@ -115,7 +115,11 @@ def fetch_mail_brief(settings, expected_date, race_times, opener=urlopen):
             raise BridgeUnavailable("Remote rejected request")
         return validate_bridge_feed(doc, expected_date, race_times)
     except HTTPError as exc:
-        raise BridgeUnavailable("Remote HTTP failure") from exc
+        # Report only a coarse HTTP status category, never response bodies,
+        # redirected URLs, credentials, or private request content.
+        safe_status = exc.code if exc.code in (401, 403, 404, 405, 429, 500, 502, 503) else None
+        raise BridgeUnavailable("Remote HTTP " + str(safe_status) if safe_status
+                                else "Remote HTTP failure") from exc
     except json.JSONDecodeError as exc:
         raise BridgeUnavailable("Remote non-JSON response") from exc
     except (URLError, TimeoutError, OSError, UnicodeError) as exc:
@@ -168,6 +172,14 @@ def load_owner_live_notes(settings, *, today=None, opener=urlopen):
                 "No matching race calendar": "calendar",
                 "Remote rejected request": "rejected",
                 "Remote HTTP failure": "http",
+                "Remote HTTP 401": "http_401",
+                "Remote HTTP 403": "http_403",
+                "Remote HTTP 404": "http_404",
+                "Remote HTTP 405": "http_405",
+                "Remote HTTP 429": "http_429",
+                "Remote HTTP 500": "http_5xx",
+                "Remote HTTP 502": "http_5xx",
+                "Remote HTTP 503": "http_5xx",
                 "Remote non-JSON response": "non_json",
                 "Remote source unavailable": "network",
             }.get(str(exc), "format")
