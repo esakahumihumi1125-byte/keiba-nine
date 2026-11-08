@@ -47,3 +47,23 @@ jobs:
           echo 'Render deploy hook accepted the request; live status must still be checked.'
           echo '### Render deployment: REQUEST SENT' >> "$GITHUB_STEP_SUMMARY"
           echo 'Deploy hook request was accepted, but Render must still report the expected commit as live.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Deploy JRDB owner service after checks (optional separate hook)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
+          RENDER_JRDB_DEPLOY_HOOK_URL: ${{ secrets.RENDER_JRDB_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RENDER_JRDB_DEPLOY_HOOK_URL:-}" ]]; then
+            echo 'JRDB owner deploy hook not configured: deployment safely skipped.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          if [[ "$LATEST" != "$PASSED_SHA" ]]; then
+            echo 'JRDB owner deployment skipped: a newer main revision exists.'
+            exit 0
+          fi
+          # The hook is secret: never echo it or send credentials to Github Pages.
+          curl --fail --silent --show-error --max-time 25 --request POST \
+            --output /dev/null "$RENDER_JRDB_DEPLOY_HOOK_URL"
+          echo 'JRDB owner deploy hook accepted; confirm matching SHA is live on Render.' >> "$GITHUB_STEP_SUMMARY"
