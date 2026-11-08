@@ -342,7 +342,8 @@ function boot(){
  assert.equal(a.get('autoHistoryAuditRaces').children.length,1);
  assert.match(a.get('autoHistoryAuditStatus').textContent,/予想・購入・保存済み/);
  const historyCard=a.get('autoHistoryAuditRaces').children[0];
- const horsePanel=historyCard.children.find(x=>x.tag==='details');
+ const horsePanel=historyCard.children.find(x=>x.tag==='details'&&
+  /馬番ごとの同条件実績/.test(x.children[0]?.textContent||''));
  assert.ok(horsePanel);
  assert.equal(horsePanel.children.length,8);
  assert.match(horsePanel.children[4].textContent,/4番.*3着以内 1回/);
@@ -384,7 +385,8 @@ function boot(){
  a.setHistorical(positive);
  await a.get('autoHistoryAudit').onclick();
  const reviewed=a.get('autoHistoryAuditRaces').children[0];
- const horseRows=reviewed.children.find(x=>x.tag==='details');
+ const horseRows=reviewed.children.find(x=>x.tag==='details'&&
+  /馬番ごとの同条件実績/.test(x.children[0]?.textContent||''));
  assert.match(horseRows.children[4].textContent,/コース好走実績の研究目安 S/);
  assert.match(horseRows.children[4].textContent,/今回馬場の研究目安 S/);
  assert.match(horseRows.children[4].textContent,/総合点と買い目には不反映/);
