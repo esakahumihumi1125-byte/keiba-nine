@@ -26,6 +26,7 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p class="muted">必要なときだけ過去番組・馬場を最大8件照合（追加APIアクセスは最大16回）。
 資料の数は適性点数や勝率ではありません。未取得や新馬を能力不足とは判断しません。
 同条件の過去3〜5走が十分に確認できた場合だけ「好走実績の研究目安 S〜C」を表示します。
+さらに過去4角の位置取りから、先行候補の競合状況と研究用の展開仮説を表示します。
 これは10項目の正式なS〜C、勝率、1着候補の決定ではありません。</p>
 <button id="autoHistoryAudit" type="button" disabled>過去の同条件を最大8件照合する</button>
 <p id="autoHistoryAuditStatus" class="muted" role="status">暫定予想の取得後に利用できます。</p>
@@ -664,10 +665,10 @@ function saveAutoReceipts(data,day){
 }
 
 let request=0,followingToday=true,historySeq=0,historyDay='',historyCoordinates=new Set(),
- historyRosters=new Map(),historyReboundWatch=new Map();
+ historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map();
 function clearHistory(){
  historySeq++;historyDay='';historyCoordinates=new Set();
- historyRosters=new Map();historyReboundWatch=new Map();
+ historyRosters=new Map();historyReboundWatch=new Map();historyStyles=new Map();
  $('autoHistoryAudit').disabled=true;
  $('autoHistoryAuditRaces').replaceChildren();
  $('autoHistoryAuditStatus').textContent='暫定予想の取得後に利用できます。';
@@ -718,6 +719,22 @@ function validateHistory(h){
     h.historicalEvidenceBands.raceCount!==historyCoordinates.size||
     !Array.isArray(h.historicalEvidenceBands.races)||
     h.historicalEvidenceBands.races.length!==historyCoordinates.size||
+    !h.paceScenarioHypotheses||
+    h.paceScenarioHypotheses.version!=='owner-pace-scenario-hypothesis-1'||
+    h.paceScenarioHypotheses.factorWeight!==20||
+    h.paceScenarioHypotheses.minObservedFieldShare!=='3/5'||
+    h.paceScenarioHypotheses.minObservedRunners!==3||
+    h.paceScenarioHypotheses.researchOnly!==true||
+    h.paceScenarioHypotheses.privateOwnerOnly!==true||
+    h.paceScenarioHypotheses.officialJraVerified!==false||
+    h.paceScenarioHypotheses.scenarioNotActualPace!==true||
+    h.paceScenarioHypotheses.bandNotVerifiedFactorGrade!==true||
+    h.paceScenarioHypotheses.overallScoreReady!==false||
+    h.paceScenarioHypotheses.winnerPickReady!==false||
+    h.paceScenarioHypotheses.bettingReady!==false||
+    h.paceScenarioHypotheses.raceCount!==historyCoordinates.size||
+    !Array.isArray(h.paceScenarioHypotheses.races)||
+    h.paceScenarioHypotheses.races.length!==historyCoordinates.size||
     !h.realAssessmentPreflight||
     h.realAssessmentPreflight.version!=='real-assessment-preflight-1'||
     h.realAssessmentPreflight.realGradeReady!==false||
@@ -822,6 +839,72 @@ function validateHistory(h){
  }
  if(bandRaces.size!==historyCoordinates.size)
   throw Error('過去好走指標のレース不足');
+ // Compare each scenario with independent current-day runner positions and
+ // recompute its coverage / pressure and exploratory fit before displaying.
+ const paceRaces=new Set();
+ const styles=['frontObserved','backObserved','mixedObserved','insufficient'];
+ function paceBand(style,pressure,enough){
+  if(!enough||style==='insufficient')return ['未評価','insufficient_position_coverage'];
+  if(pressure==='single_front_observed')
+   return style==='frontObserved'?['S','possible_single_front_advantage']:
+    ['B','low_observed_front_pressure'];
+  if(pressure==='two_front_observed')
+   return style==='frontObserved'?['A','two_front_candidates']:
+    ['B','uncertain_chase_scenario'];
+  if(pressure==='multiple_front_observed')
+   return style==='backObserved'?['A','possible_late_run_if_pressured']:
+    style==='frontObserved'?['B','multiple_front_candidates']:
+    ['B','mixed_position_under_pressure'];
+  return ['未評価','no_observed_front_candidate'];
+ }
+ for(const pace of h.paceScenarioHypotheses.races){
+  if(!pace||typeof pace.track!=='string'||!Number.isInteger(pace.race)||
+     !Number.isInteger(pace.runnerCount)||pace.runnerCount<0||
+     pace.runnerCount>18||!Array.isArray(pace.runners)||
+     pace.runners.length!==pace.runnerCount||
+     !['frontObserved','backObserved','mixedObserved','insufficient']
+       .every(k=>Number.isInteger(pace[k])&&pace[k]>=0&&pace[k]<=18)||
+     pace.gradeReady!==false||pace.bettingReady!==false||
+     pace.paceForecastReady!==false||typeof pace.coverageAdequate!=='boolean')
+   throw Error('展開仮説の形式不正');
+  const id=pace.track+'|'+pace.race,history=perRace.get(id);
+  if(!history||paceRaces.has(id)||history.runnerCount!==pace.runnerCount)
+   throw Error('展開仮説のレース不一致');
+  paceRaces.add(id);
+  const front=pace.frontObserved,back=pace.backObserved,mixed=pace.mixedObserved;
+  const insufficient=pace.insufficient;
+  const n=pace.runnerCount;
+  const enough=n>=3&&(n-insufficient)>=3&&(n-insufficient)*5>=3*n;
+  const pressure=!enough?'coverage_insufficient':
+   front===0?'no_front_observed':
+   front===1?'single_front_observed':
+   front===2?'two_front_observed':'multiple_front_observed';
+  if(front+back+mixed+insufficient!==n||
+     pace.coverageAdequate!==enough||pace.pacePressureScenario!==pressure)
+   throw Error('展開仮説の先行候補数が不一致');
+  const known=historyStyles.get(id)||new Map(),seenHorse=new Set();
+  const roster=historyRosters.get(id)||new Set();
+  for(const row of pace.runners){
+   if(!row||!Number.isInteger(row.number)||row.number<1||row.number>18||
+      seenHorse.has(row.number)||!styles.includes(row.pastFourthCorner))
+    throw Error('展開仮説の馬番形式不正');
+   seenHorse.add(row.number);
+   const score=paceBand(row.pastFourthCorner,pressure,enough);
+   if(row.scenarioFitBand!==score[0]||row.reason!==score[1]||
+      (roster.size>0&&known.get(row.number)!==row.pastFourthCorner))
+    throw Error('展開仮説の根拠が不一致');
+  }
+  const totals=Object.fromEntries(styles.map(k=>[k,0]));
+  for(const row of pace.runners)totals[row.pastFourthCorner]++;
+  if(seenHorse.size!==n||styles.some(k=>totals[k]!==pace[k]))
+   throw Error('展開仮説の頭数が不一致');
+  if(roster.size>0&&(roster.size!==n||pace.runners.some(r=>!roster.has(r.number))))
+   throw Error('展開仮説の出走馬が不一致');
+  history.paceScenario=pace;
+  history.paceByNumber=new Map(pace.runners.map(r=>[r.number,r]));
+ }
+ if(paceRaces.size!==historyCoordinates.size)
+  throw Error('展開仮説の対象レースが不足');
  const seen=new Set(),results=[];
  for(const row of h.privateHistoryFactors.races){
   if(!row||typeof row.track!=='string'||!Number.isInteger(row.race)||
@@ -922,6 +1005,9 @@ $('autoRun').onclick=async()=>{
   historyReboundWatch=new Map(body.tenFactorPreview.races.map(r=>[
    r.track+'|'+r.race,new Set(r.trainingLedRecheckNumbers)
   ]));
+  historyStyles=new Map(body.races.map(r=>[
+   r.track+'|'+r.race,new Map(r.runners.map(h=>[h.number,h.pastFourthCorner]))
+  ]));
   $('autoHistoryAudit').disabled=historyCoordinates.size===0;
   $('autoHistoryAuditStatus').textContent=historyCoordinates.size
    ?'必要なときに過去の同条件資料を確認できます。':'この開催日のレースはありません。';
@@ -973,7 +1059,18 @@ $('autoHistoryAudit').onclick=async()=>{
       '頭／重・不良の出走歴：'+row.runnersWithWetComparable+'頭'),
     dom('p','履歴不足：'+row.runnersWithIncompleteHistory+
       '頭。適性・10項目総合点は未評価。'));
-   const details=row.ownerRunnerDetails;
+   const details=row.ownerRunnerDetails,pace=details.paceScenario;
+   const pressureLabel={
+    coverage_insufficient:'位置取りの資料不足',
+    no_front_observed:'明確な先行候補を確認できず',
+    single_front_observed:'先行候補1頭（単独の可能性）',
+    two_front_observed:'先行候補2頭（競合の可能性）',
+    multiple_front_observed:'先行候補3頭以上（先行争いの可能性）'
+   };
+   card.append(dom('p','過去4角の観測：前方 '+pace.frontObserved+
+    '頭／後方 '+pace.backObserved+'頭／混在 '+pace.mixedObserved+
+    '頭／資料不足 '+pace.insufficient+'頭。展開仮説：'+
+    pressureLabel[pace.pacePressureScenario]+'（実際のペース未予測）','muted'));
    if(details.rosterVerified){
     const panel=dom('details');
     panel.append(dom('summary','馬番ごとの同条件実績を見る（参考資料）'));
@@ -987,7 +1084,9 @@ $('autoHistoryAudit').onclick=async()=>{
        (watch.has(h.number)?'｜調教好調・近走低評価の巻き返し再審査対象':'')+
        '。コース好走実績の研究目安 '+details.experimental.get(h.number).courseEvidenceBand+
        '／今回馬場の研究目安 '+details.experimental.get(h.number).goingEvidenceBand+
-       '（未検証・総合点と買い目には不反映）。','muted');
+       '／展開シナリオの研究目安 '+
+       details.paceByNumber.get(h.number).scenarioFitBand+
+       '（過去4角の仮説・実際の展開は未予測、総合点と買い目には不反映）。','muted');
      panel.append(line);
     }
     card.append(panel);
