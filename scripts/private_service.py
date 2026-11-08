@@ -2426,7 +2426,8 @@ def create_app(settings=None):
                            for r in originals):
                     return response('200 OK',
                         summarize_provider_watch_results(
-                            originals,[],day,now=stamp))
+                            originals,[],day,now=stamp,
+                            source_read_count=0))
             except (ValueError,TypeError,KeyError,WatchReceiptError):
                 return response('400 Bad Request',{
                     'error':'発走前の署名付き候補を検証できません。'})

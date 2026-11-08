@@ -14,12 +14,15 @@ VERSION = "owner-rebound-provider-check-1"
 MAX_SOURCE_ROWS = 2160
 
 
-def summarize_provider_watch_results(watches, rows, day, now=None):
+def summarize_provider_watch_results(watches, rows, day, now=None,
+                                     source_read_count=1):
     """One day /tse, all original watches remain immutable; never official."""
     _day(day)
     now = _timestamp(datetime.now(timezone.utc) if now is None else now)
-    if (not isinstance(watches,list) or len(watches)>36 or
-            not isinstance(rows,list) or len(rows)>MAX_SOURCE_ROWS):
+    if (source_read_count not in (0,1) or type(source_read_count) is not int
+            or not isinstance(watches,list) or len(watches)>36 or
+            not isinstance(rows,list) or len(rows)>MAX_SOURCE_ROWS
+            or (source_read_count==0 and rows)):
         raise WatchReceiptError("Invalid postrace source collection")
     by_coord, by_watch = {}, {}
     for snap in watches:
@@ -98,7 +101,7 @@ def summarize_provider_watch_results(watches, rows, day, now=None):
     return {
         "version":VERSION,"date":day,
         "sourceKind":"jrdb-tse-provider-observation",
-        "providerSourceReadCount":1,
+        "providerSourceReadCount":source_read_count,
         "raceCount":len(races),"races":races,
         "observedRaceCount":len(noted),
         "observedFirstInWatchCount":sum(r["observedFirstInWatch"] is True for r in noted),
