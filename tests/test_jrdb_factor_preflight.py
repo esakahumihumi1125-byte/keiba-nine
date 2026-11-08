@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_evidence_readiness import audit_evidence_coverage
 from jrdb_factor_preflight import audit_assessment_preflight
-from evaluation_policy import FACTORS, CORE
+from evaluation_policy import FACTORS, CORE, POLICY_VERSION
 from test_jrdb_evidence_readiness import sample
 
 
@@ -24,7 +24,7 @@ class AssessmentPreflightTests(unittest.TestCase):
         self.assertEqual(result["readyForPrediction"], 0)
         self.assertEqual(result["gradedFactors"], 0)
         self.assertEqual(set(result["coreFactors"]), CORE)
-        self.assertEqual(result["policyVersion"], "research-1")
+        self.assertEqual(result["policyVersion"], POLICY_VERSION)
         for race in result["races"]:
             self.assertEqual(set(race["factors"]), set(FACTORS))
             self.assertEqual(len(race["pendingAssessments"]), 10)

@@ -53,7 +53,8 @@ class EvaluationTests(unittest.TestCase):
 
     def test_missing_body_weight_blocks_full_ten_factor_score(self):
         h = horse(1, 'S'); del h['assessments']['body_condition']
-        r = evaluate_race(race([h, horse(2)]))['horses'][0]
+        r = next(row for row in evaluate_race(race([h, horse(2)]))['horses']
+                 if row['number'] == 1)
         self.assertEqual(r['coverage'],99)
         self.assertIsNone(r['score'])
         self.assertEqual(r['overall'],'未評価')
