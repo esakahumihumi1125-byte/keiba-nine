@@ -158,17 +158,25 @@ function keibaSecureCompare_(actual, expected) {
 /** Private POST reader for the authenticated Render backend. */
 function doPost(e) {
   let outgoing = {ok: false};
+  // Private execution-log labels only; never log secrets, mail, or request data.
+  let check = 'request_invalid';
   try {
     if (!e || !e.postData || String(e.postData.contents || '').length > 1000)
       throw new Error('Bad request');
     const body = JSON.parse(e.postData.contents);
     const properties = PropertiesService.getScriptProperties();
     const token = properties.getProperty('KEIBA_BRIDGE_TOKEN');
-    if (!token || token.length < 32 ||
-        !keibaSecureCompare_(body.token, token) ||
-        body.action !== 'read' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date) ||
-        body.date !== keibaDate_(new Date()))
-      throw new Error('Unauthorized');
+    check = 'secret_missing';
+    if (!token || token.length < 32) throw new Error('Unauthorized');
+    check = 'token_mismatch';
+    if (!keibaSecureCompare_(body.token, token)) throw new Error('Unauthorized');
+    check = 'action_invalid';
+    if (body.action !== 'read') throw new Error('Unauthorized');
+    check = 'date_invalid';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date)) throw new Error('Unauthorized');
+    check = 'date_mismatch';
+    if (body.date !== keibaDate_(new Date())) throw new Error('Unauthorized');
+    check = 'stored_notes_invalid';
     const key = 'KEIBA_MAIL_DAY_' + body.date.replace(/-/g, '');
     const store = JSON.parse(properties.getProperty(key) || '{}');
     const races = Object.values(store.records || {}).filter(r =>
@@ -183,7 +191,8 @@ function doPost(e) {
     ).slice(0, 36);
     outgoing = {schema: KEIBA_SCHEMA, date: body.date, races: races};
   } catch (_) {
-    // Silent failure, no authentication hints and never echo the token.
+    // Coarse private log only. Never echo auth inputs or source material.
+    console.warn('KEIBA_BRIDGE_CHECK=' + check);
   }
   return ContentService.createTextOutput(JSON.stringify(outgoing))
     .setMimeType(ContentService.MimeType.JSON);
