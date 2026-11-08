@@ -60,7 +60,7 @@ class VenueOnlyFailureTests(unittest.TestCase):
                 self.assertFalse(payload['predictionReady'])
                 self.assertFalse(payload['bettingReady'])
                 self.assertFalse(payload['officialJraFinalVerification'])
-                self.assertIn('馬場資料は未確認', payload['venueFetchNotice'])
+                self.assertIn('馬場は未確認', payload['venueFetchNotice'])
                 self.assertNotIn(reason, repr(payload))
                 self.assertNotIn('synthetic-user', repr(payload))
 
