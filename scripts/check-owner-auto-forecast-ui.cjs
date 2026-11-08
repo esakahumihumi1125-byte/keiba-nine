@@ -17,6 +17,39 @@ const tickets=[];
 for(const a of first)for(const b of second)for(const c of third)
  if(a!==b&&a!==c&&b!==c)tickets.push([a,b,c]);
 const sortedTickets=tickets.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
+const POLICY=[
+ ['training','調教',30,true],['recent','近走',3,true],
+ ['course_distance','コース・距離',20,true],['pace','展開・脚質',20,true],
+ ['ground','馬場',12,true],['pedigree','血統',8,false],
+ ['draw_weight','枠・斤量',3,false],['jockey_stable','騎手・厩舎',2,false],
+ ['rotation','ローテ',1,false],['body_condition','馬体重',1,false]
+];
+function withTenPreview(r){
+ r.tenFactorPreview={
+  version:'owner-ten-factor-contract-1',policyVersion:'research-5',
+  factorCount:10,totalWeight:100,normalization:'weighted_mean_over_100',
+  scoreUnit:'0_to_100',gradeThresholds:{S:85,A:70,B:55},
+  researchOnly:true,overallPredictionReady:false,officialJraVerified:false,
+  autoPurchase:false,fullPredictionRaceCount:0,
+  requiredForOverall:'all_ten_verified_before_start',
+  factors:POLICY.map(([key,label,weight,core])=>({key,label,weight,core})),
+  raceCount:r.races.length,
+  races:r.races.map(row=>({
+   track:row.track,race:row.race,runnerCount:row.runners.length,
+   overallReady:false,fullTenFactorCount:0,
+   sourceGradeMode:'two_factor_provisional_only',
+   horses:row.runners.map(h=>{
+    const grades=Object.fromEntries(POLICY.map(([key])=>
+     [key,key==='training'?h.training:key==='recent'?h.recent:'未評価']));
+    return {number:h.number,grades,score:null,overallGrade:'未評価',
+     overallRank:null,verifiedFactorCount:0,
+     provisionalFactorCount:['training','recent'].filter(k=>grades[k]!=='未評価').length,
+     missing:POLICY.map(([k])=>k).filter(k=>grades[k]==='未評価')};
+   })
+  }))
+ };
+ return r;
+}
 const research=()=>({
  version:'jrdb-owner-auto-draft-1',date:day,researchOnly:true,
  privateOwnerOnly:true,officialJraVerified:false,
@@ -44,7 +77,7 @@ function resultWith(signature){
    scheduleVerified:false,predictionVerified:false
   }
  }];
- return result;
+ return withTenPreview(result);
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
@@ -83,7 +116,8 @@ function boot(){
   String,Array,Error,Promise,Object};
  vm.runInNewContext(js,context);
  get('autoDay').value=date;
- return {get,storage,requests,setServer:x=>next=x,
+ return {get,storage,requests,setServer:x=>next=withTenPreview(x),
+  setServerRaw:x=>next=x,
   waitNextFetch:promise=>{holdFetch=promise},
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
 }
@@ -96,6 +130,15 @@ function boot(){
  assert.match(a.requests[0].url,/\/api\/jrdb\/owner-auto-draft\?date=20990101$/);
  assert.equal(a.requests[0].options.headers['X-Keiba-Request'],'private');
  assert.equal(a.get('autoSummary').textContent.includes('1R中、研究用自動案 1R'),true);
+ assert.equal(a.get('autoTenWeights').children.length,10);
+ assert.match(a.get('autoTenStatus').textContent,/残り8項目は未評価/);
+ const firstDetail=a.get('autoRaces').children[0].children[0];
+ assert.equal(firstDetail.children.filter(x=>x.className==='ten-horse').length,7);
+ const firstTen=firstDetail.children.find(x=>x.className==='ten-horse');
+ assert.match(firstTen.children[0].textContent,/総合 未評価/);
+ assert.equal(firstTen.children[1].children.length,10);
+ assert.match(firstTen.children[1].children[0].children[1].textContent,/S（仮）/);
+ assert.match(firstTen.children[1].children[2].children[1].textContent,/未評価/);
  assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
@@ -113,6 +156,16 @@ function boot(){
  assert.equal(JSON.parse(a.storage.get(STORAGE))[0].signature,'a'.repeat(64));
  assert.match(a.get('autoSavedStatus').textContent,/新規 0R/);
  assert.equal(a.get('autoHistory').children.length,1);
+ // Invalid graded/threshold payloads must never be rendered as 10-factor
+ // finished predictions or be saved as new signed receipts.
+ const beforeInvalidTen=a.storage.get(STORAGE);
+ const badTen=resultWith('a'.repeat(64));
+ badTen.tenFactorPreview.factors[0].weight=99;
+ a.setServerRaw(badTen);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoTenStatus').textContent,/確認できません/);
+ assert.equal(a.get('autoTenWeights').children.length,0);
+ assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
  // A bad response signature must not mutate frozen picks or purchases.
  const corrupted=resultWith('not-an-authentic-signature');
  a.setServer(corrupted);
