@@ -7,6 +7,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 from datetime import datetime
@@ -1731,10 +1732,11 @@ def create_app(settings=None):
                                   '他の資料の件数のみ表示します。'
                                   'JRA公式照合・AI予想・馬券生成は未実施。')
                 stage = '資料照合'
-                stage = '資料照合'
+                validation_diag = {}
                 report = selected_race_readiness(
                     programme, entries, training, recent, conditions,
-                    date, track, int(number), _now_in_jst()
+                    date, track, int(number), _now_in_jst(),
+                    diagnostic=validation_diag
                 )
                 # Only coarse coverage status leaves the authenticated service.
                 # No raw venue errors, timestamps, horses, or API credentials.
@@ -1748,9 +1750,34 @@ def create_app(settings=None):
                                 exc, (ProgrammeFormatError, CoverageError,
                                       RaceContextError, FreshnessError))
                             else '入力形式')
+                safe_stage_names = {
+                    'evidence_and_entries': '出走馬・調教の突合',
+                    'provider_day_status': '取消・馬場の突合',
+                    'venue_freshness': '馬場更新日時',
+                    'training_coverage': '調教資料の対応',
+                    'recent_coverage': '近走資料の対応',
+                    'factor_pairing': '調教と近走の比較',
+                    'factor_matrix': '評価資料の結合',
+                    'factor_summary': '評価資料の集計',
+                    'entry_materials': '血統・斤量・ローテ',
+                    'entry_summary': '血統・斤量・ローテの集計',
+                    'personnel_materials': '騎手・厩舎・馬体資料',
+                    'cross_source_validation': '集計結果の整合性',
+                }
+                detail_code = validation_diag.get('stage') if stage == '資料照合' else None
+                detail = safe_stage_names.get(detail_code)
+                # Log a fixed diagnostic code ONLY. Never log exc, URLs,
+                # request values, raw provider data or tokens.
+                logging.warning("KEIBA_JRDB_SAFE_VALIDATION_STAGE=%s CATEGORY=%s",
+                                detail_code if detail else 'fetch',
+                                'api' if isinstance(exc, JRDBError)
+                                else 'coverage' if isinstance(
+                                    exc, (ProgrammeFormatError, CoverageError,
+                                          RaceContextError, FreshnessError))
+                                else 'format')
                 return response('502 Bad Gateway', {
                     'error': ('対象レースの資料を安全に照合できませんでした。'
-                              '（停止箇所：' + stage + '／' + category + '）')})
+                              '（停止箇所：' + (detail or stage) + '／' + category + '）')})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/evidence':
             if settings.get('JRDB_PRIVATE_ENABLED') != '1' or settings.get('GITHUB_ACTIONS') == 'true':
