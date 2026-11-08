@@ -10,7 +10,7 @@ FACTOR_LABELS = {
     "training": "調教", "recent": "近走", "course_distance": "コース・距離",
     "pace": "展開・脚質", "ground": "馬場", "pedigree": "血統",
     "draw_weight": "枠・斤量", "jockey_stable": "騎手・厩舎",
-    "rotation": "ローテ", "body_condition": "馬体"
+    "rotation": "ローテ", "body_condition": "馬体重"
 }
 SOURCE_FIELDS = {"training": "trainingRecords", "recent": "pastRunRecords"}
 

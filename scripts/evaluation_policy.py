@@ -5,12 +5,16 @@ Weights/thresholds are provisional hypotheses, not fitted win probabilities.
 """
 from datetime import datetime
 
-POLICY_VERSION = 'research-1'
+POLICY_VERSION = 'research-2'
+# Owner-specified relative weights: these sum to 110, not 100.
+# Never silently change a requested weight to force a 100-point total.
 FACTORS = {
-    'training': 20, 'recent': 20, 'course_distance': 20, 'pace': 15,
-    'ground': 10, 'pedigree': 5, 'draw_weight': 3, 'jockey_stable': 3,
-    'rotation': 2, 'body_condition': 2,
+    'training': 30, 'recent': 3, 'course_distance': 20, 'pace': 20,
+    'ground': 15, 'pedigree': 10, 'draw_weight': 5, 'jockey_stable': 5,
+    'rotation': 1, 'body_condition': 1,
 }
+TOTAL_WEIGHT = sum(FACTORS.values())
+assert len(FACTORS) == 10 and TOTAL_WEIGHT == 110
 CORE = {'training', 'recent', 'course_distance', 'pace', 'ground'}
 WIN_FACTORS = {'training', 'recent', 'course_distance', 'pace'}
 POINTS = {'S': 3, 'A': 2, 'B': 1, 'C': 0}
@@ -76,9 +80,11 @@ def evaluate_race(race):
             reasons[factor] = item['reason']
             weighted += POINTS[item['grade']] * weight
             coverage += weight
-        ready = not (CORE & set(missing)) and coverage >= 85
-        # No renormalization: missing data can never inflate a score.
-        score = weighted / 100 if ready else None
+        # The full ten-factor spec never extrapolates from missing grades.
+        # Normalise the owner's original 110-weight distribution for a
+        # stable 0..3 weighted-average grade, not a prediction probability.
+        ready = not missing and coverage == TOTAL_WEIGHT
+        score = weighted / TOTAL_WEIGHT if ready else None
         overall = '未評価' if score is None else 'S' if score >= 2.6 else 'A' if score >= 2 else 'B' if score >= 1 else 'C'
         signals = []
         for factor in sorted(WIN_FACTORS):

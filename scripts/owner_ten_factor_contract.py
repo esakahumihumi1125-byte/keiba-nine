@@ -8,7 +8,7 @@ tickets and the strict no-retroactive-ranking rule.
 
 No extra provider calls, source rows, prediction claims, or purchases.
 """
-from evaluation_policy import FACTORS, CORE, POLICY_VERSION
+from evaluation_policy import FACTORS, CORE, POLICY_VERSION, TOTAL_WEIGHT
 from jrdb_coverage import CoverageError
 from jrdb_factor_preflight import FACTOR_LABELS
 from jrdb_owner_auto_draft import VERSION as DRAFT_VERSION
@@ -24,7 +24,8 @@ FULL_COUNT = 10
 
 
 def definition():
-    if (len(FACTORS) != FULL_COUNT or sum(FACTORS.values()) != 100
+    if (len(FACTORS) != FULL_COUNT or sum(FACTORS.values()) != TOTAL_WEIGHT
+            or TOTAL_WEIGHT != 110
             or set(FACTOR_LABELS) != set(FACTORS)
             or not CORE.issubset(FACTORS)
             or set(PROVISIONAL) - set(FACTORS)):
@@ -99,7 +100,8 @@ def ten_factor_contract(two_factor_drafts):
         })
     return {
         "version": VERSION, "policyVersion": POLICY_VERSION,
-        "factorCount": FULL_COUNT, "totalWeight": 100,
+        "factorCount": FULL_COUNT, "totalWeight": TOTAL_WEIGHT,
+        "normalization": "weighted_mean_over_110",
         "factors": specs,
         "raceCount": len(output), "fullPredictionRaceCount": 0,
         "researchOnly": True, "overallPredictionReady": False,

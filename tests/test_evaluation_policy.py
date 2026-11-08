@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from evaluation_policy import evaluate_race, FACTORS
+from evaluation_policy import evaluate_race, FACTORS, TOTAL_WEIGHT, POLICY_VERSION
 
 
 def assessment(grade='A', win=False):
@@ -22,6 +22,15 @@ def race(horses=None):
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_owner_weights_preserve_exact_110_point_distribution(self):
+        self.assertEqual(POLICY_VERSION,'research-2')
+        self.assertEqual(TOTAL_WEIGHT,110)
+        self.assertEqual(FACTORS,{
+            'training':30,'recent':3,'course_distance':20,'pace':20,
+            'ground':15,'pedigree':10,'draw_weight':5,
+            'jockey_stable':5,'rotation':1,'body_condition':1,
+        })
+
     def test_deterministic_no_mutation(self):
         data = race(); before = copy.deepcopy(data)
         self.assertEqual(evaluate_race(data), evaluate_race(data))
@@ -42,11 +51,20 @@ class EvaluationTests(unittest.TestCase):
                 self.assertIsNone(row['score'])
                 self.assertEqual(r['reviewState'], 'data_incomplete')
 
-    def test_missing_body_does_not_inflate_score(self):
+    def test_missing_body_weight_blocks_full_ten_factor_score(self):
         h = horse(1, 'S'); del h['assessments']['body_condition']
         r = evaluate_race(race([h, horse(2)]))['horses'][0]
-        self.assertEqual(r['coverage'], 98)
-        self.assertEqual(r['score'], 2.94)
+        self.assertEqual(r['coverage'],109)
+        self.assertIsNone(r['score'])
+        self.assertEqual(r['overall'],'未評価')
+
+    def test_complete_factor_normalization(self):
+        for grade, expected in [('S',3),('A',2),('B',1),('C',0)]:
+            with self.subTest(grade=grade):
+                r = evaluate_race(race([horse(1,grade),horse(2)]))
+                row = next(h for h in r['horses'] if h['number']==1)
+                self.assertEqual(row['coverage'],110)
+                self.assertEqual(row['score'],expected)
 
     def test_future_evidence_unused(self):
         h = horse(1); h['assessments']['training']['evidence'][0]['availableAt'] = '2026-10-27T11:00:00+09:00'
