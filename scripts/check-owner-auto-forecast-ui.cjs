@@ -187,8 +187,54 @@ function populatePace(report){
  };
  return report;
 }
+function populateReboundReview(report,sourceRunners=runners){
+ const results=report.ownerRunnerHistory.races.map(row=>{
+  const course=report.historicalEvidenceBands.races.find(
+   x=>x.track===row.track&&x.race===row.race);
+  const pace=report.paceScenarioHypotheses.races.find(
+   x=>x.track===row.track&&x.race===row.race);
+  const watch=sourceRunners.filter(h=>['S','A'].includes(h.training)&&
+   ['B','C'].includes(h.recent)).map(h=>{
+    const c=course.runners.find(x=>x.number===h.number);
+    const p=pace.runners.find(x=>x.number===h.number);
+    const bands={course_distance:c.courseEvidenceBand,
+      pace:p.scenarioFitBand,ground:c.goingEvidenceBand};
+    const factors=['course_distance','pace','ground'];
+    const supports=factors.filter(k=>['S','A'].includes(bands[k]));
+    const missing=factors.filter(k=>bands[k]==='未評価');
+    const cross=supports.includes('pace')&&(
+      supports.includes('course_distance')||supports.includes('ground'));
+    const overlap=!cross&&supports.includes('course_distance')&&
+      supports.includes('ground');
+    return {number:h.number,trainingProvisional:h.training,
+     recentProvisional:h.recent,courseEvidenceBand:bands.course_distance,
+     paceScenarioBand:bands.pace,goingEvidenceBand:bands.ground,
+     supportingContextFactors:supports,unassessedContextFactors:missing,
+     contextSignalCount:supports.length,
+     reviewState:cross?'cross_source_review':
+       overlap?'overlapping_history_only':'need_more_evidence',
+     evidenceOnly:true,winPickReady:false};
+   }).sort((a,b)=>a.number-b.number);
+   return {track:row.track,race:row.race,runnerCount:row.runnerCount,
+    watchCount:watch.length,watch,winPickReady:false,gradedTenFactors:0};
+ });
+ report.reboundContextReview={
+  version:'owner-rebound-context-review-1',policyVersion:'research-5',
+  raceCount:results.length,watchCount:results.reduce((n,r)=>n+r.watchCount,0),
+  crossSourceReviewCount:results.reduce((n,r)=>n+
+    r.watch.filter(h=>h.reviewState==='cross_source_review').length,0),
+  races:results,factorWeights:{
+   training:30,recent:3,course_distance:20,pace:20,ground:12
+  },
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  overallScoreReady:false,winPickReady:false,bettingReady:false,
+  autoPurchase:false,modifiesFrozenPicks:false,
+  contextRequiresPaceAndHistory:true,historyOnlySignalsMayOverlap:true
+ };
+ return report;
+}
 function historical(){
- return populatePace(populateHistoricalBands({
+ return populateReboundReview(populatePace(populateHistoricalBands({
   version:'bounded-history-1',date:day,predictionReady:false,
   goingSuitabilityAssessed:false,historyComplete:false,
   referencedPastRaces:2,selectedPastRaces:1,deferredPastRaces:1,
@@ -228,7 +274,7 @@ function historical(){
    version:'real-assessment-preflight-1',realGradeReady:false,
    realPredictionReady:false,purchaseReady:false
   }
- }));
+ })));
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
@@ -305,6 +351,12 @@ function boot(){
  assert.match(historyCard.children[4].textContent,/過去4角の観測/);
  assert.match(historyCard.children[4].textContent,/位置取りの資料不足/);
  assert.match(horsePanel.children[4].textContent,/展開シナリオの研究目安 未評価/);
+ const reboundPanel=historyCard.children.find(x=>x.tag==='details'&&
+  /巻き返し再審査/.test(x.children[0]?.textContent||''));
+ assert.ok(reboundPanel);
+ assert.match(reboundPanel.children[1].textContent,/4番.*調教 A・近走 B/);
+ assert.match(reboundPanel.children[1].textContent,/根拠不足/);
+ assert.match(reboundPanel.children[1].textContent,/買い目変更なし/);
  // The provisional 3-to-5-run good-condition score is NOT a real
  // ranking, ticket or 10-factor score.
  const positive=historical();
@@ -328,7 +380,7 @@ function boot(){
  positive.privateHistoryFactors.races[0].runnersWithKnownGoingComparable=4;
  positive.privateHistoryFactors.races[0].runnersMatchingCurrentGoing=3;
  positive.privateHistoryFactors.races[0].runnersWithWetComparable=3;
- populateHistoricalBands(positive);
+ populateReboundReview(populateHistoricalBands(positive));
  a.setHistorical(positive);
  await a.get('autoHistoryAudit').onclick();
  const reviewed=a.get('autoHistoryAuditRaces').children[0];
@@ -336,6 +388,9 @@ function boot(){
  assert.match(horseRows.children[4].textContent,/コース好走実績の研究目安 S/);
  assert.match(horseRows.children[4].textContent,/今回馬場の研究目安 S/);
  assert.match(horseRows.children[4].textContent,/総合点と買い目には不反映/);
+ const correlated=reviewed.children.find(x=>x.tag==='details'&&
+  /巻き返し再審査/.test(x.children[0]?.textContent||''));
+ assert.match(correlated.children[1].textContent,/同一過去走に基づく材料のみ/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
  a.setHistorical(historical());
  assert.match(a.get('autoHistoryAuditRaces').children[0].children[1].textContent,/5\/7頭/);
@@ -363,6 +418,17 @@ function boot(){
  const badFrontCount=historical();
  badFrontCount.paceScenarioHypotheses.races[0].frontObserved=7;
  a.setHistorical(badFrontCount);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ const badReview=historical();
+ badReview.reboundContextReview.races[0].watch[0].reviewState='cross_source_review';
+ a.setHistorical(badReview);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ const badJoin=historical();
+ badJoin.reboundContextReview.races[0].watch[0].recentProvisional='S';
+ a.setHistorical(badJoin);
  await a.get('autoHistoryAudit').onclick();
  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
  const mismatchedHorse=historical();
