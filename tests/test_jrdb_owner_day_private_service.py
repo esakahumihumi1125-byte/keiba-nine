@@ -83,8 +83,14 @@ class DayResearchHTTPTests(unittest.TestCase):
         self.assertEqual(css["status"], "200 OK")
         self.assertIn("この日の全Rをまとめて分析", page["body"].decode())
         self.assertIn("/api/jrdb/day-runner-research", js["body"].decode())
+        self.assertIn('id="venueFilters"', page["body"].decode())
+        self.assertIn('id="venueStats"', page["body"].decode())
+        self.assertIn("aria-pressed", js["body"].decode())
+        self.assertIn("byVenue.keys()", js["body"].decode())
+        self.assertIn("showVenue('')", js["body"].decode())
         self.assertIn("本人専用", call(self.app, "/")["body"].decode())
         self.assertNotIn("innerHTML", js["body"].decode())
+        self.assertNotIn("JRDB_API_KEY", js["body"].decode())
 
 
 if __name__ == "__main__":
