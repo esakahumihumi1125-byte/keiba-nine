@@ -35,6 +35,7 @@ class BoundedHistoryTests(unittest.TestCase):
     def test_unique_racekeys_and_one_dka_per_holding(self):
         bundle = context()
         report = run_case(bundle)
+        self.assertEqual(report["date"],"20261101")
         self.assertEqual(report["referencedPastRaces"], 3)
         self.assertEqual(report["selectedPastRaces"], 3)
         self.assertEqual(report["deferredPastRaces"], 0)

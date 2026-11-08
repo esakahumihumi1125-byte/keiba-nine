@@ -102,7 +102,7 @@ function resultWith(signature){
 }
 function historical(){
  return {
-  version:'bounded-history-1',predictionReady:false,
+  version:'bounded-history-1',date:day,predictionReady:false,
   goingSuitabilityAssessed:false,historyComplete:false,
   referencedPastRaces:2,selectedPastRaces:1,deferredPastRaces:1,
   draCalls:1,dkaCalls:1,maxTotalCalls:16,
@@ -116,6 +116,25 @@ function historical(){
     runnersWithComparableCourse:5,runnersWithKnownGoingComparable:3,
     runnersWithWetComparable:2,runnersMatchingCurrentGoing:2,
     runnersWithIncompleteHistory:3}]
+  },
+  ownerRunnerHistory:{
+   version:'owner-runner-course-going-observation-1',raceCount:1,
+   researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+   gradeReady:false,predictionReady:false,bettingReady:false,
+   races:[{
+    track:'東京',race:1,runnerCount:7,gradeReady:false,
+    courseSuitabilityAssessed:false,goingSuitabilityAssessed:false,
+    paceForecastReady:false,
+    runners:[1,2,3,4,5,6,7].map(number=>({
+     number,comparableRuns:number<=5?1:0,
+     comparableTopThreeRuns:number===4?1:0,
+     knownGoingRuns:number<=3?1:0,
+     matchingCurrentGoingRuns:number<=2?1:0,
+     wetGoingRuns:number<=2?1:0,
+     wetTopThreeRuns:number===2?1:0,missingPastProgrammes:0,
+     historyLookupComplete:false,currentGoingRecorded:true
+    }))
+   }]
   },
   realAssessmentPreflight:{
    version:'real-assessment-preflight-1',realGradeReady:false,
@@ -188,6 +207,12 @@ function boot(){
  assert.equal(JSON.parse(auditRequest.options.body).date,day);
  assert.equal(a.get('autoHistoryAuditRaces').children.length,1);
  assert.match(a.get('autoHistoryAuditStatus').textContent,/予想・購入・保存済み/);
+ const historyCard=a.get('autoHistoryAuditRaces').children[0];
+ const horsePanel=historyCard.children.find(x=>x.tag==='details');
+ assert.ok(horsePanel);
+ assert.equal(horsePanel.children.length,8);
+ assert.match(horsePanel.children[4].textContent,/4番.*3着以内 1回/);
+ assert.match(horsePanel.children[4].textContent,/巻き返し再審査対象/);
  assert.match(a.get('autoHistoryAuditRaces').children[0].children[1].textContent,/5\/7頭/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
  // Invalid observations must never render or rewrite frozen research.
@@ -198,6 +223,17 @@ function boot(){
  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
+ const mismatchedHorse=historical();
+ mismatchedHorse.ownerRunnerHistory.races[0].runners[0].number=18;
+ a.setHistorical(mismatchedHorse);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ const badDate=historical();
+ badDate.date='20990102';
+ a.setHistorical(badDate);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
  a.setHistorical(historical());
  a.setHistoryOk(false);
  await a.get('autoHistoryAudit').onclick();

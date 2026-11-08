@@ -274,6 +274,7 @@ def run_bounded_history_audit(programme, entries, previous,
         raise HistoryFetchError("Private historical evidence validation failed") from None
     return {
         "version": VERSION,
+        "date": requested_date,
         "referencedPastRaces": plan["referencedCount"],
         "unkeyedPreviousRuns": plan["unkeyedPreviousRuns"],
         "selectedPastRaces": plan["selectedCount"],

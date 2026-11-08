@@ -661,15 +661,17 @@ function saveAutoReceipts(data,day){
   '保存先はこのiPhone内のみ（Safariとホーム画面で別の場合あり）。';
 }
 
-let request=0,followingToday=true,historySeq=0,historyDay='',historyCoordinates=new Set();
+let request=0,followingToday=true,historySeq=0,historyDay='',historyCoordinates=new Set(),
+ historyRosters=new Map(),historyReboundWatch=new Map();
 function clearHistory(){
  historySeq++;historyDay='';historyCoordinates=new Set();
+ historyRosters=new Map();historyReboundWatch=new Map();
  $('autoHistoryAudit').disabled=true;
  $('autoHistoryAuditRaces').replaceChildren();
  $('autoHistoryAuditStatus').textContent='暫定予想の取得後に利用できます。';
 }
 function validateHistory(h){
- if(!h||h.version!=='bounded-history-1'||
+ if(!h||h.version!=='bounded-history-1'||h.date!==historyDay||
     h.predictionReady!==false||h.goingSuitabilityAssessed!==false||
     typeof h.historyComplete!=='boolean'||h.maxTotalCalls!==16||
     !Number.isInteger(h.draCalls)||h.draCalls<0||h.draCalls>8||
@@ -686,12 +688,65 @@ function validateHistory(h){
     h.privateHistoryFactors.raceCount!==historyCoordinates.size||
     !Array.isArray(h.privateHistoryFactors.races)||
     h.privateHistoryFactors.races.length!==historyCoordinates.size||
+    !h.ownerRunnerHistory||
+    h.ownerRunnerHistory.version!=='owner-runner-course-going-observation-1'||
+    h.ownerRunnerHistory.researchOnly!==true||
+    h.ownerRunnerHistory.privateOwnerOnly!==true||
+    h.ownerRunnerHistory.officialJraVerified!==false||
+    h.ownerRunnerHistory.gradeReady!==false||
+    h.ownerRunnerHistory.predictionReady!==false||
+    h.ownerRunnerHistory.bettingReady!==false||
+    h.ownerRunnerHistory.raceCount!==historyCoordinates.size||
+    !Array.isArray(h.ownerRunnerHistory.races)||
+    h.ownerRunnerHistory.races.length!==historyCoordinates.size||
     !h.realAssessmentPreflight||
     h.realAssessmentPreflight.version!=='real-assessment-preflight-1'||
     h.realAssessmentPreflight.realGradeReady!==false||
     h.realAssessmentPreflight.realPredictionReady!==false||
     h.realAssessmentPreflight.purchaseReady!==false)
   throw Error('過去資料形式不正');
+ const perRace=new Map();
+ for(const item of h.ownerRunnerHistory.races){
+  if(!item||typeof item.track!=='string'||!Number.isInteger(item.race)||
+     item.gradeReady!==false||item.courseSuitabilityAssessed!==false||
+     item.goingSuitabilityAssessed!==false||item.paceForecastReady!==false||
+     !Number.isInteger(item.runnerCount)||item.runnerCount<0||
+     item.runnerCount>18||!Array.isArray(item.runners)||
+     item.runnerCount!==item.runners.length)throw Error('馬番別の履歴形式が不正');
+  const id=item.track+'|'+item.race;
+  if(!historyCoordinates.has(id)||perRace.has(id))
+   throw Error('馬番別履歴のレースが一致しません');
+  const roster=historyRosters.get(id),seenHorse=new Set();
+  for(const h of item.runners){
+   if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
+      seenHorse.has(h.number)||!Number.isInteger(h.comparableRuns)||
+      !Number.isInteger(h.comparableTopThreeRuns)||
+      !Number.isInteger(h.knownGoingRuns)||
+      !Number.isInteger(h.matchingCurrentGoingRuns)||
+      !Number.isInteger(h.wetGoingRuns)||
+      !Number.isInteger(h.wetTopThreeRuns)||
+      !Number.isInteger(h.missingPastProgrammes)||
+      ![h.comparableRuns,h.comparableTopThreeRuns,h.knownGoingRuns,
+        h.matchingCurrentGoingRuns,h.wetGoingRuns,h.wetTopThreeRuns,
+        h.missingPastProgrammes].every(n=>n>=0&&n<=5)||
+      h.comparableTopThreeRuns>h.comparableRuns||
+      h.knownGoingRuns>h.comparableRuns||
+      h.matchingCurrentGoingRuns>h.knownGoingRuns||
+      h.wetGoingRuns>h.knownGoingRuns||
+      h.wetTopThreeRuns>h.wetGoingRuns||
+      typeof h.historyLookupComplete!=='boolean'||
+      typeof h.currentGoingRecorded!=='boolean'||
+      (!h.currentGoingRecorded&&h.matchingCurrentGoingRuns!==0))
+     throw Error('馬番別履歴の件数不一致');
+   seenHorse.add(h.number);
+  }
+  // A held race has no complete owner-draft roster: hide its per-horse
+  // observations instead of joining to numbers with uncertain identity.
+  const rosterVerified=roster&&roster.size===item.runnerCount&&
+   item.runners.every(h=>roster.has(h.number));
+  perRace.set(id,{...item,runners:rosterVerified?item.runners:[],
+   rosterVerified:!!rosterVerified});
+ }
  const seen=new Set(),results=[];
  for(const row of h.privateHistoryFactors.races){
   if(!row||typeof row.track!=='string'||!Number.isInteger(row.race)||
@@ -713,7 +768,18 @@ function validateHistory(h){
      row.runnersWithWetComparable>row.runnersWithKnownGoingComparable||
      row.runnersMatchingCurrentGoing>row.runnersWithKnownGoingComparable)
    throw Error('過去資料集計不正');
-  results.push(row);
+  const details=perRace.get(id);
+  if(!details||details.runnerCount!==row.runnerCount)
+   throw Error('馬番別履歴と集計が不一致');
+  if(details.runners.length){
+   const sum=(key)=>details.runners.filter(h=>h[key]>0).length;
+   if(sum('comparableRuns')!==row.runnersWithComparableCourse||
+      sum('knownGoingRuns')!==row.runnersWithKnownGoingComparable||
+      sum('wetGoingRuns')!==row.runnersWithWetComparable||
+      sum('matchingCurrentGoingRuns')!==row.runnersMatchingCurrentGoing)
+    throw Error('馬番別履歴の集計が不一致');
+  }
+  results.push({...row,ownerRunnerDetails:details});
  }
  if(seen.size!==historyCoordinates.size)throw Error('過去レース不足');
  return results;
@@ -775,6 +841,12 @@ $('autoRun').onclick=async()=>{
   render(body,day);
   historyDay=day;
   historyCoordinates=new Set(body.races.map(r=>r.track+'|'+r.race));
+  historyRosters=new Map(body.races.map(r=>[
+   r.track+'|'+r.race,new Set(r.runners.map(h=>h.number))
+  ]));
+  historyReboundWatch=new Map(body.tenFactorPreview.races.map(r=>[
+   r.track+'|'+r.race,new Set(r.trainingLedRecheckNumbers)
+  ]));
   $('autoHistoryAudit').disabled=historyCoordinates.size===0;
   $('autoHistoryAuditStatus').textContent=historyCoordinates.size
    ?'必要なときに過去の同条件資料を確認できます。':'この開催日のレースはありません。';
@@ -826,6 +898,24 @@ $('autoHistoryAudit').onclick=async()=>{
       '頭／重・不良の出走歴：'+row.runnersWithWetComparable+'頭'),
     dom('p','履歴不足：'+row.runnersWithIncompleteHistory+
       '頭。適性・10項目総合点は未評価。'));
+   const details=row.ownerRunnerDetails;
+   if(details.rosterVerified){
+    const panel=dom('details');
+    panel.append(dom('summary','馬番ごとの同条件実績を見る（参考資料）'));
+    const watch=historyReboundWatch.get(row.track+'|'+row.race)||new Set();
+    for(const h of details.runners){
+     const line=dom('p',h.number+'番｜同条件 '+h.comparableRuns+
+       '走（3着以内 '+h.comparableTopThreeRuns+'回）／同じ馬場 '+
+       h.matchingCurrentGoingRuns+'走／重・不良 '+h.wetGoingRuns+
+       '走（3着以内 '+h.wetTopThreeRuns+'回）'+
+       (watch.has(h.number)?'｜調教好調・近走低評価の巻き返し再審査対象':'')+
+       '。距離・馬場の適性判定は未完了。','muted');
+     panel.append(line);
+    }
+    card.append(panel);
+   }else{
+    card.append(dom('p','馬番を照合できないため個別の観測数は非表示。','muted'));
+   }
    $('autoHistoryAuditRaces').append(card);
   }
   $('autoHistoryAuditStatus').textContent='過去番組の追加照合 '+raw.draCalls+
