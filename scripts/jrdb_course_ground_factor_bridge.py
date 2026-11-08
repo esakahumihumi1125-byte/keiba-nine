@@ -130,6 +130,80 @@ def enrich_course_ground_matrix(matrix, historical, *, history_complete):
     return enriched
 
 
+def summarize_owner_runner_course_going(enriched, historical):
+    """Private per-horse-number *observations*, never grades or raw licensed rows.
+
+    Existing internal identity joins and count validation must pass first.
+    Only bounded small integer counts are returned; horse_id, racekey, names,
+    detailed form, source records and historical race identifiers stay private.
+    """
+    summarize_course_ground_matrix(enriched)
+    if not isinstance(historical, list) or len(historical) != len(enriched):
+        raise CoverageError("Per-horse historical race set mismatch")
+    by_coord = {}
+    for row in historical:
+        _check_race(row)
+        key = row["track"], row["race"]
+        if key in by_coord:
+            raise CoverageError("Repeated per-horse historical race")
+        by_coord[key] = row
+    output = []
+    for r in enriched:
+        coord = r["track"], r["race"]
+        history = by_coord.get(coord)
+        if history is None or history.get("racekey") != r["racekey"]:
+            raise CoverageError("Per-horse historical race identity mismatch")
+        if set(history["byNumber"]) != set(r["byNumber"]):
+            raise CoverageError("Per-horse history roster mismatch")
+        runners = []
+        for number in sorted(history["byNumber"]):
+            stats = _check_stats(history["byNumber"][number],
+                                 history["currentGoingRecorded"])
+            slots = r["byNumber"][number]
+            course, ground = slots["course_distance"], slots["ground"]
+            wet = stats["heavyComparableRuns"] + stats["poorComparableRuns"]
+            wet_top_three = stats["heavyTopThreeRuns"] + stats["poorTopThreeRuns"]
+            if (course["grade"] != "未評価"
+                    or ground["grade"] != "未評価"
+                    or slots["pace"]["grade"] != "未評価"
+                    or course["comparableRuns"] != stats["sameSurfaceNearDistanceRuns"]
+                    or course["unlinkedRuns"] != stats["missingPastProgrammes"]
+                    or ground["knownComparableRuns"] != stats["knownGoingComparableRuns"]
+                    or ground["matchingCurrentGoingRuns"] != stats["sameCurrentGoingComparableRuns"]
+                    or ground["wetComparableRuns"] != wet
+                    or ground["currentGoingRecorded"] != history["currentGoingRecorded"]
+                    or stats["topThreeComparableRuns"] > course["comparableRuns"]
+                    or wet_top_three > wet):
+                raise CoverageError("Per-horse historical counts disagree")
+            runners.append({
+                "number": int(number),
+                "comparableRuns": course["comparableRuns"],
+                "comparableTopThreeRuns": stats["topThreeComparableRuns"],
+                "knownGoingRuns": ground["knownComparableRuns"],
+                "matchingCurrentGoingRuns": ground["matchingCurrentGoingRuns"],
+                "wetGoingRuns": wet,
+                "wetTopThreeRuns": wet_top_three,
+                "missingPastProgrammes": course["unlinkedRuns"],
+                "historyLookupComplete": course["historyLookupComplete"],
+                "currentGoingRecorded": ground["currentGoingRecorded"],
+            })
+        output.append({
+            "track": coord[0], "race": coord[1],
+            "runnerCount": len(runners), "runners": runners,
+            "gradeReady": False, "courseSuitabilityAssessed": False,
+            "goingSuitabilityAssessed": False, "paceForecastReady": False,
+        })
+    if len(output) != len(by_coord):
+        raise CoverageError("Per-horse historical race count mismatch")
+    return {
+        "version": "owner-runner-course-going-observation-1",
+        "raceCount": len(output), "races": output,
+        "researchOnly": True, "privateOwnerOnly": True,
+        "officialJraVerified": False, "gradeReady": False,
+        "predictionReady": False, "bettingReady": False,
+    }
+
+
 def summarize_course_ground_matrix(enriched):
     """Only coarse per-race totals may leave the private backend."""
     if not isinstance(enriched, list) or len(enriched) > 120:

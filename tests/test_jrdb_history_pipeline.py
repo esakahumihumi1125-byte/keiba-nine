@@ -61,6 +61,25 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertFalse(material["predictionReady"])
         self.assertFalse(report["predictionReady"])
         self.assertFalse(report["goingSuitabilityAssessed"])
+        per_horse = report["ownerRunnerHistory"]
+        self.assertEqual(per_horse["version"],"owner-runner-course-going-observation-1")
+        self.assertTrue(per_horse["privateOwnerOnly"])
+        self.assertFalse(per_horse["predictionReady"])
+        self.assertFalse(per_horse["gradeReady"])
+        self.assertEqual(per_horse["raceCount"],2)
+        tokyo_runner = next(r for r in per_horse["races"]
+                            if r["track"]=="東京")
+        self.assertEqual(tokyo_runner["runnerCount"],2)
+        self.assertEqual([x["number"] for x in tokyo_runner["runners"]],[1,2])
+        first=tokyo_runner["runners"][0]
+        self.assertEqual(first["comparableRuns"],2)
+        self.assertEqual(first["knownGoingRuns"],2)
+        self.assertEqual(first["wetGoingRuns"],2)
+        self.assertEqual(first["matchingCurrentGoingRuns"],1)
+        self.assertLessEqual(first["comparableTopThreeRuns"],first["comparableRuns"])
+        self.assertLessEqual(first["wetTopThreeRuns"],first["wetGoingRuns"])
+        self.assertFalse(tokyo_runner["courseSuitabilityAssessed"])
+        self.assertFalse(tokyo_runner["goingSuitabilityAssessed"])
         self.assertEqual(report["privateHistoryFactors"]["version"],
                          "private-course-ground-materials-1")
         tokyo_history = next(x for x in report["privateHistoryFactors"]["races"]

@@ -22,6 +22,7 @@ from jrdb_recent_hypothesis import build_recent_hints
 from jrdb_private_factor_bridge import build_private_factor_matrix
 from jrdb_course_ground_factor_bridge import (
     enrich_course_ground_matrix, summarize_course_ground_matrix,
+    summarize_owner_runner_course_going,
 )
 from jrdb_entry_rotation_materials import enrich_entry_materials_matrix
 from jrdb_personnel_body_materials import enrich_personnel_body_matrix
@@ -215,6 +216,9 @@ def run_bounded_history_audit(programme, entries, previous,
             private_matrix, observations, history_complete=is_history_complete
         )
         history_factor_summary = summarize_course_ground_matrix(course_matrix)
+        runner_history = summarize_owner_runner_course_going(
+            course_matrix, observations
+        )
         entry_matrix = enrich_entry_materials_matrix(
             private_matrix, programme, entries, previous, requested_date
         )
@@ -284,6 +288,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "evidenceQuality": quality_summary,
         "tenFactorMaterials": materials,
         "privateHistoryFactors": history_factor_summary,
+        "ownerRunnerHistory": runner_history,
         "allTenFactorSources": all_factor_materials,
         "realAssessmentPreflight": readiness_preflight,
         "predictionReady": False,
