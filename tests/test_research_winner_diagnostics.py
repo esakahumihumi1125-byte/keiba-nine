@@ -28,7 +28,9 @@ class WinnerDiagnosticsTests(unittest.TestCase):
         self.assertEqual(report["summary"]["winnerInWinReview"], 1)
         self.assertEqual(report["summary"]["winnerInTicketFirst"], 1)
         self.assertEqual(report["summary"]["trifectaHit"], 1)
-        self.assertEqual(report["validation"]["winnerGrades"]["B"], 1)
+        # All-B factor evidence is 33.33/100 under the original linear
+        # point scale, which is C with the newly approved 55-point B cutoff.
+        self.assertEqual(report["validation"]["winnerGrades"]["C"], 1)
         self.assertEqual(report["rows"][1]["winnerRank"], 5)
         self.assertFalse(report["rows"][1]["winnerInWinReview"])
         self.assertFalse(report["approvedForLive"])

@@ -36,6 +36,22 @@ class PlannerTests(unittest.TestCase):
         self.assertTrue(all(len(set(t)) == 3 for t in p['tri']))
         self.assertEqual(set(t[0] for t in p['tri']), {1, 2})
 
+    def test_display_grade_thresholds_do_not_silently_change_tickets(self):
+        r = sample()
+        p = plan_race(r)
+        # An all-A factor horse scores 66.67/100, now displayed as B.
+        # It still participates in the same evidence-based 2nd/3rd slots.
+        b = next(h for h in p['evaluation']['horses'] if h['number'] == 3)
+        self.assertEqual(b['overall'], 'B')
+        self.assertEqual(b['score100'], 66.67)
+        self.assertIn(3, {ticket[1] for ticket in p['tri']})
+        # Original all-B factor horses score 33.33/100 (display C),
+        # yet remain eligible for the third slot of synthetic research.
+        c = next(h for h in p['evaluation']['horses'] if h['number'] == 5)
+        self.assertEqual(c['overall'], 'C')
+        self.assertEqual(c['score100'], 33.33)
+        self.assertIn(5, {ticket[2] for ticket in p['tri']})
+
     def test_no_filling_up_to_target(self):
         r = sample(); r['horses'] = r['horses'][:3]
         self.assertLess(plan_race(r)['points'], 30)

@@ -52,8 +52,11 @@ def plan_race(race):
         if lead['overall'] != 'S' or len(lead['winSignals']) < 3 or lead['score'] - runner_score < .5:
             return stop('候補1頭でも固定の根拠が不足：自動で1頭軸にしない')
     viable = [h for h in horses if not h['blockingConcerns'] and not h['unverifiedConcerns']]
-    second = [h['number'] for h in viable if h['overall'] in ('S', 'A') or h['number'] in first]
-    third = [h['number'] for h in viable if h['overall'] in ('S', 'A', 'B') or h['number'] in first]
+    # The original synthetic ticket-quality cutoffs are based on continuous
+    # evidence scores, NOT the display-only grade bands. Redefining S/A/B/C
+    # to 85/70/55 must not silently shrink or expand the ticket universe.
+    second = [h['number'] for h in viable if h['score'] >= 2 or h['number'] in first]
+    third = [h['number'] for h in viable if h['score'] >= 1 or h['number'] in first]
     # Share the cap across every winner candidate; never drop a reviewed first horse.
     per_first = 40 // len(first)
     tickets = []
