@@ -111,7 +111,8 @@ function validate(data,day){
     numbers.has(h.number)||!GRADES.has(h.training)||
     !GRADES.has(h.recent)||!GRADES.has(h.twoFactorGrade)||
     !(h.pastFourthCorner in POS)||
-    !(h.twoFactorPoints===null||Number.isInteger(h.twoFactorPoints)))
+    !(h.twoFactorPoints===null||Number.isInteger(h.twoFactorPoints))||
+    !(h.comparisonRank===null||(Number.isInteger(h.comparisonRank)&&h.comparisonRank>=1)))
      throw Error('馬番別データが不正です');
    numbers.add(h.number);
   }
@@ -120,9 +121,9 @@ function validate(data,day){
       r.first.length||r.second.length||r.third.length)
     throw Error('見送り理由が不正です');
   }else{
-   if(r.reason!=='two_factor_only'||r.first.length!==2||
-    r.second.length<2||r.second.length>5||
-    r.third.length<2||r.third.length>7||!r.points)
+   if(r.reason!=='two_factor_only'||r.first.length<2||r.first.length>3||
+    r.second.length<=r.first.length||r.second.length>6||
+    r.third.length<r.second.length||r.third.length>10||!r.points)
     throw Error('候補が不正です');
    const unique=new Set();
    for(const t of r.tickets){
@@ -139,7 +140,7 @@ function validate(data,day){
 function runnerView(h,index){
  const p=dom('div',undefined,'runner');
  p.append(dom('span',h.number+'番','number'),
-  dom('span',h.twoFactorPoints===null?'未評価':(index+1)+'番手','rank'),
+  dom('span',h.comparisonRank===null?'未評価':'仮'+h.comparisonRank+'位','rank'),
   dom('span',h.twoFactorGrade,'grade '+h.twoFactorGrade),
   dom('span','調教 '+h.training,'grade '+h.training),
   dom('span','近走 '+h.recent,'grade '+h.recent),
@@ -148,7 +149,7 @@ function runnerView(h,index){
 }
 function formation(r){
  const block=dom('div',undefined,'formation');
- block.append(dom('strong','3連単・2項目だけの研究用自動下書き'),
+ block.append(dom('strong','3連単・2項目だけの研究用自動下書き（1着'+r.first.length+'頭）'),
   dom('p','1着：'+r.first.join('・')+'番','picks'),
   dom('p','2着：'+r.second.join('・')+'番','picks'),
   dom('p','3着：'+r.third.join('・')+'番','picks'),
