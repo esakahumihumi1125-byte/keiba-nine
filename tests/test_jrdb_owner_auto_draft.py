@@ -94,6 +94,10 @@ class AutoDraftTests(unittest.TestCase):
                          ([1,2], [1,2,3,4,5], [1,2,3,4,5,6,7]))
         self.assertEqual(race["points"], 40)
         self.assertEqual(race["amountYen"], 4000)
+        self.assertEqual(out["weightedResearchOrder"],"training30_recent3")
+        self.assertEqual(out["weightedResearchMax"],99)
+        self.assertEqual([h["weightedResearchPoints"] for h in race["runners"]],
+                         [99,96,66,63,33,30,0])
         self.assertEqual(len({tuple(x) for x in race["tickets"]}), 40)
         self.assertTrue(all(len(set(x)) == 3 for x in race["tickets"]))
         self.assertEqual([x["twoFactorGrade"] for x in race["runners"]],
@@ -115,7 +119,7 @@ class AutoDraftTests(unittest.TestCase):
 
     def test_equal_grade_cutoffs_expand_safely_or_hold(self):
         # Rank 2/3 tie: expand first to three rather than pick by horse number.
-        pairs = [("S","S"),("S","A"),("A","S"),
+        pairs = [("S","S"),("S","A"),("S","A"),
                  ("A","B"),("B","B"),("B","C"),("C","C")]
         race = generate(programme(7),research(pairs))["races"][0]
         self.assertEqual(race["status"],"provisional_draft")
@@ -125,7 +129,7 @@ class AutoDraftTests(unittest.TestCase):
         self.assertEqual(race["runners"][2]["comparisonRank"],2)
         # Rank 5/6 tie: keep those equal-score runners together in third.
         pairs = [("S","S"),("S","A"),("A","A"),
-                 ("A","B"),("B","B"),("C","A"),("C","C")]
+                 ("A","B"),("B","B"),("B","B"),("C","C")]
         race = generate(programme(7),research(pairs))["races"][0]
         self.assertEqual(race["status"],"provisional_draft")
         self.assertEqual(race["second"],[1,2,3,4])
@@ -137,6 +141,21 @@ class AutoDraftTests(unittest.TestCase):
         self.assertEqual(race["status"],"hold")
         self.assertEqual(race["reason"],"ambiguous_equal_grade_boundary")
         self.assertEqual(race["tickets"],[])
+
+    def test_training_overrides_bad_recent_form_in_provisional_ranking(self):
+        # A horse with training S / recent C must outrank training A /
+        # recent S, while no overall 10-factor grade is claimed.
+        pairs=[("S","S"),("A","S"),("S","C"),
+               ("A","A"),("B","B"),("B","C"),("C","C")]
+        row=generate(programme(7),research(pairs))["races"][0]
+        self.assertEqual(row["status"],"provisional_draft")
+        self.assertEqual([h["number"] for h in row["runners"][:3]], [1,3,2])
+        self.assertEqual(row["first"],[1,3])
+        self.assertEqual(row["runners"][1]["training"],"S")
+        self.assertEqual(row["runners"][1]["recent"],"C")
+        self.assertEqual(row["runners"][1]["weightedResearchPoints"],90)
+        self.assertEqual(row["runners"][2]["weightedResearchPoints"],69)
+        self.assertFalse(row["overallPredictionReady"])
 
     def test_missing_factor_or_time_holds_no_tickets(self):
         pairs = PAIRS[:-1]+[("未評価","C")]

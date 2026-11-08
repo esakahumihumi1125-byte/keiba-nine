@@ -17,6 +17,14 @@ from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import _valid_date
 from jrdb_program_preview import TRACKS
 from jrdb_owner_runner_research import VALUES
+from evaluation_policy import FACTORS, POLICY_VERSION
+
+# Experimental TWO-FACTOR priority, never a completed 100-point rating.
+# S=3, A=2, B=1, C=0 and 30:3 weights reflect owner's chosen policy.
+# Other eight factors MUST NOT be assigned default grades.
+PROVISIONAL_WEIGHTED_MAX = 3 * (FACTORS["training"] + FACTORS["recent"])
+assert FACTORS["training"] == 30 and FACTORS["recent"] == 3
+assert PROVISIONAL_WEIGHTED_MAX == 99
 
 VERSION = "jrdb-owner-auto-draft-1"
 SOURCE_VERSION = "jrdb-owner-day-research-1"
@@ -95,11 +103,18 @@ def _normalize_runners(research):
         if r.get("completeFactors") != count:
             raise CoverageError("Factor completeness mismatch")
         if count == 2:
+            # Retain old equally-weighted 2-factor tally ONLY as a
+            # backward-compatible diagnostic, not as the order/ticket key.
             score = VALUES[r["training"]] + VALUES[r["recent"]]
+            weighted = (
+                (VALUES[r["training"]] - 1) * FACTORS["training"]
+                + (VALUES[r["recent"]] - 1) * FACTORS["recent"]
+            )
             if type(r.get("researchOrder")) is not int or r["researchOrder"] < 1:
                 raise CoverageError("Invalid research order")
         else:
             score = None
+            weighted = None
             if r.get("researchOrder") is not None:
                 raise CoverageError("Unassessed runner must not be ranked")
         reasons = r.get("missingReasons", [])
@@ -112,15 +127,17 @@ def _normalize_runners(research):
             "number": r["number"], "training": r["training"],
             "recent": r["recent"], "twoFactorGrade": _grade(score) if score is not None else "未評価",
             "pastFourthCorner": r["pastFourthCorner"], "twoFactorPoints": score,
+            "weightedResearchPoints": weighted,
         })
-    normalized.sort(key=lambda x: (x["twoFactorPoints"] is None,
-                                   -(x["twoFactorPoints"] or 0), x["number"]))
+    normalized.sort(key=lambda x: (x["weightedResearchPoints"] is None,
+                                   -(x["weightedResearchPoints"] or 0),
+                                   x["number"]))
     if research.get("completeTwoFactorCount") != sum(
             x["twoFactorPoints"] is not None for x in normalized):
         raise CoverageError("Complete runner count mismatch")
     previous, rank = None, 0
     for index, horse in enumerate(normalized, 1):
-        score = horse["twoFactorPoints"]
+        score = horse["weightedResearchPoints"]
         if score is None:
             horse["comparisonRank"] = None
         else:
@@ -133,8 +150,8 @@ def _normalize_runners(research):
 
 def _cutoff_tied(runners, size):
     return size < len(runners) and (
-        runners[size - 1]["twoFactorPoints"]
-        == runners[size]["twoFactorPoints"]
+        runners[size - 1]["weightedResearchPoints"]
+        == runners[size]["weightedResearchPoints"]
     )
 
 
@@ -309,6 +326,9 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
         "holdCount": sum(x["status"] == "hold" for x in out),
         "holdReasons": reasons,
         "races": out, "sourceReadCount": 4, "unitYen": STAKE,
+        "weightedResearchOrder": "training30_recent3",
+        "weightedResearchMax": PROVISIONAL_WEIGHTED_MAX,
+        "weightedResearchPolicy": POLICY_VERSION,
         "comparedFactors": ["調教", "近走"], "unverifiedFactors": 8,
         "researchOnly": True, "privateOwnerOnly": True,
         "officialJraVerified": False, "overallPredictionReady": False,
@@ -318,6 +338,8 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
                    "1着基本2頭（境界の同点など必要時だけ3頭）で"
                    "JRDB記載の暫定発走時刻より前のレースだけに"
                    "3連単フォーメーションの研究用下書きを提示。"
+                   "2項目の仮順位では調教30：近走3の重みを適用し、"
+                   "近走不振だけで調教好調馬を下位に落とさない。"
                    "調教・近走以外の8項目やJRA公式取消・確定出走馬・馬場・"
                    "発走時刻は未照合。勝率・正式総合ランク・購入推奨ではない。"
                    "1点100円換算だが購入や正式記録への保存はしない。"),

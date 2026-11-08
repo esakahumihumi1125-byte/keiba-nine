@@ -10,6 +10,8 @@ const pairs=[['S','S',8,'S'],['S','A',7,'A'],['A','A',6,'A'],
  ['A','B',5,'B'],['B','B',4,'B'],['B','C',3,'C'],['C','C',2,'C']];
 const runners=pairs.map(([training,recent,twoFactorPoints,twoFactorGrade],i)=>({
  number:i+1,training,recent,twoFactorPoints,twoFactorGrade,
+ weightedResearchPoints:30*({S:3,A:2,B:1,C:0}[training])+
+                         3*({S:3,A:2,B:1,C:0}[recent]),
  pastFourthCorner:'insufficient',comparisonRank:i+1
 }));
 const first=[1,2],second=[1,2,3,4,5],third=[1,2,3,4,5,6,7];
@@ -55,6 +57,8 @@ const research=()=>({
  privateOwnerOnly:true,officialJraVerified:false,
  overallPredictionReady:false,bettingReady:false,autoPurchase:false,
  sourceReadCount:4,unitYen:100,raceCount:1,draftCount:1,holdCount:0,holdReasons:{},
+ weightedResearchOrder:'training30_recent3',weightedResearchMax:99,
+ weightedResearchPolicy:'research-5',
  serverStamped:true,captureAuditVerified:false,researchReceiptCount:1,
  archiveEnabled:false,archiveRecordCount:0,archiveConflictCount:0,
  raceContext:{
@@ -143,6 +147,8 @@ function boot(){
  assert.equal(a.requests[0].options.headers['X-Keiba-Request'],'private');
  assert.equal(a.get('autoSummary').textContent.includes('1R中、研究用自動案 1R'),true);
  assert.equal(a.get('autoTenWeights').children.length,10);
+ assert.match(a.get('autoRaces').children[0].children[0].children[3].textContent,
+  /調教30：近走3での仮順位/);
  assert.match(a.get('autoTenStatus').textContent,/残り8項目は未評価/);
  assert.match(a.get('autoSummary').textContent,/馬場資料の存在 1R/);
  assert.match(a.get('autoRaces').children[0].children[0].children[1].textContent,

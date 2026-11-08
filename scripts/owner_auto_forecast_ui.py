@@ -40,7 +40,8 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <div id="autoRaces"></div>
 </section>
-<p class="muted">Sは金色、Aは赤色。S/A/B/Cは2項目による独自の仮評価で、総合ランクや勝率ではありません。
+<p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
+総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・最大40点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
 </main><script src="/owner-auto-forecast.js" defer></script></body></html>"""
 
@@ -286,6 +287,8 @@ function validate(data,day){
    (data.sourceMaterials.observedFactorSlots!==8||
     data.sourceMaterials.races.length!==data.raceCount))||
   data.sourceReadCount!==4||data.unitYen!==100||
+  data.weightedResearchOrder!=='training30_recent3'||
+  data.weightedResearchMax!==99||data.weightedResearchPolicy!=='research-5'||
   !Array.isArray(data.races)||data.races.length>120||
   data.raceCount!==data.races.length||
   data.draftCount+data.holdCount!==data.raceCount||
@@ -333,7 +336,11 @@ function validate(data,day){
     !GRADES.has(h.recent)||!GRADES.has(h.twoFactorGrade)||
     !(h.pastFourthCorner in POS)||
     !(h.twoFactorPoints===null||Number.isInteger(h.twoFactorPoints))||
-    !(h.comparisonRank===null||(Number.isInteger(h.comparisonRank)&&h.comparisonRank>=1)))
+    !(h.weightedResearchPoints===null||
+      (Number.isInteger(h.weightedResearchPoints)&&
+       h.weightedResearchPoints>=0&&h.weightedResearchPoints<=99))||
+    !(h.comparisonRank===null||(Number.isInteger(h.comparisonRank)&&h.comparisonRank>=1))||
+    (h.weightedResearchPoints===null)!==(h.comparisonRank===null))
      throw Error('馬番別データが不正です');
    numbers.add(h.number);
   }
@@ -366,7 +373,6 @@ function runnerView(h,index){
  const p=dom('div',undefined,'runner');
  p.append(dom('span',h.number+'番','number'),
   dom('span',h.comparisonRank===null?'未評価':'仮'+h.comparisonRank+'位','rank'),
-  dom('span',h.twoFactorGrade,'grade '+h.twoFactorGrade),
   dom('span','調教 '+h.training,'grade '+h.training),
   dom('span','近走 '+h.recent,'grade '+h.recent),
   dom('span',POS[h.pastFourthCorner]+' ※脚質確定ではない','notes'));
@@ -436,7 +442,7 @@ function render(input,day){
    detail.append(dom('p',REASONS[race.reason]+extra,'hold'));
   }
   if(race.runners.length){
-   detail.append(dom('p','調教・近走の仮評価順（総合評価ではない）','muted'));
+   detail.append(dom('p','調教30：近走3での仮順位（10項目総合評価ではない）','muted'));
    for(const [i,h] of race.runners.entries()){
     detail.append(runnerView(h,i));
     const ten=tenRows.get(race.track+'|'+race.race).horses.find(x=>x.number===h.number);
