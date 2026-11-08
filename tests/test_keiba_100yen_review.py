@@ -1,0 +1,112 @@
+"""Frozen-before-off, 100-yen hypothetical accounting regression tests."""
+import copy
+import sys
+import unittest
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+from keiba_100yen_review import review_100yen, ReviewInputError
+
+
+def snapshot(race=1):
+    return {
+        "date": "2026-11-08", "track": "東京", "race": race,
+        "sourceKind": "prestart-locked", "actualPurchase": False,
+        "lockedAt": "2026-11-07T20:00:00+09:00",
+        "scheduledOffAt": "2026-11-08T10:00:00+09:00",
+        "trifectaTickets": [[1, 2, 3], [2, 1, 3], [1, 2, 3]],
+        "trioTickets": [[3, 1, 2]],
+    }
+
+
+def outcome(race=1, verified=True):
+    return {
+        "date": "2026-11-08", "track": "東京", "race": race,
+        "officialVerified": verified,
+        "finish": [1, 2, 3],
+        "trifectaPer100Yen": 474290,
+        "trioPer100Yen": 5300,
+    }
+
+
+class HypotheticalReviewTests(unittest.TestCase):
+    def test_exact_payout_includes_one_100yen_stake_per_unique_point(self):
+        prediction, result = snapshot(), outcome()
+        frozen = copy.deepcopy((prediction, result))
+        review = review_100yen([prediction], [result])
+        self.assertEqual(review["reviewedRaces"], 1)
+        self.assertEqual(review["totalInvestedYen"], 300)
+        self.assertEqual(review["totalReturnedYen"], 479590)
+        self.assertEqual(review["totalProfitYen"], 479290)
+        self.assertEqual(review["trifectaHits"], 1)
+        self.assertEqual(review["trioHits"], 1)
+        self.assertTrue(review["races"][0]["firstCandidateHit"])
+        self.assertFalse(review["actualPurchase"])
+        self.assertEqual((prediction, result), frozen)
+
+    def test_wrong_order_loses_trifecta_but_can_hit_trio(self):
+        prediction, result = snapshot(), outcome()
+        result["finish"] = [3, 1, 2]
+        out = review_100yen([prediction], [result])
+        self.assertEqual(out["trifectaHits"], 0)
+        self.assertEqual(out["trioHits"], 1)
+        self.assertEqual(out["totalReturnedYen"], 5300)
+        self.assertFalse(out["races"][0]["firstCandidateHit"])
+
+    def test_unverified_or_missing_result_remains_pending(self):
+        data = [snapshot(1), snapshot(2)]
+        for results in ([outcome(1, False)], []):
+            with self.subTest(results=results):
+                result = review_100yen(data, results)
+                self.assertEqual(result["reviewedRaces"], 0)
+                self.assertEqual(result["pendingRaces"], 2)
+                self.assertEqual(result["totalInvestedYen"], 0)
+                self.assertEqual(result["totalReturnedYen"], 0)
+                self.assertIsNone(result["roiPercent"])
+                self.assertIsNone(result["races"][0]["hitTrifecta"])
+
+    def test_verified_loss_is_counted_only_when_official(self):
+        p, r = snapshot(), outcome()
+        r["finish"] = [4, 5, 6]
+        out = review_100yen([p], [r])
+        self.assertEqual(out["totalInvestedYen"], 300)
+        self.assertEqual(out["totalReturnedYen"], 0)
+        self.assertEqual(out["roiPercent"], 0)
+        self.assertEqual(out["trifectaHits"], 0)
+        self.assertEqual(out["trioHits"], 0)
+
+    def test_postoff_forecast_never_backtests_as_prerace(self):
+        p=snapshot()
+        p["lockedAt"] = p["scheduledOffAt"]
+        with self.assertRaises(ReviewInputError):
+            review_100yen([p], [outcome()])
+        p["lockedAt"] = "2026-11-08T23:00:00+09:00"
+        with self.assertRaises(ReviewInputError):
+            review_100yen([p], [outcome()])
+
+    def test_altered_results_or_false_purchase_claim_rejected(self):
+        p, r = snapshot(), outcome()
+        p["actualPurchase"] = True
+        with self.assertRaises(ReviewInputError):
+            review_100yen([p], [r])
+        p["actualPurchase"] = False
+        for bad in (-1, None, "5300", 10**10):
+            r["trioPer100Yen"] = bad
+            with self.subTest(bad=bad), self.assertRaises(ReviewInputError):
+                review_100yen([p], [r])
+
+    def test_duplicate_race_or_invalid_tickets_fail_closed(self):
+        p = snapshot()
+        with self.assertRaises(ReviewInputError):
+            review_100yen([p,p], [outcome()])
+        with self.assertRaises(ReviewInputError):
+            review_100yen([p], [outcome(),outcome()])
+        for bad in ([[1,1,2]], [[1,2,"3"]], [[0,1,2]], [[19,1,2]]):
+            q = snapshot()
+            q["trifectaTickets"] = bad
+            with self.subTest(bad=bad), self.assertRaises(ReviewInputError):
+                review_100yen([q], [outcome()])
+
+
+if __name__ == "__main__":
+    unittest.main()
