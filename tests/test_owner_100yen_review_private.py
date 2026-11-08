@@ -73,7 +73,7 @@ class Owner100YenPageTests(unittest.TestCase):
         self.assertNotIn("localStorage.removeItem", js)
         self.assertIn("fromForecast", js)
         self.assertIn("if(document.visibilityState!=='hidden')$('load').onclick();", js)
-        forecast_js=call(private, "/owner-auto-forecast.js")["body"].decode()
+        from owner_auto_forecast_ui import JS as forecast_js
         self.assertIn("autoReviewLink", forecast_js)
         self.assertIn("updateReviewLink", forecast_js)
 
