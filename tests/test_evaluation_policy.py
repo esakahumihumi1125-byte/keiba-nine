@@ -23,12 +23,12 @@ def race(horses=None):
 
 class EvaluationTests(unittest.TestCase):
     def test_owner_weights_are_exact_100_point_distribution(self):
-        self.assertEqual(POLICY_VERSION,'research-3')
+        self.assertEqual(POLICY_VERSION,'research-4')
         self.assertEqual(TOTAL_WEIGHT,100)
         self.assertEqual(FACTORS,{
-            'training':27,'recent':3,'course_distance':18,'pace':18,
-            'ground':13,'pedigree':9,'draw_weight':5,
-            'jockey_stable':5,'rotation':1,'body_condition':1,
+            'training':30,'recent':3,'course_distance':20,'pace':20,
+            'ground':12,'pedigree':8,'draw_weight':3,
+            'jockey_stable':2,'rotation':1,'body_condition':1,
         })
 
     def test_deterministic_no_mutation(self):
@@ -84,7 +84,36 @@ class EvaluationTests(unittest.TestCase):
         out = evaluate_race(race(horses))
         self.assertEqual(out['horses'][-1]['rank'], 5)
         self.assertEqual(out['winCandidatesToReview'], [5])
+        self.assertEqual(out['lowerRankWinCandidatesToReview'], [5])
         self.assertEqual(out['first'], [])
+
+    def test_rebound_review_does_not_penalize_old_finishing_positions(self):
+        # A B/C recent score cannot erase independent, earlier than post-time
+        # positive training, course-distance and pace evidence.
+        h=horse(1, 'A')
+        h['assessments']['recent']['grade']='C'
+        for factor in ('training','course_distance','pace'):
+            h['assessments'][factor]['grade']='S'
+            h['assessments'][factor]['winSupport']=True
+        r=evaluate_race(race([h, horse(2), horse(3), horse(4)]))
+        out=next(x for x in r['horses'] if x['number']==1)
+        self.assertTrue(out['reboundReview'])
+        self.assertIn(1, r['recentLossReboundCandidatesToReview'])
+        self.assertFalse(r['publishable'])
+        self.assertEqual(r['first'], [])
+
+    def test_rebound_needs_two_verified_present_condition_factors(self):
+        h=horse(1,'A')
+        h['assessments']['recent']['grade']='C'
+        h['assessments']['recent']['winSupport']=True
+        h['assessments']['training']['winSupport']=True
+        r=evaluate_race(race([h,horse(2)]))
+        self.assertNotIn(1,r['recentLossReboundCandidatesToReview'])
+        self.assertFalse(next(x for x in r['horses'] if x['number']==1)['reboundReview'])
+        h['assessments']['course_distance']['winSupport']=True
+        h['assessments']['course_distance']['evidence'][0]['availableAt']='2026-10-27T11:00:00+09:00'
+        r=evaluate_race(race([h,horse(2)]))
+        self.assertNotIn(1,r['recentLossReboundCandidatesToReview'])
 
     def test_four_candidates_not_silently_cut(self):
         hs = [horse(n) for n in range(1, 5)]

@@ -5,19 +5,24 @@ Weights/thresholds are provisional hypotheses, not fitted win probabilities.
 """
 from datetime import datetime
 
-POLICY_VERSION = 'research-3'
-# Owner-approved 100-point distribution, preserving the relative priorities
-# of their original 110-weight proposal. Body condition slot means race-day
-# BODY WEIGHT assessment, not JRDB conformation codes.
+POLICY_VERSION = 'research-4'
+# Owner-confirmed present-condition-first 100-point policy.
+# Past finishing positions do not automatically impose penalties; recent
+# evidence counts for only 3/100, and it still needs an auditable reason.
+# Body condition represents race-day BODY WEIGHT, not conformation codes.
 FACTORS = {
-    'training': 27, 'recent': 3, 'course_distance': 18, 'pace': 18,
-    'ground': 13, 'pedigree': 9, 'draw_weight': 5, 'jockey_stable': 5,
+    'training': 30, 'recent': 3, 'course_distance': 20, 'pace': 20,
+    'ground': 12, 'pedigree': 8, 'draw_weight': 3, 'jockey_stable': 2,
     'rotation': 1, 'body_condition': 1,
 }
 TOTAL_WEIGHT = sum(FACTORS.values())
 assert len(FACTORS) == 10 and TOTAL_WEIGHT == 100
 CORE = {'training', 'recent', 'course_distance', 'pace', 'ground'}
 WIN_FACTORS = {'training', 'recent', 'course_distance', 'pace'}
+# A lower-ranked winner deserves an extra review only when two independently
+# supported PRESENT-CONDITION factors back it up; recent finishing position
+# alone cannot justify a high-payout hypothesis.
+UPSET_WIN_FACTORS = {'training', 'course_distance', 'pace'}
 POINTS = {'S': 3, 'A': 2, 'B': 1, 'C': 0}
 
 
@@ -92,6 +97,8 @@ def evaluate_race(race):
             item = assessments.get(factor)
             if grades[factor] in ('S', 'A') and item.get('winSupport') is True:
                 signals.append({'factor': factor, 'reason': item['reason']})
+        present_win_signals = [s for s in signals
+                               if s['factor'] in UPSET_WIN_FACTORS]
         concerns = horse.get('blockingConcerns', [])
         if not isinstance(concerns, list):
             raise ValueError('blockingConcerns must be a list')
@@ -103,6 +110,10 @@ def evaluate_race(race):
             'missing': missing, 'winSignals': signals,
             'blockingConcerns': known_concerns, 'unverifiedConcerns': unresolved,
             'winReview': ready and len(signals) >= 2 and not known_concerns and not unresolved,
+            'presentWinSignals': present_win_signals,
+            'reboundReview': (ready and len(present_win_signals) >= 2
+                              and grades['recent'] in ('B', 'C')
+                              and not known_concerns and not unresolved),
         })
     # Ties share rank: horse number is only a stable display order.
     evaluated.sort(key=lambda h: (h['score'] is None, -(h['score'] or 0), h['number']))
@@ -115,6 +126,14 @@ def evaluate_race(race):
                 last_rank = position
             horse['rank'] = last_rank
             last_score = horse['score']
+    # A 4th–6th-ranked horse is NOT auto-added to tickets. Explicit
+    # time-stamped supporting factors permit a separate first-place review.
+    # The review does not use public odds, popularity or the final result.
+    lower_rank_review = [h['number'] for h in evaluated
+                         if h['rank'] is not None and 4 <= h['rank'] <= 6
+                         and h['winReview']
+                         and len(h['presentWinSignals']) >= 2]
+    rebound_review = [h['number'] for h in evaluated if h['reboundReview']]
     candidates = [h['number'] for h in evaluated if h['winReview']]
     if any(h['overall'] == '未評価' or h['unverifiedConcerns'] for h in evaluated):
         review = 'data_incomplete'
@@ -129,6 +148,8 @@ def evaluate_race(race):
         'policyVersion': POLICY_VERSION, 'recordType': 'test', 'status': 'draft',
         'publishable': False, 'validated': False, 'asOf': race['asOf'],
         'horses': evaluated, 'winCandidatesToReview': candidates,
+        'lowerRankWinCandidatesToReview': lower_rank_review,
+        'recentLossReboundCandidatesToReview': rebound_review,
         'candidateLimit': 3, 'reviewState': review,
         'bettingDecision': '保留', 'first': [],
         'note': '仮の評価基準による架空検証。勝率・的中率ではなく、購入推奨ではありません。',
