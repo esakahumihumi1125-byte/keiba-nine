@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from private_service import create_app
-from test_private_service import call, SETTINGS
+from test_private_service import call, SETTINGS, AUTH
 from test_jrdb_selected_race_readiness import records, NOW
 
 
@@ -36,7 +36,7 @@ class RunnerResearchPrivateUITests(unittest.TestCase):
             stack.enter_context(patch("private_service._now_in_jst",
                                       return_value=NOW))
             return call(app, "/api/jrdb/selected-readiness",
-                        auth=None if auth else "",
+                        auth=AUTH if auth else "",
                         QUERY_STRING="date=20261101&track=東京&race=1")
 
     def test_authenticated_private_render_receives_derived_runner_material(self):
