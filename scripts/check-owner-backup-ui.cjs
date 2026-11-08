@@ -95,7 +95,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
