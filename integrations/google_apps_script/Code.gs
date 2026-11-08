@@ -133,8 +133,9 @@ function syncKeibaMail() {
         }
       }
     }
-    const values = Object.keys(records).map(k => records[k]).filter(item =>
-      Array.isArray(item.paddock) && item.paddock.length > 0);
+    const values = Object.keys(records).map(k => records[k]);
+    // Hold the going-only part privately until a mini paddock mail arrives.
+    // Incomplete records are NEVER returned from doPost.
     // Keep only minimal records, not the mailbox contents. Max ScriptProperty 9KB.
     const saved = {records: {}, processed: Array.from(processed).slice(-180)};
     for (const v of values) saved.records[v.track + ':' + v.race] = v;
