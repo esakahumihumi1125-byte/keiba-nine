@@ -271,7 +271,7 @@ class AutoDraftHTTPTests(unittest.TestCase):
               patch("private_service.fetch_recent_runs",return_value=[]) as d,
               patch("private_service.owner_day_research",return_value=research()) as e,
               patch("private_service._now_in_jst",
-                    return_value=datetime(2099,1,1,9,0,tzinfo=JST))):
+                    return_value="2099-01-01T09:00:00+09:00")):
             out=call(self.app,"/api/jrdb/owner-auto-draft",
                      QUERY_STRING="date="+DAY)
         self.assertEqual(out["status"],"200 OK")
@@ -288,6 +288,48 @@ class AutoDraftHTTPTests(unittest.TestCase):
         for forbidden in ("horse_name","racekey","horse_id",
                           "synthetic-api","synthetic-auth","oikirisisu","idm"):
             self.assertNotIn(forbidden,out["body"].decode())
+
+    def test_iso_clock_does_not_create_post_start_tickets(self):
+        # Production _now_in_jst returns ISO text, not datetime.
+        for clock, expected in (
+            ("2099-01-01T09:00:00+09:00", "provisional_draft"),
+            ("2099-01-01T12:00:00+09:00", "hold"),
+        ):
+            with self.subTest(clock=clock):
+                with (patch("private_service.fetch_race_program", return_value=[]),
+                      patch("private_service.normalize_program_rows", return_value=programme()),
+                      patch("private_service.fetch_horse_entries", return_value=[]),
+                      patch("private_service.fetch_training_analysis", return_value=[]),
+                      patch("private_service.fetch_recent_runs", return_value=[]),
+                      patch("private_service.owner_day_research", return_value=research()),
+                      patch("private_service._now_in_jst", return_value=clock)):
+                    out = call(self.app, "/api/jrdb/owner-auto-draft",
+                               QUERY_STRING="date="+DAY)
+                self.assertEqual(out["status"], "200 OK")
+                data = json.loads(out["body"])
+                self.assertEqual(data["races"][0]["status"], expected)
+                self.assertEqual(data["researchReceiptCount"],
+                                 int(expected == "provisional_draft"))
+                if expected == "hold":
+                    self.assertEqual(data["races"][0]["reason"],
+                                     "after_provisional_off")
+                    self.assertEqual(data["researchReceipts"], [])
+
+    def test_naive_clock_never_gets_signed(self):
+        with (patch("private_service.fetch_race_program", return_value=[]),
+              patch("private_service.normalize_program_rows", return_value=programme()),
+              patch("private_service.fetch_horse_entries", return_value=[]),
+              patch("private_service.fetch_training_analysis", return_value=[]),
+              patch("private_service.fetch_recent_runs", return_value=[]),
+              patch("private_service.owner_day_research", return_value=research()),
+              patch("private_service._now_in_jst",
+                    return_value="2099-01-01T09:00:00")):
+            out = call(self.app, "/api/jrdb/owner-auto-draft",
+                       QUERY_STRING="date="+DAY)
+        self.assertEqual(out["status"], "502 Bad Gateway")
+        body=json.loads(out["body"])
+        self.assertEqual(body["failureDetail"], "server_clock")
+        self.assertNotIn("researchReceipts", body)
 
     def test_no_jrdb_calls_without_auth_or_in_preview_or_without_keys(self):
         for env in ({"auth":""},{"HTTP_X_KEIBA_REQUEST":""},
@@ -329,7 +371,7 @@ class AutoDraftHTTPTests(unittest.TestCase):
                       patch('private_service.fetch_recent_runs', return_value=[]),
                       patch('private_service.owner_day_research', return_value=research()),
                       patch('private_service._now_in_jst',
-                            return_value=datetime(2099, 1, 1, 9, 0, tzinfo=JST)),
+                            return_value="2099-01-01T09:00:00+09:00"),
                       patch('private_service.' + method, side_effect=err)):
                     out = call(self.app, '/api/jrdb/owner-auto-draft',
                                QUERY_STRING='date=' + DAY)

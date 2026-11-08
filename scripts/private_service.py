@@ -2059,7 +2059,11 @@ def create_app(settings=None):
                 recent = fetch_recent_runs(day)
                 stage = 'day_research'
                 research = owner_day_research(programme, entries, training, recent, day)
-                captured_at = _now_in_jst()
+                # _now_in_jst() intentionally returns an ISO string for
+                # other owner endpoints; draft and receipt signing require
+                # the same timezone-aware datetime object instead.
+                # Never replace it with browser time or a second clock read.
+                captured_at = datetime.fromisoformat(_now_in_jst())
                 stage = 'draft_generation'
                 report = build_owner_auto_drafts(
                     programme, research, day, now=captured_at)
