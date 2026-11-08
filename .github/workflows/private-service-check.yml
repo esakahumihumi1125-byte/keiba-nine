@@ -91,6 +91,7 @@ jobs:
           node --check /tmp/keiba-jrdb-owner-day.js
           python -c "import sys; sys.path.insert(0, 'scripts'); from owner_auto_forecast_ui import JS; from pathlib import Path; Path('/tmp/keiba-owner-auto-forecast.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-owner-auto-forecast.js
+          node scripts/check-owner-auto-forecast-ui.cjs
           python -c "import sys; sys.path.insert(0, 'scripts'); from owner_100yen_review_ui import JS; from pathlib import Path; Path('/tmp/keiba-owner-100yen-review.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-owner-100yen-review.js
           python -c "import sys; sys.path.insert(0, 'scripts'); from jrdb_day_pipeline_ui import JS; from pathlib import Path; Path('/tmp/keiba-jrdb-day-pipeline.js').write_text(JS, encoding='utf-8')"
