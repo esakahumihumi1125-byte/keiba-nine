@@ -1700,7 +1700,7 @@ def create_app(settings=None):
                         'JRDB returned an unsuccessful response',
                     )
                     server_failure = re.fullmatch(
-                        r'JRDB request failed \\(HTTP (500|502|503|504)\\)',
+                        r'JRDB request failed \(HTTP (500|502|503|504)\)',
                         venue_reason,
                     ) is not None
                     if not (temporary or server_failure):
