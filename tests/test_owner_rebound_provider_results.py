@@ -8,6 +8,9 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
 from owner_rebound_receipts import issue_rebound_watch_receipts,verify_rebound_watch_receipts,WatchReceiptError
 from owner_rebound_provider_results import summarize_provider_watch_results
 from test_owner_rebound_receipts import sample,DAY,SECRET
+from unittest.mock import patch
+from private_service import create_app
+from test_private_service import call,SETTINGS
 
 
 def signed_watches():
@@ -21,6 +24,78 @@ def row(track="05",race="01",horse="04",finish="1"):
 
 
 class TestPrivateReboundProviderCheck(unittest.TestCase):
+    def test_private_endpoint_reads_tse_once_and_never_accepts_claimed_result(self):
+        history,programme,now=sample()
+        receipts=issue_rebound_watch_receipts(
+            history,programme,SETTINGS["KEIBA_OWNER_PASSWORD"],DAY,now)["receipts"]
+        settings={**SETTINGS,"KEIBA_RENDER_PRIVATE_ONLY":"1",
+                  "KEIBA_RENDER_PREVIEW_ONLY":"0","JRDB_PRIVATE_ENABLED":"1",
+                  "JRDB_API_KEY":"fake-fixture-only","JRDB_AUTH_KEY":"fake-fixture-only"}
+        app=create_app(settings)
+        observations=[row(horse="04"),row(track="08",race="02",horse="05")]
+        with patch("private_service.fetch_finished_race_results",
+                   return_value=observations) as fetch:
+            with patch("private_service._now_in_jst",
+                       return_value="2099-04-12T12:00:00+09:00"):
+                r=call(app,"/api/owner-rebound-provider-check",
+                       method="POST",data={"date":DAY,"receipts":receipts})
+            fetch.assert_called_once_with(DAY)
+        self.assertEqual(r["status"],"200 OK")
+        import json
+        out=json.loads(r["body"])
+        self.assertEqual(out["observedRaceCount"],2)
+        self.assertEqual(out["verifiedRaceCount"],0)
+        self.assertFalse(out["officialJraVerified"])
+        self.assertFalse(out["officialFeedConnected"])
+        self.assertIsNone(out["roiPercent"])
+        self.assertNotIn("horse_id",r["body"].decode())
+        self.assertNotIn("racekey",r["body"].decode())
+        self.assertEqual(call(app,"/api/owner-rebound-provider-check",
+                              method="POST",auth="",
+                              data={"date":DAY,"receipts":receipts}
+                             )["status"],"401 Unauthorized")
+        with patch("private_service.fetch_finished_race_results") as fetch:
+            attempts=[
+                {"date":DAY,"receipts":receipts,"results":[{"officialVerified":True}]},
+                {"date":DAY,"receipts":receipts,"winner":4},
+                {"date":DAY,"receipts":[]},
+            ]
+            for data in attempts:
+                self.assertEqual(call(app,"/api/owner-rebound-provider-check",
+                                 method="POST",data=data)["status"],
+                                 "400 Bad Request")
+            fetch.assert_not_called()
+        app_without_provider=create_app({**settings,
+                                         "JRDB_PRIVATE_ENABLED":"0"})
+        self.assertEqual(call(app_without_provider,
+                         "/api/owner-rebound-provider-check",
+                         method="POST",data={"date":DAY,"receipts":receipts}
+                         )["status"],"503 Service Unavailable")
+        app_public=create_app(SETTINGS)
+        self.assertEqual(call(app_public,"/api/owner-rebound-provider-check",
+                         method="POST",data={"date":DAY,"receipts":receipts}
+                         )["status"],"404 Not Found")
+
+    def test_no_tse_fetch_before_any_sealed_race_has_started(self):
+        history,programme,now=sample()
+        receipts=issue_rebound_watch_receipts(
+            history,programme,SETTINGS["KEIBA_OWNER_PASSWORD"],DAY,now)["receipts"]
+        app=create_app({**SETTINGS,"KEIBA_RENDER_PRIVATE_ONLY":"1",
+                        "KEIBA_RENDER_PREVIEW_ONLY":"0",
+                        "JRDB_PRIVATE_ENABLED":"1",
+                        "JRDB_API_KEY":"synthetic","JRDB_AUTH_KEY":"synthetic"})
+        with patch("private_service.fetch_finished_race_results") as fetch:
+            with patch("private_service._now_in_jst",
+                       return_value="2099-04-12T09:40:00+09:00"):
+                r=call(app,"/api/owner-rebound-provider-check",
+                       method="POST",data={"date":DAY,"receipts":receipts})
+            fetch.assert_not_called()
+        self.assertEqual(r["status"],"200 OK")
+        import json
+        report=json.loads(r["body"])
+        self.assertEqual(report["observedRaceCount"],0)
+        self.assertFalse(report["officialJraVerified"])
+
     def test_observed_first_in_watch_is_not_official_hit(self):
         snaps=signed_watches()
         initial=copy.deepcopy(snaps)

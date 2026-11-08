@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs, fetch_venue_conditions,
-                          fetch_prestart_body,
+                          fetch_prestart_body,fetch_finished_race_results,
                           fetch_historical_race_program, fetch_historical_venue_conditions,
                           JRDBError, _NoRedirect)
 
@@ -104,6 +104,22 @@ class PrivateClientTests(unittest.TestCase):
         del os.environ['JRDB_PRIVATE_ENABLED']
         with self.assertRaises(JRDBError):
             fetch_prestart_body('20261026')
+
+    def test_provider_postrace_read_is_single_private_day_and_not_jra(self):
+        self.assertEqual(fetch_finished_race_results('20261026'),
+                         [{'racekey':'synthetic'}])
+        req=self.mock.return_value.open.call_args.args[0]
+        self.assertIn('/v1/tse?',req.full_url)
+        self.assertEqual(json.loads(req.data),{'racedate':'20261026'})
+        os.environ['GITHUB_ACTIONS']='true'
+        with self.assertRaises(JRDBError):
+            fetch_finished_race_results('20261026')
+        del os.environ['GITHUB_ACTIONS']
+        del os.environ['JRDB_PRIVATE_ENABLED']
+        with self.assertRaises(JRDBError):
+            fetch_finished_race_results('20261026')
+        with self.assertRaises(JRDBError):
+            fetch_finished_race_results('20261099')
 
     def test_single_historical_racekey_is_only_allowed_dra_query(self):
         rows = fetch_historical_race_program('05264b01')
