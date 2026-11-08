@@ -516,8 +516,16 @@ function showSingleRaceReadiness(data,selected,day){
   throw Error('馬場のAPI取得状態を確認できません');
  if(data.venueFetchStatus==='unavailable'&&data.sourceGoing!=='未確認')
   throw Error('馬場未取得と馬場評価が矛盾しています');
+ const venueKindLabels={
+  permission:'認証・利用権限',rate_limit:'回数制限',
+  http:'HTTP応答',inconsistent:'内容不一致',
+  provider_response:'応答形式',connection:'通信'
+ };
+ if(data.venueFetchStatus==='unavailable'
+    &&!Object.prototype.hasOwnProperty.call(venueKindLabels,data.venueFailureKind))
+  throw Error('馬場APIのエラー区分が不正です');
  const venueWarning=data.venueFetchStatus==='unavailable'
-  ?'\\n【注意】JRDB馬場API取得失敗：馬場は未確認。他資料のみ照合。買い目は作りません。'
+  ?'\\n【注意】JRDB馬場API取得失敗（'+venueKindLabels[data.venueFailureKind]+'）。馬場は未確認。他資料の件数のみ表示。JRA公式照合・予想・買い目は未実施。'
   :'';
  return '【実戦予想はまだ作成できません】'+selected.track+selected.race+'R'
   +venueWarning
