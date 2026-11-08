@@ -1751,6 +1751,7 @@ def create_app(settings=None):
                                       RaceContextError, FreshnessError))
                             else '入力形式')
                 safe_stage_names = {
+                    'source_selection': '選択レースの資料範囲',
                     'evidence_and_entries': '出走馬・調教の突合',
                     'provider_day_status': '取消・馬場の突合',
                     'venue_freshness': '馬場更新日時',
