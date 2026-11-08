@@ -14,14 +14,14 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h1>本人用データのバックアップ</h1>
 <p class="warning">この画面は端末内だけで動作します。JRDB想定メール・本人の馬番メモを含む場合があるため、ファイルは個人用に保管し、公開・共有しないでください。サーバー・Google・GitHubに自動送信しません。</p>
 <section><h2>今の保存内容</h2><p id="backupSummary" role="status">端末内を確認します。</p>
-<button id="backupDownload" type="button">7種類の記録を1つのJSONに保存</button>
+<button id="backupDownload" type="button">8種類の記録を1つのJSONに保存</button>
 <p class="hint">3連単の下書き／実際の購入記録／JRDB想定メールから転記した記録／本人が照合した馬番メモ／5項目評価の途中メモ／前日情報（馬番・馬名・脚質）をまとめて書き出します。保存先はiPhoneの「ファイル」など自分で管理できる場所を選んでください。</p></section>
 <section><h2>別の端末・Safariから復元</h2>
 <label for="backupFile">上で保存したJSONを選択</label>
 <input id="backupFile" type="file" accept=".json,application/json">
-<p id="backupPreview" class="hint" role="status">選択しただけでは復元しません。内容を検査し、7種類すべての現在の記録を置き換える前に確認します。</p>
-<button id="backupRestore" type="button" disabled>確認して7種類の記録を復元</button>
-<p class="warning">復元は現在の7種類の記録を全件上書きします。実購入記録も含まれます。必ず先に今のデータを書き出してください。復元後はページを開き直すと新しい記録が見えます。</p></section>
+<p id="backupPreview" class="hint" role="status">選択しただけでは復元しません。内容を検査し、8種類すべての現在の記録を置き換える前に確認します。</p>
+<button id="backupRestore" type="button" disabled>確認して8種類の記録を復元</button>
+<p class="warning">復元は現在の8種類の記録を全件上書きします。実購入記録も含まれます。必ず先に今のデータを書き出してください。復元後はページを開き直すと新しい記録が見えます。</p></section>
 <section><h2>知っておきたいこと</h2><p class="hint">ホーム画面版とSafariは別の保存領域になる場合があります。「ホーム画面に追加した同じアプリ」からバックアップ・復元してください。JSONはパスワードで暗号化されていません。JRDBの有料情報を含む場合は会員本人以外へ渡さないでください。</p>
 <a href="/my-tickets">3連単下書き・購入記録へ</a></section>
 </main><script defer src="/owner-backup.js"></script></body></html>"""
@@ -37,9 +37,10 @@ const KEYS=[
  'keiba-nine-owner-manual-numbers-v1',
  'keiba-nine-owner-factor-notes-v1',
  'keiba-nine-jrdb-preday-runners-v1',
- 'keiba-nine-owner-server-receipts-v1'
+ 'keiba-nine-owner-server-receipts-v1',
+ 'keiba-nine-owner-rebound-watch-receipts-v1'
 ];
-const FORMAT='keiba-nine-owner-local-all-v4',LEGACY_V3='keiba-nine-owner-local-all-v3',LEGACY_V2='keiba-nine-owner-local-all-v2',LEGACY_V1='keiba-nine-owner-local-all-v1', LIMIT=2500000;
+const FORMAT='keiba-nine-owner-local-all-v5',LEGACY_V4='keiba-nine-owner-local-all-v4',LEGACY_V3='keiba-nine-owner-local-all-v3',LEGACY_V2='keiba-nine-owner-local-all-v2',LEGACY_V1='keiba-nine-owner-local-all-v1', LIMIT=2500000;
 const TRACKS=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
 const $=id=>document.getElementById(id);
 const raceKey=x=>x.date+'|'+x.track+'|'+x.race;
@@ -161,6 +162,46 @@ function signedReceipt(x){
  const second=new Set(s.trioTickets.map(a=>a.slice().sort((a,b)=>a-b).join('-')));
  return first.size===s.trifectaTickets.length&&second.size===s.trioTickets.length;
 }
+function signedReboundWatch(x){
+ if(!x||typeof x!=='object'||Array.isArray(x)||
+    Object.keys(x).sort().join(',')!=='signature,snapshot'||
+    typeof x.signature!=='string'||!/^[a-f0-9]{64}$/.test(x.signature))
+  return false;
+ const p=x.snapshot;
+ if(!p||typeof p!=='object'||Array.isArray(p)||
+    Object.keys(p).sort().join(',')!==
+    'actualPurchase,captureAuditVerified,capturedAt,date,officialJraVerified,race,researchOnly,scheduledOffAt,sourceKind,track,version,watch,winnerPickReady'||
+    p.version!=='owner-rebound-watch-receipt-1'||
+    p.sourceKind!=='server-prestart-research-watch'||
+    p.researchOnly!==true||p.actualPurchase!==false||
+    p.officialJraVerified!==false||p.winnerPickReady!==false||
+    p.captureAuditVerified!==false||
+    typeof p.date!=='string'||!/^20\d{6}$/.test(p.date)||
+    !TRACKS.has(p.track)||!Number.isInteger(p.race)||
+    p.race<1||p.race>12||
+    !Array.isArray(p.watch)||p.watch.length<1||p.watch.length>18||
+    typeof p.capturedAt!=='string'||typeof p.scheduledOffAt!=='string'||
+    !/(?:Z|[+-]\d\d:\d\d)$/.test(p.capturedAt)||
+    !/(?:Z|[+-]\d\d:\d\d)$/.test(p.scheduledOffAt))
+  return false;
+ const day=p.date.slice(0,4)+'-'+p.date.slice(4,6)+'-'+p.date.slice(6);
+ if(!validDate(day))return false;
+ const captured=new Date(p.capturedAt),off=new Date(p.scheduledOffAt);
+ if(!Number.isFinite(captured.valueOf())||!Number.isFinite(off.valueOf())||
+    !(captured<off)||off-captured>7*86400000||
+    off.toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'}).replaceAll('-','')!==p.date)
+  return false;
+ let last=0;
+ for(const row of p.watch){
+  if(!row||typeof row!=='object'||Array.isArray(row)||
+     Object.keys(row).sort().join(',')!=='number,reviewState'||
+     !Number.isInteger(row.number)||row.number<=last||row.number>18||
+     !['cross_source_review','overlapping_history_only','need_more_evidence'].includes(row.reviewState))
+   return false;
+  last=row.number;
+ }
+ return true;
+}
 function sectionsValid(sections,sectionCount=KEYS.length){
  if(!sections||typeof sections!=='object'||Array.isArray(sections)||
     Object.keys(sections).sort().join(',')!==KEYS.slice(0,sectionCount).slice().sort().join(','))throw Error('バックアップの構造が違います。');
@@ -169,12 +210,13 @@ function sectionsValid(sections,sectionCount=KEYS.length){
   {max:576,valid:mapped,identity:raceKey},
   {max:300,valid:scoredNote,identity:raceKey},
   {max:48,valid:preday,identity:x=>x.date+'|'+x.track},
-  {max:360,valid:signedReceipt,identity:x=>raceKey(x.snapshot)}];
+  {max:360,valid:signedReceipt,identity:x=>raceKey(x.snapshot)},
+   {max:360,valid:signedReboundWatch,identity:x=>raceKey(x.snapshot)}];
  for(let i=0;i<sectionCount;i++){
   const rows=sections[KEYS[i]],rule=rules[i];
   if(!Array.isArray(rows)||rows.length>rule.max||!rows.every(rule.valid)||
      new Set(rows.map(rule.identity)).size!==rows.length)
-   throw Error(['下書き','実購入記録','想定メール','馬番メモ','5項目評価の途中メモ','前日情報','署名付き固定予想'][i]+'の形式が不正か、上限を超えています。');
+   throw Error(['下書き','実購入記録','想定メール','馬番メモ','5項目評価の途中メモ','前日情報','署名付き固定予想','発走前の署名付き巻き返し候補'][i]+'の形式が不正か、上限を超えています。');
  }
  const meetings=new Map(sections[KEYS[2]].map(x=>[x.date+'|'+x.track,x]));
  const mappedRows=sections[KEYS[3]];
@@ -204,7 +246,7 @@ function decodeLocal(){
  return sections;
 }
 function countsLabel(c){
- return '下書き'+c[0]+'R／購入記録'+c[1]+'件／想定メール'+c[2]+'開催／馬番メモ'+c[3]+'R／5項目評価'+(c[4]||0)+'R／前日情報'+(c[5]||0)+'開催／固定記録'+(c[6]||0)+'R';
+ return '下書き'+c[0]+'R／購入記録'+c[1]+'件／想定メール'+c[2]+'開催／馬番メモ'+c[3]+'R／5項目評価'+(c[4]||0)+'R／前日情報'+(c[5]||0)+'開催／固定記録'+(c[6]||0)+'R／巻き返し候補'+(c[7]||0)+'R';
 }
 function showCurrent(){
  try{
@@ -249,7 +291,7 @@ $('backupFile').onchange=async()=>{
   const raw=await chosen.text();
   if(raw.length>LIMIT)throw Error('ファイルが大きすぎます。');
   const parsed=JSON.parse(raw);
-  const count=parsed?.format===FORMAT?7:parsed?.format===LEGACY_V3?6:parsed?.format===LEGACY_V2?5:parsed?.format===LEGACY_V1?4:0;
+  const count=parsed?.format===FORMAT?8:parsed?.format===LEGACY_V4?7:parsed?.format===LEGACY_V3?6:parsed?.format===LEGACY_V2?5:parsed?.format===LEGACY_V1?4:0;
   if(!parsed||(count===0)||!parsed.sections||typeof parsed.exportedAt!=='string'||
      Object.keys(parsed).sort().join(',')!=='exportedAt,format,sections')throw Error('競馬ナインの一括バックアップではありません。');
   sectionsValid(parsed.sections,count);
@@ -264,8 +306,8 @@ $('backupFile').onchange=async()=>{
   $('backupRestore').disabled=false;
   $('backupPreview').textContent=countsLabel(report.counts)+
    '。元メールと一致しない馬番メモ'+report.stale+'R。形式検査済み。'+
-   (count<7?'旧'+count+'種類のバックアップのため、未収録の記録は現在の端末のまま維持します。':'')+
-   '復元すると現在の7種類の記録を置き換えます。';
+   (count<KEYS.length?'旧'+count+'種類のバックアップのため、未収録の記録は現在の端末のまま維持します。':'')+
+   '復元すると現在の8種類の記録を置き換えます。';
  }catch(e){
   $('backupPreview').textContent='読み込めません：'+(e instanceof Error?e.message:'ファイルを確認してください。');
  }
@@ -294,7 +336,7 @@ $('backupRestore').onclick=()=>{
   }
   clearPending();
   $('backupPreview').textContent=rolledBack?
-   '保存できず、元の7種類の記録へ戻しました。空き容量を確認してな。':
+   '保存できず、元の8種類の記録へ戻しました。空き容量を確認してな。':
    '端末の容量不足で完全な復旧を保証できません。アプリ操作を止め、バックアップを保管してください。';
  }
 };
