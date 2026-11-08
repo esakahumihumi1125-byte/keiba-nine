@@ -19,7 +19,8 @@ from owner_session_auth import (owner_credentials_match, session_cookie, session
 
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs,
-                          fetch_venue_conditions, fetch_prestart_body, fetch_historical_race_program,
+                          fetch_venue_conditions, fetch_prestart_body, fetch_finished_race_results,
+                          fetch_historical_race_program,
                           fetch_historical_venue_conditions, JRDBError, approved_api_base)
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
 from jrdb_day_pipeline import inspect_day
@@ -43,6 +44,7 @@ from owner_rebound_receipts import (
     issue_rebound_watch_receipts, verify_rebound_watch_receipts,
     compare_watched_winners, WatchReceiptError
 )
+from owner_rebound_provider_results import summarize_provider_watch_results
 from jrdb_factor_preflight import audit_assessment_preflight
 from jrdb_training_hypothesis import build_training_hints, summarize_training_hints
 from jrdb_recent_hypothesis import build_recent_hints, summarize_recent_hints
@@ -2387,6 +2389,55 @@ def create_app(settings=None):
                 return response('502 Bad Gateway', {
                     'error': '過去馬場の照合に失敗しました。履歴や実接続を確認してください。'})
             return response('200 OK', preview)
+        if method == 'POST' and path == '/api/owner-rebound-provider-check':
+            # Explicit owner request: one JRDB /tse call only, after a
+            # signed research watch exists. Provider result is NOT independent
+            # official JRA truth. No user-supplied "result" or winners.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error':'本人専用サービスでのみ利用できます。'})
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or not all(settings.get(k) for k in (
+                        'JRDB_API_KEY','JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error':'JRDBの成績取得設定を確認できません。'})
+            if (environ.get('QUERY_STRING','')
+                    or environ.get('CONTENT_TYPE','').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {'error':'照合の入力形式が不正です。'})
+            try:
+                size=int(environ.get('CONTENT_LENGTH','0'))
+                if not 0<size<=70000:raise WatchReceiptError('Invalid body size')
+                raw=environ['wsgi.input'].read(size)
+                if len(raw)!=size:raise WatchReceiptError('Invalid body')
+                args=json.loads(raw)
+                if not isinstance(args,dict) or set(args)!={'date','receipts'}:
+                    raise WatchReceiptError('Unexpected source fields')
+                day=args['date']
+                originals=verify_rebound_watch_receipts(
+                    args['receipts'],password,day)
+                if not originals:raise WatchReceiptError('No prestart watches')
+                stamp=datetime.fromisoformat(_now_in_jst())
+                # An unstarted watch can never cause an early provider read.
+                from owner_rebound_receipts import _timestamp
+                if not any(stamp >= _timestamp(r['scheduledOffAt'])
+                           for r in originals):
+                    return response('200 OK',
+                        summarize_provider_watch_results(
+                            originals,[],day,now=stamp))
+            except (ValueError,TypeError,KeyError,WatchReceiptError):
+                return response('400 Bad Request',{
+                    'error':'発走前の署名付き候補を検証できません。'})
+            try:
+                source=fetch_finished_race_results(day)
+                preview=summarize_provider_watch_results(
+                    originals,source,day,now=stamp)
+            except (JRDBError,WatchReceiptError,ValueError,TypeError,KeyError):
+                return response('502 Bad Gateway',{
+                    'error':'JRDB成績の取得または照合に失敗。候補記録は変更していません。'})
+            return response('200 OK',preview)
         if method == 'POST' and path == '/api/owner-rebound-verify':
             # The client may submit signed watch receipts, NEVER race
             # outcomes or an officialVerified flag. Until a trusted JRA
