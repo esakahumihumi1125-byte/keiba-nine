@@ -24,7 +24,9 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <section>
 <h2>過去の同条件実績を照合</h2>
 <p class="muted">必要なときだけ過去番組・馬場を最大8件照合（追加APIアクセスは最大16回）。
-資料の数は適性点数や勝率ではありません。未取得や新馬を能力不足とは判断しません。</p>
+資料の数は適性点数や勝率ではありません。未取得や新馬を能力不足とは判断しません。
+同条件の過去3〜5走が十分に確認できた場合だけ「好走実績の研究目安 S〜C」を表示します。
+これは10項目の正式なS〜C、勝率、1着候補の決定ではありません。</p>
 <button id="autoHistoryAudit" type="button" disabled>過去の同条件を最大8件照合する</button>
 <p id="autoHistoryAuditStatus" class="muted" role="status">暫定予想の取得後に利用できます。</p>
 <div id="autoHistoryAuditRaces"></div>
@@ -689,7 +691,7 @@ function validateHistory(h){
     !Array.isArray(h.privateHistoryFactors.races)||
     h.privateHistoryFactors.races.length!==historyCoordinates.size||
     !h.ownerRunnerHistory||
-    h.ownerRunnerHistory.version!=='owner-runner-course-going-observation-1'||
+    h.ownerRunnerHistory.version!=='owner-runner-course-going-observation-2'||
     h.ownerRunnerHistory.researchOnly!==true||
     h.ownerRunnerHistory.privateOwnerOnly!==true||
     h.ownerRunnerHistory.officialJraVerified!==false||
@@ -699,6 +701,23 @@ function validateHistory(h){
     h.ownerRunnerHistory.raceCount!==historyCoordinates.size||
     !Array.isArray(h.ownerRunnerHistory.races)||
     h.ownerRunnerHistory.races.length!==historyCoordinates.size||
+    !h.historicalEvidenceBands||
+    h.historicalEvidenceBands.version!=='owner-condition-evidence-hypothesis-1'||
+    h.historicalEvidenceBands.sourceVersion!=='owner-runner-course-going-observation-2'||
+    h.historicalEvidenceBands.minComparableSamples!==3||
+    h.historicalEvidenceBands.courseDistanceWeight!==20||
+    h.historicalEvidenceBands.goingWeight!==12||
+    h.historicalEvidenceBands.evidenceBandsNotSuitability!==true||
+    h.historicalEvidenceBands.negativeBandNeverExcludesRebound!==true||
+    h.historicalEvidenceBands.researchOnly!==true||
+    h.historicalEvidenceBands.privateOwnerOnly!==true||
+    h.historicalEvidenceBands.officialJraVerified!==false||
+    h.historicalEvidenceBands.overallScoreReady!==false||
+    h.historicalEvidenceBands.winnerPickReady!==false||
+    h.historicalEvidenceBands.bettingReady!==false||
+    h.historicalEvidenceBands.raceCount!==historyCoordinates.size||
+    !Array.isArray(h.historicalEvidenceBands.races)||
+    h.historicalEvidenceBands.races.length!==historyCoordinates.size||
     !h.realAssessmentPreflight||
     h.realAssessmentPreflight.version!=='real-assessment-preflight-1'||
     h.realAssessmentPreflight.realGradeReady!==false||
@@ -723,20 +742,24 @@ function validateHistory(h){
       !Number.isInteger(h.comparableTopThreeRuns)||
       !Number.isInteger(h.knownGoingRuns)||
       !Number.isInteger(h.matchingCurrentGoingRuns)||
+      !Number.isInteger(h.matchingCurrentGoingTopThreeRuns)||
       !Number.isInteger(h.wetGoingRuns)||
       !Number.isInteger(h.wetTopThreeRuns)||
       !Number.isInteger(h.missingPastProgrammes)||
       ![h.comparableRuns,h.comparableTopThreeRuns,h.knownGoingRuns,
-        h.matchingCurrentGoingRuns,h.wetGoingRuns,h.wetTopThreeRuns,
-        h.missingPastProgrammes].every(n=>n>=0&&n<=5)||
+        h.matchingCurrentGoingRuns,h.matchingCurrentGoingTopThreeRuns,
+        h.wetGoingRuns,h.wetTopThreeRuns,h.missingPastProgrammes
+       ].every(n=>n>=0&&n<=5)||
       h.comparableTopThreeRuns>h.comparableRuns||
       h.knownGoingRuns>h.comparableRuns||
       h.matchingCurrentGoingRuns>h.knownGoingRuns||
+      h.matchingCurrentGoingTopThreeRuns>h.matchingCurrentGoingRuns||
       h.wetGoingRuns>h.knownGoingRuns||
       h.wetTopThreeRuns>h.wetGoingRuns||
       typeof h.historyLookupComplete!=='boolean'||
       typeof h.currentGoingRecorded!=='boolean'||
-      (!h.currentGoingRecorded&&h.matchingCurrentGoingRuns!==0))
+      (!h.currentGoingRecorded&&(h.matchingCurrentGoingRuns!==0||
+        h.matchingCurrentGoingTopThreeRuns!==0)))
      throw Error('馬番別履歴の件数不一致');
    seenHorse.add(h.number);
   }
@@ -751,6 +774,54 @@ function validateHistory(h){
   perRace.set(id,{...item,runners:rosterVerified?item.runners:[],
    rosterVerified:!!rosterVerified});
  }
+ // Independently recompute descriptive bands from checked 0..5 counts.
+ // They do not create real suitability grades or 3連単 candidates.
+ function expectedBand(n,hits,complete){
+  if(!complete)return ['未評価','incomplete_history'];
+  if(n<3)return ['未評価','sample_below_three'];
+  if(n===5&&hits===0)return ['C','observed_five_without_top_three'];
+  if(hits>=2&&3*hits>=2*n)return ['S','observed_two_thirds_top_three'];
+  if(hits>=1&&3*hits>=n)return ['A','observed_one_third_top_three'];
+  return ['B','observed_limited_top_three'];
+ }
+ const bandRaces=new Set();
+ for(const b of h.historicalEvidenceBands.races){
+  if(!b||typeof b.track!=='string'||!Number.isInteger(b.race)||
+     !Number.isInteger(b.runnerCount)||b.runnerCount<0||
+     b.runnerCount>18||!Array.isArray(b.runners)||
+     b.runners.length!==b.runnerCount||
+     b.overallScoreReady!==false||b.winnerPickReady!==false)
+   throw Error('過去好走指標の形式不正');
+  const id=b.track+'|'+b.race,actual=perRace.get(id);
+  if(!actual||bandRaces.has(id)||actual.runnerCount!==b.runnerCount)
+   throw Error('過去好走指標のレース不一致');
+  bandRaces.add(id);
+  const source=new Map(actual.runners.length
+   ?actual.runners.map(x=>[x.number,x]):h.ownerRunnerHistory.races.find(
+     x=>x.track===b.track&&x.race===b.race).runners.map(x=>[x.number,x]));
+  const details=new Map();
+  for(const a of b.runners){
+   if(!a||!Number.isInteger(a.number)||details.has(a.number)||
+      !source.has(a.number))throw Error('過去好走指標の馬番不一致');
+   const v=source.get(a.number);
+   const course=expectedBand(v.comparableRuns,v.comparableTopThreeRuns,
+    v.historyLookupComplete);
+   const ground=!v.currentGoingRecorded?['未評価','current_going_unknown']:
+    !v.historyLookupComplete||v.knownGoingRuns!==v.comparableRuns
+     ?['未評価','incomplete_history']
+     :expectedBand(v.matchingCurrentGoingRuns,
+                   v.matchingCurrentGoingTopThreeRuns,true);
+   if(a.courseEvidenceBand!==course[0]||a.courseReason!==course[1]||
+      a.goingEvidenceBand!==ground[0]||a.goingReason!==ground[1])
+    throw Error('過去好走指標の採点根拠が一致しません');
+   details.set(a.number,a);
+  }
+  if(details.size!==actual.runnerCount)
+   throw Error('過去好走指標の馬番不足');
+  actual.experimental=details;
+ }
+ if(bandRaces.size!==historyCoordinates.size)
+  throw Error('過去好走指標のレース不足');
  const seen=new Set(),results=[];
  for(const row of h.privateHistoryFactors.races){
   if(!row||typeof row.track!=='string'||!Number.isInteger(row.race)||
@@ -910,10 +981,13 @@ $('autoHistoryAudit').onclick=async()=>{
     for(const h of details.runners){
      const line=dom('p',h.number+'番｜同条件 '+h.comparableRuns+
        '走（3着以内 '+h.comparableTopThreeRuns+'回）／同じ馬場 '+
-       h.matchingCurrentGoingRuns+'走／重・不良 '+h.wetGoingRuns+
+       h.matchingCurrentGoingRuns+'走（3着以内 '+
+       h.matchingCurrentGoingTopThreeRuns+'回）／重・不良 '+h.wetGoingRuns+
        '走（3着以内 '+h.wetTopThreeRuns+'回）'+
        (watch.has(h.number)?'｜調教好調・近走低評価の巻き返し再審査対象':'')+
-       '。距離・馬場の適性判定は未完了。','muted');
+       '。コース好走実績の研究目安 '+details.experimental.get(h.number).courseEvidenceBand+
+       '／今回馬場の研究目安 '+details.experimental.get(h.number).goingEvidenceBand+
+       '（未検証・総合点と買い目には不反映）。','muted');
      panel.append(line);
     }
     card.append(panel);
