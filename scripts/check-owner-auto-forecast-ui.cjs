@@ -95,6 +95,12 @@ function boot(){
  assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
+ assert.match(a.get('autoHistoryStatus').textContent,/固定 1R/);
+ assert.equal(a.get('autoHistory').children.length,1);
+ const history=a.get('autoHistory').children[0];
+ assert.match(history.children[0].textContent,/3連単 40点/);
+ assert.match(history.children[2].textContent,/1着候補：1・2番/);
+ assert.match(history.children[5].textContent,/1→2→3/);
  assert.equal(firstSave[0].signature,'a'.repeat(64));
  assert.equal(firstSave[0].snapshot.trifectaTickets.length,40);
  // A later forecast is NOT allowed to overwrite the earlier frozen receipt.
@@ -102,6 +108,7 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.equal(JSON.parse(a.storage.get(STORAGE))[0].signature,'a'.repeat(64));
  assert.match(a.get('autoSavedStatus').textContent,/新規 0R/);
+ assert.equal(a.get('autoHistory').children.length,1);
  // A bad response signature must not mutate frozen picks or purchases.
  const corrupted=resultWith('not-an-authentic-signature');
  a.setServer(corrupted);
@@ -160,12 +167,14 @@ function boot(){
  b.get('autoDay').onchange();
  assert.equal(b.get('autoRun').disabled,false);
  assert.match(b.get('autoSavedStatus').textContent,/ありません/);
+ assert.equal(b.get('autoHistory').children.length,0);
  release();
  await stale;
  assert.equal(b.get('autoSummary').textContent,'未取得');
  b.get('autoDay').value='2099-01-01';
  b.get('autoDay').onchange();
  assert.match(b.get('autoSavedStatus').textContent,/固定済み研究記録 1R/);
+ assert.equal(b.get('autoHistory').children.length,1);
  assert.equal(b.get('autoRun').disabled,false);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');

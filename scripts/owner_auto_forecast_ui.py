@@ -21,6 +21,14 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
 <section>
+<h2>発走前に固定した買い目の履歴</h2>
+<p id="autoHistoryStatus" class="muted" role="status">この端末の固定記録を読み込み中です。</p>
+<div id="autoHistory"></div>
+<p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
+署名はこの画面では検証していません。後付け予想ではありません。</p>
+<a href="/owner-backup">7種類の記録をバックアップ・復元する</a>
+</section>
+<section>
 <h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <div id="autoRaces"></div>
@@ -344,6 +352,71 @@ function localReceiptStatus(day){
   return '端末内の固定記録を確認できません。既存データは変更しません。';
  }
 }
+function showFixedHistory(day){
+ const root=$('autoHistory'),label=$('autoHistoryStatus');
+ root.replaceChildren();
+ if(!/^20[0-9]{6}$/.test(day)){label.textContent='開催日を選択してください。';return;}
+ const selected=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+ try{
+  const raw=localStorage.getItem(RECEIPTS_KEY);
+  if(!raw){label.textContent='この日の固定記録は端末にありません。別のSafari・ホーム画面やバックアップも確認できます。';return;}
+  if(raw.length>650000)throw Error('large');
+  const records=JSON.parse(raw);
+  if(!Array.isArray(records)||records.length>360)throw Error('shape');
+  const seen=new Set(),rows=[];
+  const venues=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
+  for(const r of records){
+   if(!r||!r.snapshot||typeof r.signature!=='string'||
+      !/^[0-9a-f]{64}$/.test(r.signature))throw Error('record');
+   const s=r.snapshot;
+   if(s.date!==selected)continue;
+   const key=s.track+'|'+s.race;
+   if(!venues.has(s.track)||!Number.isInteger(s.race)||s.race<1||s.race>12||
+      seen.has(key)||s.sourceKind!=='prestart-locked'||
+      s.actualPurchase!==false||s.scheduleVerified!==false||
+      s.predictionVerified!==false||
+      typeof s.lockedAt!=='string'||typeof s.scheduledOffAt!=='string'||
+      !/(?:Z|[+-]\d\d:\d\d)$/.test(s.lockedAt)||
+      !/(?:Z|[+-]\d\d:\d\d)$/.test(s.scheduledOffAt)||
+      !Number.isFinite(Date.parse(s.lockedAt))||
+      !Number.isFinite(Date.parse(s.scheduledOffAt))||
+      Date.parse(s.lockedAt)>=Date.parse(s.scheduledOffAt)||
+      !Array.isArray(s.trifectaTickets)||s.trifectaTickets.length>48||
+      !Array.isArray(s.trioTickets)||s.trioTickets.length>48)
+     throw Error('unsafe');
+   const unique=new Set();
+   for(const t of s.trifectaTickets){
+    if(!Array.isArray(t)||t.length!==3||
+       t.some(n=>!Number.isInteger(n)||n<1||n>18)||
+       new Set(t).size!==3||unique.has(t.join('-')))throw Error('ticket');
+    unique.add(t.join('-'));
+   }
+   seen.add(key);rows.push(s);
+  }
+  rows.sort((a,b)=>a.track.localeCompare(b.track,'ja')||a.race-b.race);
+  if(!rows.length){label.textContent='この日の固定記録は端末にありません。別のSafari・ホーム画面やバックアップも確認できます。';return;}
+  label.textContent='発走前固定 '+rows.length+'R（端末保存・署名は未検証・実購入なし）。';
+  for(const s of rows){
+   const tickets=s.trifectaTickets;
+   const detail=dom('details');
+   detail.append(dom('summary',s.track+' '+s.race+'R｜3連単 '+tickets.length+
+     '点｜100円換算 '+(tickets.length*100).toLocaleString('ja-JP')+'円'));
+   detail.append(dom('p','固定日時：'+s.lockedAt+'／暫定発走時刻：'+
+      s.scheduledOffAt,'muted'));
+   if(tickets.length){
+    const set=i=>[...new Set(tickets.map(t=>t[i]))].sort((a,b)=>a-b).join('・');
+    detail.append(dom('p','1着候補：'+set(0)+'番','picks'),
+     dom('p','2着に含む：'+set(1)+'番','picks'),
+     dom('p','3着に含む：'+set(2)+'番','picks'),
+     dom('p',tickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
+   }
+   root.append(detail);
+  }
+ }catch(_){
+  root.replaceChildren();
+  label.textContent='固定記録の形式が不正です。既存記録は変更せず、バックアップを確認してください。';
+ }
+}
 function saveAutoReceipts(data,day){
  if(data.serverStamped!==true||data.captureAuditVerified!==false||
   !Array.isArray(data.researchReceipts)||data.researchReceipts.length>36||
@@ -411,6 +484,7 @@ $('autoDay').onchange=()=>{
  $('autoSummary').textContent='未取得';
  $('autoSavedStatus').textContent=localReceiptStatus(
   $('autoDay').value.replaceAll('-',''));
+ showFixedHistory($('autoDay').value.replaceAll('-',''));
  $('autoStatus').textContent='開催日を選んでな。';
 };
 $('autoRun').onclick=async()=>{
@@ -446,6 +520,7 @@ $('autoRun').onclick=async()=>{
     ?'サーバー固定済み '+body.archiveRecordCount+'R／前の買い目を優先したレース '+
       body.archiveConflictCount+'R。'+localStatus
     :'サーバー保存は未設定。'+localStatus;
+   showFixedHistory(day);
   }catch(_){
    $('autoSavedStatus').textContent='研究記録の端末保存はできませんでした。結果表示と実購入記録には影響しません。';
   }
@@ -460,6 +535,7 @@ $('autoRun').onclick=async()=>{
 };
 $('autoSavedStatus').textContent=localReceiptStatus(
  $('autoDay').value.replaceAll('-',''));
+showFixedHistory($('autoDay').value.replaceAll('-',''));
 updateReviewLink();
 // Opening the authenticated owner page is the only automatic trigger.
 // No timers, background provider polling, or auto-purchase.
