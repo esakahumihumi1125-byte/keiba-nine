@@ -39,6 +39,10 @@ from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
                                     CSS as AUTO_FORECAST_CSS)
 from jrdb_owner_day_ui import HTML as OWNER_DAY_HTML, JS as OWNER_DAY_JS, CSS as OWNER_DAY_CSS
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
+from owner_rebound_receipts import (
+    issue_rebound_watch_receipts, verify_rebound_watch_receipts,
+    compare_watched_winners, WatchReceiptError
+)
 from jrdb_factor_preflight import audit_assessment_preflight
 from jrdb_training_hypothesis import build_training_hints, summarize_training_hints
 from jrdb_recent_hypothesis import build_recent_hints, summarize_recent_hints
@@ -2369,10 +2373,53 @@ def create_app(settings=None):
                     fetch_dra=fetch_historical_race_program,
                     fetch_dka=fetch_historical_venue_conditions, limit=limit,
                     training=training)
-            except (JRDBError, ProgrammeFormatError, CoverageError, HistoryFetchError, ValueError):
+                # Server time, not browser time. A receipt exists ONLY if
+                # a nonempty research watch was generated before the
+                # *provisional JRDB* off-time. This does not attest an
+                # independently verified JRA schedule or final result.
+                stamp = datetime.fromisoformat(_now_in_jst())
+                preview['watchCapture'] = issue_rebound_watch_receipts(
+                    preview, programme, password, date, now=stamp
+                )
+            except (JRDBError, ProgrammeFormatError, CoverageError,
+                    HistoryFetchError, WatchReceiptError, ValueError,
+                    TypeError, KeyError):
                 return response('502 Bad Gateway', {
                     'error': '過去馬場の照合に失敗しました。履歴や実接続を確認してください。'})
             return response('200 OK', preview)
+        if method == 'POST' and path == '/api/owner-rebound-verify':
+            # The client may submit signed watch receipts, NEVER race
+            # outcomes or an officialVerified flag. Until a trusted JRA
+            # results adapter exists, all result comparisons remain pending.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {'error': '本人専用サービスでのみ利用できます。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE','').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {'error':'記録の形式が不正です。'})
+            try:
+                size=int(environ.get('CONTENT_LENGTH','0'))
+                if not 0 < size <= 70000:raise WatchReceiptError('Invalid body size')
+                raw=environ['wsgi.input'].read(size)
+                if len(raw)!=size:raise WatchReceiptError('Invalid body length')
+                args=json.loads(raw)
+                if not isinstance(args,dict) or set(args)!={'date','receipts'}:
+                    raise WatchReceiptError('Invalid request')
+                date=args['date']
+                originals=verify_rebound_watch_receipts(
+                    args['receipts'],password,date)
+                report=compare_watched_winners(originals,[])
+            except (WatchReceiptError,ValueError,TypeError,KeyError):
+                return response('400 Bad Request', {
+                    'error':'巻き返し候補の署名付き記録を照合できませんでした。'})
+            return response('200 OK', {
+                'available':bool(originals),'serverSigned':True,
+                'jraScheduleVerified':False,
+                'officialFeedConnected':False,
+                'review':report
+            })
         if method == 'POST' and path == '/api/research':
             if environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower() != 'application/json':
                 return response('415 Unsupported Media Type', {'error': 'JSON形式が必要です。'})
