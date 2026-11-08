@@ -69,6 +69,9 @@ from owner_race_evidence import decode_evidence, EvidenceError, ENV_KEY as OWNER
 from owner_result_review import HTML as REVIEW_HTML, JS as REVIEW_JS, CSS as REVIEW_CSS
 from owner_daily_review_snapshot import decode_review, ReviewError, ENV_KEY as OWNER_DAILY_REVIEW_ENV_KEY
 from owner_daily_review_ui import HTML as DAILY_REVIEW_HTML, JS as DAILY_REVIEW_JS, CSS as DAILY_REVIEW_CSS
+from owner_100yen_review_ui import HTML as YEN_REVIEW_HTML, JS as YEN_REVIEW_JS, CSS as YEN_REVIEW_CSS
+from owner_100yen_snapshot import decode_frozen_snapshots, FrozenSnapshotError
+from keiba_100yen_review import review_100yen, ReviewInputError
 from jrdb_one_race_trial import build_one_race_trial
 from jrdb_day_trial import build_day_trial
 from owner_one_race_trial_ui import HTML as AUTO_HTML, JS as AUTO_JS, CSS as AUTO_CSS
@@ -1225,7 +1228,7 @@ def create_app(settings=None):
                             extra=[('Location', '/login?session=check'),
                                    ('Set-Cookie', session_cookie(expected))])
         if not valid:
-            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/my-scorecard', '/owner-races', '/owner-preday-forecast', '/owner-jrdb-day-research', '/owner-gmail-setup', '/owner-review', '/owner-daily-review', '/owner-auto-trial', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
+            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/my-scorecard', '/owner-races', '/owner-preday-forecast', '/owner-jrdb-day-research', '/owner-gmail-setup', '/owner-review', '/owner-daily-review', '/owner-100yen-review', '/owner-auto-trial', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
                 return response('303 See Other', '', 'text/plain; charset=utf-8',
                                 extra=[('Location', '/login')])
             # Do not summon an iPhone native Basic-password popup when an
@@ -1235,7 +1238,7 @@ def create_app(settings=None):
                 '/app.js', '/app.css', '/my-tickets.js',
                 '/my-tickets.css', '/my-purchases.js', '/research-batch-demo.css',
                 '/day-pipeline.css', '/day-pipeline.js',
-                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/owner-scorecard.js', '/owner-scorecard.css', '/owner-race-workbench.js', '/owner-race-workbench.css', '/owner-preday-forecast.js', '/owner-preday-forecast.css', '/owner-gmail-setup.js', '/owner-gmail-setup.css', '/owner-jrdb-day-research.js', '/owner-jrdb-day-research.css', '/owner-review.js', '/owner-review.css', '/owner-daily-review.js', '/owner-daily-review.css', '/owner-auto-trial.js', '/owner-auto-trial.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
+                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/owner-scorecard.js', '/owner-scorecard.css', '/owner-race-workbench.js', '/owner-race-workbench.css', '/owner-preday-forecast.js', '/owner-preday-forecast.css', '/owner-gmail-setup.js', '/owner-gmail-setup.css', '/owner-jrdb-day-research.js', '/owner-jrdb-day-research.css', '/owner-review.js', '/owner-review.css', '/owner-daily-review.js', '/owner-daily-review.css', '/owner-100yen-review.js', '/owner-100yen-review.css', '/owner-auto-trial.js', '/owner-auto-trial.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
             ):
                 return response('401 Unauthorized', {'error': 'ログインが必要です。'})
             return response('401 Unauthorized', {'error': '本人認証が必要です。'},
@@ -1263,6 +1266,8 @@ def create_app(settings=None):
                                   '<a class="owner-main-action" href="/my-scorecard">',
                                   '<a class="owner-main-action" href="/owner-jrdb-day-research">'
                                   '② JRDB全場・全Rの2項目暫定評価を一括表示</a>'
+                                  '<a class="owner-sub-action" href="/owner-100yen-review">'
+                                  '100円仮想収支（発走前固定分・結果待ちを区別）</a>'
                                   '<a class="owner-main-action" href="/my-scorecard">'
                                 ))
             return response('200 OK', text, mime)
@@ -1293,6 +1298,17 @@ def create_app(settings=None):
                 '/owner-daily-review.css': (DAILY_REVIEW_CSS, 'text/css; charset=utf-8'),
             }[path]
             return response('200 OK', data, mime)
+        if method == 'GET' and path in (
+                '/owner-100yen-review', '/owner-100yen-review.js', '/owner-100yen-review.css'):
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'):
+                return response('404 Not Found', {'error': '本人専用サービスでのみ利用できます。'})
+            body, mime = {
+                '/owner-100yen-review': (YEN_REVIEW_HTML, 'text/html; charset=utf-8'),
+                '/owner-100yen-review.js': (YEN_REVIEW_JS, 'text/javascript; charset=utf-8'),
+                '/owner-100yen-review.css': (YEN_REVIEW_CSS, 'text/css; charset=utf-8'),
+            }[path]
+            return response('200 OK', body, mime)
         if method == 'GET' and path in ('/owner-review', '/owner-review.js', '/owner-review.css'):
             page, mime = {
                 '/owner-review': (REVIEW_HTML, 'text/html; charset=utf-8'),
@@ -1443,6 +1459,37 @@ def create_app(settings=None):
                 return response('503 Service Unavailable', {
                     'error': '振り返りレポートの内容を検証できません。'})
             return response('200 OK', {'available': True, 'review': summary})
+        if method == 'GET' and path == '/api/owner-100yen-review':
+            # Result-source authentication and immutable prestart capture are NOT
+            # connected yet. Never promote manually asserted official results.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'):
+                return response('404 Not Found', {'error': '本人専用サービスでのみ利用できます。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date'} or len(query['date']) != 1):
+                return response('400 Bad Request', {'error': '開催日を正しく選択してください。'})
+            selected = query['date'][0]
+            if not re.fullmatch(r'20\d{2}-\d{2}-\d{2}', selected):
+                return response('400 Bad Request', {'error': '開催日を正しく選択してください。'})
+            try:
+                if datetime.strptime(selected, '%Y-%m-%d').date().isoformat() != selected:
+                    raise ValueError()
+            except ValueError:
+                return response('400 Bad Request', {'error': '開催日を正しく選択してください。'})
+            stored = settings.get('KEIBA_OWNER_FROZEN_PREDICTIONS_JSON', '')
+            if not stored:
+                return response('200 OK', {
+                    'available': False, 'review': None,
+                    'captureAuditVerified': False, 'officialFeedConnected': False})
+            try:
+                predictions = decode_frozen_snapshots(stored, selected)
+                report = review_100yen(predictions, [])
+            except (FrozenSnapshotError, ReviewInputError, ValueError, TypeError):
+                return response('503 Service Unavailable', {
+                    'error': '発走前固定済みの予想データを安全に検証できません。'})
+            return response('200 OK', {
+                'available': bool(report['races']), 'review': report if report['races'] else None,
+                'captureAuditVerified': False, 'officialFeedConnected': False})
         if method == 'GET' and path == '/api/owner-live-notes':
             # Gmail bridge credentials only exist server-side. This endpoint
             # remains owner-authenticated and never changes forecasts/purchases.
