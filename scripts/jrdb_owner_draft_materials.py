@@ -51,10 +51,15 @@ def observe_owner_draft_materials(programme, entries, training, recent, day):
     if len(keys) != len(programme) or any(set(m) != keys for m in indexed):
         raise CoverageError("Source material races disagree")
     output = []
+    programme_by_coord = {
+        (row["track"], row["race"]): row for row in programme
+    }
     for key in sorted(keys):
         a, b, c = (m[key] for m in indexed)
         count = a["runnerCount"]
+        declared = programme_by_coord[key].get("headcount")
         if (type(count) is not int or not 0 <= count <= 18
+                or type(declared) is not int or declared != count
                 or b["runnerCount"] != count or c["runnerCount"] != count
                 or any(x["verifiedFactorCount"] != 0 for x in (a, b, c))):
             raise CoverageError("Source material counts contradict roster")
