@@ -15,6 +15,22 @@ JRDBからの2026-11-08の通知でβ版テストユーザー登録完了。
 そのまま保持する。無料枠でもWebサービスURL自体はインターネットへ公開されるため、
 本人認証を必須にする。無認証のデータAPIアクセスは禁止。
 
+## 2026-11-08 15:47 JST 現在の作業状況
+
+無料の別サービス `keiba-nine-owner-jrdb` を作成済み：
+https://dashboard.render.com/web/srv-dbo1m515efls73cl39s0
+
+ビルド成功を確認。起動は `KEIBA_OWNER_PASSWORD` 未設定で意図どおり停止。
+現時点ではJRDB-API認証情報は一切設定していない。
+既存プレビューは別サービスとして継続稼働中。
+
+**本人が次に設定するものは**新サービスの
+`KEIBA_OWNER_PASSWORD`（強力なランダム値）、
+`JRDB_API_KEY`、`JRDB_AUTH_KEY` の3つ。
+それぞれRenderのEnvironmentの非公開入力欄だけに入れる。
+その後 `JRDB_PRIVATE_ENABLED` を `1` にする。
+これらの値はチャット・GitHub・スクリーンショットに出さない。
+
 ## 新しいRenderサービスの作成
 
 Render Dashboard → New → Web Service → このGitHubレポジトリの `main`。
