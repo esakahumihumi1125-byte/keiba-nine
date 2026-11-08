@@ -1684,12 +1684,40 @@ def create_app(settings=None):
                 stage = '近走'
                 recent = fetch_recent_runs(date)
                 stage = '馬場'
-                conditions = fetch_venue_conditions(date)
+                venue_status = 'ok'
+                venue_note = None
+                try:
+                    conditions = fetch_venue_conditions(date)
+                except JRDBError as venue_exc:
+                    # The selected-race report is research-only, NOT a forecast.
+                    # Preserve the other four validated sources if the optional
+                    # venue provider has a transient or unsuccessful response.
+                    # Identity, credentials, quota, mismatch and unexpected
+                    # schema errors MUST still fail closed.
+                    venue_reason = str(venue_exc)
+                    temporary = venue_reason in (
+                        'JRDB request or response failed',
+                        'JRDB returned an unsuccessful response',
+                    )
+                    server_failure = re.fullmatch(
+                        r'JRDB request failed \\(HTTP (500|502|503|504)\\)',
+                        venue_reason,
+                    ) is not None
+                    if not (temporary or server_failure):
+                        raise
+                    conditions = []  # Explicitly unknown, never assumed good.
+                    venue_status = 'unavailable'
+                    venue_note = ('馬場APIが応答しないため馬場資料は未確認。'
+                                  'その他の資料件数のみ照合。公式照合・予想・馬券は未実施。')
                 stage = '資料照合'
                 report = selected_race_readiness(
                     programme, entries, training, recent, conditions,
                     date, track, int(number), _now_in_jst()
                 )
+                # Only coarse coverage status leaves the authenticated service.
+                # No raw venue errors, timestamps, horses, or API credentials.
+                report['venueFetchStatus'] = venue_status
+                report['venueFetchNotice'] = venue_note
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     RaceContextError, FreshnessError, ValueError, KeyError, TypeError) as exc:
                 category = ('API応答' if isinstance(exc, JRDBError)
