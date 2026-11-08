@@ -59,6 +59,7 @@ from owner_race_workbench import HTML as WORKBENCH_HTML, JS as WORKBENCH_JS, CSS
 from owner_preday_forecast_ui import HTML as FORECAST_HTML, JS as FORECAST_JS, CSS as FORECAST_CSS
 from owner_forecast_delivery import decode_forecast, decode_plain_owner_snapshot, OwnerForecastError, ENV_KEY as OWNER_FORECAST_ENV_KEY
 from owner_live_notes import parse_live_notes, LiveNoteError, ENV_KEY as OWNER_LIVE_ENV_KEY
+from owner_mail_bridge import load_owner_live_notes, BridgeUnavailable
 from owner_race_evidence import decode_evidence, EvidenceError, ENV_KEY as OWNER_EVIDENCE_ENV_KEY
 from owner_result_review import HTML as REVIEW_HTML, JS as REVIEW_JS, CSS as REVIEW_CSS
 from owner_daily_review_snapshot import decode_review, ReviewError, ENV_KEY as OWNER_DAILY_REVIEW_ENV_KEY
@@ -1273,15 +1274,22 @@ def create_app(settings=None):
                     'error': '振り返りレポートの内容を検証できません。'})
             return response('200 OK', {'available': True, 'review': summary})
         if method == 'GET' and path == '/api/owner-live-notes':
-            stored = settings.get(OWNER_LIVE_ENV_KEY, '')
-            if not stored:
-                return response('200 OK', {'available': False, 'notes': None})
+            # Gmail bridge credentials only exist server-side. This endpoint
+            # remains owner-authenticated and never changes forecasts/purchases.
             try:
-                notes = parse_live_notes(stored)
-            except LiveNoteError:
+                notes, sync = load_owner_live_notes(settings)
+            except BridgeUnavailable:
                 return response('503 Service Unavailable', {
                     'error': '当日の追加情報を検証できません。'})
-            return response('200 OK', {'available': True, 'notes': notes})
+            if notes is None:
+                if sync['configured']:
+                    return response('200 OK', {
+                        'available': False, 'notes': None, 'sync': sync})
+                return response('200 OK', {'available': False, 'notes': None})
+            result = {'available': True, 'notes': notes}
+            if sync['configured']:
+                result['sync'] = sync
+            return response('200 OK', result)
         if method == 'GET' and path == '/api/owner-preday-forecast':
             # Only owner-authenticated, same-origin requests reach this endpoint.
             # Render's private env holds a compressed editorial forecast, not
