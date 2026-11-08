@@ -84,6 +84,16 @@ def _normalize_runners(research):
     if research.get("completeTwoFactorCount") != sum(
             x["twoFactorPoints"] is not None for x in normalized):
         raise CoverageError("Complete runner count mismatch")
+    previous, rank = None, 0
+    for index, horse in enumerate(normalized, 1):
+        score = horse["twoFactorPoints"]
+        if score is None:
+            horse["comparisonRank"] = None
+        else:
+            if score != previous:
+                rank = index
+            horse["comparisonRank"] = rank
+            previous = score
     return normalized
 
 
@@ -92,6 +102,43 @@ def _cutoff_tied(runners, size):
         runners[size - 1]["twoFactorPoints"]
         == runners[size]["twoFactorPoints"]
     )
+
+
+def _safe_formation_sizes(runners):
+    """Choose complete-score cutoffs, never number-based ties.
+
+    A two-horse first slot is preferred. A three-horse first slot is used
+    only when two is impossible or cannot reach 30 tickets and three can.
+    This is mechanical hypothesis research, not an outcome predictor.
+    """
+    count = len(runners)
+    options = {}
+    for first_count in (2, 3):
+        if first_count > count or _cutoff_tied(runners, first_count):
+            continue
+        candidates = []
+        for second_count in range(first_count + 1, min(6, count) + 1):
+            if _cutoff_tied(runners, second_count):
+                continue
+            for third_count in range(second_count, min(10, count) + 1):
+                if _cutoff_tied(runners, third_count):
+                    continue
+                points = first_count * (second_count - 1) * (third_count - 2)
+                if 1 <= points <= 40:
+                    candidates.append((points, first_count, second_count, third_count))
+        if candidates:
+            options[first_count] = max(candidates)
+    pair = options.get(2)
+    triple = options.get(3)
+    if pair and pair[0] >= 30:
+        return pair[1:]
+    if triple and triple[0] >= 30:
+        return triple[1:]
+    if pair:
+        return pair[1:]
+    if triple:
+        return triple[1:]
+    return None
 
 
 def _draft_for_race(row, research, day, now):
@@ -139,11 +186,11 @@ def _draft_for_race(row, research, day, now):
     if now >= off:
         output["reason"] = "after_provisional_off"
         return output
-    a, b, c = 2, min(5, len(runners)), min(7, len(runners))
-    if any(_cutoff_tied(runners, boundary) for boundary in (a, b, c)):
-        # Do not choose one horse out of an equal-score boundary by horse number.
+    sizes = _safe_formation_sizes(runners)
+    if sizes is None:
         output["reason"] = "ambiguous_equal_grade_boundary"
         return output
+    a, b, c = sizes
     first = [x["number"] for x in runners[:a]]
     second = [x["number"] for x in runners[:b]]
     third = [x["number"] for x in runners[:c]]
@@ -214,7 +261,8 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
         "officialJraVerified": False, "overallPredictionReady": False,
         "bettingReady": False, "autoPurchase": False,
         "policy": ("実際のJRDB β資料から2項目の仮説的S/A/B/Cを自動計算した参考並び。"
-                   "全頭に2項目が揃い、上位候補の同点境界が曖昧でなく、"
+                   "全頭に2項目が揃い、候補の同点境界が曖昧でなく、"
+                   "1着基本2頭（境界の同点など必要時だけ3頭）で"
                    "JRDB記載の暫定発走時刻より前のレースだけに"
                    "3連単フォーメーションの研究用下書きを提示。"
                    "調教・近走以外の8項目やJRA公式取消・確定出走馬・馬場・"
