@@ -21,6 +21,8 @@ JRA公式の出走取消・馬場・発走時刻と8項目の評価は未接続�
 <section>
 <h2>レース別の暫定評価</h2>
 <p id="stats" class="muted">未取得</p>
+<div id="venueFilters" class="venue-filters" role="group" aria-label="競馬場で絞り込み"></div>
+<p id="venueStats" class="muted" aria-live="polite"></p>
 <div id="results"></div>
 </section>
 <p class="muted">Sは金色、Aは赤色。順位は調教と近走の両方がある馬だけの
@@ -43,6 +45,10 @@ min-height:46px;margin:6px 0 8px}
 input{background:#0f2439;color:#fff;border:1px solid #8aa3bc}
 button{background:#e8c774;color:#182b41;border:0;font-weight:800}
 button:disabled{opacity:.6}
+.venue-filters{display:flex;flex-wrap:wrap;gap:7px}
+.venue-filter{width:auto;flex:1 1 100px;min-height:44px;margin:3px 0 7px;
+ background:#29445e;color:#f2f6fc;border:1px solid #6485a5}
+.venue-filter[aria-pressed="true"]{background:#e8c774;color:#182b41;border-color:#e8c774}
 details{margin:9px 0;background:#12263c;border:1px solid #476581;border-radius:10px;padding:10px}
 summary{cursor:pointer;color:#f4ddaa;font-weight:700;font-size:14px}
 .race-badge{display:inline-block;color:#c3deed;font-size:12px;padding-left:6px}
@@ -107,7 +113,7 @@ function draw(data,requested){
     data.raceCount!==data.races.length||
     data.researchAvailableCount+data.needsReviewCount!==data.raceCount)
   throw Error('開催日データの形式が違います');
- const container=$('results'),frag=document.createDocumentFragment(),keys=new Set();
+ const keys=new Set(),nodes=[],byVenue=new Map();
  for(const race of data.races){
   if(!race||!Number.isInteger(race.race)||race.race<1||race.race>12||
       typeof race.track!=='string'||race.track.length>6||
@@ -128,15 +134,47 @@ function draw(data,requested){
    group.append(title);
    for(const horse of d.runners)group.append(drawRunner(horse));
   }
-  frag.append(group);
+  const count=byVenue.get(race.track)||{total:0,ready:0};
+  count.total++;
+  if(race.status==='research_only')count.ready++;
+  byVenue.set(race.track,count);
+  nodes.push({track:race.track,node:group});
  }
- container.replaceChildren(frag);
+ const filters=$('venueFilters');
+ filters.replaceChildren();
+ function showVenue(track){
+  const visible=document.createDocumentFragment();
+  for(const entry of nodes)if(!track||entry.track===track)visible.append(entry.node);
+  $('results').replaceChildren(visible);
+  for(const button of filters.querySelectorAll('button'))
+   button.setAttribute('aria-pressed',String(button.dataset.track===track));
+  const summary=track?byVenue.get(track):null;
+  $('venueStats').textContent=summary?
+   track+' '+summary.total+'R／暫定評価あり '+summary.ready+'R／要確認 '+(summary.total-summary.ready)+'R。':
+   '全場 '+data.raceCount+'Rを表示中。競馬場を押すと、その競馬場のレースだけを確認できます。';
+ }
+ for(const track of ['',...byVenue.keys()]){
+  const count=byVenue.get(track);
+  const button=dom('button',track?track+' '+count.total+'R':'すべて '+data.raceCount+'R','venue-filter');
+  button.type='button';
+  button.dataset.track=track;
+  button.setAttribute('aria-pressed','false');
+  button.onclick=()=>showVenue(track);
+  filters.append(button);
+ }
+ showVenue('');
  $('stats').textContent=data.raceCount+'R中、研究資料あり '+data.researchAvailableCount+
  'R／要確認 '+data.needsReviewCount+'R。JRA公式照合・総合予想・馬券生成は未実施。';
 }
 let latest=0;
 $('day').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
-$('day').onchange=()=>{latest++;$('results').replaceChildren();$('stats').textContent='未取得';};
+$('day').onchange=()=>{
+ latest++;
+ $('results').replaceChildren();
+ $('venueFilters').replaceChildren();
+ $('venueStats').textContent='';
+ $('stats').textContent='未取得';
+};
 $('dayLoad').onclick=async()=>{
  const requestId=++latest,button=$('dayLoad'),day=$('day').value.replaceAll('-','');
  if(!/^20[0-9]{6}$/.test(day)){ $('status').textContent='開催日を選んでな。';return; }
