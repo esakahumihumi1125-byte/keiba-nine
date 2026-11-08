@@ -20,7 +20,7 @@ INSERT = """
 INSERT INTO owner_prestart_receipts
  (race_day, track, race_no, receipt_json)
 SELECT %s, %s, %s, CAST(%s AS jsonb)
-WHERE CURRENT_TIMESTAMP < CAST(%s AS timestamptz)
+WHERE clock_timestamp() < CAST(%s AS timestamptz)
 ON CONFLICT (race_day, track, race_no) DO NOTHING
 """
 SELECT = """
