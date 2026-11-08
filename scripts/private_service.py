@@ -1694,29 +1694,35 @@ def create_app(settings=None):
                 stage = '馬場'
                 venue_status = 'ok'
                 venue_note = None
+                venue_failure_kind = None
                 try:
                     conditions = fetch_venue_conditions(date)
                 except JRDBError as venue_exc:
-                    # The selected-race report is research-only, NOT a forecast.
-                    # Preserve the other four validated sources if the optional
-                    # venue provider has a transient or unsuccessful response.
-                    # Identity, credentials, quota, mismatch and unexpected
-                    # schema errors MUST still fail closed.
-                    venue_reason = str(venue_exc)
-                    temporary = venue_reason in (
-                        'JRDB request or response failed',
-                        'JRDB returned an unsuccessful response',
-                    )
-                    server_failure = re.fullmatch(
-                        r'JRDB request failed \(HTTP (500|502|503|504)\)',
-                        venue_reason,
-                    ) is not None
-                    if not (temporary or server_failure):
-                        raise
-                    conditions = []  # Explicitly unknown, never assumed good.
+                    # /tka is optional for a *research-only coverage report*.
+                    # Discard its entire response on ANY failure, including
+                    # auth, quota, mismatched echo, schema, and HTTP errors.
+                    # Do not merge, infer, reuse or persist venue/going values.
+                    # The FOUR previously validated sources remain usable
+                    # for redacted coverage diagnostics only. Never forecast.
+                    msg = str(venue_exc)
+                    if 'HTTP 401' in msg or 'HTTP 403' in msg:
+                        venue_failure_kind = 'permission'
+                    elif 'HTTP 429' in msg:
+                        venue_failure_kind = 'rate_limit'
+                    elif 'HTTP ' in msg:
+                        venue_failure_kind = 'http'
+                    elif 'different ' in msg or 'mismatch' in msg:
+                        venue_failure_kind = 'inconsistent'
+                    elif 'response' in msg or 'unsuccessful' in msg:
+                        venue_failure_kind = 'provider_response'
+                    else:
+                        venue_failure_kind = 'connection'
+                    conditions = []
                     venue_status = 'unavailable'
-                    venue_note = ('馬場APIが応答しないため馬場資料は未確認。'
-                                  'その他の資料件数のみ照合。公式照合・予想・馬券は未実施。')
+                    venue_note = ('JRDB馬場APIの取得に失敗。馬場は未確認。'
+                                  '他の資料の件数のみ表示します。'
+                                  'JRA公式照合・AI予想・馬券生成は未実施。')
+                stage = '資料照合'
                 stage = '資料照合'
                 report = selected_race_readiness(
                     programme, entries, training, recent, conditions,
