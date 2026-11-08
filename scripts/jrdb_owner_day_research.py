@@ -22,7 +22,7 @@ MAX_SOURCE_ROWS = 50000
 def owner_day_research(programme, entries, training, previous, date):
     if not _valid_date(date):
         raise CoverageError("Invalid day research date")
-    if (not isinstance(programme, list) or not 1 <= len(programme) <= MAX_RACES
+    if (not isinstance(programme, list) or not 0 <= len(programme) <= MAX_RACES
             or not all(isinstance(row, dict) for row in programme)):
         raise CoverageError("Invalid all-day programme")
     for name, collection in (("entries", entries), ("training", training),
