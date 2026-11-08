@@ -29,6 +29,8 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 さらに過去4角の位置取りから、先行候補の競合状況と研究用の展開仮説を表示します。
 これは10項目の正式なS〜C、勝率、1着候補の決定ではありません。</p>
 <button id="autoHistoryAudit" type="button" disabled>過去の同条件を最大8件照合する</button>
+<p class="muted">発走前に照合した巻き返し候補は署名を検証し、iPhone内に最初の候補を固定します。事後の再分析で候補を上書きしません。これは公式結果や馬券購入の証明ではありません。</p>
+<p id="autoHistoryWatchSave" class="muted" role="status">発走前の候補記録は未確認。</p>
 <p id="autoHistoryAuditStatus" class="muted" role="status">暫定予想の取得後に利用できます。</p>
 <div id="autoHistoryAuditRaces"></div>
 </section>
@@ -664,6 +666,7 @@ function saveAutoReceipts(data,day){
   '保存先はこのiPhone内のみ（Safariとホーム画面で別の場合あり）。';
 }
 
+const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 let request=0,followingToday=true,historySeq=0,historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
@@ -674,6 +677,81 @@ function clearHistory(){
  $('autoHistoryAudit').disabled=true;
  $('autoHistoryAuditRaces').replaceChildren();
  $('autoHistoryAuditStatus').textContent='暫定予想の取得後に利用できます。';
+ $('autoHistoryWatchSave').textContent='発走前の候補記録は未確認。';
+}
+function validateWatchCapture(capture,history){
+ if(!capture||capture.version!=='owner-rebound-watch-receipt-1'||
+    capture.date!==historyDay||capture.serverSigned!==true||
+    capture.officialFeedConnected!==false||
+    capture.jraScheduleVerified!==false||
+    capture.officialResultsVerified!==false||
+    capture.actualPurchase!==false||capture.purchaseReady!==false||
+    !Number.isInteger(capture.receiptCount)||capture.receiptCount<0||
+    capture.receiptCount>36||
+    !Number.isInteger(capture.postOffOrMissingTimeRaces)||
+    !Array.isArray(capture.receipts)||
+    capture.receipts.length!==capture.receiptCount)
+   throw Error('発走前の候補記録が不正');
+ const races=new Map(history.reboundContextReview.races.map(
+  r=>[r.track+'|'+r.race,r]));
+ const seen=new Set();
+ for(const entry of capture.receipts){
+  if(!entry||!entry.snapshot||typeof entry.signature!=='string'||
+     !/^[0-9a-f]{64}$/.test(entry.signature))
+   throw Error('候補の署名形式が不正');
+  const p=entry.snapshot,id=p.track+'|'+p.race,source=races.get(id);
+  if(!source||seen.has(id)||p.date!==historyDay||
+     p.version!=='owner-rebound-watch-receipt-1'||
+     p.sourceKind!=='server-prestart-research-watch'||
+     p.researchOnly!==true||p.officialJraVerified!==false||
+     p.actualPurchase!==false||p.winnerPickReady!==false||
+     p.captureAuditVerified!==false||!Array.isArray(p.watch)||
+     !p.watch.length||p.watch.length!==source.watchCount||
+     typeof p.capturedAt!=='string'||
+     typeof p.scheduledOffAt!=='string')
+   throw Error('候補の開催日・レースが不一致');
+  const captured=Date.parse(p.capturedAt),off=Date.parse(p.scheduledOffAt);
+  if(!Number.isFinite(captured)||!Number.isFinite(off)||captured>=off||
+     new Date(off).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'})
+      .replaceAll('-','')!==historyDay)
+   throw Error('発走前の記録時刻が不一致');
+  seen.add(id);
+  const sourceByNumber=new Map(source.watch.map(r=>[r.number,r.reviewState]));
+  let last=0;
+  for(const h of p.watch){
+   if(!h||!Number.isInteger(h.number)||h.number<=last||
+      h.number>18||h.reviewState!==sourceByNumber.get(h.number))
+    throw Error('固定された候補の馬番・根拠が不一致');
+   last=h.number;
+  }
+ }
+ return capture;
+}
+function saveReboundWatch(receipts){
+ if(!receipts.length)return '発走前の署名付き候補なし（対象レースが開始済み、または候補なし）。';
+ const raw=localStorage.getItem(WATCH_STORAGE);
+ if(raw&&raw.length>700000)throw Error('端末の保存記録が大きすぎます');
+ const stored=JSON.parse(raw||'[]');
+ if(!Array.isArray(stored)||stored.length>360)throw Error('保存記録が不正');
+ const identities=new Set();
+ for(const entry of stored){
+  if(!entry||!entry.snapshot||typeof entry.signature!=='string'||
+     !/^[0-9a-f]{64}$/.test(entry.signature))
+   throw Error('既存の候補記録の形式を確認できません');
+  const p=entry.snapshot,key=p.date+'|'+p.track+'|'+p.race;
+  if(identities.has(key))throw Error('既存の候補記録が重複しています');
+  identities.add(key);
+ }
+ const combined=stored.slice();let added=0,unchanged=0;
+ for(const entry of receipts){
+  const p=entry.snapshot,key=p.date+'|'+p.track+'|'+p.race;
+  if(identities.has(key)){unchanged++;continue;}
+  identities.add(key);combined.push(entry);added++;
+ }
+ if(combined.length>360)throw Error('保存件数の上限です');
+ if(added)localStorage.setItem(WATCH_STORAGE,JSON.stringify(combined));
+ return '発走前の巻き返し候補を署名検証して固定：新規 '+added+
+  'R／既存 '+unchanged+'R。端末保存のためSafariとホーム画面で別の場合があります。';
 }
 function validateHistory(h){
  if(!h||h.version!=='bounded-history-1'||h.date!==historyDay||
@@ -1041,6 +1119,7 @@ function validateHistory(h){
     allWatch!==h.reboundContextReview.watchCount||
     allPriority!==h.reboundContextReview.crossSourceReviewCount)
   throw Error('巻き返し集計と馬番が不一致');
+ validateWatchCapture(h.watchCapture,h);
  return results;
 }
 function jstToday(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});}
@@ -1156,6 +1235,34 @@ $('autoHistoryAudit').onclick=async()=>{
   if(seq!==historySeq)return;
   if(!res.ok)throw Error('履歴機能は利用不可');
   const rows=validateHistory(raw);
+  // The server checks signatures, not just browser-provided timestamps.
+  // Never send an outcome or an officialVerified flag from the device.
+  let watchSaveStatus='発走前の署名付き候補はまだ固定できていません。';
+  if(raw.watchCapture.receiptCount){
+   try{
+    const verified=await fetch('/api/owner-rebound-verify',{
+     method:'POST',credentials:'same-origin',cache:'no-store',
+     headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+      'Accept':'application/json'},
+     body:JSON.stringify({date:day,receipts:raw.watchCapture.receipts})
+    });
+    const output=await verified.json();
+    if(seq!==historySeq)return;
+    if(!verified.ok||output.serverSigned!==true||
+       output.jraScheduleVerified!==false||
+       output.officialFeedConnected!==false||!output.review||
+       output.review.reviewedRaces!==0||
+       output.review.pendingRaces!==raw.watchCapture.receiptCount||
+       output.review.outcomeCalibrationReady!==false)
+     throw Error('署名の確認ができません');
+    watchSaveStatus=saveReboundWatch(raw.watchCapture.receipts);
+   }catch(_){
+    watchSaveStatus='候補の署名検証・端末固定ができませんでした。過去の記録は変更していません。';
+   }
+  }else{
+   watchSaveStatus=saveReboundWatch([]);
+  }
+  $('autoHistoryWatchSave').textContent=watchSaveStatus;
   for(const row of rows){
    const card=dom('div',undefined,'history-coverage');
    card.append(dom('strong',row.track+' '+row.race+'R'),
