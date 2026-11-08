@@ -100,8 +100,44 @@ function resultWith(signature){
  }];
  return withTenPreview(result);
 }
+function researchBand(samples,hits,complete){
+ if(!complete)return ['未評価','incomplete_history'];
+ if(samples<3)return ['未評価','sample_below_three'];
+ if(samples===5&&hits===0)return ['C','observed_five_without_top_three'];
+ if(hits>=2&&3*hits>=2*samples)return ['S','observed_two_thirds_top_three'];
+ if(hits>=1&&3*hits>=samples)return ['A','observed_one_third_top_three'];
+ return ['B','observed_limited_top_three'];
+}
+function populateHistoricalBands(report){
+ const history=report.ownerRunnerHistory;
+ report.historicalEvidenceBands={
+  version:'owner-condition-evidence-hypothesis-1',
+  sourceVersion:'owner-runner-course-going-observation-2',
+  minComparableSamples:3,courseDistanceWeight:20,goingWeight:12,
+  evidenceBandsNotSuitability:true,negativeBandNeverExcludesRebound:true,
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  overallScoreReady:false,winnerPickReady:false,bettingReady:false,
+  raceCount:history.raceCount,
+  races:history.races.map(row=>({
+   track:row.track,race:row.race,runnerCount:row.runnerCount,
+   overallScoreReady:false,winnerPickReady:false,
+   runners:row.runners.map(h=>{
+    const c=researchBand(h.comparableRuns,h.comparableTopThreeRuns,
+     h.historyLookupComplete);
+    const g=!h.currentGoingRecorded?['未評価','current_going_unknown']:
+     !h.historyLookupComplete||h.knownGoingRuns!==h.comparableRuns
+      ?['未評価','incomplete_history']
+      :researchBand(h.matchingCurrentGoingRuns,
+        h.matchingCurrentGoingTopThreeRuns,true);
+    return {number:h.number,courseEvidenceBand:c[0],courseReason:c[1],
+      goingEvidenceBand:g[0],goingReason:g[1]};
+   })
+  }))
+ };
+ return report;
+}
 function historical(){
- return {
+ return populateHistoricalBands({
   version:'bounded-history-1',date:day,predictionReady:false,
   goingSuitabilityAssessed:false,historyComplete:false,
   referencedPastRaces:2,selectedPastRaces:1,deferredPastRaces:1,
@@ -118,7 +154,7 @@ function historical(){
     runnersWithIncompleteHistory:3}]
   },
   ownerRunnerHistory:{
-   version:'owner-runner-course-going-observation-1',raceCount:1,
+   version:'owner-runner-course-going-observation-2',raceCount:1,
    researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
    gradeReady:false,predictionReady:false,bettingReady:false,
    races:[{
@@ -130,6 +166,7 @@ function historical(){
      comparableTopThreeRuns:number===4?1:0,
      knownGoingRuns:number<=3?1:0,
      matchingCurrentGoingRuns:number<=2?1:0,
+     matchingCurrentGoingTopThreeRuns:number===2?1:0,
      wetGoingRuns:number<=2?1:0,
      wetTopThreeRuns:number===2?1:0,missingPastProgrammes:0,
      historyLookupComplete:false,currentGoingRecorded:true
@@ -140,7 +177,7 @@ function historical(){
    version:'real-assessment-preflight-1',realGradeReady:false,
    realPredictionReady:false,purchaseReady:false
   }
- };
+ });
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
@@ -213,6 +250,40 @@ function boot(){
  assert.equal(horsePanel.children.length,8);
  assert.match(horsePanel.children[4].textContent,/4番.*3着以内 1回/);
  assert.match(horsePanel.children[4].textContent,/巻き返し再審査対象/);
+ assert.match(horsePanel.children[4].textContent,/研究目安 未評価/);
+ // The provisional 3-to-5-run good-condition score is NOT a real
+ // ranking, ticket or 10-factor score.
+ const positive=historical();
+ positive.historyComplete=true;
+ positive.referencedPastRaces=3;
+ positive.selectedPastRaces=3;
+ positive.deferredPastRaces=0;
+ positive.draCalls=3;
+ positive.dkaCalls=2;
+ positive.privateHistoryFactors.races[0].runnersWithIncompleteHistory=0;
+ for(const h of positive.ownerRunnerHistory.races[0].runners)
+  h.historyLookupComplete=true;
+ const rebound=positive.ownerRunnerHistory.races[0].runners[3];
+ rebound.comparableRuns=3;
+ rebound.comparableTopThreeRuns=2;
+ rebound.knownGoingRuns=3;
+ rebound.matchingCurrentGoingRuns=3;
+ rebound.matchingCurrentGoingTopThreeRuns=2;
+ rebound.wetGoingRuns=3;
+ rebound.wetTopThreeRuns=2;
+ positive.privateHistoryFactors.races[0].runnersWithKnownGoingComparable=4;
+ positive.privateHistoryFactors.races[0].runnersMatchingCurrentGoing=3;
+ positive.privateHistoryFactors.races[0].runnersWithWetComparable=3;
+ populateHistoricalBands(positive);
+ a.setHistorical(positive);
+ await a.get('autoHistoryAudit').onclick();
+ const reviewed=a.get('autoHistoryAuditRaces').children[0];
+ const horseRows=reviewed.children.find(x=>x.tag==='details');
+ assert.match(horseRows.children[4].textContent,/コース好走実績の研究目安 S/);
+ assert.match(horseRows.children[4].textContent,/今回馬場の研究目安 S/);
+ assert.match(horseRows.children[4].textContent,/総合点と買い目には不反映/);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ a.setHistorical(historical());
  assert.match(a.get('autoHistoryAuditRaces').children[0].children[1].textContent,/5\/7頭/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
  // Invalid observations must never render or rewrite frozen research.
@@ -222,6 +293,12 @@ function boot(){
  await a.get('autoHistoryAudit').onclick();
  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ const badHypothesis=historical();
+ badHypothesis.historicalEvidenceBands.races[0].runners[0].courseEvidenceBand='S';
+ a.setHistorical(badHypothesis);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
  assert.equal(a.storage.get(STORAGE),oldRecord);
  const mismatchedHorse=historical();
  mismatchedHorse.ownerRunnerHistory.races[0].runners[0].number=18;
