@@ -1,4 +1,4 @@
-/* Browser-only seven-section backup with legacy 4/5/6-section safety tests. */
+/* Browser-only eight-section backup with legacy 4/5/6/7-section safety tests. */
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-backup.js','utf8');
@@ -9,8 +9,9 @@ const keys=[
  'keiba-nine-owner-manual-numbers-v1',
  'keiba-nine-owner-factor-notes-v1',
  'keiba-nine-jrdb-preday-runners-v1',
- 'keiba-nine-owner-server-receipts-v1'
-],format='keiba-nine-owner-local-all-v4';
+ 'keiba-nine-owner-server-receipts-v1',
+ 'keiba-nine-owner-rebound-watch-receipts-v1'
+],format='keiba-nine-owner-local-all-v5';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -31,8 +32,21 @@ const signedReceipt={signature:'a'.repeat(64),snapshot:{
  trifectaTickets:[[1,2,3]],trioTickets:[],
  scheduleVerified:false,predictionVerified:false
 }};
+const reboundWatch={signature:'b'.repeat(64),snapshot:{
+ version:'owner-rebound-watch-receipt-1',
+ date:'20990109',track:'東京',race:1,
+ sourceKind:'server-prestart-research-watch',
+ capturedAt:'2099-01-09T07:15:00+09:00',
+ scheduledOffAt:'2099-01-09T09:55:00+09:00',
+ watch:[{number:4,reviewState:'cross_source_review'},
+        {number:9,reviewState:'need_more_evidence'}],
+ researchOnly:true,officialJraVerified:false,actualPurchase:false,
+ winnerPickReady:false,captureAuditVerified:false
+}};
 const fixture=()=>({
- [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],[keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],[keys[6]]:[signedReceipt]
+ [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],
+ [keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],
+ [keys[6]]:[signedReceipt],[keys[7]]:[reboundWatch]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -131,7 +145,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
  assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
- assert.match(e('backupPreview').textContent,/元の7種類の記録へ戻しました/);
+ assert.match(e('backupPreview').textContent,/元の8種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -155,7 +169,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  }
  // Previous (four-part) exports remain importable and preserve existing factor notes.
  page.storage.set(keys[4],JSON.stringify([factor]));
- const fourParts=fixture();delete fourParts[keys[4]];delete fourParts[keys[5]];delete fourParts[keys[6]];
+ const fourParts=fixture();for(const k of keys.slice(4))delete fourParts[k];
  const legacyFile=fakeFile(JSON.stringify({
   format:'keiba-nine-owner-local-all-v1',exportedAt:'2099-01-08T23:00:00Z',sections:fourParts
  }));
@@ -197,7 +211,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  }
  // Previous five-section exports remain importable without erasing a newer
  // pre-day 36R roster (the extra sixth section is not in the old file).
- const legacyFive=fixture();delete legacyFive[keys[5]];delete legacyFive[keys[6]];
+ const legacyFive=fixture();for(const k of keys.slice(5))delete legacyFive[k];
  page.storage.set(keys[5],JSON.stringify([preday]));
  const older=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v2',
   exportedAt:'2099-01-08T23:00:00Z',sections:legacyFive}));
@@ -222,7 +236,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
    'malformed receipt must not be copied into a new backup');
  }
  // A v3 six-part backup never erases the newer seventh collection.
- const legacySix=fixture();delete legacySix[keys[6]];
+ const legacySix=fixture();for(const k of keys.slice(6))delete legacySix[k];
  const existing=boot(fixture());
  const oldSix=fakeFile(JSON.stringify({
   format:'keiba-nine-owner-local-all-v3',
@@ -234,5 +248,63 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  existing.el('backupRestore').onclick();
  assert.deepEqual(JSON.parse(existing.storage.get(keys[6])),[signedReceipt],
   'restoring v3 backup must preserve sealed receipts');
- console.log('Owner local seven-part backup: signed receipt preservation, legacy restore, quota rollback PASS');
+ assert.deepEqual(JSON.parse(existing.storage.get(keys[7])),[reboundWatch],
+  'restoring v3 backup must preserve protected rebound watches');
+ // Version 4 seven-part backup should preserve the eighth (new) watch
+ // collection: older backup files cannot erase predictions captured later.
+ const legacySeven=fixture();delete legacySeven[keys[7]];
+ const v4=boot(fixture());
+ const oldSeven=fakeFile(JSON.stringify({
+  format:'keiba-nine-owner-local-all-v4',
+  exportedAt:'2099-01-08T23:00:00Z',sections:legacySeven
+ }));
+ v4.el('backupFile').files=[oldSeven];
+ await v4.el('backupFile').onchange();await flush();
+ assert.equal(v4.el('backupRestore').disabled,false);
+ assert.match(v4.el('backupPreview').textContent,/旧7種類のバックアップ/);
+ v4.el('backupRestore').onclick();
+ assert.deepEqual(JSON.parse(v4.storage.get(keys[7])),[reboundWatch],
+  'v4 restore must preserve existing new rebound capture');
+ // A full eight-part file round-trips a signed research watch.
+ const full=boot(fixture());
+ assert.match(full.el('backupSummary').textContent,/巻き返し候補1R/);
+ assert.equal(full.el('backupDownload').disabled,false);
+ const snapshotFile=fakeFile(JSON.stringify({
+  format,exportedAt:'2099-01-08T23:00:00Z',sections:fixture()
+ }));
+ full.el('backupFile').files=[snapshotFile];
+ await full.el('backupFile').onchange();await flush();
+ assert.equal(full.el('backupRestore').disabled,false);
+ full.el('backupRestore').onclick();
+ assert.deepEqual(JSON.parse(full.storage.get(keys[7])),[reboundWatch]);
+ // Never export or restore malicious/retroactive/colliding watch records.
+ for(const damaged of [
+  {...reboundWatch,signature:'wrong'},
+  {...reboundWatch,snapshot:{...reboundWatch.snapshot,officialJraVerified:true}},
+  {...reboundWatch,snapshot:{...reboundWatch.snapshot,capturedAt:'2099-01-09T11:00:00+09:00'}},
+  {...reboundWatch,snapshot:{...reboundWatch.snapshot,scheduledOffAt:'2099-01-10T09:55:00+09:00'}},
+  {...reboundWatch,snapshot:{...reboundWatch.snapshot,watch:[{number:4,reviewState:'unknown'}]}},
+  {...reboundWatch,snapshot:{...reboundWatch.snapshot,watch:[{number:9,reviewState:'need_more_evidence'},{number:4,reviewState:'cross_source_review'}]}},
+  {...reboundWatch,snapshot:{...reboundWatch.snapshot,watch:[{number:4,reviewState:'cross_source_review'},{number:4,reviewState:'need_more_evidence'}]}}
+ ]){
+  const invalid=boot({...fixture(),[keys[7]]:[damaged]});
+  assert.equal(invalid.el('backupDownload').disabled,true,
+   'corrupt rebound watch cannot be exported');
+  const current=[...full.storage.entries()];
+  const badFile=fakeFile(JSON.stringify({
+   format,exportedAt:'2099-01-08T23:00:00Z',
+   sections:{...fixture(),[keys[7]]:[damaged]}
+  }));
+  full.el('backupFile').files=[badFile];
+  await full.el('backupFile').onchange();await flush();
+  assert.equal(full.el('backupRestore').disabled,true,
+   'corrupt rebound watch cannot be imported');
+  assert.deepEqual([...full.storage.entries()],current,
+   'invalid restored watch must never mutate current history');
+ }
+ const double=boot({...fixture(),[keys[7]]:[reboundWatch,reboundWatch]});
+ assert.equal(double.el('backupDownload').disabled,true,
+  'duplicate sealed race must be rejected');
+ assert.ok(!js.includes('fetch('),'all eight sections must remain browser-local');
+ console.log('Owner local eight-part backup: rebound watch preservation, legacy restore, quota rollback PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
