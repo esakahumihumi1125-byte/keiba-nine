@@ -19,7 +19,8 @@ MAX_DAY = 36
 INSERT = """
 INSERT INTO owner_prestart_receipts
  (race_day, track, race_no, receipt_json)
-VALUES (%s, %s, %s, CAST(%s AS jsonb))
+SELECT %s, %s, %s, CAST(%s AS jsonb)
+WHERE CURRENT_TIMESTAMP < CAST(%s AS timestamptz)
 ON CONFLICT (race_day, track, race_no) DO NOTHING
 """
 SELECT = """
@@ -114,7 +115,8 @@ def save_first_and_read(settings, password, day, new_receipts, connect=None):
                     cursor.execute(
                         INSERT,
                         (day, snapshot["track"], snapshot["race"],
-                         json.dumps(receipt, ensure_ascii=False, separators=(",", ":"))))
+                         json.dumps(receipt, ensure_ascii=False, separators=(",", ":")),
+                         snapshot["scheduledOffAt"]))
                 saved = _read_rows(cursor, day, password)
                 # A missing submitted race must never be called saved.
                 requested = {(p["snapshot"]["track"], p["snapshot"]["race"])
