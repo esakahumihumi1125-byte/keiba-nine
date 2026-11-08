@@ -100,9 +100,33 @@ function resultWith(signature){
  }];
  return withTenPreview(result);
 }
+function historical(){
+ return {
+  version:'bounded-history-1',predictionReady:false,
+  goingSuitabilityAssessed:false,historyComplete:false,
+  referencedPastRaces:2,selectedPastRaces:1,deferredPastRaces:1,
+  draCalls:1,dkaCalls:1,maxTotalCalls:16,
+  privateHistoryFactors:{
+   version:'private-course-ground-materials-1',raceCount:1,
+   predictionReady:false,bettingReady:false,
+   races:[{track:'東京',race:1,runnerCount:7,
+    predictionReady:false,bettingReady:false,suitabilityAssessed:false,
+    overallRankReady:false,verifiedFactorCount:0,
+    observationOnlyFactors:['pace','course_distance','ground'],
+    runnersWithComparableCourse:5,runnersWithKnownGoingComparable:3,
+    runnersWithWetComparable:2,runnersMatchingCurrentGoing:2,
+    runnersWithIncompleteHistory:3}]
+  },
+  realAssessmentPreflight:{
+   version:'real-assessment-preflight-1',realGradeReady:false,
+   realPredictionReady:false,purchaseReady:false
+  }
+ };
+}
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
- let next=resultWith('a'.repeat(64)),holdFetch=null;
+ let next=resultWith('a'.repeat(64)),historicalResponse=historical(),
+  historyOk=true,holdFetch=null;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -128,6 +152,8 @@ function boot(){
   requests.push({url,options});
   const pause=holdFetch;holdFetch=null;
   if(pause)await pause;
+  if(url==='/api/jrdb/history')
+   return {ok:historyOk,json:async()=>structuredClone(historicalResponse)};
   return {ok:true,json:async()=>structuredClone(next)};
  };
  class FakeDate extends Date{
@@ -139,6 +165,7 @@ function boot(){
  get('autoDay').value=date;
  return {get,storage,requests,setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
+  setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
   waitNextFetch:promise=>{holdFetch=promise},
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
 }
@@ -148,6 +175,34 @@ function boot(){
  await new Promise(r=>setImmediate(r));
  assert.equal(a.requests.length,1);
  assert.equal(a.get('autoRun').disabled,false);
+ assert.equal(a.get('autoHistoryAudit').disabled,false);
+ // History has strict user opt-in. Automatic page load must not fetch it.
+ assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,0);
+ const oldRecord=a.storage.get(STORAGE);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,1);
+ const auditRequest=a.requests.find(r=>r.url==='/api/jrdb/history');
+ assert.equal(auditRequest.options.method,'POST');
+ assert.equal(auditRequest.options.credentials,'same-origin');
+ assert.equal(JSON.parse(auditRequest.options.body).limit,8);
+ assert.equal(JSON.parse(auditRequest.options.body).date,day);
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,1);
+ assert.match(a.get('autoHistoryAuditStatus').textContent,/予想・購入・保存済み/);
+ assert.match(a.get('autoHistoryAuditRaces').children[0].children[1].textContent,/5\/7頭/);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ // Invalid observations must never render or rewrite frozen research.
+ const malformed=historical();
+ malformed.privateHistoryFactors.races[0].runnersWithComparableCourse=99;
+ a.setHistorical(malformed);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ a.setHistorical(historical());
+ a.setHistoryOk(false);
+ await a.get('autoHistoryAudit').onclick();
+ assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+ a.setHistoryOk(true);
  assert.match(a.requests[0].url,/\/api\/jrdb\/owner-auto-draft\?date=20990101$/);
  assert.equal(a.requests[0].options.headers['X-Keiba-Request'],'private');
  assert.equal(a.get('autoSummary').textContent.includes('1R中、研究用自動案 1R'),true);
@@ -263,6 +318,8 @@ function boot(){
  b.get('autoDay').value='2099-01-02';
  b.get('autoDay').onchange();
  assert.equal(b.get('autoRun').disabled,false);
+ assert.equal(b.get('autoHistoryAudit').disabled,true);
+ assert.equal(b.get('autoHistoryAuditRaces').children.length,0);
  assert.match(b.get('autoSavedStatus').textContent,/ありません/);
  assert.equal(b.get('autoHistory').children.length,0);
  release();
