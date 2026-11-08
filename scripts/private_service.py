@@ -1732,6 +1732,7 @@ def create_app(settings=None):
                 # No raw venue errors, timestamps, horses, or API credentials.
                 report['venueFetchStatus'] = venue_status
                 report['venueFetchNotice'] = venue_note
+                report['venueFailureKind'] = venue_failure_kind
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     RaceContextError, FreshnessError, ValueError, KeyError, TypeError) as exc:
                 category = ('API応答' if isinstance(exc, JRDBError)
