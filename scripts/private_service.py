@@ -74,7 +74,8 @@ from owner_100yen_snapshot import decode_frozen_snapshots, FrozenSnapshotError
 from keiba_100yen_review import review_100yen, ReviewInputError
 from owner_prestart_receipt import (issue_preview_receipts, verify_preview_receipts,
                                     ReceiptError)
-from owner_receipt_archive import (archive_enabled, save_first_and_read,
+from owner_receipt_archive import (archive_enabled, archive_signing_secret,
+                                   save_first_and_read,
                                    read_day as read_archived_day, ArchiveUnavailable)
 from jrdb_one_race_trial import build_one_race_trial
 from jrdb_day_trial import build_day_trial
@@ -1512,10 +1513,12 @@ def create_app(settings=None):
                     if forecast['date'] != selected:
                         return response('409 Conflict', {
                             'error': '指定日のサーバー予想がありません。'})
-                    report = issue_preview_receipts(forecast, password, selected)
+                    signing_secret = (archive_signing_secret(settings)
+                                      if archive_enabled(settings) else password)
+                    report = issue_preview_receipts(forecast, signing_secret, selected)
                     if archive_enabled(settings):
                         archived = save_first_and_read(
-                            settings, password, selected, report['receipts'])
+                            settings, signing_secret, selected, report['receipts'])
                         report['receipts'] = archived
                         report['archiveEnabled'] = True
                         report['archiveRecordCount'] = len(archived)
@@ -1528,11 +1531,24 @@ def create_app(settings=None):
                         'error': '予想の発走前記録または安全な保存に失敗しました。既存記録は変更されません。'})
                 return response('200 OK', {'available': bool(report['receipts']), **report})
             try:
-                predictions = verify_preview_receipts(
-                    args['receipts'], password, selected)
-                # Official results feed not yet integrated. NEVER turn pending
-                # into a win/loss from user-input or private environment flags.
+                if archive_enabled(settings):
+                    signing_secret = archive_signing_secret(settings)
+                    try:
+                        predictions = verify_preview_receipts(
+                            args['receipts'], signing_secret, selected)
+                    except ReceiptError:
+                        # Previously signed browser-only records remain
+                        # readable while the old owner password is unchanged.
+                        predictions = verify_preview_receipts(
+                            args['receipts'], password, selected)
+                else:
+                    predictions = verify_preview_receipts(
+                        args['receipts'], password, selected)
+                # No independent JRA results feed: all outcomes remain pending.
                 report = review_100yen(predictions, [])
+            except ArchiveUnavailable:
+                return response('503 Service Unavailable', {
+                    'error': '署名付き記録の検証設定を確認できません。'})
             except (ReceiptError, ReviewInputError, ValueError, TypeError):
                 return response('400 Bad Request', {
                     'error': '署名付き記録を検証できません。集計は更新しません。'})
@@ -1568,8 +1584,9 @@ def create_app(settings=None):
                     'officialScheduleVerified': False,
                     'officialFeedConnected': False})
             try:
-                saved = read_archived_day(settings, password, selected)
-                predictions = verify_preview_receipts(saved, password, selected)
+                signing_secret = archive_signing_secret(settings)
+                saved = read_archived_day(settings, signing_secret, selected)
+                predictions = verify_preview_receipts(saved, signing_secret, selected)
                 report = review_100yen(predictions, [])
             except (ArchiveUnavailable, ReceiptError, ReviewInputError):
                 return response('503 Service Unavailable', {
