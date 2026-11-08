@@ -31,6 +31,7 @@ from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_J
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
 from jrdb_owner_auto_draft import build_owner_auto_drafts, DAY_DRAFT_ISSUES
+from jrdb_owner_draft_materials import observe_owner_draft_materials, unavailable as unavailable_draft_materials
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
                                     JS as AUTO_FORECAST_JS,
@@ -2131,6 +2132,15 @@ def create_app(settings=None):
                 report['researchReceiptCount'] = len(receipts)
                 report['serverStamped'] = True
                 report['captureAuditVerified'] = False
+                # Extra source evidence can fail independently. Never fail
+                # an otherwise valid research receipt because an optional
+                # ungraded source field is unavailable or malformed.
+                try:
+                    report['sourceMaterials'] = observe_owner_draft_materials(
+                        programme, entries, training, recent, day)
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    logging.warning('KEIBA_AUTO_DRAFT_MATERIALS=unavailable')
+                    report['sourceMaterials'] = unavailable_draft_materials()
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError) as exc:
                 if isinstance(exc, JRDBError):

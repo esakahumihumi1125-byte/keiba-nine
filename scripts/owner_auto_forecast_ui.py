@@ -129,6 +129,10 @@ const RUNNER_ISSUES={
  incomplete_rank:'未評価馬の順位',missing_reasons:'未評価の理由',
  summary_count:'評価済み頭数'
 };
+const MATERIAL_LABELS={
+ pedigree:'父・母父',drawWeight:'枠・斤量',rotation:'前走日付',
+ personnel:'騎手・厩舎',body:'馬体形状',pastCorner:'過去4角'
+};
 const POS={
  frontObserved:'過去4角：前方観測',
  backObserved:'過去4角：後方観測',
@@ -146,6 +150,18 @@ function validate(data,day){
   !Number.isInteger(data.archiveRecordCount)||data.archiveRecordCount<0||
   !Number.isInteger(data.archiveConflictCount)||data.archiveConflictCount<0||
   (data.archiveConflictCount>0&&!data.archiveEnabled)||
+  !data.sourceMaterials||
+  data.sourceMaterials.version!=='owner-draft-material-coverage-1'||
+  !['observed','unavailable'].includes(data.sourceMaterials.status)||
+  data.sourceMaterials.officialJraVerified!==false||
+  data.sourceMaterials.gradedNewFactors!==0||
+  !Array.isArray(data.sourceMaterials.races)||
+  (data.sourceMaterials.status==='unavailable'&&
+   (data.sourceMaterials.observedFactorSlots!==0||
+    data.sourceMaterials.races.length!==0))||
+  (data.sourceMaterials.status==='observed'&&
+   (data.sourceMaterials.observedFactorSlots!==8||
+    data.sourceMaterials.races.length!==data.raceCount))||
   data.sourceReadCount!==4||data.unitYen!==100||
   !Array.isArray(data.races)||data.races.length>120||
   data.raceCount!==data.races.length||
@@ -157,6 +173,17 @@ function validate(data,day){
     n<=0||n>data.raceCount)||
   Object.values(data.holdReasons).reduce((total,n)=>total+n,0)!==data.holdCount)
   throw Error('自動暫定予想の形式が不正です');
+ const materials=new Map();
+ for(const row of data.sourceMaterials.races){
+  if(!row||typeof row.track!=='string'||!Number.isInteger(row.race)||
+   !Number.isInteger(row.runnerCount)||row.runnerCount<0||row.runnerCount>18||
+   !row.counts||Object.keys(row.counts).length!==6||
+   Object.keys(MATERIAL_LABELS).some(k=>
+     !Number.isInteger(row.counts[k])||row.counts[k]<0||
+     row.counts[k]>row.runnerCount)||materials.has(row.track+'|'+row.race))
+    throw Error('観測資料の形式が不正です');
+  materials.set(row.track+'|'+row.race,row);
+ }
  const seen=new Set();
  for(const r of data.races){
   if(!r||!Number.isInteger(r.race)||r.race<1||r.race>12||
@@ -170,6 +197,12 @@ function validate(data,day){
    r.points!==r.tickets.length||r.points>40||r.amountYen!==r.points*100)
    throw Error('レース別データが不正です');
   seen.add(r.track+'|'+r.race);
+  if(data.sourceMaterials.status==='observed'){
+   const material=materials.get(r.track+'|'+r.race);
+   if(!material||Number.isInteger(r.horseCount)&&
+      material.runnerCount!==r.horseCount)
+     throw Error('資料とレース頭数が一致しません');
+  }
   const numbers=new Set();
   for(const h of r.runners){
    if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
@@ -244,6 +277,17 @@ function render(input,day){
    detail.append(dom('p','調教・近走の仮評価順（総合評価ではない）','muted'));
    for(const [i,h] of race.runners.entries())detail.append(runnerView(h,i));
   }
+  if(data.sourceMaterials.status==='observed'){
+   const item=data.sourceMaterials.races.find(x=>
+     x.track===race.track&&x.race===race.race);
+   const evidence=Object.entries(MATERIAL_LABELS)
+    .map(([key,label])=>label+' '+item.counts[key]+'/'+item.runnerCount)
+    .join('／');
+   detail.append(dom('p','資料の有無（採点ではない）：'+evidence,'muted'),
+    dom('p','コース距離・馬場適性は未接続。調教・近走以外の8項目は未採点。','muted'));
+  }else{
+   detail.append(dom('p','追加8項目の資料確認は未完了（予想・買い目とは別）。','muted'));
+  }
   if(race.status==='provisional_draft')detail.append(formation(race));
   nodes.push({track:race.track,node:detail});
   groups.set(race.track,(groups.get(race.track)||0)+1);
@@ -267,7 +311,9 @@ function render(input,day){
  $('autoSummary').textContent=data.raceCount+'R中、研究用自動案 '+data.draftCount+
   'R／見送り '+data.holdCount+'R。'+
   (breakdown?'内訳：'+breakdown+'。':'')+
-  'JRDBの2項目だけを使用。JRA公式照合や正式な投票は未実施。';
+  'JRDBの2項目だけを買い目に使用。追加資料：'+
+  (data.sourceMaterials.status==='observed'?'血統・枠などの材料を確認（採点なし）':'照合保留')+
+  '。JRA公式照合や正式な投票は未実施。';
 }
 function localReceiptStatus(day){
  // Only inspect previously sealed local snapshots. Never treat draft

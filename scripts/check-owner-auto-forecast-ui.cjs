@@ -24,6 +24,8 @@ const research=()=>({
  sourceReadCount:4,unitYen:100,raceCount:1,draftCount:1,holdCount:0,holdReasons:{},
  serverStamped:true,captureAuditVerified:false,researchReceiptCount:1,
  archiveEnabled:false,archiveRecordCount:0,archiveConflictCount:0,
+ sourceMaterials:{version:'owner-draft-material-coverage-1',status:'unavailable',
+  observedFactorSlots:0,gradedNewFactors:0,officialJraVerified:false,races:[]},
  races:[{
   track:'東京',race:1,status:'provisional_draft',reason:'two_factor_only',
   postTime:'12:00',researchOnly:true,officialJraVerified:false,
