@@ -10,6 +10,9 @@ from unittest.mock import patch, call as mock_call
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_coverage import CoverageError
 from jrdb_owner_auto_draft import build_owner_auto_drafts, VERSION
+from owner_auto_draft_receipts import seal_auto_research_drafts
+from owner_prestart_receipt import verify_preview_receipts, ReceiptError
+from keiba_100yen_review import review_100yen
 from private_service import create_app
 from test_private_service import call, SETTINGS
 from test_jrdb_training_hypothesis import setup as workout_fixture
@@ -150,6 +153,35 @@ class AutoDraftTests(unittest.TestCase):
             self.assertEqual(r["reason"],"after_provisional_off")
             self.assertEqual(r["tickets"],[])
 
+    def test_signed_auto_drafts_are_prestart_only_and_pending_in_roi(self):
+        now=datetime(2099,1,1,9,0,tzinfo=JST)
+        result=generate(now=now)
+        signed=seal_auto_research_drafts(
+            result,SETTINGS["KEIBA_OWNER_PASSWORD"],now=now)
+        self.assertEqual(len(signed),1)
+        snapshot=signed[0]["snapshot"]
+        self.assertEqual(snapshot["date"],"2099-01-01")
+        self.assertEqual(snapshot["race"],1)
+        self.assertEqual(len(snapshot["trifectaTickets"]),40)
+        self.assertFalse(snapshot["actualPurchase"])
+        self.assertFalse(snapshot["scheduleVerified"])
+        self.assertFalse(snapshot["predictionVerified"])
+        preds=verify_preview_receipts(
+            signed,SETTINGS["KEIBA_OWNER_PASSWORD"],"2099-01-01")
+        review=review_100yen(preds,[])
+        self.assertEqual(review["pendingRaces"],1)
+        self.assertEqual(review["pendingStakeYen"],4000)
+        self.assertEqual(review["reviewedRaces"],0)
+        self.assertIsNone(review["roiPercent"])
+        self.assertEqual(seal_auto_research_drafts(
+            result,SETTINGS["KEIBA_OWNER_PASSWORD"],
+            now=datetime(2099,1,1,12,0,tzinfo=JST)),[])
+        corrupted=copy.deepcopy(result)
+        corrupted["races"][0]["tickets"][0][0]=17
+        with self.assertRaises(ReceiptError):
+            seal_auto_research_drafts(
+                corrupted,SETTINGS["KEIBA_OWNER_PASSWORD"],now=now)
+
     def test_bad_dates_wrong_race_and_untrusted_status_are_rejected(self):
         with self.assertRaises(CoverageError):
             generate(now=datetime(2099,1,1,9,0))
@@ -197,7 +229,9 @@ class AutoDraftHTTPTests(unittest.TestCase):
         js=call(self.app,"/owner-auto-forecast.js")["body"].decode()
         self.assertIn("/api/jrdb/owner-auto-draft",js)
         self.assertNotIn("innerHTML",js)
-        self.assertNotIn("localStorage.setItem",js)
+        self.assertIn("RECEIPTS_KEY",js)
+        self.assertIn("saveAutoReceipts",js)
+        self.assertNotIn("keiba-nine-owner-real-purchases-v1",js)
         self.assertNotIn("JRDB_API_KEY",js)
 
     def test_four_reads_and_generated_tickets_with_mocked_derived_research(self):
@@ -217,6 +251,10 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["draftCount"],1)
         self.assertEqual(body["races"][0]["points"],40)
         self.assertEqual(body["sourceReadCount"],4)
+        self.assertTrue(body["serverStamped"])
+        self.assertFalse(body["captureAuditVerified"])
+        self.assertEqual(body["researchReceiptCount"],1)
+        self.assertEqual(len(body["researchReceipts"][0]["snapshot"]["trifectaTickets"]),40)
         for stub in (a,b,c,d,e):
             self.assertEqual(stub.call_count,1)
         for forbidden in ("horse_name","racekey","horse_id",
