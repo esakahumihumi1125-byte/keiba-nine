@@ -307,6 +307,17 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["draftCount"],1)
         self.assertEqual(body["races"][0]["points"],40)
         self.assertEqual(body["sourceReadCount"],4)
+        preview=body["tenFactorPreview"]
+        self.assertEqual(preview["factorCount"],10)
+        self.assertEqual(preview["totalWeight"],100)
+        self.assertEqual(preview["gradeThresholds"],{"S":85,"A":70,"B":55})
+        self.assertEqual(preview["fullPredictionRaceCount"],0)
+        self.assertFalse(preview["overallPredictionReady"])
+        self.assertEqual(preview["races"][0]["horses"][0]["grades"]["training"],"S")
+        self.assertEqual(preview["races"][0]["horses"][0]["grades"]["recent"],"S")
+        self.assertEqual(preview["races"][0]["horses"][0]["grades"]["pace"],"未評価")
+        self.assertEqual(preview["races"][0]["horses"][0]["overallGrade"],"未評価")
+        self.assertEqual(preview["races"][0]["horses"][0]["verifiedFactorCount"],0)
         self.assertTrue(body["serverStamped"])
         self.assertFalse(body["captureAuditVerified"])
         self.assertEqual(body["researchReceiptCount"],1)
@@ -339,6 +350,8 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(materials["races"][0]["runnerCount"],1 if
                          materials["races"][0]["track"]=="京都" else 2)
         self.assertEqual(body["sourceReadCount"],4)
+        self.assertEqual(body["tenFactorPreview"]["factorCount"],10)
+        self.assertEqual(body["tenFactorPreview"]["fullPredictionRaceCount"],0)
         self.assertFalse(body["officialJraVerified"])
         for forbidden in ("racekey","horse_id","PRIVATE-SIRE",
                           "PRIVATE-JOCKEY","PRIVATE-MATERNAL"):
@@ -366,6 +379,8 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["sourceMaterials"]["status"],"unavailable")
         self.assertEqual(body["sourceMaterials"]["gradedNewFactors"],0)
         self.assertEqual(body["sourceMaterials"]["races"],[])
+        self.assertEqual(body["tenFactorPreview"]["factorCount"],10)
+        self.assertEqual(body["tenFactorPreview"]["fullPredictionRaceCount"],0)
 
     def test_optional_server_archive_first_write_wins(self):
         from owner_receipt_archive import FLAG, SIGNING_KEY, DSN_KEY

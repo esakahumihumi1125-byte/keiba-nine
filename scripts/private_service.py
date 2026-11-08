@@ -31,6 +31,7 @@ from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_J
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
 from jrdb_owner_auto_draft import build_owner_auto_drafts, DAY_DRAFT_ISSUES
+from owner_ten_factor_contract import ten_factor_contract
 from jrdb_owner_draft_materials import observe_owner_draft_materials, unavailable as unavailable_draft_materials
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
@@ -2132,6 +2133,12 @@ def create_app(settings=None):
                 report['researchReceiptCount'] = len(receipts)
                 report['serverStamped'] = True
                 report['captureAuditVerified'] = False
+                # The owner-private 10-factor contract is a faithful
+                # projection of the SAME guarded 2-factor snapshot. It
+                # explicitly marks eight factors unassessed and provides
+                # the agreed weights/grade thresholds; it MUST NOT
+                # manufacture a ten-factor score or change sealed tickets.
+                report['tenFactorPreview'] = ten_factor_contract(report)
                 # Extra source evidence can fail independently. Never fail
                 # an otherwise valid research receipt because an optional
                 # ungraded source field is unavailable or malformed.
