@@ -298,7 +298,7 @@ function historical(){
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
  let next=resultWith('a'.repeat(64)),historicalResponse=historical(),
-  historyOk=true,holdFetch=null;
+  historyOk=true,providerCorrupt=false,holdFetch=null;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -335,6 +335,36 @@ function boot(){
       outcomeCalibrationReady:false}
    })};
   }
+  if(url==='/api/owner-rebound-provider-check'){
+   const args=JSON.parse(options.body);
+   const snap=args.receipts[0].snapshot;
+   const horse=snap.watch[0];
+   return {ok:true,json:async()=>({
+    version:'owner-rebound-provider-check-1',date:args.date,
+    sourceKind:'jrdb-tse-provider-observation',
+    providerSourceReadCount:1,raceCount:args.receipts.length,
+    races:args.receipts.map((receipt,i)=>({
+     track:receipt.snapshot.track,race:receipt.snapshot.race,
+     watchCount:receipt.snapshot.watch.length,
+     providerStatus:i===0?'first_place_observed':'pending',
+     observedFirstNumber:i===0?horse.number:null,
+     observedFirstInWatch:i===0?true:null,
+     observedFirstInPriorityWatch:i===0?
+      horse.reviewState==='cross_source_review':null,
+     officialVerified:false,confirmedWatchHit:null,
+     confirmedPredictionHit:null
+    })),
+    observedRaceCount:1,observedFirstInWatchCount:1,
+    observedFirstInPriorityCount:horse.reviewState==='cross_source_review'?1:0,
+    verifiedRaceCount:0,verifiedWatchHitCount:null,
+    officialJraVerified:providerCorrupt?true:false,
+    jraIndependentConfirmation:false,officialFeedConnected:false,
+    outcomeCalibrationReady:false,bettingReady:false,actualPurchase:false,
+    payoutVerified:false,roiPercent:null,
+    sourceIncompleteCouldChange:true,researchOnly:true,
+    privateOwnerOnly:true
+   })};
+  }
   return {ok:true,json:async()=>structuredClone(next)};
  };
  class FakeDate extends Date{
@@ -347,6 +377,7 @@ function boot(){
  return {get,storage,requests,setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
+  setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
 }
@@ -367,6 +398,31 @@ function boot(){
  assert.ok(capturedFirst);
  assert.equal(JSON.parse(capturedFirst).length,1);
  assert.match(a.get('autoHistoryWatchSave').textContent,/新規 1R/);
+ assert.equal(a.get('autoWatchResultCheck').disabled,false);
+ assert.equal(a.requests.filter(r=>
+  r.url==='/api/owner-rebound-provider-check').length,0,
+  'never fetch postrace results automatically');
+ await a.get('autoWatchResultCheck').onclick();
+ assert.equal(a.requests.filter(r=>
+  r.url==='/api/owner-rebound-provider-check').length,1);
+ const providerRequest=a.requests.find(r=>
+  r.url==='/api/owner-rebound-provider-check');
+ assert.equal(providerRequest.options.method,'POST');
+ assert.equal(providerRequest.options.credentials,'same-origin');
+ assert.deepEqual(Object.keys(JSON.parse(providerRequest.options.body)).sort(),
+  ['date','receipts']);
+ assert.match(a.get('autoWatchResultStatus').textContent,/JRA公式照合が未完了/);
+ assert.match(a.get('autoWatchResultRaces').children[0].children[1].textContent,
+  /JRA公式未確認/);
+ assert.equal(a.storage.get('keiba-nine-owner-rebound-watch-receipts-v1'),
+  capturedFirst);
+ a.setProviderCorrupt(true);
+ await a.get('autoWatchResultCheck').onclick();
+ assert.equal(a.get('autoWatchResultRaces').children.length,0);
+ assert.match(a.get('autoWatchResultStatus').textContent,/暫定照合ができません/);
+ assert.equal(a.storage.get('keiba-nine-owner-rebound-watch-receipts-v1'),
+  capturedFirst);
+ a.setProviderCorrupt(false);
  const auditRequest=a.requests.find(r=>r.url==='/api/jrdb/history');
  assert.equal(auditRequest.options.method,'POST');
  assert.equal(auditRequest.options.credentials,'same-origin');
@@ -608,6 +664,7 @@ function boot(){
  assert.equal(b.get('autoRun').disabled,false);
  assert.equal(b.get('autoHistoryAudit').disabled,true);
  assert.equal(b.get('autoHistoryAuditRaces').children.length,0);
+ assert.equal(b.get('autoWatchResultCheck').disabled,true);
  assert.match(b.get('autoSavedStatus').textContent,/ありません/);
  assert.equal(b.get('autoHistory').children.length,0);
  release();
