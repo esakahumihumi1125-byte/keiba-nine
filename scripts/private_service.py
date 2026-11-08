@@ -512,7 +512,15 @@ function showSingleRaceReadiness(data,selected,day){
   post_time_passed:'発走予定時刻経過',within_two_hours:'発走2時間以内',
   more_than_two_hours:'発走まで2時間超'
  }[data.prestartWindow];
+ if(!['ok','unavailable'].includes(data.venueFetchStatus))
+  throw Error('馬場のAPI取得状態を確認できません');
+ if(data.venueFetchStatus==='unavailable'&&data.sourceGoing!=='未確認')
+  throw Error('馬場未取得と馬場評価が矛盾しています');
+ const venueWarning=data.venueFetchStatus==='unavailable'
+  ?'\\n【注意】JRDB馬場API取得失敗：馬場は未確認。他資料のみ照合。買い目は作りません。'
+  :'';
  return '【実戦予想はまだ作成できません】'+selected.track+selected.race+'R'
+  +venueWarning
   +'\\n出走馬の資料 '+n+'頭｜'+source
   +'\\n調教不足・未対応 '+train+'頭／1週前 '+last+'頭／近走 '+past+'頭'
   +'\\n提供元の取消報告 '+withdrawn+'頭・取消状態不明 '+unknown+'頭'
