@@ -136,8 +136,59 @@ function populateHistoricalBands(report){
  };
  return report;
 }
+function populatePace(report){
+ const paceRaces=report.ownerRunnerHistory.races.map(row=>{
+  const proposed=row.runners.map(h=>({
+   number:h.number,pastFourthCorner:runners.find(x=>x.number===h.number)
+    ?.pastFourthCorner||'insufficient'
+  }));
+  const count=label=>proposed.filter(x=>x.pastFourthCorner===label).length;
+  const front=count('frontObserved'),back=count('backObserved'),
+        mixed=count('mixedObserved'),unknown=count('insufficient');
+  const adequate=row.runnerCount>=3&&(row.runnerCount-unknown)>=3&&
+   5*(row.runnerCount-unknown)>=3*row.runnerCount;
+  const scenario=!adequate?'coverage_insufficient':front===0?'no_front_observed':
+   front===1?'single_front_observed':front===2?'two_front_observed':
+   'multiple_front_observed';
+  const rows=proposed.map(v=>{
+   let band='未評価',reason='insufficient_position_coverage';
+   if(adequate&&v.pastFourthCorner!=='insufficient'){
+    if(scenario==='single_front_observed'){
+     [band,reason]=v.pastFourthCorner==='frontObserved'?
+       ['S','possible_single_front_advantage']:
+       ['B','low_observed_front_pressure'];
+    }else if(scenario==='two_front_observed'){
+     [band,reason]=v.pastFourthCorner==='frontObserved'?
+       ['A','two_front_candidates']:['B','uncertain_chase_scenario'];
+    }else if(scenario==='multiple_front_observed'){
+     [band,reason]=v.pastFourthCorner==='backObserved'?
+       ['A','possible_late_run_if_pressured']:
+       v.pastFourthCorner==='frontObserved'?
+        ['B','multiple_front_candidates']:['B','mixed_position_under_pressure'];
+    }else{
+     [band,reason]=['未評価','no_observed_front_candidate'];
+    }
+   }
+   return {...v,scenarioFitBand:band,reason};
+  });
+  return {track:row.track,race:row.race,runnerCount:row.runnerCount,
+   frontObserved:front,backObserved:back,mixedObserved:mixed,
+   insufficient:unknown,coverageAdequate:adequate,
+   pacePressureScenario:scenario,runners:rows,
+   paceForecastReady:false,gradeReady:false,bettingReady:false};
+ });
+ report.paceScenarioHypotheses={
+  version:'owner-pace-scenario-hypothesis-1',raceCount:paceRaces.length,
+  races:paceRaces,factorWeight:20,minObservedFieldShare:'3/5',
+  minObservedRunners:3,researchOnly:true,privateOwnerOnly:true,
+  officialJraVerified:false,scenarioNotActualPace:true,
+  bandNotVerifiedFactorGrade:true,overallScoreReady:false,
+  winnerPickReady:false,bettingReady:false
+ };
+ return report;
+}
 function historical(){
- return populateHistoricalBands({
+ return populatePace(populateHistoricalBands({
   version:'bounded-history-1',date:day,predictionReady:false,
   goingSuitabilityAssessed:false,historyComplete:false,
   referencedPastRaces:2,selectedPastRaces:1,deferredPastRaces:1,
@@ -177,7 +228,7 @@ function historical(){
    version:'real-assessment-preflight-1',realGradeReady:false,
    realPredictionReady:false,purchaseReady:false
   }
- });
+ }));
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
@@ -251,6 +302,9 @@ function boot(){
  assert.match(horsePanel.children[4].textContent,/4番.*3着以内 1回/);
  assert.match(horsePanel.children[4].textContent,/巻き返し再審査対象/);
  assert.match(horsePanel.children[4].textContent,/研究目安 未評価/);
+ assert.match(historyCard.children[4].textContent,/過去4角の観測/);
+ assert.match(historyCard.children[4].textContent,/位置取りの資料不足/);
+ assert.match(horsePanel.children[4].textContent,/展開シナリオの研究目安 未評価/);
  // The provisional 3-to-5-run good-condition score is NOT a real
  // ranking, ticket or 10-factor score.
  const positive=historical();
@@ -300,6 +354,17 @@ function boot(){
  await a.get('autoHistoryAudit').onclick();
  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
  assert.equal(a.storage.get(STORAGE),oldRecord);
+ const badPaceBand=historical();
+ badPaceBand.paceScenarioHypotheses.races[0].runners[0].scenarioFitBand='S';
+ a.setHistorical(badPaceBand);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ const badFrontCount=historical();
+ badFrontCount.paceScenarioHypotheses.races[0].frontObserved=7;
+ a.setHistorical(badFrontCount);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
  const mismatchedHorse=historical();
  mismatchedHorse.ownerRunnerHistory.races[0].runners[0].number=18;
  a.setHistorical(mismatchedHorse);
