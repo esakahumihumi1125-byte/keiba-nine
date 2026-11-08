@@ -113,13 +113,15 @@ const REASONS={
  missing_post_time:'暫定発走時刻を安全に確認できない',
  after_provisional_off:'暫定発走時刻を過ぎたため後付け買い目なし',
  ambiguous_equal_grade_boundary:'同評価の馬が候補の境界にいるため選定保留',
- invalid_two_factor:'このレースの調教・近走の資料検証に不一致があり、安全のため見送り'
+ invalid_two_factor:'このレースの調教・近走の資料検証に不一致があり、安全のため見送り',
+ archived_earlier_draft:'このRの別の買い目が先にサーバーへ固定済み。再分析の買い目は表示しません。固定済み記録は100円仮想収支で確認'
 };
 const SHORT_HOLDS={
  after_provisional_off:'発走済み',missing_factors:'調教・近走不足',
  ambiguous_equal_grade_boundary:'候補同点',missing_research:'資料確認',
  invalid_two_factor:'2項目不整合',runner_count_mismatch:'頭数不一致',
- too_few_runners:'少頭数',missing_post_time:'発走時刻未確認'
+ too_few_runners:'少頭数',missing_post_time:'発走時刻未確認',
+ archived_earlier_draft:'既存の固定買い目を優先'
 };
 const RUNNER_ISSUES={
  contract:'2項目評価の形式',runner_shape:'馬番別資料の形式',
@@ -143,6 +145,7 @@ function validate(data,day){
   typeof data.archiveEnabled!=='boolean'||
   !Number.isInteger(data.archiveRecordCount)||data.archiveRecordCount<0||
   !Number.isInteger(data.archiveConflictCount)||data.archiveConflictCount<0||
+  (data.archiveConflictCount>0&&!data.archiveEnabled)||
   data.sourceReadCount!==4||data.unitYen!==100||
   !Array.isArray(data.races)||data.races.length>120||
   data.raceCount!==data.races.length||

@@ -116,6 +116,22 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.match(a.get('autoRaces').children[0].children[0].children[1].textContent,/馬番別資料の形式/);
  assert.equal(a.storage.get(STORAGE),before);
+ // An older archived formation wins over a changed reanalysis. No newer
+ // selection is exposed as a draft or written to this device.
+ const conflict=research();
+ conflict.races=[{...conflict.races[0],status:'hold',
+   reason:'archived_earlier_draft',runners:[],first:[],second:[],
+   third:[],tickets:[],points:0,amountYen:0}];
+ conflict.draftCount=0;conflict.holdCount=1;
+ conflict.holdReasons={archived_earlier_draft:1};
+ conflict.archiveEnabled=true;conflict.archiveRecordCount=1;
+ conflict.archiveConflictCount=1;
+ conflict.researchReceipts=[];conflict.researchReceiptCount=0;
+ a.setServer(conflict);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoSummary').textContent,/既存の固定買い目を優先 1R/);
+ assert.match(a.get('autoRaces').children[0].children[0].children[1].textContent,/先にサーバーへ固定済み/);
+ assert.equal(a.storage.get(STORAGE),before);
  // No new prestart forecast means no new record, not a fabricated loss.
  const empty=research();
  empty.races=[{...empty.races[0],status:'hold',reason:'after_provisional_off',

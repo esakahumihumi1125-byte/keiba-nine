@@ -346,8 +346,50 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(l["archiveRecordCount"], 1)
         self.assertEqual(l["archiveConflictCount"], 1)
         self.assertEqual(l["researchReceipts"], [])
+        self.assertEqual((l["draftCount"], l["holdCount"]), (0,1))
+        self.assertEqual(l["holdReasons"], {"archived_earlier_draft":1})
+        self.assertEqual(l["races"][0]["reason"], "archived_earlier_draft")
+        self.assertEqual(l["races"][0]["status"], "hold")
+        self.assertEqual(l["races"][0]["tickets"], [])
+        self.assertEqual(l["races"][0]["points"], 0)
+        self.assertEqual(l["races"][0]["runners"], [])
         self.assertEqual(len(original), 1)
         self.assertEqual(e["researchReceipts"][0], list(original.values())[0])
+
+    def test_archive_changed_provisional_off_time_is_also_a_conflict(self):
+        from owner_receipt_archive import FLAG, SIGNING_KEY, DSN_KEY
+        secret = "synthetic-independent-signing-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        app = create_app({**self.config, FLAG: "1", SIGNING_KEY: secret,
+                          DSN_KEY: "postgresql://fake_owner:fake_password@db.invalid/keiba"})
+        first = generate()
+        changed = copy.deepcopy(first)
+        changed["races"][0]["postTime"] = "13:00"
+        saved = {}
+        def fake_save(settings, signing_key, day, received):
+            for item in received:
+                snapshot = item["snapshot"]
+                saved.setdefault((day, snapshot["track"], snapshot["race"]),
+                                 copy.deepcopy(item))
+            return list(saved.values())
+        with (patch("private_service.fetch_race_program", return_value=[]),
+              patch("private_service.normalize_program_rows", return_value=programme()),
+              patch("private_service.fetch_horse_entries", return_value=[]),
+              patch("private_service.fetch_training_analysis", return_value=[]),
+              patch("private_service.fetch_recent_runs", return_value=[]),
+              patch("private_service.owner_day_research", return_value=research()),
+              patch("private_service.build_owner_auto_drafts", side_effect=[first,changed]),
+              patch("private_service.save_first_and_read", side_effect=fake_save),
+              patch("private_service._now_in_jst", side_effect=[
+                  "2099-01-01T09:00:00+09:00", "2099-01-01T09:10:00+09:00"])):
+            a = call(app, "/api/jrdb/owner-auto-draft", QUERY_STRING="date="+DAY)
+            b = call(app, "/api/jrdb/owner-auto-draft", QUERY_STRING="date="+DAY)
+        self.assertEqual(a["status"], "200 OK")
+        self.assertEqual(b["status"], "200 OK")
+        result = json.loads(b["body"])
+        self.assertEqual(result["archiveConflictCount"], 1)
+        self.assertEqual(result["races"][0]["status"], "hold")
+        self.assertEqual(result["holdReasons"], {"archived_earlier_draft": 1})
+        self.assertEqual(result["researchReceipts"], [])
 
     def test_optional_archive_failure_stops_without_new_receipts(self):
         from owner_receipt_archive import FLAG, SIGNING_KEY, DSN_KEY, ArchiveUnavailable

@@ -2088,21 +2088,45 @@ def create_app(settings=None):
                         (x['snapshot']['track'], x['snapshot']['race']): x
                         for x in receipts
                     }
-                    matches, conflicts = [], 0
+                    matches, conflicting_races = [], set()
                     for original in saved:
                         snapshot = original['snapshot']
-                        current = fresh_receipts_by_race.get(
-                            (snapshot['track'], snapshot['race']))
+                        coord = (snapshot['track'], snapshot['race'])
+                        current = fresh_receipts_by_race.get(coord)
                         if current is None:
                             continue
-                        # Never replace an earlier, immutable forecast with
-                        # a changed one in either server or client storage.
-                        if snapshot['trifectaTickets'] == current['snapshot']['trifectaTickets']:
+                        # Tickets AND the off-time must match the FIRST
+                        # server-stored receipt, never the latest analysis.
+                        if (snapshot['trifectaTickets'] == current['snapshot']['trifectaTickets']
+                                and snapshot['scheduledOffAt']
+                                == current['snapshot']['scheduledOffAt']):
                             matches.append(original)
                         else:
-                            conflicts += 1
+                            conflicting_races.add(coord)
+                    # The current calculation may disagree with the immutable
+                    # original. It must never be displayed as a fresh usable
+                    # formation while only the older one is actually archived.
+                    for row in report['races']:
+                        if (row['track'], row['race']) in conflicting_races:
+                            row.update({
+                                'status': 'hold', 'reason': 'archived_earlier_draft',
+                                'runners': [], 'first': [], 'second': [],
+                                'third': [], 'tickets': [], 'points': 0,
+                                'amountYen': 0,
+                            })
+                    if conflicting_races:
+                        report['draftCount'] = sum(
+                            r['status'] == 'provisional_draft' for r in report['races'])
+                        report['holdCount'] = sum(
+                            r['status'] == 'hold' for r in report['races'])
+                        reasons = {}
+                        for row in report['races']:
+                            if row['status'] == 'hold':
+                                code = row['reason']
+                                reasons[code] = reasons.get(code, 0) + 1
+                        report['holdReasons'] = reasons
                     receipts = matches
-                    report['archiveConflictCount'] = conflicts
+                    report['archiveConflictCount'] = len(conflicting_races)
                 report['researchReceipts'] = receipts
                 report['researchReceiptCount'] = len(receipts)
                 report['serverStamped'] = True
