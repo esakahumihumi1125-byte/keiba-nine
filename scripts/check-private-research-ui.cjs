@@ -102,8 +102,18 @@ async function flush(){
  assert.match(realSummary,/36点/);
  assert.match(realSummary,/3,600円/);
  assert.equal(collect(host).filter(x=>x.className==='horse-row').length,8);
- assert.equal(collect(host).filter(x=>x.className==='grade-tag grade-a').length,2,
-   'A class is red and shown for synthetic A-tier runners');
+ // The new 100-point thresholds make uniform factor-A horses 66.67 (B),
+ // and uniform factor-B horses 33.33 (C), not the old A/B display bands.
+ assert.equal(collect(host).filter(x=>x.className==='grade-tag grade-a').length,0);
+ assert.equal(collect(host).filter(x=>x.className==='grade-tag grade-b').length,2);
+ assert.equal(collect(host).filter(x=>x.className==='grade-tag grade-c').length,4);
+ // Keep the A visual badge available whenever an actual 70-84-point score
+ // arrives from the evaluator; the tier is not omitted by the iPhone UI.
+ const visualA=structuredClone(fullPlan);
+ visualA.evaluation.horses.find(h=>h.number===3).overall='A';
+ scope.renderResearchSummary(visualA,body);
+ assert.equal(collect(host).filter(x=>x.className==='grade-tag grade-a').length,1);
+ scope.renderResearchSummary(fullPlan,body);
 
 
  const before=requests.length;
