@@ -31,7 +31,8 @@ def _only(rows, track, race):
 
 
 def selected_race_readiness(
-    programme, entries, training, previous, holding, date, track, race, checked_at
+    programme, entries, training, previous, holding, date, track, race, checked_at,
+    *, diagnostic=None
 ):
     """Return ONLY selected-race aggregates and permanent non-ready flags.
 
@@ -40,21 +41,45 @@ def selected_race_readiness(
     """
     if not _valid_date(date) or track not in TRACKS.values() or type(race) is not int or not 1 <= race <= 12:
         raise CoverageError("Invalid selected race coordinates")
+    if diagnostic is not None:
+        diagnostic["stage"] = "evidence_and_entries"
     evidence = audit_evidence_coverage(programme, entries, training, previous, date)
+    if diagnostic is not None:
+        diagnostic["stage"] = "provider_day_status"
     day = audit_race_day_checks(programme, entries, holding, date)
+    if diagnostic is not None:
+        diagnostic["stage"] = "venue_freshness"
     freshness = audit_prestart_freshness(programme, holding, date, checked_at)
+    if diagnostic is not None:
+        diagnostic["stage"] = "training_coverage"
     training_hints = build_training_hints(programme, entries, training, date)
+    if diagnostic is not None:
+        diagnostic["stage"] = "recent_coverage"
     recent_hints = build_recent_hints(programme, entries, previous, date)
+    if diagnostic is not None:
+        diagnostic["stage"] = "factor_pairing"
     paired = summarize_dual_factor_readiness(training_hints, recent_hints)
+    if diagnostic is not None:
+        diagnostic["stage"] = "factor_matrix"
     factor_matrix = build_private_factor_matrix(training_hints, recent_hints)
+    if diagnostic is not None:
+        diagnostic["stage"] = "factor_summary"
     factors = summarize_factor_materials(factor_matrix)
+    if diagnostic is not None:
+        diagnostic["stage"] = "entry_materials"
     entry_matrix = enrich_entry_materials_matrix(
         factor_matrix, programme, entries, previous, date
     )
+    if diagnostic is not None:
+        diagnostic["stage"] = "entry_summary"
     entry_materials = summarize_entry_materials_matrix(entry_matrix)
+    if diagnostic is not None:
+        diagnostic["stage"] = "personnel_materials"
     personnel_body = summarize_personnel_body_matrix(
         enrich_personnel_body_matrix(entry_matrix, programme, entries, date)
     )
+    if diagnostic is not None:
+        diagnostic["stage"] = "cross_source_validation"
     if (evidence["raceCount"] != day["raceCount"]
             or evidence["raceCount"] != freshness["raceCount"]
             or evidence["raceCount"] != len(paired["races"])
