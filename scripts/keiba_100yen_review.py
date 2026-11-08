@@ -71,6 +71,12 @@ def _tickets(raw, mode):
 def _official(record):
     if record is None or record.get("officialVerified") is not True:
         return None
+    # A three-horse finishing tuple is insufficient to settle dead heats,
+    # scratched-ticket refunds or an abandoned race. Keep such races pending
+    # until an official per-ticket settlement adapter is available.
+    if any(record.get(flag) is True for flag in (
+            "deadHeat", "refundRequired", "raceAbandoned")):
+        return None
     final = record.get("finish")
     if (not isinstance(final, list) or len(final) != 3
             or any(type(n) is not int or not 1 <= n <= 18 for n in final)
