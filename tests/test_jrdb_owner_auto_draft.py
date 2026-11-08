@@ -161,6 +161,25 @@ class AutoDraftTests(unittest.TestCase):
             self.assertEqual(r["reason"],"after_provisional_off")
             self.assertEqual(r["tickets"],[])
 
+    def test_post_off_http_research_never_displays_new_ranks(self):
+        past = datetime(2099, 1, 1, 12, 30, tzinfo=JST)
+        invalid = research()
+        # A latest fetch may contain changed or malformed post-race data.
+        # Neither future tickets nor retrospectively computed rankings are
+        # published in an after-off research request.
+        invalid["races"][0]["research"]["runners"][0]["number"] = 2
+        report = generate(r=invalid, now=past)
+        race = report["races"][0]
+        self.assertEqual(race["reason"], "after_provisional_off")
+        self.assertEqual(race["status"], "hold")
+        self.assertEqual(race["runners"], [])
+        self.assertEqual(race["tickets"], [])
+        self.assertEqual(report["holdReasons"], {"after_provisional_off": 1})
+        self.assertEqual(report["draftCount"], 0)
+        self.assertEqual(
+            seal_auto_research_drafts(report, SETTINGS["KEIBA_OWNER_PASSWORD"],
+                                      now=past), [])
+
     def test_signed_auto_drafts_are_prestart_only_and_pending_in_roi(self):
         now=datetime(2099,1,1,9,0,tzinfo=JST)
         result=generate(now=now)

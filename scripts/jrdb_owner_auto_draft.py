@@ -192,6 +192,18 @@ def _draft_for_race(row, research, day, now):
         "overallPredictionReady": False, "bettingReady": False,
         "autoPurchase": False,
     }
+    # Time-gate BEFORE parsing today's research. After the provisional off
+    # time, a new HTTP request must not generate or even display a ranking
+    # that could be mistaken for a genuine pre-race assessment.
+    off_text = row.get("post_time")
+    if not isinstance(off_text, str) or not re.fullmatch(
+            r"(?:[01]\d|2[0-3]):[0-5]\d", off_text):
+        output["reason"] = "missing_post_time"
+        return output
+    off = datetime.strptime(day + off_text, "%Y%m%d%H:%M").replace(tzinfo=JST)
+    if now >= off:
+        output["reason"] = "after_provisional_off"
+        return output
     if research is None:
         return output
     if (not isinstance(research, dict)
@@ -217,15 +229,6 @@ def _draft_for_race(row, research, day, now):
         return output
     if len(runners) < 4:
         output["reason"] = "too_few_runners"
-        return output
-    off_text = row.get("post_time")
-    if not isinstance(off_text, str) or not re.fullmatch(
-            r"(?:[01]\d|2[0-3]):[0-5]\d", off_text):
-        output["reason"] = "missing_post_time"
-        return output
-    off = datetime.strptime(day + off_text, "%Y%m%d%H:%M").replace(tzinfo=JST)
-    if now >= off:
-        output["reason"] = "after_provisional_off"
         return output
     if any(x["twoFactorPoints"] is None for x in runners):
         output["reason"] = "missing_factors"
