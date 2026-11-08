@@ -104,7 +104,7 @@ def combine_five_factor_hypotheses(private_matrix, history, pace):
         horses, coverage = [], dict.fromkeys(FACTORS_IN_VIEW, 0)
         for number in sorted(ids):
             # The validated private matrix uses numeric strings for runner ids.
-            t = private[str(number)]
+            t = private[f"{number:02d}"]
             h, p = history_by_num[number], pace_by_num[number]
             training, recent = t["training"]["grade"], t["recent"]["grade"]
             course, going = h.get("courseEvidenceBand"), h.get("goingEvidenceBand")
