@@ -14,7 +14,8 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
 <button id="autoRun" type="button">全場・全Rを再分析する</button>
 <p class="muted">画面を開いたら本人用の当日分を一度だけ自動取得。
-再分析ボタンを押した場合も番組・出走馬・調教・近走を各1回取得します。
+再分析ボタンを押した場合は番組・出走馬・調教・近走を各1回取得し、
+馬場情報の追加取得も最大1回だけ試みます。取得できなくても既存の発走前記録は維持します。
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
@@ -220,6 +221,49 @@ function validateTen(data){
  }
  return p;
 }
+function validateContext(data){
+ const ctx=data.raceContext;
+ if(!ctx||ctx.version!=='race-context-1'||
+    ctx.raceCount!==data.raceCount||!Array.isArray(ctx.races)||
+    ctx.races.length!==data.raceCount||
+    ctx.raceConditionsVerified!==false||ctx.predictionReady!==false||
+    !Number.isInteger(ctx.courseInfoPresentCount)||
+    !Number.isInteger(ctx.goingAvailableCount)||
+    ctx.conditionProviderReadCount!==(data.raceCount?1:0)||
+    !['received','unavailable'].includes(ctx.conditionProviderFetchStatus))
+  throw Error('レース条件の形式が不正です');
+ const existing=new Map(data.races.map(r=>[r.track+'|'+r.race,r])),seen=new Set();
+ let present=0,known=0;
+ for(const r of ctx.races){
+  if(!r||typeof r.track!=='string'||!Number.isInteger(r.race)||
+     !existing.has(r.track+'|'+r.race)||seen.has(r.track+'|'+r.race)||
+     ![null,'芝','ダート','障害'].includes(r.surface)||
+     !(r.distance_m===null||
+       (Number.isInteger(r.distance_m)&&r.distance_m>=100&&r.distance_m<=10000))||
+     ![null,'右','左','直線'].includes(r.turn)||
+     !['良','稍重','重','不良','未確認'].includes(r.going)||
+     typeof r.goingAvailable!=='boolean'||
+     typeof r.courseInfoPresent!=='boolean'||
+     typeof r.conditionSnapshotPresent!=='boolean'||
+     typeof r.conditionUpdateRecorded!=='boolean'||
+     r.horseCourseSuitabilityAssessed!==false||
+     r.horseGoingSuitabilityAssessed!==false||r.predictionReady!==false)
+   throw Error('レース条件に未検証値があります');
+  const key=r.track+'|'+r.race;seen.add(key);
+  const info=r.surface!==null&&r.distance_m!==null&&r.turn!==null;
+  if(info!==r.courseInfoPresent||
+     (r.going!=='未確認')!==r.goingAvailable||
+     (r.goingAvailable&&!r.conditionSnapshotPresent)||
+     (r.conditionUpdateRecorded&&!r.conditionSnapshotPresent)||
+     (r.surface==='障害'&&r.goingAvailable))
+   throw Error('レース条件と資料の状態が不一致');
+  present+=Number(r.courseInfoPresent);
+  known+=Number(r.goingAvailable);
+ }
+ if(present!==ctx.courseInfoPresentCount||known!==ctx.goingAvailableCount)
+  throw Error('レース条件の集計が不一致');
+ return ctx;
+}
 function validate(data,day){
  if(!data||data.version!=='jrdb-owner-auto-draft-1'||data.date!==day||
   data.researchOnly!==true||data.privateOwnerOnly!==true||
@@ -315,6 +359,7 @@ function validate(data,day){
   }
  }
  validateTen(data);
+ validateContext(data);
  return data;
 }
 function runnerView(h,index){
@@ -360,8 +405,9 @@ function formation(r){
  return block;
 }
 function render(input,day){
- const data=validate(input,day),p=data.tenFactorPreview;
+ const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
+ const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
  const host=$('autoRaces'),tabs=$('autoVenues'),nodes=[],groups=new Map();
  host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
  for(const race of data.races){
@@ -369,6 +415,20 @@ function render(input,day){
    race.track+' '+race.race+'R '+
    (race.status==='provisional_draft'?'研究用自動案 '+race.points+'点':'見送り'));
   detail.append(title);
+  const course=courseRows.get(race.track+'|'+race.race);
+  const condition=course.goingAvailable?course.going+'（JRDB資料）':'馬場未確認';
+  detail.append(dom('p','コース条件：'+(course.surface||'芝・ダート未確認')+
+    '／'+(course.distance_m===null?'距離未確認':course.distance_m+'m')+
+    '／'+(course.turn||'回り未確認')+'／'+condition,'muted'));
+  if(race.runners.length){
+   const front=race.runners.filter(h=>h.pastFourthCorner==='frontObserved').length;
+   const back=race.runners.filter(h=>h.pastFourthCorner==='backObserved').length;
+   const mixed=race.runners.filter(h=>h.pastFourthCorner==='mixedObserved').length;
+   const unknown=race.runners.length-front-back-mixed;
+   detail.append(dom('p','過去4角の位置取り観測：前方 '+front+
+     '頭／後方 '+back+'頭／混在 '+mixed+'頭／資料不足 '+unknown+
+     '頭（今回の展開予測・適性点数ではありません）','muted'));
+  }
   if(race.status==='hold'){
    const extra=race.reason==='invalid_two_factor'&&
      Object.hasOwn(RUNNER_ISSUES,race.validationIssue)
@@ -417,7 +477,8 @@ function render(input,day){
  $('autoSummary').textContent=data.raceCount+'R中、研究用自動案 '+data.draftCount+
   'R／見送り '+data.holdCount+'R。'+
   (breakdown?'内訳：'+breakdown+'。':'')+
-  'JRDBの2項目だけを買い目に使用。追加資料：'+
+  'JRDBの2項目だけを買い目に使用。コース条件の存在 '+ctx.courseInfoPresentCount+
+  'R／馬場資料の存在 '+ctx.goingAvailableCount+'R（適性は未評価）。追加資料：'+
   (data.sourceMaterials.status==='observed'?'血統・枠などの材料を確認（採点なし）':'照合保留')+
   '。JRA公式照合や正式な投票は未実施。';
 }
