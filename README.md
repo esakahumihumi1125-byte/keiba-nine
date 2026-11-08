@@ -8,6 +8,7 @@
 - [1着候補・総合順位の取りこぼし検証（架空データ）](docs/winner-review-validation.md)
 - [買い目の構成・時系列検証](docs/research-pipeline.md)
 - [JRDBの非公開接続準備](docs/jrdb-private.md)
+- [JRDB-API β版承認後の本人専用接続手順（2026-11-08）](docs/jrdb-api-beta-activation.md)
 - [本人認証付きの接続確認サービス（未設置）](docs/private-service.md)
 - [本人用サーバーの設置準備](docs/private-deployment.md)
 - [iPhoneだけで作る本人用・架空データ画面（Render Free・任意）](docs/render-iphone-preview.md)
