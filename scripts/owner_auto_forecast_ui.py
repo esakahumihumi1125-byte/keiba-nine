@@ -22,6 +22,14 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
 <section>
+<h2>過去の同条件実績を照合</h2>
+<p class="muted">必要なときだけ過去番組・馬場を最大8件照合（追加APIアクセスは最大16回）。
+資料の数は適性点数や勝率ではありません。未取得や新馬を能力不足とは判断しません。</p>
+<button id="autoHistoryAudit" type="button" disabled>過去の同条件を最大8件照合する</button>
+<p id="autoHistoryAuditStatus" class="muted" role="status">暫定予想の取得後に利用できます。</p>
+<div id="autoHistoryAuditRaces"></div>
+</section>
+<section>
 <h2>発走前に固定した買い目の履歴</h2>
 <p id="autoHistoryStatus" class="muted" role="status">この端末の固定記録を読み込み中です。</p>
 <div id="autoHistory"></div>
@@ -87,6 +95,8 @@ summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
 .ten-slot span{display:block;color:#b9cadc}
 .ten-slot b{display:inline-block;color:#e9efff;margin-top:4px}
 .ten-slot b.S{color:#f3d475}.ten-slot b.A{color:#ffa6b1}.ten-slot b.B{color:#a4d8ff}
+.history-coverage{border:1px solid #45617e;background:#182f48;border-radius:10px;margin:7px 0;padding:10px}
+.history-coverage strong{color:#f3d475}.history-coverage p{font-size:12px;margin:4px 0}
 @media(max-width:380px){.number{min-width:34px}.rank{min-width:35px}}
 """
 
@@ -651,7 +661,63 @@ function saveAutoReceipts(data,day){
   '保存先はこのiPhone内のみ（Safariとホーム画面で別の場合あり）。';
 }
 
-let request=0,followingToday=true;
+let request=0,followingToday=true,historySeq=0,historyDay='',historyCoordinates=new Set();
+function clearHistory(){
+ historySeq++;historyDay='';historyCoordinates=new Set();
+ $('autoHistoryAudit').disabled=true;
+ $('autoHistoryAuditRaces').replaceChildren();
+ $('autoHistoryAuditStatus').textContent='暫定予想の取得後に利用できます。';
+}
+function validateHistory(h){
+ if(!h||h.version!=='bounded-history-1'||
+    h.predictionReady!==false||h.goingSuitabilityAssessed!==false||
+    typeof h.historyComplete!=='boolean'||h.maxTotalCalls!==16||
+    !Number.isInteger(h.draCalls)||h.draCalls<0||h.draCalls>8||
+    !Number.isInteger(h.dkaCalls)||h.dkaCalls<0||h.dkaCalls>h.draCalls||
+    !Number.isInteger(h.referencedPastRaces)||h.referencedPastRaces<0||
+    !Number.isInteger(h.selectedPastRaces)||h.selectedPastRaces<0||
+    h.selectedPastRaces>8||h.selectedPastRaces>h.referencedPastRaces||
+    !Number.isInteger(h.deferredPastRaces)||
+    h.deferredPastRaces!==h.referencedPastRaces-h.selectedPastRaces||
+    !h.privateHistoryFactors||
+    h.privateHistoryFactors.version!=='private-course-ground-materials-1'||
+    h.privateHistoryFactors.predictionReady!==false||
+    h.privateHistoryFactors.bettingReady!==false||
+    h.privateHistoryFactors.raceCount!==historyCoordinates.size||
+    !Array.isArray(h.privateHistoryFactors.races)||
+    h.privateHistoryFactors.races.length!==historyCoordinates.size||
+    !h.realAssessmentPreflight||
+    h.realAssessmentPreflight.version!=='real-assessment-preflight-1'||
+    h.realAssessmentPreflight.realGradeReady!==false||
+    h.realAssessmentPreflight.realPredictionReady!==false||
+    h.realAssessmentPreflight.purchaseReady!==false)
+  throw Error('過去資料形式不正');
+ const seen=new Set(),results=[];
+ for(const row of h.privateHistoryFactors.races){
+  if(!row||typeof row.track!=='string'||!Number.isInteger(row.race)||
+     row.predictionReady!==false||row.bettingReady!==false||
+     row.suitabilityAssessed!==false||row.overallRankReady!==false||
+     row.verifiedFactorCount!==0||
+     !Number.isInteger(row.runnerCount)||row.runnerCount<0||row.runnerCount>18||
+     !Array.isArray(row.observationOnlyFactors)||
+     row.observationOnlyFactors.join('|')!=='pace|course_distance|ground')
+   throw Error('過去資料の評価状態不正');
+  const id=row.track+'|'+row.race;
+  if(!historyCoordinates.has(id)||seen.has(id))throw Error('開催レース不一致');
+  seen.add(id);
+  const stats=['runnersWithComparableCourse','runnersWithKnownGoingComparable',
+   'runnersWithWetComparable','runnersMatchingCurrentGoing',
+   'runnersWithIncompleteHistory'];
+  if(stats.some(k=>!Number.isInteger(row[k])||row[k]<0||row[k]>row.runnerCount)||
+     row.runnersWithKnownGoingComparable>row.runnersWithComparableCourse||
+     row.runnersWithWetComparable>row.runnersWithKnownGoingComparable||
+     row.runnersMatchingCurrentGoing>row.runnersWithKnownGoingComparable)
+   throw Error('過去資料集計不正');
+  results.push(row);
+ }
+ if(seen.size!==historyCoordinates.size)throw Error('過去レース不足');
+ return results;
+}
 function jstToday(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});}
 $('autoDay').value=jstToday();
 function updateReviewLink(){
@@ -670,6 +736,7 @@ $('autoDay').onchange=()=>{
  request++;$('autoRun').disabled=false;
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
@@ -686,6 +753,7 @@ $('autoRun').onclick=async()=>{
   $('autoStatus').textContent='開催日を選択してください。';return;
  }
  button.disabled=true;$('autoStatus').textContent='JRDB資料を一括照合し、自動暫定案を作成中…';
+ clearHistory();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  try{
   const result=await fetch('/api/jrdb/owner-auto-draft?date='+encodeURIComponent(day),{
@@ -705,6 +773,11 @@ $('autoRun').onclick=async()=>{
   }
   if(seq!==request)return;
   render(body,day);
+  historyDay=day;
+  historyCoordinates=new Set(body.races.map(r=>r.track+'|'+r.race));
+  $('autoHistoryAudit').disabled=historyCoordinates.size===0;
+  $('autoHistoryAuditStatus').textContent=historyCoordinates.size
+   ?'必要なときに過去の同条件資料を確認できます。':'この開催日のレースはありません。';
   try{
    const localStatus=saveAutoReceipts(body,day);
    $('autoSavedStatus').textContent=body.archiveEnabled
@@ -726,6 +799,46 @@ $('autoRun').onclick=async()=>{
   $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
  finally{if(seq===request)button.disabled=false;}
 };
+$('autoHistoryAudit').onclick=async()=>{
+ const button=$('autoHistoryAudit'),day=historyDay;
+ if(button.disabled||!day||day!==$('autoDay').value.replaceAll('-',''))return;
+ button.disabled=true;const seq=++historySeq;
+ $('autoHistoryAuditStatus').textContent='過去の同条件を照合中…';
+ $('autoHistoryAuditRaces').replaceChildren();
+ try{
+  const res=await fetch('/api/jrdb/history',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},
+   body:JSON.stringify({date:day,limit:8})
+  });
+  const raw=await res.json();
+  if(seq!==historySeq)return;
+  if(!res.ok)throw Error('履歴機能は利用不可');
+  const rows=validateHistory(raw);
+  for(const row of rows){
+   const card=dom('div',undefined,'history-coverage');
+   card.append(dom('strong',row.track+' '+row.race+'R'),
+    dom('p','芝・ダートと近い距離の過去出走：'+
+      row.runnersWithComparableCourse+'/'+row.runnerCount+'頭'),
+    dom('p','馬場を確認できた過去出走：'+row.runnersWithKnownGoingComparable+
+      '頭／今回と同じ馬場での出走歴：'+row.runnersMatchingCurrentGoing+
+      '頭／重・不良の出走歴：'+row.runnersWithWetComparable+'頭'),
+    dom('p','履歴不足：'+row.runnersWithIncompleteHistory+
+      '頭。適性・10項目総合点は未評価。'));
+   $('autoHistoryAuditRaces').append(card);
+  }
+  $('autoHistoryAuditStatus').textContent='過去番組の追加照合 '+raw.draCalls+
+   '回／馬場 '+raw.dkaCalls+'回。未取得の過去レース '+raw.deferredPastRaces+
+   '件。'+(raw.historyComplete?'指定範囲を照合済み。':'履歴に未確認あり。')+
+   ' 予想・購入・保存済みの買い目は変更しません。';
+ }catch(_){if(seq===historySeq){
+  $('autoHistoryAuditRaces').replaceChildren();
+  $('autoHistoryAuditStatus').textContent=
+   '過去資料の照合ができません。履歴機能の設定・資料形式を確認してください。'+
+   '予想と固定済みの買い目は変更していません。';
+ }}finally{if(seq===historySeq&&day===historyDay)button.disabled=false;}
+};
 $('autoSavedStatus').textContent=localReceiptStatus(
  $('autoDay').value.replaceAll('-',''));
 showFixedHistory($('autoDay').value.replaceAll('-',''));
@@ -741,6 +854,7 @@ function resumeOwnerDay(){
  $('autoDay').value=today;
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
