@@ -25,7 +25,7 @@ FULL_COUNT = 10
 
 def definition():
     if (len(FACTORS) != FULL_COUNT or sum(FACTORS.values()) != TOTAL_WEIGHT
-            or TOTAL_WEIGHT != 110
+            or TOTAL_WEIGHT != 100
             or set(FACTOR_LABELS) != set(FACTORS)
             or not CORE.issubset(FACTORS)
             or set(PROVISIONAL) - set(FACTORS)):
@@ -101,7 +101,7 @@ def ten_factor_contract(two_factor_drafts):
     return {
         "version": VERSION, "policyVersion": POLICY_VERSION,
         "factorCount": FULL_COUNT, "totalWeight": TOTAL_WEIGHT,
-        "normalization": "weighted_mean_over_110",
+        "normalization": "weighted_mean_over_100",
         "factors": specs,
         "raceCount": len(output), "fullPredictionRaceCount": 0,
         "researchOnly": True, "overallPredictionReady": False,

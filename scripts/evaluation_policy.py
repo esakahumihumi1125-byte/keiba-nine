@@ -5,16 +5,17 @@ Weights/thresholds are provisional hypotheses, not fitted win probabilities.
 """
 from datetime import datetime
 
-POLICY_VERSION = 'research-2'
-# Owner-specified relative weights: these sum to 110, not 100.
-# Never silently change a requested weight to force a 100-point total.
+POLICY_VERSION = 'research-3'
+# Owner-approved 100-point distribution, preserving the relative priorities
+# of their original 110-weight proposal. Body condition slot means race-day
+# BODY WEIGHT assessment, not JRDB conformation codes.
 FACTORS = {
-    'training': 30, 'recent': 3, 'course_distance': 20, 'pace': 20,
-    'ground': 15, 'pedigree': 10, 'draw_weight': 5, 'jockey_stable': 5,
+    'training': 27, 'recent': 3, 'course_distance': 18, 'pace': 18,
+    'ground': 13, 'pedigree': 9, 'draw_weight': 5, 'jockey_stable': 5,
     'rotation': 1, 'body_condition': 1,
 }
 TOTAL_WEIGHT = sum(FACTORS.values())
-assert len(FACTORS) == 10 and TOTAL_WEIGHT == 110
+assert len(FACTORS) == 10 and TOTAL_WEIGHT == 100
 CORE = {'training', 'recent', 'course_distance', 'pace', 'ground'}
 WIN_FACTORS = {'training', 'recent', 'course_distance', 'pace'}
 POINTS = {'S': 3, 'A': 2, 'B': 1, 'C': 0}
@@ -81,8 +82,8 @@ def evaluate_race(race):
             weighted += POINTS[item['grade']] * weight
             coverage += weight
         # The full ten-factor spec never extrapolates from missing grades.
-        # Normalise the owner's original 110-weight distribution for a
-        # stable 0..3 weighted-average grade, not a prediction probability.
+        # Convert 100-point factor weights to a 0..3 weighted grade average,
+        # not a win probability. Incomplete research gets no overall score.
         ready = not missing and coverage == TOTAL_WEIGHT
         score = weighted / TOTAL_WEIGHT if ready else None
         overall = '未評価' if score is None else 'S' if score >= 2.6 else 'A' if score >= 2 else 'B' if score >= 1 else 'C'

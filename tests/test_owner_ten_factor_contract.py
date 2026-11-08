@@ -14,10 +14,10 @@ class TenFactorContractTests(unittest.TestCase):
     def test_ten_labels_weights_and_core_use_existing_policy(self):
         policy=definition()
         self.assertEqual(len(policy),10)
-        self.assertEqual(sum(f["weight"] for f in policy),110)
+        self.assertEqual(sum(f["weight"] for f in policy),100)
         self.assertEqual({f["key"]:f["weight"] for f in policy},{
-            "training":30,"recent":3,"course_distance":20,"pace":20,
-            "ground":15,"pedigree":10,"draw_weight":5,
+            "training":27,"recent":3,"course_distance":18,"pace":18,
+            "ground":13,"pedigree":9,"draw_weight":5,
             "jockey_stable":5,"rotation":1,"body_condition":1,
         })
         self.assertEqual({f["key"]:f["label"] for f in policy}["body_condition"],"馬体重")
@@ -32,8 +32,8 @@ class TenFactorContractTests(unittest.TestCase):
         unchanged=copy.deepcopy(report)
         converted=ten_factor_contract(report)
         self.assertEqual(converted["version"],VERSION)
-        self.assertEqual(converted["totalWeight"],110)
-        self.assertEqual(converted["normalization"],"weighted_mean_over_110")
+        self.assertEqual(converted["totalWeight"],100)
+        self.assertEqual(converted["normalization"],"weighted_mean_over_100")
         self.assertEqual(converted["raceCount"],1)
         self.assertEqual(converted["fullPredictionRaceCount"],0)
         self.assertFalse(converted["overallPredictionReady"])
