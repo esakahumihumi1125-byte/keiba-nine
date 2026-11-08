@@ -146,6 +146,37 @@ def review_100yen(predictions, results):
     done = [x for x in rows if x["status"] == "verified_result"]
     invested = sum(x["investedYen"] for x in done)
     paid = sum(x["returnedYen"] for x in done)
+    # Keep unresolved stakes visible, but OUTSIDE the verified ROI denominator.
+    pending_stake = sum(
+        (x["trifectaPoints"] + x["trioPoints"]) * STAKE
+        for x in rows if x["status"] == "pending")
+    # Track-level breakdown makes the same frozen review useful for a full
+    # racing day. Preserve the order in which the owner supplied race records.
+    by_venue = []
+    for track in dict.fromkeys(x["track"] for x in rows):
+        races = [x for x in rows if x["track"] == track]
+        verified = [x for x in races if x["status"] == "verified_result"]
+        stake = sum(x["investedYen"] for x in verified)
+        returned = sum(x["returnedYen"] for x in verified)
+        candidates = [x for x in verified if x["firstCandidateHit"] is not None]
+        by_venue.append({
+            "track": track,
+            "reviewedRaces": len(verified),
+            "pendingRaces": len(races) - len(verified),
+            "investedYen": stake,
+            "returnedYen": returned,
+            "profitYen": returned - stake,
+            "roiPercent": round(returned / stake * 100, 1) if stake else None,
+            "pendingStakeYen": sum(
+                (x["trifectaPoints"] + x["trioPoints"]) * STAKE
+                for x in races if x["status"] == "pending"),
+            "trifectaHits": sum(x["hitTrifecta"] is True for x in verified),
+            "trioHits": sum(x["hitTrio"] is True for x in verified),
+            "firstCandidateHits": sum(
+                x["firstCandidateHit"] is True for x in candidates),
+            "firstCandidateEligibleRaces": len(candidates),
+        })
+    candidates = [x for x in done if x["firstCandidateHit"] is not None]
     return {
         "version": VERSION, "unitYen": STAKE,
         "races": rows, "reviewedRaces": len(done),
@@ -153,6 +184,10 @@ def review_100yen(predictions, results):
         "totalInvestedYen": invested, "totalReturnedYen": paid,
         "totalProfitYen": paid - invested,
         "roiPercent": round(paid / invested * 100, 1) if invested else None,
+        "pendingStakeYen": pending_stake,
+        "venueBreakdown": by_venue,
+        "firstCandidateHits": sum(x["firstCandidateHit"] is True for x in candidates),
+        "firstCandidateEligibleRaces": len(candidates),
         "trifectaHits": sum(x["hitTrifecta"] is True for x in done),
         "trioHits": sum(x["hitTrio"] is True for x in done),
         "actualPurchase": False,
