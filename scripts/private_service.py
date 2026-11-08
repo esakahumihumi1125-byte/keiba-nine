@@ -30,6 +30,10 @@ from jrdb_prestart_body import audit_prestart_body
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
+from jrdb_owner_auto_draft import build_owner_auto_drafts
+from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
+                                    JS as AUTO_FORECAST_JS,
+                                    CSS as AUTO_FORECAST_CSS)
 from jrdb_owner_day_ui import HTML as OWNER_DAY_HTML, JS as OWNER_DAY_JS, CSS as OWNER_DAY_CSS
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
 from jrdb_factor_preflight import audit_assessment_preflight
@@ -1233,7 +1237,7 @@ def create_app(settings=None):
                             extra=[('Location', '/login?session=check'),
                                    ('Set-Cookie', session_cookie(expected))])
         if not valid:
-            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/my-scorecard', '/owner-races', '/owner-preday-forecast', '/owner-jrdb-day-research', '/owner-gmail-setup', '/owner-review', '/owner-daily-review', '/owner-100yen-review', '/owner-auto-trial', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
+            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/my-scorecard', '/owner-races', '/owner-preday-forecast', '/owner-jrdb-day-research', '/owner-auto-forecast', '/owner-gmail-setup', '/owner-review', '/owner-daily-review', '/owner-100yen-review', '/owner-auto-trial', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
                 return response('303 See Other', '', 'text/plain; charset=utf-8',
                                 extra=[('Location', '/login')])
             # Do not summon an iPhone native Basic-password popup when an
@@ -1243,7 +1247,7 @@ def create_app(settings=None):
                 '/app.js', '/app.css', '/my-tickets.js',
                 '/my-tickets.css', '/my-purchases.js', '/research-batch-demo.css',
                 '/day-pipeline.css', '/day-pipeline.js',
-                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/owner-scorecard.js', '/owner-scorecard.css', '/owner-race-workbench.js', '/owner-race-workbench.css', '/owner-preday-forecast.js', '/owner-preday-forecast.css', '/owner-gmail-setup.js', '/owner-gmail-setup.css', '/owner-jrdb-day-research.js', '/owner-jrdb-day-research.css', '/owner-review.js', '/owner-review.css', '/owner-daily-review.js', '/owner-daily-review.css', '/owner-100yen-review.js', '/owner-100yen-review.css', '/owner-auto-trial.js', '/owner-auto-trial.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
+                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/owner-scorecard.js', '/owner-scorecard.css', '/owner-race-workbench.js', '/owner-race-workbench.css', '/owner-preday-forecast.js', '/owner-preday-forecast.css', '/owner-gmail-setup.js', '/owner-gmail-setup.css', '/owner-jrdb-day-research.js', '/owner-jrdb-day-research.css', '/owner-auto-forecast.js', '/owner-auto-forecast.css', '/owner-review.js', '/owner-review.css', '/owner-daily-review.js', '/owner-daily-review.css', '/owner-100yen-review.js', '/owner-100yen-review.css', '/owner-auto-trial.js', '/owner-auto-trial.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
             ):
                 return response('401 Unauthorized', {'error': 'ログインが必要です。'})
             return response('401 Unauthorized', {'error': '本人認証が必要です。'},
@@ -1269,8 +1273,10 @@ def create_app(settings=None):
                                          'JRDB β版の2項目研究用試算（本人専用）')
                                 .replace(
                                   '<a class="owner-main-action" href="/my-scorecard">',
-                                  '<a class="owner-main-action" href="/owner-jrdb-day-research">'
-                                  '② JRDB全場・全Rの2項目暫定評価を一括表示</a>'
+                                  '<a class="owner-main-action" href="/owner-auto-forecast">'
+                                  '② 全場・全Rの自動暫定予想と3連単下書き</a>'
+                                  '<a class="owner-sub-action" href="/owner-jrdb-day-research">'
+                                  'JRDB全場・全Rの2項目暫定評価を一括表示</a>'
                                   '<a class="owner-sub-action" href="/owner-100yen-review">'
                                   '100円仮想収支（発走前固定分・結果待ちを区別）</a>'
                                   '<a class="owner-main-action" href="/my-scorecard">'
@@ -1287,6 +1293,19 @@ def create_app(settings=None):
                 '/owner-jrdb-day-research': (OWNER_DAY_HTML, 'text/html; charset=utf-8'),
                 '/owner-jrdb-day-research.js': (OWNER_DAY_JS, 'text/javascript; charset=utf-8'),
                 '/owner-jrdb-day-research.css': (OWNER_DAY_CSS, 'text/css; charset=utf-8'),
+            }[path]
+            return response('200 OK', body, mime)
+        if method == 'GET' and path in (
+                '/owner-auto-forecast',
+                '/owner-auto-forecast.js', '/owner-auto-forecast.css'):
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('JRDB_PRIVATE_ENABLED') != '1'):
+                return response('404 Not Found', {'error': '本人専用β版でのみ利用できます。'})
+            body, mime = {
+                '/owner-auto-forecast': (AUTO_FORECAST_HTML, 'text/html; charset=utf-8'),
+                '/owner-auto-forecast.js': (AUTO_FORECAST_JS, 'text/javascript; charset=utf-8'),
+                '/owner-auto-forecast.css': (AUTO_FORECAST_CSS, 'text/css; charset=utf-8'),
             }[path]
             return response('200 OK', body, mime)
         if method == 'GET' and path in ('/owner-auto-trial', '/owner-auto-trial.js', '/owner-auto-trial.css'):
@@ -2009,6 +2028,35 @@ def create_app(settings=None):
                 logging.warning('KEIBA_JRDB_DAY_RESEARCH=provider_or_validation_failed')
                 return response('502 Bad Gateway', {
                     'error': '開催日の資料に不整合があります。予想や買い目は作成しません。'})
+            return response('200 OK', report)
+        if method == 'GET' and path == '/api/jrdb/owner-auto-draft':
+            # Four owner-triggered calls only; no background polling, purchase,
+            # licensed row storage, or claims of independent JRA confirmation.
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': '本人専用のJRDB研究用自動取得は未設定です。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date'} or len(query['date']) != 1
+                    or not _valid_date(query['date'][0])):
+                return response('400 Bad Request', {
+                    'error': '開催日を正しく選択してください。'})
+            day = query['date'][0]
+            try:
+                programme = normalize_program_rows(fetch_race_program(day), day)
+                research = owner_day_research(
+                    programme, fetch_horse_entries(day),
+                    fetch_training_analysis(day), fetch_recent_runs(day), day)
+                report = build_owner_auto_drafts(
+                    programme, research, day, now=_now_in_jst())
+            except (JRDBError, ProgrammeFormatError, CoverageError,
+                    ValueError, TypeError, KeyError):
+                logging.warning('KEIBA_AUTO_DRAFT=source_or_validation_failed')
+                return response('502 Bad Gateway', {
+                    'error': 'JRDB資料を安全に自動照合できませんでした。研究用3連単案は作成しません。'})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/selected-readiness':
             # Single owner-triggered request with one /tra /tky /tcy /tze /tka
