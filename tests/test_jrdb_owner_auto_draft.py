@@ -317,6 +317,54 @@ class AutoDraftHTTPTests(unittest.TestCase):
                           "synthetic-api","synthetic-auth","oikirisisu","idm"):
             self.assertNotIn(forbidden,out["body"].decode())
 
+    def test_realistic_four_source_reads_include_redacted_materials(self):
+        from test_jrdb_day_materials_progress import fixture
+        from jrdb_program_preview import normalize_program_rows
+        raw, entries, training, recent, _conditions = fixture()
+        app = create_app(self.config)
+        with (patch("private_service.fetch_race_program", return_value=raw) as a,
+              patch("private_service.fetch_horse_entries", return_value=entries) as b,
+              patch("private_service.fetch_training_analysis", return_value=training) as c,
+              patch("private_service.fetch_recent_runs", return_value=recent) as d,
+              patch("private_service._now_in_jst",
+                    return_value="2026-11-01T09:00:00+09:00")):
+            result = call(app,"/api/jrdb/owner-auto-draft",
+                          QUERY_STRING="date=20261101")
+        self.assertEqual(result["status"],"200 OK")
+        body = json.loads(result["body"])
+        materials = body["sourceMaterials"]
+        self.assertEqual(materials["status"],"observed")
+        self.assertEqual(materials["observedFactorSlots"],8)
+        self.assertEqual(materials["gradedNewFactors"],0)
+        self.assertEqual(materials["races"][0]["runnerCount"],1 if
+                         materials["races"][0]["track"]=="京都" else 2)
+        self.assertEqual(body["sourceReadCount"],4)
+        self.assertFalse(body["officialJraVerified"])
+        for forbidden in ("racekey","horse_id","PRIVATE-SIRE",
+                          "PRIVATE-JOCKEY","PRIVATE-MATERNAL"):
+            self.assertNotIn(forbidden,result["body"].decode())
+        for mock in (a,b,c,d):
+            mock.assert_called_once_with("20261101")
+
+    def test_missing_optional_materials_does_not_fail_forecast(self):
+        with (patch("private_service.fetch_race_program",return_value=[]),
+              patch("private_service.normalize_program_rows",
+                    return_value=programme()),
+              patch("private_service.fetch_horse_entries",return_value=[]),
+              patch("private_service.fetch_training_analysis",return_value=[]),
+              patch("private_service.fetch_recent_runs",return_value=[]),
+              patch("private_service.owner_day_research",return_value=research()),
+              patch("private_service._now_in_jst",
+                    return_value="2099-01-01T09:00:00+09:00")):
+            result=call(self.app,"/api/jrdb/owner-auto-draft",
+                        QUERY_STRING="date="+DAY)
+        self.assertEqual(result["status"],"200 OK")
+        body=json.loads(result["body"])
+        self.assertEqual(body["draftCount"],1)
+        self.assertEqual(body["sourceMaterials"]["status"],"unavailable")
+        self.assertEqual(body["sourceMaterials"]["gradedNewFactors"],0)
+        self.assertEqual(body["sourceMaterials"]["races"],[])
+
     def test_optional_server_archive_first_write_wins(self):
         from owner_receipt_archive import FLAG, SIGNING_KEY, DSN_KEY
         secret = "synthetic-independent-signing-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
