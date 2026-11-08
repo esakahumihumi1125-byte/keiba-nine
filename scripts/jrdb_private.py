@@ -49,7 +49,7 @@ def _fetch_endpoint(endpoint, parameters):
     Historical requests must specify exactly one existing race key, never a
     date range or an unconstrained search.
     """
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'dra', 'dka'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'dra', 'dka'):
         raise JRDBError('Unsupported JRDB endpoint')
     if os.environ.get("JRDB_PRIVATE_ENABLED") != "1":
         raise JRDBError("Private JRDB integration is disabled")
@@ -137,7 +137,7 @@ def _fetch_endpoint(endpoint, parameters):
 
 def _fetch_day(endpoint, racedate):
     """Private current-week reader; historic endpoints cannot use this."""
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse'):
         raise JRDBError("Unsupported current-day endpoint")
     return _fetch_endpoint(endpoint, {"racedate": racedate})
 
@@ -183,3 +183,12 @@ def fetch_prestart_body(racedate):
     The caller must redact all body-weight and paddock fields before response.
     """
     return _fetch_day('tpd', racedate)
+
+
+def fetch_finished_race_results(racedate):
+    """Explicit owner-requested current-week /tse results, never official JRA verification.
+
+    The caller MUST redact raw licensed provider rows and label comparisons
+    unverified by JRA. No background polling or historical date range.
+    """
+    return _fetch_day("tse", racedate)
