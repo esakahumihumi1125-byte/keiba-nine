@@ -86,6 +86,49 @@ class RecentHypothesisTests(unittest.TestCase):
                 with self.assertRaises(CoverageError):
                     self.audit((p, e, z))
 
+    def test_official_beta_tenths_seconds_are_decoded(self):
+        p, e, z = fixture()
+        z[0]["race_back_1_later3f_time"] = 360  # JRDB: 36.0s
+        z[0]["race_back_2_later3f_time"] = "358"  # JRDB: 35.8s
+        z[0]["race_back_3_later3f_time"] = 0  # no valid split
+        from jrdb_recent_hypothesis import _extract
+        values = _extract(z[0], "20261101")
+        self.assertEqual(values[0]["later3f"], 36.0)
+        self.assertEqual(values[1]["later3f"], 35.8)
+        self.assertIsNone(values[2]["later3f"])
+        row = self.audit((p, e, z))[0]["byNumber"]["01"]
+        self.assertEqual(row["late3fObserved"], 2)
+        self.assertEqual(row["grade"], "S")
+
+    def test_zero_filled_beta_history_slots_do_not_create_fake_starts(self):
+        p, e, z = fixture()
+        z[0].update({
+            "race_back_4_racedate": "20260920",  # duplicate stub
+            "race_back_4_order_of_finish": 0,
+            "race_back_4_idm": 0,
+            "race_back_4_later3f_time": 0,
+            "race_back_4_corner4_order": 0,
+            "race_back_5_racedate": "20260920",
+            "race_back_5_order_of_finish": 0,
+            "race_back_5_idm": 0,
+            "race_back_5_later3f_time": 0,
+            "race_back_5_corner4_order": 0,
+        })
+        result = self.audit((p, e, z))[0]["byNumber"]["01"]
+        self.assertEqual(result["datedRuns"], 3)
+        self.assertEqual(result["completedRuns"], 3)
+        self.assertEqual(result["topThree"], 2)
+        self.assertEqual(result["grade"], "S")
+
+    def test_zero_finishing_position_is_not_a_top_three_finish(self):
+        p, e, z = fixture()
+        z[0]["race_back_1_order_of_finish"] = 0
+        z[0]["race_back_1_corner4_order"] = 0
+        row = self.audit((p, e, z))[0]["byNumber"]["01"]
+        self.assertEqual(row["completedRuns"], 2)
+        self.assertEqual(row["topThree"], 1)
+        self.assertEqual(row["frontAtFourth"], 1)
+
     def test_bad_numeric_values_rejected(self):
         for field, value in (
             ("race_back_1_idm", 400),
