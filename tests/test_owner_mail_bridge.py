@@ -63,6 +63,19 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(called[0][0].get_method(), "POST")
         self.assertNotIn(TOKEN, called[0][0].full_url)
 
+    def test_rejected_mail_bridge_response_is_distinguishable(self):
+        settings = {BRIDGE_URL: URL, BRIDGE_TOKEN: TOKEN}
+        with self.assertRaisesRegex(BridgeUnavailable, "Remote rejected request"):
+            fetch_mail_brief(settings, DATE, TIMES,
+                             opener=lambda *_args, **_kw: FakeResponse({"ok": False}))
+
+    def test_missing_owner_calendar_shows_safe_issue_code(self):
+        settings = {**SETTINGS, BRIDGE_URL: URL, BRIDGE_TOKEN: TOKEN}
+        _notes, sync = load_owner_live_notes(settings, today=DATE)
+        self.assertEqual(sync["status"], "要確認")
+        self.assertEqual(sync["issue"], "calendar")
+        self.assertNotIn(TOKEN, str(sync))
+
     def test_stale_late_wrong_calendar_rejected(self):
         changes = [
             lambda d: d.update(date="2026-11-07"),
