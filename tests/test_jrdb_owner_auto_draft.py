@@ -354,6 +354,8 @@ class AutoDraftHTTPTests(unittest.TestCase):
               patch("private_service.fetch_training_analysis",return_value=[]),
               patch("private_service.fetch_recent_runs",return_value=[]),
               patch("private_service.owner_day_research",return_value=research()),
+              patch("private_service.observe_owner_draft_materials",
+                    side_effect=CoverageError("synthetic-unsafe-provider-value")),
               patch("private_service._now_in_jst",
                     return_value="2099-01-01T09:00:00+09:00")):
             result=call(self.app,"/api/jrdb/owner-auto-draft",
