@@ -421,7 +421,8 @@ function boot(){
   if(url==='/api/jrdb/history')
    return {ok:historyOk,json:async()=>structuredClone(historicalResponse)};
   if(url.startsWith('/api/jrdb/prestart-body?'))
-   return {ok:prestartOk,json:async()=>structuredClone(prestartResponse)};
+   return {ok:prestartOk&&url.endsWith('date='+day),
+    json:async()=>structuredClone(prestartResponse)};
   if(url==='/api/owner-rebound-verify'){
    const args=JSON.parse(options.body);
    return {ok:true,json:async()=>({
@@ -489,7 +490,6 @@ function boot(){
  assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?')).length,0);
  const beforeBody=a.storage.get(STORAGE);
  await a.get('autoPrestartBody').onclick();
- assert.equal(a.get('autoPrestartStatus').textContent.includes('当日のみ') ? 'wrong_day' : (a.get('autoPrestartBody').disabled ? 'still_disabled' : 'handled'), 'handled');
  const bodyRequests=a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?'));
  assert.equal(bodyRequests.length,1);
  assert.equal(bodyRequests[0].url,'/api/jrdb/prestart-body?date='+day);
@@ -509,8 +509,9 @@ function boot(){
  a.get('autoDay').value='2099-01-02';
  const callsBefore=a.requests.length;
  await a.get('autoPrestartBody').onclick();
- assert.equal(a.requests.length,callsBefore);
- assert.match(a.get('autoPrestartStatus').textContent,/当日のみ/);
+ // The authenticated server rejects the mismatched day before reading JRDB.
+ assert.equal(a.requests.length,callsBefore+1);
+ assert.match(a.get('autoPrestartStatus').textContent,/照合できません/);
  a.get('autoDay').value=date;
  // History has strict user opt-in. Automatic page load must not fetch it.
  assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,0);
