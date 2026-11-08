@@ -1758,7 +1758,11 @@ def create_app(settings=None):
                 report = selected_race_readiness(
                     programme, entries, training, recent, conditions,
                     date, track, int(number), _now_in_jst(),
-                    diagnostic=validation_diag
+                    diagnostic=validation_diag,
+                    include_runner_research=(
+                        settings.get("KEIBA_RENDER_PRIVATE_ONLY") == "1"
+                        and settings.get("KEIBA_RENDER_PREVIEW_ONLY") != "1"
+                    )
                 )
                 # Only coarse coverage status leaves the authenticated service.
                 # No raw venue errors, timestamps, horses, or API credentials.
