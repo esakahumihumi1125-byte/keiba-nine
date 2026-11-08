@@ -1,8 +1,10 @@
 """Owner-only selected-race evidence status assembled from a single source snapshot.
 
 Use only normalized programme data and provider rows held in private memory.
-Exports bounded aggregate counts, NEVER horse identities, private race keys,
-source metrics, raw timestamps, scores, predictions, or betting instructions.
+Returns bounded aggregate counts by default. With an explicit PRIVATE-owner
+opt-in, also returns horse numbers and derived provisional workout/recent grades;
+never exposes paid source values, private race keys, horse IDs, raw timestamps,
+numeric indices, full predictions, or betting instructions.
 """
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
@@ -67,7 +69,7 @@ def selected_race_readiness(
     programme, entries, training, previous, holding, date, track, race, checked_at,
     *, diagnostic=None, include_runner_research=False
 ):
-    """Return ONLY selected-race aggregates and permanent non-ready flags.
+    """Return selected-race aggregates; private opt-in adds partial runner grades.
 
     A record-count match cannot validate source rights, official JRA conditions,
     runner identity completeness, workout quality or a horse's relative ability.
