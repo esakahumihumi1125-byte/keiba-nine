@@ -10,6 +10,9 @@ from owner_rebound_receipts import (
     issue_rebound_watch_receipts,verify_rebound_watch_receipts,
     compare_watched_winners,WatchReceiptError
 )
+from unittest.mock import patch
+from private_service import create_app
+from test_private_service import call, SETTINGS
 
 DAY="20990412"
 SECRET="sample signing secret 1234567890 !"*3
@@ -45,6 +48,57 @@ def sample():
 
 
 class ReboundReceiptTests(unittest.TestCase):
+    def test_authenticated_private_capture_and_verified_pending_api(self):
+        history,programme,now=sample()
+        cfg={**SETTINGS,"KEIBA_RENDER_PRIVATE_ONLY":"1",
+             "KEIBA_RENDER_PREVIEW_ONLY":"0",
+             "JRDB_PRIVATE_ENABLED":"1","KEIBA_HISTORY_ENABLED":"1",
+             "JRDB_API_KEY":"synthetic-jrdb-api-key",
+             "JRDB_AUTH_KEY":"synthetic-jrdb-auth-key"}
+        app=create_app(cfg)
+        with (patch("private_service.fetch_race_program",return_value=[]),
+              patch("private_service.normalize_program_rows",return_value=programme),
+              patch("private_service.fetch_horse_entries",return_value=[]),
+              patch("private_service.fetch_recent_runs",return_value=[]),
+              patch("private_service.fetch_training_analysis",return_value=[]),
+              patch("private_service.fetch_venue_conditions",return_value=[]),
+              patch("private_service.run_bounded_history_audit",return_value=history),
+              patch("private_service._now_in_jst",
+                    return_value="2099-04-12T09:30:00+09:00")):
+            r=call(app,"/api/jrdb/history",method="POST",
+                   data={"date":DAY,"limit":8})
+        self.assertEqual(r["status"],"200 OK")
+        obj=__import__("json").loads(r["body"])
+        captured=obj["watchCapture"]
+        self.assertEqual(captured["receiptCount"],2)
+        self.assertEqual(obj["reboundContextReview"]["version"],
+                         "owner-rebound-context-review-1")
+        self.assertNotIn(SECRET,r["body"].decode())
+        selected=DAY[:4]+"-"+DAY[4:6]+"-"+DAY[6:]
+        ok=call(app,"/api/owner-rebound-verify",method="POST",
+                data={"date":DAY,"receipts":captured["receipts"]})
+        self.assertEqual(ok["status"],"200 OK")
+        verified=__import__("json").loads(ok["body"])
+        self.assertEqual(verified["review"]["pendingRaces"],2)
+        self.assertEqual(verified["review"]["reviewedRaces"],0)
+        self.assertFalse(verified["officialFeedConnected"])
+        forged=copy.deepcopy(captured["receipts"])
+        forged[0]["snapshot"]["watch"][0]["reviewState"]="need_more_evidence"
+        bad=call(app,"/api/owner-rebound-verify",method="POST",
+                 data={"date":DAY,"receipts":forged})
+        self.assertEqual(bad["status"],"400 Bad Request")
+        self.assertEqual(call(app,"/api/owner-rebound-verify",method="POST",
+                              data={"date":DAY,"receipts":captured["receipts"],
+                                    "results":[{"winner":4,"officialVerified":True}]}
+                              )["status"],"400 Bad Request")
+        self.assertEqual(call(app,"/api/owner-rebound-verify",method="POST",
+                              auth="",data={"date":DAY,"receipts":[]}
+                              )["status"],"401 Unauthorized")
+        private_only=create_app(SETTINGS)
+        self.assertEqual(call(private_only,"/api/owner-rebound-verify",
+                              method="POST",data={"date":DAY,"receipts":[]}
+                              )["status"],"404 Not Found")
+
     def test_prestart_capture_and_signature_and_independent_domain(self):
         history,programme,now=sample()
         before=copy.deepcopy((history,programme))
