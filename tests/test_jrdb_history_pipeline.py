@@ -63,7 +63,7 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertFalse(report["predictionReady"])
         self.assertFalse(report["goingSuitabilityAssessed"])
         per_horse = report["ownerRunnerHistory"]
-        self.assertEqual(per_horse["version"],"owner-runner-course-going-observation-1")
+        self.assertEqual(per_horse["version"],"owner-runner-course-going-observation-2")
         self.assertTrue(per_horse["privateOwnerOnly"])
         self.assertFalse(per_horse["predictionReady"])
         self.assertFalse(per_horse["gradeReady"])
@@ -77,10 +77,20 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertEqual(first["knownGoingRuns"],2)
         self.assertEqual(first["wetGoingRuns"],2)
         self.assertEqual(first["matchingCurrentGoingRuns"],1)
+        self.assertEqual(first["matchingCurrentGoingTopThreeRuns"],1)
         self.assertLessEqual(first["comparableTopThreeRuns"],first["comparableRuns"])
         self.assertLessEqual(first["wetTopThreeRuns"],first["wetGoingRuns"])
         self.assertFalse(tokyo_runner["courseSuitabilityAssessed"])
         self.assertFalse(tokyo_runner["goingSuitabilityAssessed"])
+        bands=report["historicalEvidenceBands"]
+        self.assertEqual(bands["version"],"owner-condition-evidence-hypothesis-1")
+        self.assertEqual(bands["raceCount"],2)
+        self.assertEqual((bands["courseDistanceWeight"],bands["goingWeight"]),(20,12))
+        self.assertFalse(bands["overallScoreReady"])
+        self.assertFalse(bands["bettingReady"])
+        tokyo_band=next(r for r in bands["races"] if r["track"]=="東京")
+        self.assertEqual(tokyo_band["runners"][0]["courseEvidenceBand"],"未評価")
+        self.assertEqual(tokyo_band["runners"][0]["goingEvidenceBand"],"未評価")
         self.assertEqual(report["privateHistoryFactors"]["version"],
                          "private-course-ground-materials-1")
         tokyo_history = next(x for x in report["privateHistoryFactors"]["races"]
