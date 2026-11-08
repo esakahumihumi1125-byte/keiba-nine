@@ -665,10 +665,12 @@ function saveAutoReceipts(data,day){
 }
 
 let request=0,followingToday=true,historySeq=0,historyDay='',historyCoordinates=new Set(),
- historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map();
+ historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
+ historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
  historySeq++;historyDay='';historyCoordinates=new Set();
  historyRosters=new Map();historyReboundWatch=new Map();historyStyles=new Map();
+ historyGrades=new Map();historyStatuses=new Map();
  $('autoHistoryAudit').disabled=true;
  $('autoHistoryAuditRaces').replaceChildren();
  $('autoHistoryAuditStatus').textContent='暫定予想の取得後に利用できます。';
@@ -735,6 +737,29 @@ function validateHistory(h){
     h.paceScenarioHypotheses.raceCount!==historyCoordinates.size||
     !Array.isArray(h.paceScenarioHypotheses.races)||
     h.paceScenarioHypotheses.races.length!==historyCoordinates.size||
+    !h.reboundContextReview||
+    h.reboundContextReview.version!=='owner-rebound-context-review-1'||
+    h.reboundContextReview.policyVersion!=='research-5'||
+    h.reboundContextReview.researchOnly!==true||
+    h.reboundContextReview.privateOwnerOnly!==true||
+    h.reboundContextReview.officialJraVerified!==false||
+    h.reboundContextReview.overallScoreReady!==false||
+    h.reboundContextReview.winPickReady!==false||
+    h.reboundContextReview.bettingReady!==false||
+    h.reboundContextReview.autoPurchase!==false||
+    h.reboundContextReview.modifiesFrozenPicks!==false||
+    h.reboundContextReview.contextRequiresPaceAndHistory!==true||
+    h.reboundContextReview.historyOnlySignalsMayOverlap!==true||
+    !h.reboundContextReview.factorWeights||
+    Object.keys(h.reboundContextReview.factorWeights).length!==5||
+    ['training','recent','course_distance','pace','ground']
+     .some((k,i)=>h.reboundContextReview.factorWeights[k]!==[30,3,20,20,12][i])||
+    h.reboundContextReview.raceCount!==historyCoordinates.size||
+    !Array.isArray(h.reboundContextReview.races)||
+    h.reboundContextReview.races.length!==historyCoordinates.size||
+    !Number.isInteger(h.reboundContextReview.watchCount)||
+    !Number.isInteger(h.reboundContextReview.crossSourceReviewCount)||
+    h.reboundContextReview.crossSourceReviewCount>h.reboundContextReview.watchCount||
     !h.realAssessmentPreflight||
     h.realAssessmentPreflight.version!=='real-assessment-preflight-1'||
     h.realAssessmentPreflight.realGradeReady!==false||
@@ -940,6 +965,82 @@ function validateHistory(h){
   results.push({...row,ownerRunnerDetails:details});
  }
  if(seen.size!==historyCoordinates.size)throw Error('過去レース不足');
+ const reviewedRaces=new Set(), factors=['course_distance','pace','ground'];
+ let allWatch=0,allPriority=0;
+ for(const race of h.reboundContextReview.races){
+  if(!race||typeof race.track!=='string'||!Number.isInteger(race.race)||
+     !Number.isInteger(race.runnerCount)||race.runnerCount<0||
+     race.runnerCount>18||race.winPickReady!==false||
+     race.gradedTenFactors!==0||
+     !Number.isInteger(race.watchCount)||race.watchCount<0||
+     !Array.isArray(race.watch)||race.watchCount!==race.watch.length)
+   throw Error('巻き返し確認用資料が不正');
+  const id=race.track+'|'+race.race,entry=perRace.get(id);
+  if(!entry||reviewedRaces.has(id)||race.runnerCount!==entry.runnerCount)
+   throw Error('巻き返し確認用レースが不一致');
+  reviewedRaces.add(id);
+  const seenNumbers=new Set(),validOriginal=historyGrades.get(id)||new Map();
+  const currentWatch=historyReboundWatch.get(id)||new Set();
+  const currentIsDraft=historyStatuses.get(id)==='provisional_draft';
+  let hasCross=0;
+  for(const q of race.watch){
+   if(!q||!Number.isInteger(q.number)||q.number<1||q.number>18||
+      seenNumbers.has(q.number)||q.evidenceOnly!==true||
+      q.winPickReady!==false||
+      !['S','A'].includes(q.trainingProvisional)||
+      !['B','C'].includes(q.recentProvisional)||
+      !Array.isArray(q.supportingContextFactors)||
+      !Array.isArray(q.unassessedContextFactors)||
+      !Number.isInteger(q.contextSignalCount))
+    throw Error('巻き返し候補の形式が不正');
+   seenNumbers.add(q.number);
+   const source=entry.experimental?.get(q.number),
+         pace=entry.paceByNumber?.get(q.number);
+   if(!source||!pace)throw Error('巻き返し候補の元資料が不一致');
+   const snapshot={
+    course_distance:source.courseEvidenceBand,
+    pace:pace.scenarioFitBand,
+    ground:source.goingEvidenceBand
+   };
+   const supports=factors.filter(k=>['S','A'].includes(snapshot[k]));
+   const unknown=factors.filter(k=>snapshot[k]==='未評価');
+   const cross=supports.includes('pace')&&
+    (supports.includes('course_distance')||supports.includes('ground'));
+   const overlap=!cross&&supports.includes('course_distance')&&
+    supports.includes('ground');
+   const state=cross?'cross_source_review':
+    overlap?'overlapping_history_only':'need_more_evidence';
+   if(q.courseEvidenceBand!==snapshot.course_distance||
+      q.paceScenarioBand!==snapshot.pace||
+      q.goingEvidenceBand!==snapshot.ground||
+      q.contextSignalCount!==supports.length||
+      q.supportingContextFactors.join('|')!==supports.join('|')||
+      q.unassessedContextFactors.join('|')!==unknown.join('|')||
+      q.reviewState!==state)
+    throw Error('巻き返し候補の根拠と判定が不一致');
+   if(currentIsDraft){
+    const latest=validOriginal.get(q.number);
+    if(!latest||!currentWatch.has(q.number)||
+       q.trainingProvisional!==latest.training||
+       q.recentProvisional!==latest.recent)
+     throw Error('巻き返し候補と当日暫定評価の不一致');
+   }
+   if(cross)hasCross++;
+  }
+  // Do not blend an older snapshot with a newly selected/changed field.
+  if(currentIsDraft&&(
+      seenNumbers.size!==currentWatch.size||
+      [...currentWatch].some(n=>!seenNumbers.has(n))))
+   throw Error('発走前の巻き返し候補と過去資料が不一致');
+  allWatch+=race.watchCount;
+  allPriority+=hasCross;
+  entry.reboundReview=currentIsDraft?race.watch:[];
+  entry.reboundPriorityCount=currentIsDraft?hasCross:0;
+ }
+ if(reviewedRaces.size!==historyCoordinates.size||
+    allWatch!==h.reboundContextReview.watchCount||
+    allPriority!==h.reboundContextReview.crossSourceReviewCount)
+  throw Error('巻き返し集計と馬番が不一致');
  return results;
 }
 function jstToday(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});}
@@ -1008,6 +1109,12 @@ $('autoRun').onclick=async()=>{
   historyStyles=new Map(body.races.map(r=>[
    r.track+'|'+r.race,new Map(r.runners.map(h=>[h.number,h.pastFourthCorner]))
   ]));
+  historyGrades=new Map(body.races.map(r=>[
+   r.track+'|'+r.race,new Map(r.runners.map(h=>[
+    h.number,{training:h.training,recent:h.recent}
+   ]))
+  ]));
+  historyStatuses=new Map(body.races.map(r=>[r.track+'|'+r.race,r.status]));
   $('autoHistoryAudit').disabled=historyCoordinates.size===0;
   $('autoHistoryAuditStatus').textContent=historyCoordinates.size
    ?'必要なときに過去の同条件資料を確認できます。':'この開催日のレースはありません。';
@@ -1071,6 +1178,27 @@ $('autoHistoryAudit').onclick=async()=>{
     '頭／後方 '+pace.backObserved+'頭／混在 '+pace.mixedObserved+
     '頭／資料不足 '+pace.insufficient+'頭。展開仮説：'+
     pressureLabel[pace.pacePressureScenario]+'（実際のペース未予測）','muted'));
+   const watch=details.reboundReview||[];
+   if(details.rosterVerified&&watch.length){
+    const review=dom('details');
+    review.append(dom('summary','調教が良い巻き返し再審査：'+watch.length+
+     '頭（重点確認 '+details.reboundPriorityCount+'頭）'));
+    const states={
+     cross_source_review:'重点再審査：展開＋同条件の材料あり',
+     overlapping_history_only:'同一過去走に基づく材料のみ：展開確認待ち',
+     need_more_evidence:'根拠不足：追加資料の確認待ち'
+    };
+    for(const horse of watch){
+     review.append(dom('p',horse.number+'番｜調教 '+horse.trainingProvisional+
+      '・近走 '+horse.recentProvisional+
+      '／コース '+horse.courseEvidenceBand+
+      '・展開 '+horse.paceScenarioBand+
+      '・馬場 '+horse.goingEvidenceBand+
+      '｜'+states[horse.reviewState]+
+      '（研究用。1着候補の自動追加・買い目変更なし）','muted'));
+    }
+    card.append(review);
+   }
    if(details.rosterVerified){
     const panel=dom('details');
     panel.append(dom('summary','馬番ごとの同条件実績を見る（参考資料）'));
