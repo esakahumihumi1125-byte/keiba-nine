@@ -99,6 +99,28 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         self.assertFalse(pair["predictionReady"])
         self.assertNotIn("races", result, "response should contain just the selected race")
 
+    def test_owner_private_opt_in_returns_only_derived_runner_grades(self):
+        sample_inputs = records()
+        # The existing evidence endpoint stays aggregate-only by default.
+        base = selected_race_readiness(*sample_inputs, "20261101", "東京", 1, NOW)
+        self.assertNotIn("runnerResearch", base)
+        private = selected_race_readiness(
+            *sample_inputs, "20261101", "東京", 1, NOW,
+            include_runner_research=True
+        )
+        detail = private["runnerResearch"]
+        self.assertEqual(detail["runnerCount"], 2)
+        self.assertTrue(detail["privateOwnerOnly"])
+        self.assertTrue(detail["researchOnly"])
+        self.assertFalse(detail["overallRankReady"])
+        self.assertFalse(detail["bettingReady"])
+        self.assertFalse(detail["officialJraVerified"])
+        self.assertTrue(all(1 <= r["number"] <= 18 for r in detail["runners"]))
+        self.assertEqual(private["observedEntries"], detail["runnerCount"])
+        for forbidden in ("racekey", "horse_name", "horse_id", "idm",
+                          "oikirisisu", "byNumber", "_partialScore"):
+            self.assertNotIn(forbidden, repr(detail))
+
     def test_jockey_and_body_presence_is_redacted(self):
         p, e, t, z, h = records()
         e[0].update(jockey_name="PRIVATE-JOCKEY",
