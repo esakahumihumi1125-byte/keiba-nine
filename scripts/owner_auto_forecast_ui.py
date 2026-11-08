@@ -1233,6 +1233,72 @@ function validateHistory(h){
     allWatch!==h.reboundContextReview.watchCount||
     allPriority!==h.reboundContextReview.crossSourceReviewCount)
   throw Error('巻き返し集計と馬番が不一致');
+ // The five-band summary is new; absent in previously saved snapshots.
+ // Accept only the previously checked course/going and pace observations.
+ if(h.fiveFactorHypotheses!==undefined){
+  const five=h.fiveFactorHypotheses,weights={
+   training:30,recent:3,course_distance:20,pace:20,ground:12};
+  if(!five||five.version!=='owner-five-factor-hypotheses-1'||
+     five.policyVersion!=='research-5'||five.raceCount!==historyCoordinates.size||
+     five.researchOnly!==true||five.privateOwnerOnly!==true||
+     five.hypothesisBandsNotVerifiedGrades!==true||
+     five.materialCoverageDoesNotMeanPrediction!==true||
+     five.officialJraVerified!==false||five.overallPredictionReady!==false||
+     five.verifiedFactorCount!==0||five.bettingReady!==false||
+     five.autoPurchase!==false||!Array.isArray(five.races)||
+     five.races.length!==historyCoordinates.size||
+     !Array.isArray(five.factors)||five.factors.length!==5||
+     five.factors.some((f,i)=>f?.key!==Object.keys(weights)[i]||
+      f.weight!==weights[f.key]))
+   throw Error('5項目研究資料の形式不正');
+  const seenFive=new Set(),validBands=new Set(['S','A','B','C','未評価']);
+  for(const race of five.races){
+   const id=race?.track+'|'+race?.race,detail=perRace.get(id);
+   if(!detail||seenFive.has(id)||race.runnerCount!==detail.runnerCount||
+      race.verifiedFactorCount!==0||race.overallReady!==false||
+      race.bettingReady!==false||!Array.isArray(race.runners)||
+      race.runners.length!==race.runnerCount||!race.bandsPresentByFactor)
+    throw Error('5項目研究レースの照合不一致');
+   seenFive.add(id);
+   const historical=detail.experimental,scenarios=detail.paceByNumber;
+   const prior=historyGrades.get(id)||new Map(),count=Object.fromEntries(
+    Object.keys(weights).map(k=>[k,0]));
+   const seenHorse=new Set();
+   for(const horse of race.runners){
+    if(!Number.isInteger(horse?.number)||seenHorse.has(horse.number)||
+       horse.actualGradesVerified!==0||horse.overallScore!==null||
+       horse.overallRank!==null||!horse.bands||
+       Object.keys(horse.bands).length!==5||
+       !horse.explanations||Object.keys(horse.explanations).length!==3||
+       !historical.has(horse.number)||!scenarios.has(horse.number))
+     throw Error('5項目研究馬番の形式不正');
+    seenHorse.add(horse.number);
+    const h0=historical.get(horse.number),p0=scenarios.get(horse.number);
+    if(horse.bands.course_distance!==h0.courseEvidenceBand||
+       horse.bands.ground!==h0.goingEvidenceBand||
+       horse.bands.pace!==p0.scenarioFitBand||
+       horse.explanations.course_distance!==h0.courseReason||
+       horse.explanations.ground!==h0.goingReason||
+       horse.explanations.pace!==p0.reason)
+     throw Error('5項目研究の元データ不一致');
+    const original=prior.get(horse.number);
+    if(historyStatuses.get(id)==='provisional_draft'&&
+       (!original||horse.bands.training!==original.training||
+        horse.bands.recent!==original.recent))
+     throw Error('5項目研究の調教・近走不一致');
+    for(const key of Object.keys(weights)){
+     if(!validBands.has(horse.bands[key]))throw Error('5項目の未確認値');
+     count[key]+=Number(horse.bands[key]!=='未評価');
+    }
+   }
+   if(seenHorse.size!==race.runnerCount||
+      Object.keys(count).some(k=>count[k]!==race.bandsPresentByFactor[k]))
+    throw Error('5項目研究の頭数・資料件数不一致');
+   detail.fiveFactor=race;
+  }
+  if(seenFive.size!==historyCoordinates.size)
+   throw Error('5項目研究レース不足');
+ }
  validateWatchCapture(h.watchCapture,h);
  return results;
 }
@@ -1389,6 +1455,19 @@ $('autoHistoryAudit').onclick=async()=>{
     dom('p','履歴不足：'+row.runnersWithIncompleteHistory+
       '頭。適性・10項目総合点は未評価。'));
    const details=row.ownerRunnerDetails,pace=details.paceScenario;
+   if(details.rosterVerified&&details.fiveFactor){
+    const five=dom('details');
+    five.append(dom('summary','馬番別5項目の研究目安を見る（正式採点0/10）'));
+    five.append(dom('p','調教30・近走3は暫定ランク。距離20・展開20・馬場12は過去観測の仮説。買い目は変更しません。','muted'));
+    for(const horse of details.fiveFactor.runners){
+     const b=horse.bands;
+     five.append(dom('p',horse.number+'番｜調教 '+b.training+
+      '／近走 '+b.recent+'／距離 '+b.course_distance+
+      '／展開 '+b.pace+'／馬場 '+b.ground+
+      '（研究用・総合点なし）','muted'));
+    }
+    card.append(five);
+   }
    const pressureLabel={
     coverage_insufficient:'位置取りの資料不足',
     no_front_observed:'明確な先行候補を確認できず',
