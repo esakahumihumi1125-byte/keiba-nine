@@ -1670,18 +1670,36 @@ def create_app(settings=None):
             if (not _valid_date(date) or track not in valid_tracks
                     or number not in {str(i) for i in range(1, 13)}):
                 return response('400 Bad Request', {'error': '指定された開催日・競馬場・Rが不正です。'})
+            # Stage-only diagnostics: do not log or reveal provider rows,
+            # tokens, request URLs, horse IDs, source timestamps, or errors.
+            # The owner can distinguish provider retrieval failures from
+            # cross-source validation failures without disclosing paid data.
+            stage = '番組'
             try:
                 programme = normalize_program_rows(fetch_race_program(date), date)
+                stage = '出走馬'
+                entries = fetch_horse_entries(date)
+                stage = '調教'
+                training = fetch_training_analysis(date)
+                stage = '近走'
+                recent = fetch_recent_runs(date)
+                stage = '馬場'
+                conditions = fetch_venue_conditions(date)
+                stage = '資料照合'
                 report = selected_race_readiness(
-                    programme, fetch_horse_entries(date),
-                    fetch_training_analysis(date), fetch_recent_runs(date),
-                    fetch_venue_conditions(date), date, track, int(number),
-                    _now_in_jst()
+                    programme, entries, training, recent, conditions,
+                    date, track, int(number), _now_in_jst()
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,
-                    RaceContextError, FreshnessError, ValueError, KeyError, TypeError):
+                    RaceContextError, FreshnessError, ValueError, KeyError, TypeError) as exc:
+                category = ('API応答' if isinstance(exc, JRDBError)
+                            else '資料整合性' if isinstance(
+                                exc, (ProgrammeFormatError, CoverageError,
+                                      RaceContextError, FreshnessError))
+                            else '入力形式')
                 return response('502 Bad Gateway', {
-                    'error': '対象レースの資料を安全に照合できませんでした。'})
+                    'error': ('対象レースの資料を安全に照合できませんでした。'
+                              '（停止箇所：' + stage + '／' + category + '）')})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/evidence':
             if settings.get('JRDB_PRIVATE_ENABLED') != '1' or settings.get('GITHUB_ACTIONS') == 'true':
