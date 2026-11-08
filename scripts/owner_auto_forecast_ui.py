@@ -269,6 +269,35 @@ function render(input,day){
   (breakdown?'内訳：'+breakdown+'。':'')+
   'JRDBの2項目だけを使用。JRA公式照合や正式な投票は未実施。';
 }
+function localReceiptStatus(day){
+ // Only inspect previously sealed local snapshots. Never treat draft
+ // predictions or server response content as actual purchases.
+ if(!/^20[0-9]{6}$/.test(day))return '開催日を選択してください。';
+ try{
+  const raw=localStorage.getItem(RECEIPTS_KEY);
+  if(!raw)return 'この開催日の端末内固定済み研究記録はありません。';
+  if(raw.length>650000)throw Error('large');
+  const values=JSON.parse(raw);
+  if(!Array.isArray(values)||values.length>360)throw Error('shape');
+  const selected=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+  const ids=new Set();
+  for(const entry of values){
+   if(!entry||!entry.snapshot||typeof entry.signature!=='string')
+    throw Error('receipt');
+   const s=entry.snapshot;
+   if(s.date===selected){
+    if(typeof s.track!=='string'||!Number.isInteger(s.race))
+     throw Error('identity');
+    ids.add(s.track+'|'+s.race);
+   }
+  }
+  return ids.size?'この開催日の端末内固定済み研究記録 '+ids.size+
+   'R。既存の買い目は変更しません。':
+   'この開催日の端末内固定済み研究記録はありません。';
+ }catch(_){
+  return '端末内の固定記録を確認できません。既存データは変更しません。';
+ }
+}
 function saveAutoReceipts(data,day){
  if(data.serverStamped!==true||data.captureAuditVerified!==false||
   !Array.isArray(data.researchReceipts)||data.researchReceipts.length>36||
@@ -294,7 +323,8 @@ function saveAutoReceipts(data,day){
     throw Error('固定用の研究記録を照合できません');
   seen.add(id);
  }
- if(!signed.length)return '発走前に固定できる研究用買い目はありません。';
+ if(!signed.length)return localReceiptStatus(day)+
+  ' 発走前に新しく固定できる研究用買い目はありません。';
  const raw=localStorage.getItem(RECEIPTS_KEY);
  if(raw&&raw.length>650000)throw Error('端末内の固定記録が上限を超えました');
  const existing=JSON.parse(raw||'[]');
@@ -319,9 +349,13 @@ function saveAutoReceipts(data,day){
 let request=0;
 $('autoDay').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
 $('autoDay').onchange=()=>{
- request++;$('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ // Invalidate the old response and unlock the button. A slow old request
+ // must not leave the new day permanently disabled on iPhone.
+ request++;$('autoRun').disabled=false;
+ $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoSummary').textContent='未取得';
- $('autoSavedStatus').textContent='新しい日付の研究記録はまだ保存していません。';
+ $('autoSavedStatus').textContent=localReceiptStatus(
+  $('autoDay').value.replaceAll('-',''));
  $('autoStatus').textContent='開催日を選んでな。';
 };
 $('autoRun').onclick=async()=>{
@@ -369,6 +403,8 @@ $('autoRun').onclick=async()=>{
   $('autoSummary').textContent='予想は未作成';}}
  finally{if(seq===request)button.disabled=false;}
 };
+$('autoSavedStatus').textContent=localReceiptStatus(
+ $('autoDay').value.replaceAll('-',''));
 // Opening the authenticated owner page is the only automatic trigger.
 // No timers, background provider polling, or auto-purchase.
 if(document.visibilityState!=='hidden')$('autoRun').onclick();

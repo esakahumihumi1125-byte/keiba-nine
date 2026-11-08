@@ -46,7 +46,7 @@ function resultWith(signature){
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
- let next=resultWith('a'.repeat(64));
+ let next=resultWith('a'.repeat(64)),holdFetch=null;
  function node(tag){
   return {
    tag,children:[],textContent:'',className:'',value:'',disabled:false,
@@ -67,6 +67,8 @@ function boot(){
  };
  const fetch=async(url,options)=>{
   requests.push({url,options});
+  const pause=holdFetch;holdFetch=null;
+  if(pause)await pause;
   return {ok:true,json:async()=>structuredClone(next)};
  };
  class FakeDate extends Date{
@@ -76,7 +78,8 @@ function boot(){
   String,Array,Error,Promise,Object};
  vm.runInNewContext(js,context);
  get('autoDay').value=date;
- return {get,storage,requests,setServer:x=>next=x};
+ return {get,storage,requests,setServer:x=>next=x,
+  waitNextFetch:promise=>{holdFetch=promise}};
 }
 (async()=>{
  const a=boot();
@@ -142,6 +145,26 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.equal(a.storage.get(STORAGE),before);
  assert.match(a.get('autoSavedStatus').textContent,/ありません/);
+ // A date switch while a slow fetch is in flight must remain operable,
+ // and older data must not silently overwrite the selected day's status.
+ const b=boot();
+ await new Promise(r=>setImmediate(r));
+ let release;
+ const pause=new Promise(resolve=>{release=resolve});
+ b.waitNextFetch(pause);
+ const stale=b.get('autoRun').onclick();
+ assert.equal(b.get('autoRun').disabled,true);
+ b.get('autoDay').value='2099-01-02';
+ b.get('autoDay').onchange();
+ assert.equal(b.get('autoRun').disabled,false);
+ assert.match(b.get('autoSavedStatus').textContent,/ありません/);
+ release();
+ await stale;
+ assert.equal(b.get('autoSummary').textContent,'未取得');
+ b.get('autoDay').value='2099-01-01';
+ b.get('autoDay').onchange();
+ assert.match(b.get('autoSavedStatus').textContent,/固定済み研究記録 1R/);
+ assert.equal(b.get('autoRun').disabled,false);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
