@@ -72,6 +72,8 @@ from owner_daily_review_ui import HTML as DAILY_REVIEW_HTML, JS as DAILY_REVIEW_
 from owner_100yen_review_ui import HTML as YEN_REVIEW_HTML, JS as YEN_REVIEW_JS, CSS as YEN_REVIEW_CSS
 from owner_100yen_snapshot import decode_frozen_snapshots, FrozenSnapshotError
 from keiba_100yen_review import review_100yen, ReviewInputError
+from owner_prestart_receipt import (issue_preview_receipts, verify_preview_receipts,
+                                    ReceiptError)
 from jrdb_one_race_trial import build_one_race_trial
 from jrdb_day_trial import build_day_trial
 from owner_one_race_trial_ui import HTML as AUTO_HTML, JS as AUTO_JS, CSS as AUTO_CSS
@@ -1459,6 +1461,76 @@ def create_app(settings=None):
                 return response('503 Service Unavailable', {
                     'error': '振り返りレポートの内容を検証できません。'})
             return response('200 OK', {'available': True, 'review': summary})
+        if method == 'POST' and path in (
+                '/api/owner-freeze-preday', '/api/owner-100yen-verify-receipts'):
+            # Private, explicitly initiated, stateless signing/verification.
+            # The signed schedule is editorial and NOT independently JRA-verified.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {'error': '本人専用サービスでのみ利用できます。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {'error': '入力形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                limit = 128 if path == '/api/owner-freeze-preday' else 70000
+                if size <= 0 or size > limit:
+                    raise ValueError()
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise ValueError()
+                args = json.loads(raw)
+                if not isinstance(args, dict):
+                    raise ValueError()
+                expected_fields = (
+                    {'date'} if path == '/api/owner-freeze-preday'
+                    else {'date', 'receipts'})
+                if set(args) != expected_fields:
+                    raise ValueError()
+                selected = args['date']
+                if (not isinstance(selected, str)
+                        or not re.fullmatch(r'20\d{2}-\d{2}-\d{2}', selected)
+                        or datetime.strptime(selected, '%Y-%m-%d').date().isoformat()
+                        != selected):
+                    raise ValueError()
+            except (ValueError, TypeError, KeyError, UnicodeDecodeError):
+                return response('400 Bad Request', {'error': '日付または記録形式が不正です。'})
+            if path == '/api/owner-freeze-preday':
+                stored_plain = settings.get('KEIBA_OWNER_FORECAST_JSON', '')
+                stored_forecast = settings.get(OWNER_FORECAST_ENV_KEY, '')
+                if not stored_plain and not stored_forecast:
+                    return response('200 OK', {
+                        'available': False, 'receipts': [],
+                        'message': '本人用のサーバー予想が未登録です。'})
+                try:
+                    forecast = (decode_plain_owner_snapshot(stored_plain)
+                                if stored_plain else decode_forecast(stored_forecast))
+                    if forecast['date'] != selected:
+                        return response('409 Conflict', {
+                            'error': '指定日のサーバー予想がありません。'})
+                    report = issue_preview_receipts(forecast, password, selected)
+                except (OwnerForecastError, ReceiptError, ReviewInputError):
+                    return response('503 Service Unavailable', {
+                        'error': '予想を安全に確定できませんでした。既存記録は変更されません。'})
+                return response('200 OK', {'available': bool(report['receipts']), **report})
+            try:
+                predictions = verify_preview_receipts(
+                    args['receipts'], password, selected)
+                # Official results feed not yet integrated. NEVER turn pending
+                # into a win/loss from user-input or private environment flags.
+                report = review_100yen(predictions, [])
+            except (ReceiptError, ReviewInputError, ValueError, TypeError):
+                return response('400 Bad Request', {
+                    'error': '署名付き記録を検証できません。集計は更新しません。'})
+            return response('200 OK', {
+                'available': bool(report['races']),
+                'review': report if report['races'] else None,
+                'serverSigned': True,
+                'captureAuditVerified': False,
+                'officialScheduleVerified': False,
+                'officialFeedConnected': False})
         if method == 'GET' and path == '/api/owner-100yen-review':
             # Result-source authentication and immutable prestart capture are NOT
             # connected yet. Never promote manually asserted official results.
