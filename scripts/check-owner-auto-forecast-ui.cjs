@@ -152,7 +152,7 @@ function boot(){
  assert.equal(a.requests[0].options.headers['X-Keiba-Request'],'private');
  assert.equal(a.get('autoSummary').textContent.includes('1R中、研究用自動案 1R'),true);
  assert.equal(a.get('autoTenWeights').children.length,10);
- assert.match(a.get('autoRaces').children[0].children[0].children[3].textContent,
+ assert.match(a.get('autoRaces').children[0].children[0].children[4].textContent,
   /調教30：近走3での仮順位/);
  assert.match(a.get('autoTenStatus').textContent,/残り8項目は未評価/);
  assert.match(a.get('autoSummary').textContent,/馬場資料の存在 1R/);
