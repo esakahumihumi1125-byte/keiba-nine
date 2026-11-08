@@ -107,8 +107,9 @@ def _cutoff_tied(runners, size):
 def _safe_formation_sizes(runners):
     """Choose complete-score cutoffs, never number-based ties.
 
-    A two-horse first slot is preferred. A three-horse first slot is used
-    only when two is impossible or cannot reach 30 tickets and three can.
+    A two-horse first slot is preferred even when fewer than 30 tickets
+    exist. Three first horses are tried only when two cannot be selected
+    without arbitrarily splitting an exact-score tie.
     This is mechanical hypothesis research, not an outcome predictor.
     """
     count = len(runners)
@@ -117,10 +118,10 @@ def _safe_formation_sizes(runners):
         if first_count > count or _cutoff_tied(runners, first_count):
             continue
         candidates = []
-        for second_count in range(first_count + 1, min(6, count) + 1):
+        for second_count in range(first_count + 1, min(5, count) + 1):
             if _cutoff_tied(runners, second_count):
                 continue
-            for third_count in range(second_count, min(10, count) + 1):
+            for third_count in range(second_count, min(9, count) + 1):
                 if _cutoff_tied(runners, third_count):
                     continue
                 points = first_count * (second_count - 1) * (third_count - 2)
@@ -130,12 +131,10 @@ def _safe_formation_sizes(runners):
             options[first_count] = max(candidates)
     pair = options.get(2)
     triple = options.get(3)
-    if pair and pair[0] >= 30:
-        return pair[1:]
-    if triple and triple[0] >= 30:
-        return triple[1:]
     if pair:
         return pair[1:]
+    # The usual two-horse first slot is impossible without arbitrarily
+    # splitting an exact-score tie: then try three for a contested race.
     if triple:
         return triple[1:]
     return None
