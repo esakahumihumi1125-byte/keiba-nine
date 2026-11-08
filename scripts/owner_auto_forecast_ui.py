@@ -16,6 +16,8 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p class="muted">本人が押したときだけJRDBの番組・出走馬・調教・近走を各1回取得。
 当日発走済みレースの3連単は後付けで作成しません。</p>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
+<p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
+<a href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
 <section>
 <h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
@@ -65,6 +67,7 @@ summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
 JS = r"""(()=>{'use strict';
 const $=id=>document.getElementById(id);
 const GRADES=new Set(['S','A','B','C','未評価']);
+const RECEIPTS_KEY='keiba-nine-owner-server-receipts-v1';
 const REASONS={
  missing_research:'このレースの資料に不整合あり・自動判定を見送り',
  runner_count_mismatch:'出走頭数が資料と不一致',
@@ -192,11 +195,59 @@ function render(input,day){
  $('autoSummary').textContent=data.raceCount+'R中、研究用自動案 '+data.draftCount+
   'R／見送り '+data.holdCount+'R。JRDBの2項目だけを使用。JRA公式照合や正式な投票は未実施。';
 }
+function saveAutoReceipts(data,day){
+ if(data.serverStamped!==true||data.captureAuditVerified!==false||
+  !Array.isArray(data.researchReceipts)||data.researchReceipts.length>36||
+  data.researchReceiptCount!==data.researchReceipts.length)
+  throw Error('署名付き研究記録の形式を確認できません');
+ const signed=data.researchReceipts,expectedDay=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+ const available=new Map(data.races.filter(r=>r.status==='provisional_draft')
+  .map(r=>[r.track+'|'+r.race,r]));
+ const seen=new Set();
+ for(const row of signed){
+  const s=row&&row.snapshot,entry=s&&available.get(s.track+'|'+s.race);
+  const id=s&&s.date+'|'+s.track+'|'+s.race;
+  if(!s||!entry||seen.has(id)||s.date!==expectedDay||
+   s.sourceKind!=='prestart-locked'||s.actualPurchase!==false||
+   s.scheduleVerified!==false||s.predictionVerified!==false||
+   typeof row.signature!=='string'||!/^[0-9a-f]{64}$/.test(row.signature)||
+   !Array.isArray(s.trifectaTickets)||s.trifectaTickets.length!==entry.points||
+   !Array.isArray(s.trioTickets)||s.trioTickets.length!==0||
+   !entry.tickets.every((ticket,index)=>
+    Array.isArray(s.trifectaTickets[index])&&
+    ticket.join('-')===s.trifectaTickets[index].join('-'))||
+   typeof s.lockedAt!=='string'||typeof s.scheduledOffAt!=='string')
+    throw Error('固定用の研究記録を照合できません');
+  seen.add(id);
+ }
+ if(!signed.length)return '発走前に固定できる研究用買い目はありません。';
+ const raw=localStorage.getItem(RECEIPTS_KEY);
+ if(raw&&raw.length>650000)throw Error('端末内の固定記録が上限を超えました');
+ const existing=JSON.parse(raw||'[]');
+ if(!Array.isArray(existing)||existing.length>360)throw Error('保存済みの記録形式を確認できません');
+ const identities=new Set(existing.map(x=>{
+  if(!x||!x.snapshot||typeof x.signature!=='string')throw Error('古い記録に不整合があります');
+  return x.snapshot.date+'|'+x.snapshot.track+'|'+x.snapshot.race;
+ }));
+ let added=0;
+ const combined=existing.slice();
+ for(const receipt of signed){
+  const s=receipt.snapshot,id=s.date+'|'+s.track+'|'+s.race;
+  if(identities.has(id))continue; // The first research receipt wins.
+  identities.add(id);combined.push(receipt);added++;
+ }
+ if(combined.length>360)throw Error('保存数の上限です');
+ if(added)localStorage.setItem(RECEIPTS_KEY,JSON.stringify(combined));
+ return '署名付き研究記録：新規 '+added+'R／既存の固定記録は上書きせず維持。'+
+  '保存先はこのiPhone内のみ（Safariとホーム画面で別の場合あり）。';
+}
+
 let request=0;
 $('autoDay').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
 $('autoDay').onchange=()=>{
  request++;$('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoSummary').textContent='未取得';
+ $('autoSavedStatus').textContent='新しい日付の研究記録はまだ保存していません。';
  $('autoStatus').textContent='開催日を選んでな。';
 };
 $('autoRun').onclick=async()=>{
@@ -215,6 +266,11 @@ $('autoRun').onclick=async()=>{
   if(!result.ok)throw Error(body.error||'資料が取得できません');
   if(seq!==request)return;
   render(body,day);
+  try{
+   $('autoSavedStatus').textContent=saveAutoReceipts(body,day);
+  }catch(_){
+   $('autoSavedStatus').textContent='研究記録の端末保存はできませんでした。結果表示と実購入記録には影響しません。';
+  }
   $('autoStatus').textContent='暫定評価を自動生成しました。作成できないレースは無理に選定していません。';
  }catch(_){if(seq===request){
   $('autoStatus').textContent='安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
