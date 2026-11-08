@@ -55,8 +55,10 @@ def summarize_provider_watch_results(watches, rows, day, now=None):
             target["duplicate"]=True
         target["numbers"].add(n)
         target["rows"]+=1
+        if finish is not None and not isinstance(finish,str):
+            raise WatchReceiptError("Unexpected postrace finish type")
         if finish is not None and finish != "":
-            if not isinstance(finish,str) or not re.fullmatch(r"0?[1-9]|1[0-8]",finish):
+            if not re.fullmatch(r"0?[1-9]|1[0-8]",finish):
                 # Some nonstandard/special outcome markers remain unknown.
                 # Do not infer a winner or declare a miss from them.
                 target["duplicate"]=True
