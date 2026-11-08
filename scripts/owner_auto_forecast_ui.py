@@ -45,7 +45,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <div id="autoHistory"></div>
 <p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
 署名はこの画面では検証していません。後付け予想ではありません。</p>
-<a href="/owner-backup">7種類の記録をバックアップ・復元する</a>
+<a href="/owner-backup">8種類の記録をバックアップ・復元する</a>
 </section>
 <section><h2>10項目の配点と評価状況</h2>
 <p id="autoTenStatus" class="muted" role="status">予想資料の取得後に表示します。</p>

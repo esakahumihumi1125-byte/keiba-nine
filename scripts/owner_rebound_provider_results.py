@@ -39,7 +39,7 @@ def summarize_provider_watch_results(watches, rows, day, now=None,
         number,finish=entry.get("horse_number"),entry.get("order_of_finish")
         if (not isinstance(racekey,str)
                 or not re.fullmatch(r"[0-9a-f]{8}",racekey)
-                or racedate != day
+                or racedate != day or racekey[2:4] != day[2:4]
                 or racekey[:2] not in TRACKS
                 or not racekey[6:].isdigit()
                 or not 1 <= int(racekey[6:]) <= 12
@@ -50,6 +50,7 @@ def summarize_provider_watch_results(watches, rows, day, now=None,
         slot=(track,race)
         if slot not in by_coord:
             by_coord[slot]={"keys":set(),"numbers":set(),"first":[],
+                            "podiumCounts":{1:0,2:0,3:0},
                             "duplicate":False,"rows":0}
         target=by_coord[slot]
         target["keys"].add(racekey)
@@ -65,11 +66,15 @@ def summarize_provider_watch_results(watches, rows, day, now=None,
                 # Some nonstandard/special outcome markers remain unknown.
                 # Do not infer a winner or declare a miss from them.
                 target["duplicate"]=True
-            elif int(finish)==1:
+            else:
+                place=int(finish)
                 trouble=entry.get("trouble_classification")
                 if trouble not in (None,"","0"):
                     target["duplicate"]=True
-                target["first"].append(n)
+                if place in (1,2,3):
+                    target["podiumCounts"][place]+=1
+                if place==1:
+                    target["first"].append(n)
         if target["rows"]>18:
             target["duplicate"]=True
     races=[]
@@ -77,10 +82,12 @@ def summarize_provider_watch_results(watches, rows, day, now=None,
         slot=key[1:]
         fetched=by_coord.get(slot)
         started=now>=_timestamp(snap["scheduledOffAt"])
-        # A single 1st-place row may be only a partial provider update.
-        # Flag as observed candidate, NEVER "verified official result".
+        # A single winning row is not even a stable 1st-place *observation*:
+        # require distinct 1st/2nd/3rd rows, otherwise treat as pending.
+        # This still is NOT independent official JRA verification.
         ok=(started and fetched is not None and not fetched["duplicate"]
-            and len(fetched["keys"])==1 and len(fetched["first"])==1)
+            and len(fetched["keys"])==1 and len(fetched["first"])==1
+            and fetched["podiumCounts"]=={1:1,2:1,3:1})
         winner=fetched["first"][0] if ok else None
         watched={h["number"]:h["reviewState"] for h in snap["watch"]}
         observed=winner in watched if ok else None

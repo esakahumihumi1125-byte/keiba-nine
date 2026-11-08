@@ -32,7 +32,13 @@ class TestPrivateReboundProviderCheck(unittest.TestCase):
                   "KEIBA_RENDER_PREVIEW_ONLY":"0","JRDB_PRIVATE_ENABLED":"1",
                   "JRDB_API_KEY":"fake-fixture-only","JRDB_AUTH_KEY":"fake-fixture-only"}
         app=create_app(settings)
-        observations=[row(horse="04"),row(track="08",race="02",horse="05")]
+        observations=[
+            row(horse="04",finish="1"),row(horse="05",finish="2"),
+            row(horse="09",finish="3"),
+            row(track="08",race="02",horse="05",finish="1"),
+            row(track="08",race="02",horse="06",finish="2"),
+            row(track="08",race="02",horse="07",finish="3")
+        ]
         with patch("private_service.fetch_finished_race_results",
                    return_value=observations) as fetch:
             with patch("private_service._now_in_jst",
@@ -132,14 +138,15 @@ class TestPrivateReboundProviderCheck(unittest.TestCase):
             [row(horse="04",finish="1"),row(horse="05",finish="1")],
             [row(horse="04",finish="1"),row(horse="04",finish="1")],
             [row(horse="04",finish="1"),row(horse="05",finish="z")],
-            [row(horse="04",finish="1"),row(horse="05",finish="1",
-                 track="05",race="02")],  # unrelated race must not fabricate matching watch
+            [row(horse="04",finish="1"),row(horse="05",finish="2"),
+             row(horse="09",finish="3"),
+             row(horse="05",finish="1",track="05",race="02")],
+            # unrelated race must not fabricate matching watch
         ):
             with self.subTest(rows=rows):
                 out=summarize_provider_watch_results(snaps,rows,DAY,later)
                 # unrelated row doesn't change 東京1R first-place observation
-                if rows==[row(horse="04",finish="1"),row(horse="05",finish="1",
-                              track="05",race="02")]:
+                if len(rows)==4 and rows[0].get("order_of_finish")=="1":
                     self.assertEqual(out["observedRaceCount"],1)
                 else:
                     self.assertEqual(out["observedRaceCount"],0)
@@ -157,6 +164,16 @@ class TestPrivateReboundProviderCheck(unittest.TestCase):
         ):
             with self.subTest(bad=bad),self.assertRaises(WatchReceiptError):
                 summarize_provider_watch_results(snaps,[bad],DAY,later)
+        # A single result row, or an incomplete podium, must stay pending.
+        partial=summarize_provider_watch_results(
+            snaps,[row(horse="04",finish="1"),
+                   row(horse="05",finish="2")],DAY,later)
+        self.assertEqual(partial["observedRaceCount"],0)
+        # A different-year race key cannot silently be joined to today's
+        # watch merely because it shares venue and race number.
+        with self.assertRaises(WatchReceiptError):
+            summarize_provider_watch_results(snaps,[{
+                **row(),"racekey":"05260101"}],DAY,later)
         r=row()
         r["trouble_classification"]="1"
         out=summarize_provider_watch_results(snaps,[r],DAY,later)
