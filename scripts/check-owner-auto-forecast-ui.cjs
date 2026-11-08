@@ -372,10 +372,27 @@ function withTenFactor(report){
  };
  return report;
 }
+function prestart(){
+ return {
+  version:'private-prestart-body-1',date:day,raceCount:1,
+  races:[{
+   track:'東京',race:1,registered:7,prestartRowsMatched:6,
+   prestartRowsMissing:1,bodyWeightRecords:4,weightChangeRecords:3,
+   paddockRecords:3,bodyStateCodeRecords:2,providerWithdrawnReports:0,
+   sourceDataUpdatedAtVerified:false,officialBodyWeightVerified:false,
+   bodyConditionGraded:false,realPredictionReady:false,ticketReady:false
+  }],
+  summary:{matchedRows:6,weightRecords:4,paddockRecords:3,missingRows:1},
+  sourceRequestsRequired:['tra','tky','tpd'],rawHorseRecordsIncluded:false,
+  oddsUsed:false,officialBodyWeightVerified:false,bodyConditionGraded:false,
+  realPredictionReady:false,purchaseReady:false
+ };
+}
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
  let next=resultWith('a'.repeat(64)),historicalResponse=historical(),
-  historyOk=true,providerCorrupt=false,holdFetch=null;
+  historyOk=true,providerCorrupt=false,holdFetch=null,
+  prestartResponse=prestart(),prestartOk=true;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -403,6 +420,8 @@ function boot(){
   if(pause)await pause;
   if(url==='/api/jrdb/history')
    return {ok:historyOk,json:async()=>structuredClone(historicalResponse)};
+  if(url.startsWith('/api/jrdb/prestart-body?'))
+   return {ok:prestartOk,json:async()=>structuredClone(prestartResponse)};
   if(url==='/api/owner-rebound-verify'){
    const args=JSON.parse(options.body);
    return {ok:true,json:async()=>({
@@ -454,6 +473,7 @@ function boot(){
  return {get,storage,requests,setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
+  setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
@@ -465,6 +485,32 @@ function boot(){
  assert.equal(a.requests.length,1);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
+ // No paid body source read until an explicit owner click.
+ assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?')).length,0);
+ const beforeBody=a.storage.get(STORAGE);
+ await a.get('autoPrestartBody').onclick();
+ const bodyRequests=a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?'));
+ assert.equal(bodyRequests.length,1);
+ assert.equal(bodyRequests[0].url,'/api/jrdb/prestart-body?date='+day);
+ assert.equal(bodyRequests[0].options.credentials,'same-origin');
+ assert.equal(a.get('autoPrestartRaces').children.length,1);
+ assert.match(a.get('autoPrestartStatus').textContent,/馬体重記録 4頭/);
+ assert.match(a.get('autoPrestartRaces').children[0].children[1].textContent,/JRA公式未確認/);
+ assert.equal(a.storage.get(STORAGE),beforeBody);
+ const wrongBody=prestart();
+ wrongBody.races[0].bodyWeightRecords=18;
+ a.setPrestart(wrongBody);
+ await a.get('autoPrestartBody').onclick();
+ assert.equal(a.get('autoPrestartRaces').children.length,0);
+ assert.match(a.get('autoPrestartStatus').textContent,/照合できません/);
+ assert.equal(a.storage.get(STORAGE),beforeBody);
+ a.setPrestart(prestart());
+ a.get('autoDay').value='2099-01-02';
+ const callsBefore=a.requests.length;
+ await a.get('autoPrestartBody').onclick();
+ assert.equal(a.requests.length,callsBefore);
+ assert.match(a.get('autoPrestartStatus').textContent,/当日のみ/);
+ a.get('autoDay').value=date;
  // History has strict user opt-in. Automatic page load must not fetch it.
  assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,0);
  const oldRecord=a.storage.get(STORAGE);
