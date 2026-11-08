@@ -295,6 +295,46 @@ function historical(){
   }
  }))));
 }
+function withFiveFactor(report){
+ const original=report.historicalEvidenceBands.races[0].runners;
+ const pace=report.paceScenarioHypotheses.races[0].runners;
+ const cards=original.map(row=>{
+  const match=pace.find(p=>p.number===row.number);
+  const current=runners.find(h=>h.number===row.number);
+  return {
+   number:row.number,
+   bands:{
+    training:current.training,recent:current.recent,
+    course_distance:row.courseEvidenceBand,
+    pace:match.scenarioFitBand,ground:row.goingEvidenceBand
+   },
+   explanations:{
+    course_distance:row.courseReason,
+    pace:match.reason,ground:row.goingReason
+   },
+   actualGradesVerified:0,overallScore:null,overallRank:null
+  };
+ });
+ const keys=['training','recent','course_distance','pace','ground'];
+ const weights=[30,3,20,20,12];
+ report.fiveFactorHypotheses={
+  version:'owner-five-factor-hypotheses-1',policyVersion:'research-5',
+  raceCount:1,factors:keys.map((key,i)=>({key,weight:weights[i]})),
+  hypothesisBandsNotVerifiedGrades:true,
+  materialCoverageDoesNotMeanPrediction:true,
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  overallPredictionReady:false,verifiedFactorCount:0,
+  bettingReady:false,autoPurchase:false,
+  races:[{
+   track:'東京',race:1,runnerCount:cards.length,
+   verifiedFactorCount:0,overallReady:false,bettingReady:false,
+   bandsPresentByFactor:Object.fromEntries(keys.map(k=>[
+    k,cards.filter(x=>x.bands[k]!=='未評価').length])),
+   runners:cards
+  }]
+ };
+ return report;
+}
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
  let next=resultWith('a'.repeat(64)),historicalResponse=historical(),
@@ -449,6 +489,24 @@ function boot(){
  assert.match(reboundPanel.children[1].textContent,/買い目変更なし/);
  // The provisional 3-to-5-run good-condition score is NOT a real
  // ranking, ticket or 10-factor score.
+ // Five-factor overlay must match already-validated source hypotheses
+ // and cannot mutate saved research tickets or claim a 10-factor score.
+ a.setHistorical(withFiveFactor(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const fivePanel=a.get('autoHistoryAuditRaces').children[0].children.find(
+  x=>x.tag==='details'&&/馬番別5項目/.test(x.children[0]?.textContent||''));
+ assert.ok(fivePanel);
+ assert.equal(fivePanel.children.length,9);
+ assert.match(fivePanel.children[2].textContent,/1番｜調教 S／近走 S/);
+ assert.match(fivePanel.children[2].textContent,/研究用・総合点なし/);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ const alteredFive=withFiveFactor(historical());
+ alteredFive.fiveFactorHypotheses.races[0].runners[0].bands.ground='S';
+ a.setHistorical(alteredFive);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+ a.setHistorical(historical());
  const positive=historical();
  positive.historyComplete=true;
  positive.referencedPastRaces=3;
