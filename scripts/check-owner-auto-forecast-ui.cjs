@@ -113,7 +113,7 @@ function boot(){
  bad.researchReceipts=[];bad.researchReceiptCount=0;
  a.setServer(bad);
  await a.get('autoRun').onclick();
- assert.match(a.get('autoRaces').children[0].children[1].textContent,/馬番別資料の形式/);
+ assert.match(a.get('autoRaces').children[0].children[0].children[1].textContent,/馬番別資料の形式/);
  assert.equal(a.storage.get(STORAGE),before);
  // No new prestart forecast means no new record, not a fabricated loss.
  const empty=research();
