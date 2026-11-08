@@ -39,6 +39,25 @@ class SelectedRaceReadinessTests(unittest.TestCase):
         self.assertFalse(result["officialJraFinalVerification"])
         self.assertFalse(result["predictionReady"])
         self.assertFalse(result["bettingReady"])
+        provisional = result["experimentalGradeDistributions"]
+        self.assertTrue(provisional["experimental"])
+        self.assertFalse(provisional["overallRankReady"])
+        self.assertFalse(provisional["predictionReady"])
+        for key in ("training", "recent"):
+            grades = provisional[key]
+            self.assertEqual(set(grades), {"S", "A", "B", "C", "未評価"})
+            self.assertEqual(sum(grades.values()), result["observedEntries"])
+            self.assertTrue(all(type(v) is int and v >= 0
+                                for v in grades.values()))
+        self.assertEqual(
+            result["observedEntries"] - provisional["training"]["未評価"],
+            result["factorResearch"]["bothGraded"] + result["factorResearch"]["trainingOnly"])
+        self.assertEqual(
+            result["observedEntries"] - provisional["recent"]["未評価"],
+            result["factorResearch"]["bothGraded"] + result["factorResearch"]["recentOnly"])
+        self.assertNotIn("byNumber", repr(provisional))
+        self.assertNotIn("racekey", repr(provisional))
+        self.assertNotIn("horse_id", repr(provisional))
         self.assertEqual(result["gradedFactors"], 0)
         self.assertEqual(result["version"], "selected-race-readiness-5")
         entry = result["entryMaterials"]
