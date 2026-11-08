@@ -97,6 +97,36 @@ function draw(input){
    x.status==='pending'?'未確定':yen(x.returnedYen-x.investedYen)])));
  }else $('races').append(el('p','この日の発走前固定済み予想はありません。','empty'));
 }
+const LOCKED_STORAGE='keiba-nine-owner-server-receipts-v1';
+async function readReport(day){
+ const raw=localStorage.getItem(LOCKED_STORAGE);
+ if(raw){
+  if(raw.length>650000)throw Error('固定記録が大きすぎます');
+  const all=JSON.parse(raw);
+  if(!Array.isArray(all)||all.length>360)throw Error('固定記録の形式が違います');
+  const selected=all.filter(x=>x&&x.snapshot&&x.snapshot.date===day);
+  if(selected.length){
+   const res=await fetch('/api/owner-100yen-verify-receipts',{
+    method:'POST',credentials:'same-origin',cache:'no-store',
+    headers:{'X-Keiba-Request':'private','Content-Type':'application/json','Accept':'application/json'},
+    body:JSON.stringify({date:day,receipts:selected})
+   });
+   const body=await res.json();
+   if(!res.ok)throw Error('署名付き記録の検証に失敗しました');
+   if(body.serverSigned!==true||body.captureAuditVerified!==false||
+      body.officialScheduleVerified!==false||body.officialFeedConnected!==false)
+    throw Error('固定記録の検証状態を確認できません');
+   return {body,signed:true};
+  }
+ }
+ const res=await fetch('/api/owner-100yen-review?date='+encodeURIComponent(day),{
+  cache:'no-store',credentials:'same-origin',
+  headers:{'X-Keiba-Request':'private','Accept':'application/json'}});
+ const body=await res.json();
+ if(!res.ok)throw Error(body.error||'集計を表示できません。');
+ return {body,signed:false};
+}
+
 let request=0;
 $('day').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
 $('day').onchange=()=>{request++;clear();$('status').textContent='開催日を選んで確認してください。';};
@@ -106,18 +136,16 @@ $('load').onclick=async()=>{
   $('status').textContent='開催日を選択してください。';return;}
  button.disabled=true;$('status').textContent='本人用の固定済み予想を確認中…';
  try{
-  const res=await fetch('/api/owner-100yen-review?date='+encodeURIComponent(day),{
-   cache:'no-store',credentials:'same-origin',
-   headers:{'X-Keiba-Request':'private','Accept':'application/json'}});
-  const body=await res.json();
-  if(!res.ok)throw Error(body.error||'集計を表示できません。');
+  const {body,signed}=await readReport(day);
   if(seq!==request)return;
   if(!body.available){
    $('status').textContent='この日の発走前固定済み買い目は未登録です。仮想収支を作成していません。';
    return;
   }
   draw(body.review);
-  $('status').textContent='発走前の固定済み買い目だけを読み込みました。実購入とは別の集計です。';
+  $('status').textContent=signed?
+   'サーバー署名を検証した研究記録です。公式発走時刻と結果は未照合・実購入ではありません。':
+   '保存済みのプレビューを読み込みました。発走前の独立監査・公式結果は未接続です。';
  }catch(_){if(seq===request)$('status').textContent='安全な集計ができませんでした。予想・購入記録には影響しません。';}
  finally{if(seq===request)button.disabled=false;}
 };
