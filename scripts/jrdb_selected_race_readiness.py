@@ -9,8 +9,8 @@ from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
 from jrdb_race_day_gates import audit_race_day_checks
 from jrdb_prestart_freshness import audit_prestart_freshness
 from jrdb_program_preview import TRACKS
-from jrdb_training_hypothesis import build_training_hints
-from jrdb_recent_hypothesis import build_recent_hints
+from jrdb_training_hypothesis import build_training_hints, summarize_training_hints
+from jrdb_recent_hypothesis import build_recent_hints, summarize_recent_hints
 from jrdb_dual_factor_readiness import summarize_dual_factor_readiness
 from jrdb_private_factor_bridge import build_private_factor_matrix, summarize_factor_materials
 from jrdb_entry_rotation_materials import (
@@ -96,6 +96,14 @@ def selected_race_readiness(
     if diagnostic is not None:
         diagnostic["stage"] = "factor_pairing"
     paired = summarize_dual_factor_readiness(training_hints, recent_hints)
+    # These are separate, UNVALIDATED source-factor distributions, never
+    # overall grades or per-horse records. Counts are owner-visible only.
+    train_distribution = _only(
+        summarize_training_hints(training_hints)["races"], track, race
+    )["gradeCounts"]
+    recent_distribution = _only(
+        summarize_recent_hints(recent_hints)["races"], track, race
+    )["gradeCounts"]
     if diagnostic is not None:
         diagnostic["stage"] = "factor_matrix"
     factor_matrix = build_private_factor_matrix(training_hints, recent_hints)
@@ -221,6 +229,15 @@ def selected_race_readiness(
             or e["provisionalGradeCounts"].get("recentProvisional")
             != d["both"] + d["recentOnly"]):
         raise CoverageError("Factor-grade inputs differ between research summaries")
+    labels = {"S", "A", "B", "C", "未評価"}
+    if (set(train_distribution) != labels or set(recent_distribution) != labels
+            or any(type(x) is not int or not 0 <= x <= n
+                   for x in (*train_distribution.values(), *recent_distribution.values()))
+            or sum(train_distribution.values()) != n
+            or sum(recent_distribution.values()) != n
+            or n - train_distribution["未評価"] != d["both"] + d["trainingOnly"]
+            or n - recent_distribution["未評価"] != d["both"] + d["recentOnly"]):
+        raise CoverageError("Experimental factor grade distributions disagree")
     entry_counts = f["entryObservations"]
     interval_counts = f["rotationIntervals"]
     nkeys = ("sireRecorded", "maternalSireRecorded", "bothPedigreeRecorded",
@@ -291,6 +308,13 @@ def selected_race_readiness(
             "bothHigh": d["bothHigh"],
             "remainingFactors": 8,
             "experimental": True,
+            "predictionReady": False,
+        },
+        "experimentalGradeDistributions": {
+            "training": dict(train_distribution),
+            "recent": dict(recent_distribution),
+            "experimental": True,
+            "overallRankReady": False,
             "predictionReady": False,
         },
         "factorMaterials": {
