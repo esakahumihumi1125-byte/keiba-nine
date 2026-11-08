@@ -30,6 +30,7 @@ from jrdb_complete_factor_materials import combine_ten_factor_observations
 from jrdb_real_assessment_preflight import audit_real_evaluation_preflight
 from jrdb_experimental_condition_grades import hypothesis_from_owner_history
 from jrdb_experimental_pace_scenarios import hypothesize_owner_pace
+from jrdb_experimental_rebound_review import build_rebound_context_review
 
 VERSION = "bounded-history-1"
 MAX_LOOKUPS_PER_RUN = 12
@@ -223,6 +224,9 @@ def run_bounded_history_audit(programme, entries, previous,
             course_matrix, observations
         )
         historical_bands = hypothesis_from_owner_history(runner_history)
+        rebound_review = build_rebound_context_review(
+            private_matrix, runner_history, historical_bands, pace_scenarios
+        )
         entry_matrix = enrich_entry_materials_matrix(
             private_matrix, programme, entries, previous, requested_date
         )
@@ -296,6 +300,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "ownerRunnerHistory": runner_history,
         "historicalEvidenceBands": historical_bands,
         "paceScenarioHypotheses": pace_scenarios,
+        "reboundContextReview": rebound_review,
         "allTenFactorSources": all_factor_materials,
         "realAssessmentPreflight": readiness_preflight,
         "predictionReady": False,

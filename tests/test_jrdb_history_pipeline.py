@@ -104,6 +104,18 @@ class BoundedHistoryTests(unittest.TestCase):
             self.assertEqual(sum(row[k] for k in (
                 "frontObserved","backObserved","mixedObserved","insufficient")),
                 row["runnerCount"])
+        review=report["reboundContextReview"]
+        self.assertEqual(review["version"],"owner-rebound-context-review-1")
+        self.assertEqual(review["raceCount"],2)
+        self.assertEqual(review["factorWeights"],{
+            "training":30,"recent":3,"course_distance":20,"pace":20,"ground":12
+        })
+        self.assertTrue(review["historyOnlySignalsMayOverlap"])
+        self.assertFalse(review["overallScoreReady"])
+        self.assertFalse(review["winPickReady"])
+        self.assertFalse(review["modifiesFrozenPicks"])
+        self.assertEqual(sum(x["watchCount"] for x in review["races"]),
+                         review["watchCount"])
         self.assertEqual(report["privateHistoryFactors"]["version"],
                          "private-course-ground-materials-1")
         tokyo_history = next(x for x in report["privateHistoryFactors"]["races"]
