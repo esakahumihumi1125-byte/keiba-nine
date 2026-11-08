@@ -1,0 +1,223 @@
+"""Owner private iPhone view for automatic JRDB two-factor provisional draft."""
+HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#09172b">
+<title>KEIBA NINE｜本人用・自動暫定予想</title>
+<link rel="stylesheet" href="/owner-auto-forecast.css"></head><body><main>
+<nav><a href="/">← 本人用ホーム</a><a href="/owner-jrdb-day-research">2項目の根拠</a></nav>
+<h1>KEIBA NINE <small>本人用・自動暫定予想</small></h1>
+<p class="warning"><strong>実戦用の確定予想ではありません。</strong>
+JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自動計算します。
+血統・適性・枠・展開・馬場など残り8項目、JRA公式出走取消・発走時刻の照合はまだ未完成。
+資料が不足したレースは見送り。実際の投票・購入・記録への保存は一切行いません。</p>
+<section>
+<label for="autoDay">開催日</label><input id="autoDay" type="date">
+<button id="autoRun" type="button">全場・全Rの自動暫定予想を作成</button>
+<p class="muted">本人が押したときだけJRDBの番組・出走馬・調教・近走を各1回取得。
+当日発走済みレースの3連単は後付けで作成しません。</p>
+<p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
+</section>
+<section>
+<h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
+<div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
+<div id="autoRaces"></div>
+</section>
+<p class="muted">Sは金色、Aは赤色。S/A/B/Cは2項目による独自の仮評価で、総合ランクや勝率ではありません。
+買い目は重複除外・最大40点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
+</main><script src="/owner-auto-forecast.js" defer></script></body></html>"""
+
+CSS = """*{box-sizing:border-box}html{color-scheme:dark}
+body{margin:0;background:#09172b;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
+main{max-width:780px;margin:auto;padding:16px 13px 46px}
+h1{font-size:24px;color:#f0d07e;margin:17px 0}
+h1 small{display:block;color:#c7d7e7;font-size:13px}
+h2{font-size:19px;margin:0 0 10px}
+nav{display:flex;justify-content:space-between;gap:12px}a{color:#f0d185}
+section{background:#142b43;border:1px solid #4d6b85;border-radius:14px;padding:14px;margin:14px 0}
+.warning{background:#342d25;color:#ffe6b5;border:1px solid #9b8052;border-radius:10px;padding:12px;font-size:13px}
+.muted{font-size:13px;color:#c3d3e3}
+label{display:block;font-weight:700}
+input,button{font:inherit;min-height:45px;padding:11px;border-radius:10px;margin:7px 0;width:100%}
+input{background:#0c2135;color:white;border:1px solid #90a6b9}
+button{background:#e8c774;color:#182b41;border:0;font-weight:800}
+button:disabled{opacity:.55}
+.venue-tabs{display:flex;flex-wrap:wrap;gap:7px}
+.venue-tabs button{flex:1 1 100px;width:auto;background:#2b425b;color:#eaf3ff}
+.venue-tabs button[aria-pressed=true]{background:#e8c774;color:#152a3d}
+details{border:1px solid #45617e;background:#10263d;border-radius:11px;margin:8px 0;padding:10px}
+summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
+.hold{color:#e9bfae;font-size:13px;margin:8px 0}
+.runner{display:flex;align-items:center;flex-wrap:wrap;gap:7px;
+ background:#213a54;border-radius:9px;padding:8px;margin:6px 0}
+.number{font-size:19px;font-weight:850;min-width:44px}
+.rank{font-size:12px;min-width:43px;color:#c6d5e7}
+.grade{padding:3px 7px;border-radius:6px;background:#3b5065;font-weight:800;font-size:12px}
+.S{color:#f3d475}.A{color:#ffa6b1}.B{color:#a4d8ff}.C{color:#dde2ed}
+.notes{font-size:12px;color:#c1d3e7;flex-basis:100%}
+.formation{background:#192f46;border:1px solid #456582;border-radius:10px;padding:12px;margin:10px 0}
+.formation strong{color:#e8ca81}
+.formation p{margin:6px 0}
+.picks{font-weight:800;color:#f0e4c9;letter-spacing:.02em;overflow-wrap:anywhere}
+.ticket-list{font:12px/1.75 system-ui,sans-serif;color:#cbd8e6;overflow-wrap:anywhere}
+@media(max-width:380px){.number{min-width:34px}.rank{min-width:35px}}
+"""
+
+JS = r"""(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const GRADES=new Set(['S','A','B','C','未評価']);
+const REASONS={
+ missing_research:'このレースの資料に不整合あり・自動判定を見送り',
+ runner_count_mismatch:'出走頭数が資料と不一致',
+ too_few_runners:'4頭未満で候補を作成できない',
+ missing_factors:'一部の馬の調教または近走が未評価',
+ missing_post_time:'暫定発走時刻を安全に確認できない',
+ after_provisional_off:'暫定発走時刻を過ぎたため後付け買い目なし',
+ ambiguous_equal_grade_boundary:'同評価の馬が候補の境界にいるため選定保留'
+};
+const POS={
+ frontObserved:'過去4角：前方観測',
+ backObserved:'過去4角：後方観測',
+ mixedObserved:'過去4角：混在',
+ insufficient:'過去4角：資料不足'
+};
+const dom=(tag,value,cls)=>{const d=document.createElement(tag);
+ if(value!==undefined)d.textContent=String(value);if(cls)d.className=cls;return d;};
+function validate(data,day){
+ if(!data||data.version!=='jrdb-owner-auto-draft-1'||data.date!==day||
+  data.researchOnly!==true||data.privateOwnerOnly!==true||
+  data.officialJraVerified!==false||data.overallPredictionReady!==false||
+  data.bettingReady!==false||data.autoPurchase!==false||
+  data.sourceReadCount!==4||data.unitYen!==100||
+  !Array.isArray(data.races)||data.races.length>120||
+  data.raceCount!==data.races.length||
+  data.draftCount+data.holdCount!==data.raceCount)
+  throw Error('自動暫定予想の形式が不正です');
+ const seen=new Set();
+ for(const r of data.races){
+  if(!r||!Number.isInteger(r.race)||r.race<1||r.race>12||
+   typeof r.track!=='string'||!['hold','provisional_draft'].includes(r.status)||
+   r.researchOnly!==true||r.officialJraVerified!==false||
+   r.overallPredictionReady!==false||r.bettingReady!==false||
+   r.autoPurchase!==false||seen.has(r.track+'|'+r.race)||
+   !Array.isArray(r.runners)||r.runners.length>18||
+   !Array.isArray(r.first)||!Array.isArray(r.second)||
+   !Array.isArray(r.third)||!Array.isArray(r.tickets)||
+   r.points!==r.tickets.length||r.points>40||r.amountYen!==r.points*100)
+   throw Error('レース別データが不正です');
+  seen.add(r.track+'|'+r.race);
+  const numbers=new Set();
+  for(const h of r.runners){
+   if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
+    numbers.has(h.number)||!GRADES.has(h.training)||
+    !GRADES.has(h.recent)||!GRADES.has(h.twoFactorGrade)||
+    !(h.pastFourthCorner in POS)||
+    !(h.twoFactorPoints===null||Number.isInteger(h.twoFactorPoints)))
+     throw Error('馬番別データが不正です');
+   numbers.add(h.number);
+  }
+  if(r.status==='hold'){
+   if(!Object.hasOwn(REASONS,r.reason)||r.points!==0||
+      r.first.length||r.second.length||r.third.length)
+    throw Error('見送り理由が不正です');
+  }else{
+   if(r.reason!=='two_factor_only'||r.first.length!==2||
+    r.second.length<2||r.second.length>5||
+    r.third.length<2||r.third.length>7||!r.points)
+    throw Error('候補が不正です');
+   const unique=new Set();
+   for(const t of r.tickets){
+    if(!Array.isArray(t)||t.length!==3||new Set(t).size!==3||
+     !t.every(n=>numbers.has(n))||!r.first.includes(t[0])||
+     !r.second.includes(t[1])||!r.third.includes(t[2])||
+     unique.has(t.join('-')))throw Error('買い目が不正です');
+    unique.add(t.join('-'));
+   }
+  }
+ }
+ return data;
+}
+function runnerView(h,index){
+ const p=dom('div',undefined,'runner');
+ p.append(dom('span',h.number+'番','number'),
+  dom('span',h.twoFactorPoints===null?'未評価':(index+1)+'番手','rank'),
+  dom('span',h.twoFactorGrade,'grade '+h.twoFactorGrade),
+  dom('span','調教 '+h.training,'grade '+h.training),
+  dom('span','近走 '+h.recent,'grade '+h.recent),
+  dom('span',POS[h.pastFourthCorner]+' ※脚質確定ではない','notes'));
+ return p;
+}
+function formation(r){
+ const block=dom('div',undefined,'formation');
+ block.append(dom('strong','3連単・2項目だけの研究用自動下書き'),
+  dom('p','1着：'+r.first.join('・')+'番','picks'),
+  dom('p','2着：'+r.second.join('・')+'番','picks'),
+  dom('p','3着：'+r.third.join('・')+'番','picks'),
+  dom('p',r.points+'点／1点100円なら'+r.amountYen.toLocaleString('ja-JP')+'円（仮計算・未購入）'),
+  dom('p',r.tickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
+ return block;
+}
+function render(input,day){
+ const data=validate(input,day);
+ const host=$('autoRaces'),tabs=$('autoVenues'),nodes=[],groups=new Map();
+ host.replaceChildren();tabs.replaceChildren();
+ for(const race of data.races){
+  const detail=dom('details'),title=dom('summary',
+   race.track+' '+race.race+'R '+
+   (race.status==='provisional_draft'?'研究用自動案 '+race.points+'点':'見送り'));
+  detail.append(title);
+  if(race.status==='hold')detail.append(dom('p',REASONS[race.reason],'hold'));
+  if(race.runners.length){
+   detail.append(dom('p','調教・近走の仮評価順（総合評価ではない）','muted'));
+   for(const [i,h] of race.runners.entries())detail.append(runnerView(h,i));
+  }
+  if(race.status==='provisional_draft')detail.append(formation(race));
+  nodes.push({track:race.track,node:detail});
+  groups.set(race.track,(groups.get(race.track)||0)+1);
+ }
+ function show(track){
+  const frag=document.createDocumentFragment();
+  for(const item of nodes)if(!track||item.track===track)frag.append(item.node);
+  host.replaceChildren(frag);
+  for(const b of tabs.querySelectorAll('button'))b.setAttribute(
+    'aria-pressed',String(b.dataset.track===track));
+ }
+ for(const track of ['',...groups.keys()]){
+  const button=dom('button',track?track+' '+groups.get(track)+'R':'全場 '+data.raceCount+'R');
+  button.type='button';button.dataset.track=track;
+  button.setAttribute('aria-pressed','false');
+  button.onclick=()=>show(track);tabs.append(button);
+ }
+ show('');
+ $('autoSummary').textContent=data.raceCount+'R中、研究用自動案 '+data.draftCount+
+  'R／見送り '+data.holdCount+'R。JRDBの2項目だけを使用。JRA公式照合や正式な投票は未実施。';
+}
+let request=0;
+$('autoDay').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+$('autoDay').onchange=()=>{
+ request++;$('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoSummary').textContent='未取得';
+ $('autoStatus').textContent='開催日を選んでな。';
+};
+$('autoRun').onclick=async()=>{
+ const seq=++request,button=$('autoRun'),day=$('autoDay').value.replaceAll('-','');
+ if(!/^20[0-9]{6}$/.test(day)){
+  $('autoStatus').textContent='開催日を選択してください。';return;
+ }
+ button.disabled=true;$('autoStatus').textContent='JRDB資料を一括照合し、自動暫定案を作成中…';
+ $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ try{
+  const result=await fetch('/api/jrdb/owner-auto-draft?date='+encodeURIComponent(day),{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  const body=await result.json();
+  if(!result.ok)throw Error(body.error||'資料が取得できません');
+  if(seq!==request)return;
+  render(body,day);
+  $('autoStatus').textContent='暫定評価を自動生成しました。作成できないレースは無理に選定していません。';
+ }catch(_){if(seq===request){
+  $('autoStatus').textContent='安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
+  $('autoSummary').textContent='予想は未作成';}}
+ finally{if(seq===request)button.disabled=false;}
+};
+})();"""
