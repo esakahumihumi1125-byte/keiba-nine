@@ -29,6 +29,7 @@ from jrdb_personnel_body_materials import enrich_personnel_body_matrix
 from jrdb_complete_factor_materials import combine_ten_factor_observations
 from jrdb_real_assessment_preflight import audit_real_evaluation_preflight
 from jrdb_experimental_condition_grades import hypothesis_from_owner_history
+from jrdb_experimental_pace_scenarios import hypothesize_owner_pace
 
 VERSION = "bounded-history-1"
 MAX_LOOKUPS_PER_RUN = 12
@@ -213,6 +214,7 @@ def run_bounded_history_audit(programme, entries, previous,
             ),
             build_recent_hints(programme, entries, previous, requested_date),
         )
+        pace_scenarios = hypothesize_owner_pace(private_matrix)
         course_matrix = enrich_course_ground_matrix(
             private_matrix, observations, history_complete=is_history_complete
         )
@@ -293,6 +295,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "privateHistoryFactors": history_factor_summary,
         "ownerRunnerHistory": runner_history,
         "historicalEvidenceBands": historical_bands,
+        "paceScenarioHypotheses": pace_scenarios,
         "allTenFactorSources": all_factor_materials,
         "realAssessmentPreflight": readiness_preflight,
         "predictionReady": False,

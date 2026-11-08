@@ -91,6 +91,19 @@ class BoundedHistoryTests(unittest.TestCase):
         tokyo_band=next(r for r in bands["races"] if r["track"]=="東京")
         self.assertEqual(tokyo_band["runners"][0]["courseEvidenceBand"],"未評価")
         self.assertEqual(tokyo_band["runners"][0]["goingEvidenceBand"],"未評価")
+        pace=report["paceScenarioHypotheses"]
+        self.assertEqual(pace["version"],"owner-pace-scenario-hypothesis-1")
+        self.assertEqual(pace["factorWeight"],20)
+        self.assertTrue(pace["scenarioNotActualPace"])
+        self.assertFalse(pace["overallScoreReady"])
+        self.assertFalse(pace["bettingReady"])
+        self.assertEqual(pace["raceCount"],report["ownerRunnerHistory"]["raceCount"])
+        for row in pace["races"]:
+            self.assertFalse(row["paceForecastReady"])
+            self.assertEqual(len(row["runners"]),row["runnerCount"])
+            self.assertEqual(sum(row[k] for k in (
+                "frontObserved","backObserved","mixedObserved","insufficient")),
+                row["runnerCount"])
         self.assertEqual(report["privateHistoryFactors"]["version"],
                          "private-course-ground-materials-1")
         tokyo_history = next(x for x in report["privateHistoryFactors"]["races"]
