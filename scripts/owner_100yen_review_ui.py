@@ -99,6 +99,18 @@ function draw(input){
 }
 const LOCKED_STORAGE='keiba-nine-owner-server-receipts-v1';
 async function readReport(day){
+ // A durable private archive wins when configured; if no archived races exist,
+ // older local-only signed research receipts remain readable as a fallback.
+ const archivedResponse=await fetch(
+  '/api/owner-100yen-archived?date='+encodeURIComponent(day),{
+   cache:'no-store',credentials:'same-origin',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+ if(!archivedResponse.ok)throw Error('サーバーの保存済み記録を確認できません。');
+ const archived=await archivedResponse.json();
+ if(archived&&archived.archiveEnabled===true&&archived.available===true){
+  return {body:archived,signed:true,serverArchived:true};
+ }
  const raw=localStorage.getItem(LOCKED_STORAGE);
  if(raw){
   if(raw.length>650000)throw Error('固定記録が大きすぎます');
@@ -136,16 +148,18 @@ $('load').onclick=async()=>{
   $('status').textContent='開催日を選択してください。';return;}
  button.disabled=true;$('status').textContent='本人用の固定済み予想を確認中…';
  try{
-  const {body,signed}=await readReport(day);
+  const {body,signed,serverArchived}=await readReport(day);
   if(seq!==request)return;
   if(!body.available){
    $('status').textContent='この日の発走前固定済み買い目は未登録です。仮想収支を作成していません。';
    return;
   }
   draw(body.review);
-  $('status').textContent=signed?
-   'サーバー署名を検証した研究記録です。公式発走時刻と結果は未照合・実購入ではありません。':
-   '保存済みのプレビューを読み込みました。発走前の独立監査・公式結果は未接続です。';
+  $('status').textContent=serverArchived?
+   '非公開サーバーに保存した署名付き研究記録。公式発走時刻と結果は未照合・実購入ではありません。':
+   signed?
+    '端末内のサーバー署名付き研究記録。公式発走時刻と結果は未照合・実購入ではありません。':
+    '保存済みのプレビューを読み込みました。発走前の独立監査・公式結果は未接続です。';
  }catch(_){if(seq===request)$('status').textContent='安全な集計ができませんでした。予想・購入記録には影響しません。';}
  finally{if(seq===request)button.disabled=false;}
 };
