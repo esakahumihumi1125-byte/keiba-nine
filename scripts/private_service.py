@@ -428,10 +428,29 @@ function showSingleRaceReadiness(data,selected,day){
  if(!research||research.experimental!==true||research.predictionReady!==false
     ||research.remainingFactors!==8)
   throw Error('調教・近走の仮評価に未確認情報があります');
+ const distributions=data.experimentalGradeDistributions;
+ const labels=['S','A','B','C','未評価'];
+ if(!distributions||distributions.experimental!==true
+    ||distributions.overallRankReady!==false
+    ||distributions.predictionReady!==false)
+  throw Error('暫定の個別評価内訳を確認できません');
+ const formatExperimental=(item,caption)=>{
+  if(!item||Object.keys(item).length!==labels.length
+     ||!labels.every(k=>Object.prototype.hasOwnProperty.call(item,k)))
+   throw Error('暫定ランク内訳の項目が一致しません');
+  const counts=labels.map(k=>safeReadinessCount(item[k],n));
+  if(counts.reduce((a,b)=>a+b,0)!==n)throw Error('暫定ランク内訳の頭数が一致しません');
+  return {counts,text:caption+'：'+labels.map((k,i)=>k+' '+counts[i]+'頭').join('／')};
+ };
+ const trialTraining=formatExperimental(distributions.training,'調教');
+ const trialRecent=formatExperimental(distributions.recent,'近走');
  const pair=['bothGraded','trainingOnly','recentOnly','neither',
              'sameGrade','trainingHigher','recentHigher',
              'largeDisagreement','bothHigh'].map(k=>safeReadinessCount(research[k],n));
  const [both,trainingOnly,recentOnly,neither,same,trainHigh,recentHigh,large,bothHigh]=pair;
+ if(n-trialTraining.counts[4]!==both+trainingOnly
+    ||n-trialRecent.counts[4]!==both+recentOnly)
+  throw Error('暫定ランクと資料件数が一致しません');
  if(both+trainingOnly+recentOnly+neither!==n
     ||same+trainHigh+recentHigh!==both||large>both||bothHigh>both)
   throw Error('調教・近走の暫定評価が一致しません');
@@ -534,6 +553,9 @@ function showSingleRaceReadiness(data,selected,day){
   +'\\n調教不足・未対応 '+train+'頭／1週前 '+last+'頭／近走 '+past+'頭'
   +'\\n提供元の取消報告 '+withdrawn+'頭・取消状態不明 '+unknown+'頭'
   +'\\n提供元の馬場 '+data.sourceGoing+'｜'+timing
+  +'\\n【S/A/B/Cは調教・近走それぞれの暫定評価（総合ランクではありません）】'
+  +'\\n'+trialTraining.text
+  +'\\n'+trialRecent.text
   +'\\n調教と近走の暫定評価：両方あり '+both+'頭／片方のみ '+(trainingOnly+recentOnly)+'頭／両方なし '+neither+'頭'
   +'\\n評価差が大きい馬 '+large+'頭（独自仮基準・要再検討）｜どちらも高評価 '+bothHigh+'頭（勝ち馬候補ではありません）'
   +'\\n過去4角位置（展開の材料のみ）：前方観測 '+front+'頭／後方 '+back+'頭／混在 '+mixed+'頭／資料不足 '+insufficient+'頭'
