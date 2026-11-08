@@ -1685,8 +1685,10 @@ $('autoPrestartBody').onclick=async()=>{
  const button=$('autoPrestartBody');
  if(button.disabled)return;
  const day=$('autoDay').value.replaceAll('-','');
- if(day!==jstToday().replaceAll('-')){
-  $('autoPrestartStatus').textContent='直前情報は日本時間の当日のみ照合できます。';
+ // The private server, not the device clock, enforces Japan's current date
+ // before any JRDB paid request. The client only rejects invalid input shape.
+ if(!/^20[0-9]{6}$/.test(day)){
+  $('autoPrestartStatus').textContent='開催日を選択してください。';
   return;
  }
  const seq=++prestartSeq;
