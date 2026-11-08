@@ -12,6 +12,7 @@ from jrdb_program_preview import TRACKS
 from jrdb_training_hypothesis import build_training_hints, summarize_training_hints
 from jrdb_recent_hypothesis import build_recent_hints, summarize_recent_hints
 from jrdb_dual_factor_readiness import summarize_dual_factor_readiness
+from jrdb_owner_runner_research import owner_runner_research
 from jrdb_private_factor_bridge import build_private_factor_matrix, summarize_factor_materials
 from jrdb_entry_rotation_materials import (
     enrich_entry_materials_matrix, summarize_entry_materials_matrix,
@@ -64,7 +65,7 @@ def _scope_selected_race(programme, entries, training, previous, holding,
 
 def selected_race_readiness(
     programme, entries, training, previous, holding, date, track, race, checked_at,
-    *, diagnostic=None
+    *, diagnostic=None, include_runner_research=False
 ):
     """Return ONLY selected-race aggregates and permanent non-ready flags.
 
@@ -96,6 +97,8 @@ def selected_race_readiness(
     if diagnostic is not None:
         diagnostic["stage"] = "factor_pairing"
     paired = summarize_dual_factor_readiness(training_hints, recent_hints)
+    runner_research = (owner_runner_research(training_hints, recent_hints, track, race)
+                       if include_runner_research else None)
     # These are separate, UNVALIDATED source-factor distributions, never
     # overall grades or per-horse records. Counts are owner-visible only.
     train_distribution = _only(
@@ -282,7 +285,7 @@ def selected_race_readiness(
     going = b["sourceGoing"]
     if going not in ("良", "稍重", "重", "不良", "未確認"):
         raise CoverageError("Invalid summarized going")
-    return {
+    result = {
         "version": VERSION,
         "date": date, "track": track, "race": race,
         "observedEntries": n,
@@ -367,3 +370,6 @@ def selected_race_readiness(
             "10項目の総合評価や3連単・馬券購入には利用できません。"
         ),
     }
+    if include_runner_research:
+        result["runnerResearch"] = runner_research
+    return result
