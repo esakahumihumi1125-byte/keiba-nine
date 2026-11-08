@@ -23,6 +23,7 @@ const research=()=>({
  overallPredictionReady:false,bettingReady:false,autoPurchase:false,
  sourceReadCount:4,unitYen:100,raceCount:1,draftCount:1,holdCount:0,
  serverStamped:true,captureAuditVerified:false,researchReceiptCount:1,
+ archiveEnabled:false,archiveRecordCount:0,archiveConflictCount:0,
  races:[{
   track:'東京',race:1,status:'provisional_draft',reason:'two_factor_only',
   postTime:'12:00',researchOnly:true,officialJraVerified:false,

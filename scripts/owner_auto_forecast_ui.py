@@ -85,7 +85,8 @@ const RECEIPTS_KEY='keiba-nine-owner-server-receipts-v1';
 const FAILURE_STAGE={
  programme:'番組取得・形式確認',entries:'出走馬取得',training:'調教取得',
  recent:'近走取得',day_research:'全レース資料照合',
- draft_generation:'研究用買い目生成',receipt_signing:'発走前記録の署名'
+ draft_generation:'研究用買い目生成',receipt_signing:'発走前記録の署名',
+ receipt_archiving:'サーバー記録の固定保存'
 };
 const FAILURE_KIND={
  provider:'API通信・権限',programme_format:'番組形式',
@@ -133,6 +134,9 @@ function validate(data,day){
   data.researchOnly!==true||data.privateOwnerOnly!==true||
   data.officialJraVerified!==false||data.overallPredictionReady!==false||
   data.bettingReady!==false||data.autoPurchase!==false||
+  typeof data.archiveEnabled!=='boolean'||
+  !Number.isInteger(data.archiveRecordCount)||data.archiveRecordCount<0||
+  !Number.isInteger(data.archiveConflictCount)||data.archiveConflictCount<0||
   data.sourceReadCount!==4||data.unitYen!==100||
   !Array.isArray(data.races)||data.races.length>120||
   data.raceCount!==data.races.length||
@@ -329,7 +333,11 @@ $('autoRun').onclick=async()=>{
   if(seq!==request)return;
   render(body,day);
   try{
-   $('autoSavedStatus').textContent=saveAutoReceipts(body,day);
+   const localStatus=saveAutoReceipts(body,day);
+   $('autoSavedStatus').textContent=body.archiveEnabled
+    ?'サーバー固定済み '+body.archiveRecordCount+'R／前の買い目を優先したレース '+
+      body.archiveConflictCount+'R。'+localStatus
+    :'サーバー保存は未設定。'+localStatus;
   }catch(_){
    $('autoSavedStatus').textContent='研究記録の端末保存はできませんでした。結果表示と実購入記録には影響しません。';
   }

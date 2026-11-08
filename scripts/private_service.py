@@ -2068,10 +2068,40 @@ def create_app(settings=None):
                 report = build_owner_auto_drafts(
                     programme, research, day, now=captured_at)
                 stage = 'receipt_signing'
+                has_archive = archive_enabled(settings)
                 signing_secret = (archive_signing_secret(settings)
-                                  if archive_enabled(settings) else password)
+                                  if has_archive else password)
                 receipts = seal_auto_research_drafts(
                     report, signing_secret, now=captured_at)
+                report['archiveEnabled'] = has_archive
+                report['archiveRecordCount'] = 0
+                report['archiveConflictCount'] = 0
+                if has_archive:
+                    stage = 'receipt_archiving'
+                    selected_day = day[:4] + '-' + day[4:6] + '-' + day[6:]
+                    # Persist only signed tickets, not any licensed source rows.
+                    # DB clock guards races that have already started.
+                    saved = save_first_and_read(
+                        settings, signing_secret, selected_day, receipts)
+                    report['archiveRecordCount'] = len(saved)
+                    expected = {
+                        (x['snapshot']['track'], x['snapshot']['race']): x
+                        for x in receipts
+                    }
+                    matches, conflicts = [], 0
+                    for original in saved:
+                        snapshot = original['snapshot']
+                        current = expected.get((snapshot['track'], snapshot['race']))
+                        if current is None:
+                            continue
+                        # Never replace an earlier, immutable forecast with
+                        # a changed one in either server or client storage.
+                        if snapshot['trifectaTickets'] == current['snapshot']['trifectaTickets']:
+                            matches.append(original)
+                        else:
+                            conflicts += 1
+                    receipts = matches
+                    report['archiveConflictCount'] = conflicts
                 report['researchReceipts'] = receipts
                 report['researchReceiptCount'] = len(receipts)
                 report['serverStamped'] = True

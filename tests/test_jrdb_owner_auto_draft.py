@@ -289,6 +289,81 @@ class AutoDraftHTTPTests(unittest.TestCase):
                           "synthetic-api","synthetic-auth","oikirisisu","idm"):
             self.assertNotIn(forbidden,out["body"].decode())
 
+    def test_optional_server_archive_first_write_wins(self):
+        from owner_receipt_archive import FLAG, SIGNING_KEY, DSN_KEY
+        secret = "synthetic-independent-signing-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        config = {**self.config, FLAG:"1", SIGNING_KEY:secret,
+                  DSN_KEY:"postgresql://fake_owner:fake_password@db.invalid/keiba"}
+        app = create_app(config)
+        original = {}
+        def fake_save(settings, signing_key, day, received):
+            self.assertEqual(signing_key, secret)
+            for item in received:
+                s = item["snapshot"]
+                original.setdefault((day,s["track"],s["race"]), copy.deepcopy(item))
+            return list(original.values())
+        first_report = generate()
+        changed = copy.deepcopy(first_report)
+        row = changed["races"][0]
+        row["first"] = [3,4]
+        row["second"] = [3,4,5,6,7]
+        row["third"] = [1,2,3,4,5,6,7]
+        row["tickets"] = [[a,b,c] for a in row["first"]
+                          for b in row["second"] for c in row["third"]
+                          if len({a,b,c}) == 3]
+        row["points"] = len(row["tickets"])
+        row["amountYen"] = 100 * row["points"]
+        self.assertEqual(row["points"], 40)
+        with (patch("private_service.fetch_race_program", return_value=[]),
+              patch("private_service.normalize_program_rows", return_value=programme()),
+              patch("private_service.fetch_horse_entries", return_value=[]),
+              patch("private_service.fetch_training_analysis", return_value=[]),
+              patch("private_service.fetch_recent_runs", return_value=[]),
+              patch("private_service.owner_day_research", return_value=research()),
+              patch("private_service.build_owner_auto_drafts",
+                    side_effect=[first_report,changed]),
+              patch("private_service.save_first_and_read", side_effect=fake_save),
+              patch("private_service._now_in_jst", side_effect=[
+                  "2099-01-01T09:00:00+09:00", "2099-01-01T09:30:00+09:00"])):
+            early = call(app, "/api/jrdb/owner-auto-draft", QUERY_STRING="date="+DAY)
+            later = call(app, "/api/jrdb/owner-auto-draft", QUERY_STRING="date="+DAY)
+        self.assertEqual(early["status"], "200 OK")
+        self.assertEqual(later["status"], "200 OK")
+        e, l = json.loads(early["body"]), json.loads(later["body"])
+        self.assertTrue(e["archiveEnabled"])
+        self.assertEqual(e["archiveRecordCount"], 1)
+        self.assertEqual(e["archiveConflictCount"], 0)
+        self.assertEqual(len(e["researchReceipts"]), 1)
+        self.assertEqual(l["archiveRecordCount"], 1)
+        self.assertEqual(l["archiveConflictCount"], 1)
+        self.assertEqual(l["researchReceipts"], [])
+        self.assertEqual(len(original), 1)
+        self.assertEqual(e["researchReceipts"][0], list(original.values())[0])
+
+    def test_optional_archive_failure_stops_without_new_receipts(self):
+        from owner_receipt_archive import FLAG, SIGNING_KEY, DSN_KEY, ArchiveUnavailable
+        secret = "synthetic-independent-signing-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        config = {**self.config, FLAG:"1", SIGNING_KEY:secret,
+                  DSN_KEY:"postgresql://fake_owner:fake_password@db.invalid/keiba"}
+        with (patch("private_service.fetch_race_program", return_value=[]),
+              patch("private_service.normalize_program_rows", return_value=programme()),
+              patch("private_service.fetch_horse_entries", return_value=[]),
+              patch("private_service.fetch_training_analysis", return_value=[]),
+              patch("private_service.fetch_recent_runs", return_value=[]),
+              patch("private_service.owner_day_research", return_value=research()),
+              patch("private_service.save_first_and_read",
+                    side_effect=ArchiveUnavailable("private-connection-details")),
+              patch("private_service._now_in_jst",
+                    return_value="2099-01-01T09:00:00+09:00")):
+            res = call(create_app(config), "/api/jrdb/owner-auto-draft",
+                       QUERY_STRING="date="+DAY)
+        self.assertEqual(res["status"], "502 Bad Gateway")
+        body=json.loads(res["body"])
+        self.assertEqual(body["failureStage"], "receipt_archiving")
+        self.assertEqual(body["failureKind"], "receipt_guard")
+        self.assertNotIn("private-connection-details",res["body"].decode())
+        self.assertNotIn("researchReceipts",res["body"].decode())
+
     def test_iso_clock_does_not_create_post_start_tickets(self):
         # Production _now_in_jst returns ISO text, not datetime.
         for clock, expected in (
