@@ -29,6 +29,22 @@ MAX_RACES = 120
 STAKE = 100
 # Only trusted, constant error messages originating in _normalize_runners.
 # Never send provider values or exception strings to the client or logs.
+# Fixed codes for the fail-closed, whole-day contract. These map only
+# literal errors authored in this module; never include raw JRDB data.
+DAY_DRAFT_ISSUES = {
+    "Invalid draft request": "bad_request_contract",
+    "Timezone-aware timestamp required": "server_clock",
+    "Research snapshot mismatch": "research_header",
+    "Invalid research slot": "research_slot",
+    "Invalid or duplicate research slot": "research_slot_duplicate",
+    "Invalid programme slot": "programme_slot",
+    "Programme and research slots differ": "race_set_mismatch",
+    "Unverified research must be null": "unverified_research",
+    "Invalid research programme slot": "race_programme_identity",
+    "Day research identity mismatch": "race_research_identity",
+    "Unexpected auto formation size": "formation_size",
+}
+
 RUNNER_ISSUES = {
     "Bad two-factor research contract": "contract",
     "Invalid research runner": "runner_shape",

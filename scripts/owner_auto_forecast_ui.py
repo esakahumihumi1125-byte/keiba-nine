@@ -92,6 +92,18 @@ const FAILURE_KIND={
  source_validation:'資料間の整合性',receipt_guard:'記録の署名検証',
  invalid_data:'資料形式'
 };
+// Stable server-authored categories only. Never print raw API errors.
+const FAILURE_DETAIL={
+ bad_request_contract:'日付と番組の契約',server_clock:'サーバー時刻',
+ research_header:'全日資料の形式',research_slot:'レース資料形式',
+ research_slot_duplicate:'重複・不正なレース資料',
+ programme_slot:'番組内のレース形式',
+ race_set_mismatch:'番組と分析対象の一致',
+ unverified_research:'未確認資料の扱い',
+ race_programme_identity:'レース番組の識別',
+ race_research_identity:'番組と仮評価の識別',
+ formation_size:'買い目点数の検算',other:'未分類の照合条件'
+};
 const REASONS={
  missing_research:'このレースの資料に不整合あり・自動判定を見送り',
  runner_count_mismatch:'出走頭数が資料と不一致',
@@ -309,7 +321,9 @@ $('autoRun').onclick=async()=>{
      ?FAILURE_STAGE[body.failureStage]:null;
    const kind=Object.hasOwn(FAILURE_KIND,body.failureKind)
      ?FAILURE_KIND[body.failureKind]:'未確認';
-   throw Error(step?'停止した工程：'+step+'（'+kind+'）。未完成の買い目は表示しません。'
+   const detail=Object.hasOwn(FAILURE_DETAIL,body.failureDetail)
+     ?'／条件：'+FAILURE_DETAIL[body.failureDetail]:'';
+   throw Error(step?'停止した工程：'+step+'（'+kind+detail+'）。未完成の買い目は表示しません。'
      :'JRDB接続・出走資料・認証状態を確認してください。');
   }
   if(seq!==request)return;

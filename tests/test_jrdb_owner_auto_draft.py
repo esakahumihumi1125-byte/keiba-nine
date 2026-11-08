@@ -341,6 +341,33 @@ class AutoDraftHTTPTests(unittest.TestCase):
                                 'private-signer-value', 'horse_id', 'racekey'):
                     self.assertNotIn(private, out['body'].decode())
 
+    def test_whole_day_draft_failure_reports_only_fixed_reason(self):
+        from jrdb_owner_auto_draft import DAY_DRAFT_ISSUES
+        self.assertEqual(DAY_DRAFT_ISSUES["Research snapshot mismatch"],
+                         "research_header")
+        for raw_message, expected in (
+            ("Research snapshot mismatch", "research_header"),
+            ("Programme and research slots differ", "race_set_mismatch"),
+            ("sensitive-unknown-provider-field", "other"),
+        ):
+            with self.subTest(expected=expected):
+                with (patch("private_service.fetch_race_program", return_value=[]),
+                      patch("private_service.normalize_program_rows", return_value=programme()),
+                      patch("private_service.fetch_horse_entries", return_value=[]),
+                      patch("private_service.fetch_training_analysis", return_value=[]),
+                      patch("private_service.fetch_recent_runs", return_value=[]),
+                      patch("private_service.owner_day_research", return_value=research()),
+                      patch("private_service.build_owner_auto_drafts",
+                            side_effect=CoverageError(raw_message))):
+                    out = call(self.app, "/api/jrdb/owner-auto-draft",
+                               QUERY_STRING="date="+DAY)
+                self.assertEqual(out["status"], "502 Bad Gateway")
+                body=json.loads(out["body"])
+                self.assertEqual(body["failureStage"], "draft_generation")
+                self.assertEqual(body["failureKind"], "source_validation")
+                self.assertEqual(body["failureDetail"], expected)
+                self.assertNotIn(raw_message, out["body"].decode())
+
     def test_provider_failure_never_leaks_source_data_or_makes_tickets(self):
         from jrdb_private import JRDBError
         with patch("private_service.fetch_race_program",

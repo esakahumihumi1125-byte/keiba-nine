@@ -30,7 +30,7 @@ from jrdb_prestart_body import audit_prestart_body
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
-from jrdb_owner_auto_draft import build_owner_auto_drafts
+from jrdb_owner_auto_draft import build_owner_auto_drafts, DAY_DRAFT_ISSUES
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
                                     JS as AUTO_FORECAST_JS,
@@ -2084,10 +2084,15 @@ def create_app(settings=None):
                     kind = 'receipt_guard'
                 else:
                     kind = 'invalid_data'
-                logging.warning('KEIBA_AUTO_DRAFT_FAILURE stage=%s kind=%s', stage, kind)
+                detail = (DAY_DRAFT_ISSUES.get(str(exc), 'other')
+                          if stage == 'draft_generation' and type(exc) is CoverageError
+                          else None)
+                logging.warning('KEIBA_AUTO_DRAFT_FAILURE stage=%s kind=%s detail=%s',
+                                stage, kind, detail or 'none')
                 return response('502 Bad Gateway', {
                     'error': 'JRDB資料を安全に自動照合できませんでした。研究用3連単案は作成しません。',
-                    'failureStage': stage, 'failureKind': kind})
+                    'failureStage': stage, 'failureKind': kind,
+                    'failureDetail': detail})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/selected-readiness':
             # Single owner-triggered request with one /tra /tky /tcy /tze /tka
