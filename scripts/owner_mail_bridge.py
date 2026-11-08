@@ -120,6 +120,7 @@ def fetch_mail_brief(settings, expected_date, race_times, opener=urlopen):
 def load_owner_live_notes(settings, *, today=None, opener=urlopen):
     """Merge today-only manual and remote briefs, latest prestart mail wins."""
     today = today or datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()
+    configured = bridge_enabled(settings)
     current = None
     raw = settings.get("KEIBA_OWNER_LIVE_NOTES_JSON", "")
     if raw:
@@ -127,9 +128,8 @@ def load_owner_live_notes(settings, *, today=None, opener=urlopen):
             parsed = parse_live_notes(raw)
         except LiveNoteError as exc:
             raise BridgeUnavailable("Stored notes invalid") from exc
-        if parsed["date"] == today:
+        if parsed["date"] == today or not configured:
             current = parsed
-    configured = bridge_enabled(settings)
     status = "未設定"
     if configured:
         try:
