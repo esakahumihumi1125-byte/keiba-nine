@@ -1,0 +1,4 @@
+# For the separate owner-private Render service ONLY.
+# Do not use this list for the public preview.
+-r render-requirements.txt
+psycopg[binary]>=3.2,<3.3
