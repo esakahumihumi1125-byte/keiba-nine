@@ -75,6 +75,43 @@ class HypotheticalReviewTests(unittest.TestCase):
         self.assertEqual(out["trifectaHits"], 0)
         self.assertEqual(out["trioHits"], 0)
 
+    def test_venue_breakdown_excludes_unverified_stakes_and_tracks_first_choices(self):
+        tokyo = snapshot(1)
+        kyoto = snapshot(2)
+        kyoto["track"] = "京都"
+        fukushima = snapshot(3)
+        fukushima["track"] = "福島"
+        hit = outcome(1)
+        loss = outcome(2)
+        loss["track"] = "京都"
+        loss["finish"] = [5, 6, 7]
+        report = review_100yen([tokyo, kyoto, fukushima], [hit, loss])
+        self.assertEqual(report["reviewedRaces"], 2)
+        self.assertEqual(report["pendingRaces"], 1)
+        self.assertEqual(report["totalInvestedYen"], 600)
+        self.assertEqual(report["totalReturnedYen"], 479590)
+        self.assertEqual(report["pendingStakeYen"], 300)
+        self.assertEqual(report["firstCandidateHits"], 1)
+        self.assertEqual(report["firstCandidateEligibleRaces"], 2)
+        self.assertEqual([x["track"] for x in report["venueBreakdown"]],
+                         ["東京", "京都", "福島"])
+        by_track = {x["track"]: x for x in report["venueBreakdown"]}
+        self.assertEqual(by_track["東京"]["investedYen"], 300)
+        self.assertEqual(by_track["東京"]["returnedYen"], 479590)
+        self.assertEqual(by_track["京都"]["roiPercent"], 0)
+        self.assertEqual(by_track["福島"]["pendingStakeYen"], 300)
+        self.assertIsNone(by_track["福島"]["roiPercent"])
+        self.assertEqual(by_track["福島"]["reviewedRaces"], 0)
+
+    def test_trio_only_does_not_claim_first_place_candidate(self):
+        prediction = snapshot()
+        prediction["trifectaTickets"] = []
+        report = review_100yen([prediction], [outcome()])
+        self.assertEqual(report["firstCandidateEligibleRaces"], 0)
+        self.assertEqual(report["firstCandidateHits"], 0)
+        self.assertIsNone(report["races"][0]["firstCandidateHit"])
+        self.assertEqual(report["totalInvestedYen"], 100)
+
     def test_postoff_forecast_never_backtests_as_prerace(self):
         p=snapshot()
         p["lockedAt"] = p["scheduledOffAt"]
