@@ -18,8 +18,17 @@ async function check(){
   const data=await res.json(),sync=data?.sync;
   if(sync?.configured&&sync.status==='接続済み')
    $('setupStatus').textContent='Gmail自動連携：接続済み。前日予想への自動上書きはしません。';
-  else if(sync?.configured)
-   $('setupStatus').textContent='連携設定を検出。データ取得に問題があり、再確認が必要です。';
+  else if(sync?.configured){
+   const reason={
+    calendar:'本日の予想データが見つからないか、開催日が一致していません。',
+    rejected:'Google側でリクエストが拒否されました。新しいトークンと公開設定を確認してください。',
+    http:'GoogleへのアクセスがHTTPエラーになりました。WebアプリURLと公開設定を確認してください。',
+    non_json:'Googleから予期しない応答が返りました。Webアプリの公開設定やURLを確認してください。',
+    network:'Googleへの通信が失敗またはタイムアウトしました。再確認してください。',
+    format:'Googleから受け取った情報が検証条件に合っていません。'
+   };
+   $('setupStatus').textContent='連携設定あり。'+(reason[sync.issue]||'データ取得に問題があり、再確認が必要です。');
+  }
   else $('setupStatus').textContent='まだGmail自動連携は未設定です。ChatGPTのGmail接続とは別に初回設定が必要です。';
  }catch(_){$('setupStatus').textContent='接続状況を確認できません。本人用アプリにログインして再試行してください。';}
 }
