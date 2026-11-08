@@ -31,6 +31,11 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <button id="autoHistoryAudit" type="button" disabled>過去の同条件を最大8件照合する</button>
 <p class="muted">発走前に照合した巻き返し候補は署名を検証し、iPhone内に最初の候補を固定します。事後の再分析で候補を上書きしません。これは公式結果や馬券購入の証明ではありません。</p>
 <p id="autoHistoryWatchSave" class="muted" role="status">発走前の候補記録は未確認。</p>
+<button id="autoWatchResultCheck" type="button" disabled>固定した巻き返し候補とJRDB成績を参考照合</button>
+<p class="muted">署名済み候補がこのiPhoneにある開催日だけ利用できます。押した時のみJRDBの成績を1回取得。
+JRDBはJRA公式から独立した結果確認ではないので、表示は暫定値です。公式的中・回収率に加算しません。</p>
+<p id="autoWatchResultStatus" class="muted" role="status">発走前の固定候補がありません。</p>
+<div id="autoWatchResultRaces"></div>
 <p id="autoHistoryAuditStatus" class="muted" role="status">暫定予想の取得後に利用できます。</p>
 <div id="autoHistoryAuditRaces"></div>
 </section>
@@ -667,7 +672,8 @@ function saveAutoReceipts(data,day){
 }
 
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
-let request=0,followingToday=true,historySeq=0,historyDay='',historyCoordinates=new Set(),
+let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
+ historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
@@ -678,6 +684,114 @@ function clearHistory(){
  $('autoHistoryAuditRaces').replaceChildren();
  $('autoHistoryAuditStatus').textContent='暫定予想の取得後に利用できます。';
  $('autoHistoryWatchSave').textContent='発走前の候補記録は未確認。';
+ watchResultSeq++;
+ $('autoWatchResultRaces').replaceChildren();
+ $('autoWatchResultStatus').textContent='発走前の固定候補がありません。';
+ refreshWatchResultsAvailability();
+}
+function storedWatchDay(day){
+ const raw=localStorage.getItem(WATCH_STORAGE);
+ if(raw&&raw.length>700000)throw Error('保存した候補記録が大きすぎます');
+ const stored=JSON.parse(raw||'[]');
+ if(!Array.isArray(stored)||stored.length>360)throw Error('保存した候補記録が不正');
+ const selected=stored.filter(x=>x&&x.snapshot&&x.snapshot.date===day);
+ if(selected.length>36)throw Error('同日の候補が多すぎます');
+ const used=new Set();
+ for(const row of selected){
+  if(!row||!row.snapshot||typeof row.signature!=='string'||
+     !/^[0-9a-f]{64}$/.test(row.signature))
+   throw Error('保存した署名が不正');
+  const s=row.snapshot,id=s.date+'|'+s.track+'|'+s.race;
+  if(used.has(id)||!Array.isArray(s.watch)||!s.watch.length||
+     s.version!=='owner-rebound-watch-receipt-1')
+   throw Error('保存した候補の形式不正');
+  used.add(id);
+ }
+ return selected;
+}
+function refreshWatchResultsAvailability(){
+ const day=$('autoDay').value.replaceAll('-','');
+ try{
+  const saved=storedWatchDay(day);
+  $('autoWatchResultCheck').disabled=!saved.length;
+  if(saved.length){
+   $('autoWatchResultStatus').textContent=
+    '発走前の署名付き巻き返し候補：'+saved.length+
+    'R。JRDB成績の参考照合は押したときだけ実行。';
+  }
+ }catch(_){
+  $('autoWatchResultCheck').disabled=true;
+  $('autoWatchResultStatus').textContent=
+   '保存済み候補に不整合があります。成績照合は実行しません。';
+ }
+}
+function validateProviderCheck(result,receipts,day){
+ if(!result||result.version!=='owner-rebound-provider-check-1'||
+    result.date!==day||
+    result.sourceKind!=='jrdb-tse-provider-observation'||
+    result.officialJraVerified!==false||
+    result.jraIndependentConfirmation!==false||
+    result.officialFeedConnected!==false||
+    result.outcomeCalibrationReady!==false||
+    result.bettingReady!==false||
+    result.actualPurchase!==false||
+    result.payoutVerified!==false||
+    result.roiPercent!==null||
+    result.researchOnly!==true||
+    result.privateOwnerOnly!==true||
+    result.sourceIncompleteCouldChange!==true||
+    result.verifiedRaceCount!==0||
+    result.verifiedWatchHitCount!==null||
+    !Number.isInteger(result.providerSourceReadCount)||
+    result.providerSourceReadCount<0||result.providerSourceReadCount>1||
+    !Number.isInteger(result.raceCount)||
+    result.raceCount!==receipts.length||
+    !Array.isArray(result.races)||result.races.length!==receipts.length||
+    !Number.isInteger(result.observedRaceCount)||
+    !Number.isInteger(result.observedFirstInWatchCount)||
+    !Number.isInteger(result.observedFirstInPriorityCount))
+  throw Error('暫定成績の形式が不正');
+ const byKey=new Map(receipts.map(x=>[
+  x.snapshot.track+'|'+x.snapshot.race,x.snapshot
+ ]));
+ let observed=0,observedWatched=0,observedPriority=0;
+ const seen=new Set();
+ for(const r of result.races){
+  if(!r||typeof r.track!=='string'||!Number.isInteger(r.race)||
+     !Number.isInteger(r.watchCount)||
+     r.officialVerified!==false||r.confirmedWatchHit!==null||
+     r.confirmedPredictionHit!==null||
+     !['pending','first_place_observed'].includes(r.providerStatus))
+   throw Error('暫定成績が不正');
+  const key=r.track+'|'+r.race,prev=byKey.get(key);
+  if(!prev||seen.has(key)||r.watchCount!==prev.watch.length)
+   throw Error('発走前記録と成績のレース不一致');
+  seen.add(key);
+  if(r.providerStatus==='pending'){
+   if(r.observedFirstNumber!==null||r.observedFirstInWatch!==null||
+      r.observedFirstInPriorityWatch!==null)
+    throw Error('未確認レースの値が不正');
+   continue;
+  }
+  const winner=r.observedFirstNumber;
+  if(!Number.isInteger(winner)||winner<1||winner>18||
+     typeof r.observedFirstInWatch!=='boolean'||
+     typeof r.observedFirstInPriorityWatch!=='boolean')
+   throw Error('暫定1着馬番が不正');
+  const state=prev.watch.find(x=>x.number===winner)?.reviewState;
+  if(r.observedFirstInWatch!==(state!==undefined)||
+     r.observedFirstInPriorityWatch!==(state==='cross_source_review'))
+   throw Error('暫定1着と発走前候補が不一致');
+  observed++;
+  if(r.observedFirstInWatch)observedWatched++;
+  if(r.observedFirstInPriorityWatch)observedPriority++;
+ }
+ if(seen.size!==receipts.length||
+    observed!==result.observedRaceCount||
+    observedWatched!==result.observedFirstInWatchCount||
+    observedPriority!==result.observedFirstInPriorityCount)
+  throw Error('暫定成績の集計が不一致');
+ return result;
 }
 function validateWatchCapture(capture,history){
  if(!capture||capture.version!=='owner-rebound-watch-receipt-1'||
@@ -1256,6 +1370,7 @@ $('autoHistoryAudit').onclick=async()=>{
        output.review.outcomeCalibrationReady!==false)
      throw Error('署名の確認ができません');
     watchSaveStatus=saveReboundWatch(raw.watchCapture.receipts);
+    refreshWatchResultsAvailability();
    }catch(_){
     watchSaveStatus='候補の署名検証・端末固定ができませんでした。過去の記録は変更していません。';
    }
@@ -1341,6 +1456,57 @@ $('autoHistoryAudit').onclick=async()=>{
    '予想と固定済みの買い目は変更していません。';
  }}finally{if(seq===historySeq&&day===historyDay)button.disabled=false;}
 };
+$('autoWatchResultCheck').onclick=async()=>{
+ const button=$('autoWatchResultCheck'),seq=++watchResultSeq,
+  day=$('autoDay').value.replaceAll('-','');
+ if(button.disabled)return;
+ button.disabled=true;
+ $('autoWatchResultRaces').replaceChildren();
+ $('autoWatchResultStatus').textContent='JRDB成績を参考照合中…';
+ try{
+  const selected=storedWatchDay(day);
+  if(!selected.length)throw Error('候補記録なし');
+  const res=await fetch('/api/owner-rebound-provider-check',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},
+   body:JSON.stringify({date:day,receipts:selected})
+  });
+  const raw=await res.json();
+  if(seq!==watchResultSeq)return;
+  if(!res.ok)throw Error('JRDB成績照合不可');
+  const result=validateProviderCheck(raw,selected,day);
+  for(const r of result.races){
+   const card=dom('div',undefined,'history-coverage');
+   card.append(dom('strong',r.track+' '+r.race+'R'));
+   const label=r.providerStatus==='pending'
+    ?'資料不足・発走前・成績未反映のいずれか。結果待ち。'
+    :'JRDBが示す1着馬番 '+r.observedFirstNumber+'番。'+
+     (r.observedFirstInWatch
+      ?'発走前の注目候補に含まれる。'
+      :'発走前の注目候補には含まれない。')+
+     (r.observedFirstInPriorityWatch?'重点再審査対象にも含まれる。':'')+
+     '（参考照合・JRA公式未確認）';
+   card.append(dom('p',label,'muted'));
+   $('autoWatchResultRaces').append(card);
+  }
+  $('autoWatchResultStatus').textContent=
+   'JRDB成績の1着馬番を確認できた '+result.observedRaceCount+'R／'+
+   result.raceCount+'R、候補に含まれた '+result.observedFirstInWatchCount+
+   'R（重点再審査 '+result.observedFirstInPriorityCount+
+   'R）。JRA公式照合が未完了のため、正式な的中・回収率には算入しません。'+
+   'サーバー結果は端末の固定候補を変更しません。';
+ }catch(_){if(seq===watchResultSeq){
+  $('autoWatchResultRaces').replaceChildren();
+  $('autoWatchResultStatus').textContent=
+   '結果の暫定照合ができませんでした。JRDB接続・署名・通信状況を確認。'+
+   '公式成績や保存済み候補は変更していません。';
+ }}finally{
+  if(seq===watchResultSeq)
+   refreshWatchResultsAvailability();
+ }
+};
+refreshWatchResultsAvailability();
 $('autoSavedStatus').textContent=localReceiptStatus(
  $('autoDay').value.replaceAll('-',''));
 showFixedHistory($('autoDay').value.replaceAll('-',''));
