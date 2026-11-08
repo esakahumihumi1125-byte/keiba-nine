@@ -28,6 +28,12 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 署名はこの画面では検証していません。後付け予想ではありません。</p>
 <a href="/owner-backup">7種類の記録をバックアップ・復元する</a>
 </section>
+<section><h2>10項目の配点と評価状況</h2>
+<p id="autoTenStatus" class="muted" role="status">予想資料の取得後に表示します。</p>
+<div id="autoTenWeights" class="ten-weights"></div>
+<p class="muted">総合S：85点以上／A：70点以上／B：55点以上／C：55点未満。
+10項目の根拠がそろうまでは総合点・総合順位は「未評価」です。</p>
+</section>
 <section>
 <h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
@@ -70,12 +76,28 @@ summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
 .formation p{margin:6px 0}
 .picks{font-weight:800;color:#f0e4c9;letter-spacing:.02em;overflow-wrap:anywhere}
 .ticket-list{font:12px/1.75 system-ui,sans-serif;color:#cbd8e6;overflow-wrap:anywhere}
+.ten-weights,.ten-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.ten-weight,.ten-slot{background:#253e58;border-radius:7px;padding:7px;font-size:12px}
+.ten-weight{display:flex;justify-content:space-between;gap:4px}
+.ten-weight b{color:#f5d284}
+.ten-horse{margin:6px 0 9px 13px}
+.ten-horse summary{font-size:13px;min-height:27px;color:#cdddff}
+.ten-slot span{display:block;color:#b9cadc}
+.ten-slot b{display:inline-block;color:#e9efff;margin-top:4px}
+.ten-slot b.S{color:#f3d475}.ten-slot b.A{color:#ffa6b1}.ten-slot b.B{color:#a4d8ff}
 @media(max-width:380px){.number{min-width:34px}.rank{min-width:35px}}
 """
 
 JS = r"""(()=>{'use strict';
 const $=id=>document.getElementById(id);
 const GRADES=new Set(['S','A','B','C','未評価']);
+const TEN=[
+ ['training','調教',30],['recent','近走',3],
+ ['course_distance','コース・距離',20],['pace','展開・脚質',20],
+ ['ground','馬場',12],['pedigree','血統',8],
+ ['draw_weight','枠・斤量',3],['jockey_stable','騎手・厩舎',2],
+ ['rotation','ローテ',1],['body_condition','馬体重',1]
+];
 const MISSING={
  missing_training_indices:'調教：追切・仕上指数の片方または両方が不足',
  no_linked_training_record:'調教：この馬に照合できる資料なし',
@@ -149,6 +171,55 @@ const POS={
 };
 const dom=(tag,value,cls)=>{const d=document.createElement(tag);
  if(value!==undefined)d.textContent=String(value);if(cls)d.className=cls;return d;};
+function validateTen(data){
+ const p=data.tenFactorPreview;
+ if(!p||p.version!=='owner-ten-factor-contract-1'||p.policyVersion!=='research-5'||
+    p.factorCount!==10||p.totalWeight!==100||
+    p.gradeThresholds?.S!==85||p.gradeThresholds?.A!==70||
+    p.gradeThresholds?.B!==55||p.researchOnly!==true||
+    p.overallPredictionReady!==false||p.officialJraVerified!==false||
+    p.fullPredictionRaceCount!==0||p.raceCount!==data.raceCount||
+    p.requiredForOverall!=='all_ten_verified_before_start'||
+    !Array.isArray(p.factors)||p.factors.length!==10||
+    !Array.isArray(p.races)||p.races.length!==data.raceCount)
+  throw Error('10項目データの形式不正');
+ for(let i=0;i<10;i++){
+  const f=p.factors[i],expected=TEN[i];
+  if(!f||f.key!==expected[0]||f.label!==expected[1]||
+     f.weight!==expected[2])throw Error('10項目配点の不一致');
+ }
+ const source=new Map(data.races.map(r=>[r.track+'|'+r.race,r])),seen=new Set();
+ for(const r of p.races){
+  const id=r.track+'|'+r.race,actual=source.get(id);
+  if(!actual||seen.has(id)||r.overallReady!==false||
+     r.fullTenFactorCount!==0||!Array.isArray(r.horses)||
+     r.runnerCount!==actual.runners.length||r.horses.length!==actual.runners.length)
+   throw Error('10項目レースの不一致');
+  seen.add(id);
+  const horses=new Map(actual.runners.map(h=>[h.number,h]));
+  const duplicates=new Set();
+  for(const h of r.horses){
+   if(!h||duplicates.has(h.number)||!horses.has(h.number)||
+      h.overallGrade!=='未評価'||h.overallRank!==null||h.score!==null||
+      h.verifiedFactorCount!==0||!h.grades||Object.keys(h.grades).length!==10||
+      !Array.isArray(h.missing))throw Error('10項目馬番の形式不正');
+   duplicates.add(h.number);
+   let count=0;
+   for(const [key] of TEN){
+    const grade=h.grades[key],original=horses.get(h.number);
+    if(!GRADES.has(grade)||
+       (key==='training'&&grade!==original.training)||
+       (key==='recent'&&grade!==original.recent)||
+       (key!=='training'&&key!=='recent'&&grade!=='未評価'))
+     throw Error('未検証の10項目評価を拒否');
+    if((key==='training'||key==='recent')&&grade!=='未評価')count++;
+   }
+   if(h.provisionalFactorCount!==count||h.missing.length!==10-count)
+     throw Error('10項目の採点数が不一致');
+  }
+ }
+ return p;
+}
 function validate(data,day){
  if(!data||data.version!=='jrdb-owner-auto-draft-1'||data.date!==day||
   data.researchOnly!==true||data.privateOwnerOnly!==true||
@@ -243,6 +314,7 @@ function validate(data,day){
    }
   }
  }
+ validateTen(data);
  return data;
 }
 function runnerView(h,index){
@@ -256,6 +328,27 @@ function runnerView(h,index){
  if(missingText(h))p.append(dom('span',missingText(h),'notes'));
  return p;
 }
+function renderTenHorse(h){
+ const details=dom('details',undefined,'ten-horse');
+ details.append(dom('summary',h.number+'番：10項目／総合 未評価（'+
+   h.provisionalFactorCount+'項目は仮評価）'));
+ const grid=dom('div',undefined,'ten-grid');
+ for(const [key,label,weight] of TEN){
+  const slot=dom('div',undefined,'ten-slot'),grade=h.grades[key];
+  slot.append(dom('span',label+' '+weight+'点'),
+    dom('b',grade+(grade==='未評価'?'':'（仮）'),grade==='未評価'?'':grade));
+  grid.append(slot);
+ }
+ details.append(grid);return details;
+}
+function renderTenHeader(p){
+ const host=$('autoTenWeights');host.replaceChildren();
+ for(const f of p.factors){
+  const el=dom('div',undefined,'ten-weight');
+  el.append(dom('span',f.label),dom('b',f.weight+'点'));host.append(el);
+ }
+ $('autoTenStatus').textContent='100点配分／10項目。調教・近走は仮評価で、残り8項目は未評価。総合点・総合順位は未作成。';
+}
 function formation(r){
  const block=dom('div',undefined,'formation');
  block.append(dom('strong','3連単・2項目だけの研究用自動下書き（1着'+r.first.length+'頭）'),
@@ -267,9 +360,10 @@ function formation(r){
  return block;
 }
 function render(input,day){
- const data=validate(input,day);
+ const data=validate(input,day),p=data.tenFactorPreview;
+ const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
  const host=$('autoRaces'),tabs=$('autoVenues'),nodes=[],groups=new Map();
- host.replaceChildren();tabs.replaceChildren();
+ host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
  for(const race of data.races){
   const detail=dom('details'),title=dom('summary',
    race.track+' '+race.race+'R '+
@@ -283,7 +377,11 @@ function render(input,day){
   }
   if(race.runners.length){
    detail.append(dom('p','調教・近走の仮評価順（総合評価ではない）','muted'));
-   for(const [i,h] of race.runners.entries())detail.append(runnerView(h,i));
+   for(const [i,h] of race.runners.entries()){
+    detail.append(runnerView(h,i));
+    const ten=tenRows.get(race.track+'|'+race.race).horses.find(x=>x.number===h.number);
+    detail.append(renderTenHorse(ten));
+   }
   }
   if(data.sourceMaterials.status==='observed'){
    const item=data.sourceMaterials.races.find(x=>
@@ -485,6 +583,8 @@ $('autoDay').onchange=()=>{
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoSummary').textContent='未取得';
+ $('autoTenWeights').replaceChildren();
+ $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(
   $('autoDay').value.replaceAll('-',''));
  showFixedHistory($('autoDay').value.replaceAll('-',''));
@@ -533,7 +633,9 @@ $('autoRun').onclick=async()=>{
    error.message.startsWith('停止した工程：')?error.message:null;
   $('autoStatus').textContent=detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
-  $('autoSummary').textContent='予想は未作成';}}
+  $('autoSummary').textContent='予想は未作成';
+  $('autoTenWeights').replaceChildren();
+  $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
  finally{if(seq===request)button.disabled=false;}
 };
 $('autoSavedStatus').textContent=localReceiptStatus(
@@ -552,6 +654,8 @@ function resumeOwnerDay(){
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoSummary').textContent='未取得';
+ $('autoTenWeights').replaceChildren();
+ $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(today.replaceAll('-',''));
  showFixedHistory(today.replaceAll('-',''));
  $('autoStatus').textContent='新しい開催日の研究用自動案を確認します。';
