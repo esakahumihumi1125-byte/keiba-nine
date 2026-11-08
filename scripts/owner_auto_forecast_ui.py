@@ -81,6 +81,17 @@ const MISSING={
 function missingText(h){return (Array.isArray(h.missingReasons)?h.missingReasons:[])
  .filter(k=>Object.hasOwn(MISSING,k)).map(k=>MISSING[k]).join('／');}
 const RECEIPTS_KEY='keiba-nine-owner-server-receipts-v1';
+// Safe, fixed server diagnostics. Do not display raw provider error text.
+const FAILURE_STAGE={
+ programme:'番組取得・形式確認',entries:'出走馬取得',training:'調教取得',
+ recent:'近走取得',day_research:'全レース資料照合',
+ draft_generation:'研究用買い目生成',receipt_signing:'発走前記録の署名'
+};
+const FAILURE_KIND={
+ provider:'API通信・権限',programme_format:'番組形式',
+ source_validation:'資料間の整合性',receipt_guard:'記録の署名検証',
+ invalid_data:'資料形式'
+};
 const REASONS={
  missing_research:'このレースの資料に不整合あり・自動判定を見送り',
  runner_count_mismatch:'出走頭数が資料と不一致',
@@ -279,7 +290,14 @@ $('autoRun').onclick=async()=>{
    headers:{'X-Keiba-Request':'private','Accept':'application/json'}
   });
   const body=await result.json();
-  if(!result.ok)throw Error(body.error||'資料が取得できません');
+  if(!result.ok){
+   const step=Object.hasOwn(FAILURE_STAGE,body.failureStage)
+     ?FAILURE_STAGE[body.failureStage]:null;
+   const kind=Object.hasOwn(FAILURE_KIND,body.failureKind)
+     ?FAILURE_KIND[body.failureKind]:'未確認';
+   throw Error(step?'停止した工程：'+step+'（'+kind+'）。未完成の買い目は表示しません。'
+     :'JRDB接続・出走資料・認証状態を確認してください。');
+  }
   if(seq!==request)return;
   render(body,day);
   try{
@@ -288,8 +306,11 @@ $('autoRun').onclick=async()=>{
    $('autoSavedStatus').textContent='研究記録の端末保存はできませんでした。結果表示と実購入記録には影響しません。';
   }
   $('autoStatus').textContent='暫定評価を自動生成しました。作成できないレースは無理に選定していません。';
- }catch(_){if(seq===request){
-  $('autoStatus').textContent='安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
+ }catch(error){if(seq===request){
+  const detail=error&&typeof error.message==='string'&&
+   error.message.startsWith('停止した工程：')?error.message:null;
+  $('autoStatus').textContent=detail||
+   '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoSummary').textContent='予想は未作成';}}
  finally{if(seq===request)button.disabled=false;}
 };

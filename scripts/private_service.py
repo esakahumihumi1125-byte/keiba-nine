@@ -2046,14 +2046,24 @@ def create_app(settings=None):
                 return response('400 Bad Request', {
                     'error': '開催日を正しく選択してください。'})
             day = query['date'][0]
+            # Fixed stage labels only. Never log exception text, HTTP URLs,
+            # paid fields, credentials, race keys or horse identifiers.
+            stage = 'programme'
             try:
                 programme = normalize_program_rows(fetch_race_program(day), day)
-                research = owner_day_research(
-                    programme, fetch_horse_entries(day),
-                    fetch_training_analysis(day), fetch_recent_runs(day), day)
+                stage = 'entries'
+                entries = fetch_horse_entries(day)
+                stage = 'training'
+                training = fetch_training_analysis(day)
+                stage = 'recent'
+                recent = fetch_recent_runs(day)
+                stage = 'day_research'
+                research = owner_day_research(programme, entries, training, recent, day)
                 captured_at = _now_in_jst()
+                stage = 'draft_generation'
                 report = build_owner_auto_drafts(
                     programme, research, day, now=captured_at)
+                stage = 'receipt_signing'
                 signing_secret = (archive_signing_secret(settings)
                                   if archive_enabled(settings) else password)
                 receipts = seal_auto_research_drafts(
@@ -2063,10 +2073,21 @@ def create_app(settings=None):
                 report['serverStamped'] = True
                 report['captureAuditVerified'] = False
             except (JRDBError, ProgrammeFormatError, CoverageError,
-                    ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError):
-                logging.warning('KEIBA_AUTO_DRAFT=source_or_validation_failed')
+                    ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError) as exc:
+                if isinstance(exc, JRDBError):
+                    kind = 'provider'
+                elif isinstance(exc, ProgrammeFormatError):
+                    kind = 'programme_format'
+                elif isinstance(exc, CoverageError):
+                    kind = 'source_validation'
+                elif isinstance(exc, (ReceiptError, ArchiveUnavailable)):
+                    kind = 'receipt_guard'
+                else:
+                    kind = 'invalid_data'
+                logging.warning('KEIBA_AUTO_DRAFT_FAILURE stage=%s kind=%s', stage, kind)
                 return response('502 Bad Gateway', {
-                    'error': 'JRDB資料を安全に自動照合できませんでした。研究用3連単案は作成しません。'})
+                    'error': 'JRDB資料を安全に自動照合できませんでした。研究用3連単案は作成しません。',
+                    'failureStage': stage, 'failureKind': kind})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/selected-readiness':
             # Single owner-triggered request with one /tra /tky /tcy /tze /tka

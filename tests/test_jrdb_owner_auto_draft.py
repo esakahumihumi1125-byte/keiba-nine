@@ -282,6 +282,37 @@ class AutoDraftHTTPTests(unittest.TestCase):
                 self.assertEqual(response["status"],"400 Bad Request")
                 source.assert_not_called()
 
+    def test_failure_stage_is_safe_and_does_not_expose_provider_data(self):
+        from jrdb_private import JRDBError
+        cases = (
+            ('fetch_training_analysis', JRDBError('private-training-value'),
+             'training', 'provider'),
+            ('owner_day_research', CoverageError('private-horse-id'),
+             'day_research', 'source_validation'),
+            ('seal_auto_research_drafts', ReceiptError('private-signer-value'),
+             'receipt_signing', 'receipt_guard'),
+        )
+        for method, err, stage, kind in cases:
+            with self.subTest(stage=stage):
+                with (patch('private_service.fetch_race_program', return_value=[]),
+                      patch('private_service.normalize_program_rows', return_value=programme()),
+                      patch('private_service.fetch_horse_entries', return_value=[]),
+                      patch('private_service.fetch_training_analysis', return_value=[]),
+                      patch('private_service.fetch_recent_runs', return_value=[]),
+                      patch('private_service.owner_day_research', return_value=research()),
+                      patch('private_service._now_in_jst',
+                            return_value=datetime(2099, 1, 1, 9, 0, tzinfo=JST)),
+                      patch('private_service.' + method, side_effect=err)):
+                    out = call(self.app, '/api/jrdb/owner-auto-draft',
+                               QUERY_STRING='date=' + DAY)
+                self.assertEqual(out['status'], '502 Bad Gateway')
+                body = json.loads(out['body'])
+                self.assertEqual(body['failureStage'], stage)
+                self.assertEqual(body['failureKind'], kind)
+                for private in ('private-training-value', 'private-horse-id',
+                                'private-signer-value', 'horse_id', 'racekey'):
+                    self.assertNotIn(private, out['body'].decode())
+
     def test_provider_failure_never_leaks_source_data_or_makes_tickets(self):
         from jrdb_private import JRDBError
         with patch("private_service.fetch_race_program",
