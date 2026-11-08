@@ -34,6 +34,8 @@ class TenFactorContractTests(unittest.TestCase):
         self.assertEqual(converted["version"],VERSION)
         self.assertEqual(converted["totalWeight"],100)
         self.assertEqual(converted["normalization"],"weighted_mean_over_100")
+        self.assertEqual(converted["gradeThresholds"],{"S":85,"A":70,"B":55})
+        self.assertEqual(converted["scoreUnit"],"0_to_100")
         self.assertEqual(converted["raceCount"],1)
         self.assertEqual(converted["fullPredictionRaceCount"],0)
         self.assertFalse(converted["overallPredictionReady"])

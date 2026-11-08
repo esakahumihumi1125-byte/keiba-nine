@@ -5,7 +5,7 @@ Weights/thresholds are provisional hypotheses, not fitted win probabilities.
 """
 from datetime import datetime
 
-POLICY_VERSION = 'research-4'
+POLICY_VERSION = 'research-5'
 # Owner-confirmed present-condition-first 100-point policy.
 # Past finishing positions do not automatically impose penalties; recent
 # evidence counts for only 3/100, and it still needs an auditable reason.
@@ -24,6 +24,10 @@ WIN_FACTORS = {'training', 'recent', 'course_distance', 'pace'}
 # alone cannot justify a high-payout hypothesis.
 UPSET_WIN_FACTORS = {'training', 'course_distance', 'pace'}
 POINTS = {'S': 3, 'A': 2, 'B': 1, 'C': 0}
+# Overall grades use the owner-approved 100-point display boundaries.
+# Keep factor points and ranking scale unchanged to preserve existing
+# research ordering and traceability. This is NOT a win probability.
+SCORE_THRESHOLDS = {'S': 85, 'A': 70, 'B': 55}
 
 
 def timestamp(value):
@@ -91,7 +95,13 @@ def evaluate_race(race):
         # not a win probability. Incomplete research gets no overall score.
         ready = not missing and coverage == TOTAL_WEIGHT
         score = weighted / TOTAL_WEIGHT if ready else None
-        overall = '未評価' if score is None else 'S' if score >= 2.6 else 'A' if score >= 2 else 'B' if score >= 1 else 'C'
+        score100 = round(100 * weighted / (3 * TOTAL_WEIGHT), 2) if ready else None
+        # Compare the unrounded weighted integer, so 84.67 cannot
+        # accidentally cross an 85-point boundary due to display rounding.
+        overall = ('未評価' if not ready else
+                   'S' if 100 * weighted >= 3 * TOTAL_WEIGHT * SCORE_THRESHOLDS['S'] else
+                   'A' if 100 * weighted >= 3 * TOTAL_WEIGHT * SCORE_THRESHOLDS['A'] else
+                   'B' if 100 * weighted >= 3 * TOTAL_WEIGHT * SCORE_THRESHOLDS['B'] else 'C')
         signals = []
         for factor in sorted(WIN_FACTORS):
             item = assessments.get(factor)
@@ -106,7 +116,8 @@ def evaluate_race(race):
         unresolved = len(known_concerns) != len(concerns)
         evaluated.append({
             'number': horse['number'], 'grades': grades, 'reasons': reasons,
-            'coverage': coverage, 'score': score, 'overall': overall,
+            'coverage': coverage, 'score': score,
+            'score100': score100, 'overall': overall,
             'missing': missing, 'winSignals': signals,
             'blockingConcerns': known_concerns, 'unverifiedConcerns': unresolved,
             'winReview': ready and len(signals) >= 2 and not known_concerns and not unresolved,
@@ -145,7 +156,9 @@ def evaluate_race(race):
         review = 'review_candidates'
     # Always require review; never silently clip a fourth/fifth-ranked contender.
     return {
-        'policyVersion': POLICY_VERSION, 'recordType': 'test', 'status': 'draft',
+        'policyVersion': POLICY_VERSION,
+        'scoreThresholds': dict(SCORE_THRESHOLDS),
+        'recordType': 'test', 'status': 'draft',
         'publishable': False, 'validated': False, 'asOf': race['asOf'],
         'horses': evaluated, 'winCandidatesToReview': candidates,
         'lowerRankWinCandidatesToReview': lower_rank_review,

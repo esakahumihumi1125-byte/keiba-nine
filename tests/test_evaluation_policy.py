@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from evaluation_policy import evaluate_race, FACTORS, TOTAL_WEIGHT, POLICY_VERSION
+from evaluation_policy import evaluate_race, FACTORS, TOTAL_WEIGHT, POLICY_VERSION, SCORE_THRESHOLDS
 
 
 def assessment(grade='A', win=False):
@@ -23,7 +23,8 @@ def race(horses=None):
 
 class EvaluationTests(unittest.TestCase):
     def test_owner_weights_are_exact_100_point_distribution(self):
-        self.assertEqual(POLICY_VERSION,'research-4')
+        self.assertEqual(POLICY_VERSION,'research-5')
+        self.assertEqual(SCORE_THRESHOLDS, {'S':85, 'A':70, 'B':55})
         self.assertEqual(TOTAL_WEIGHT,100)
         self.assertEqual(FACTORS,{
             'training':30,'recent':3,'course_distance':20,'pace':20,
@@ -39,7 +40,8 @@ class EvaluationTests(unittest.TestCase):
     def test_same_grade_same_rank(self):
         result = evaluate_race(race([horse(8), horse(2)]))
         self.assertEqual([h['rank'] for h in result['horses']], [1, 1])
-        self.assertTrue(all(h['overall'] == 'A' for h in result['horses']))
+        # With S=3,A=2,B=1,C=0, an all-A factor set is 66.67/100.
+        self.assertTrue(all(h['overall'] == 'B' for h in result['horses']))
 
     def test_each_missing_core_blocks_overall(self):
         for key in ['training', 'recent', 'course_distance', 'pace', 'ground']:
@@ -66,6 +68,44 @@ class EvaluationTests(unittest.TestCase):
                 row = next(h for h in r['horses'] if h['number']==1)
                 self.assertEqual(row['coverage'],100)
                 self.assertEqual(row['score'],expected)
+                self.assertAlmostEqual(row['score100'],expected*100/3,places=2)
+
+    def test_100_point_grade_boundaries_use_unrounded_scores(self):
+        # Build all ten synthetic factor assessments with a precise raw
+        # weighted score. Each factor can contribute 0..3 times its weight.
+        def make_weighted(target):
+            choices={0:{}}
+            for factor,weight in FACTORS.items():
+                candidate={}
+                for current,selected in choices.items():
+                    for grade,points in (('C',0),('B',1),('A',2),('S',3)):
+                        total=current+weight*points
+                        if total not in candidate:
+                            candidate[total]={**selected,factor:grade}
+                choices=candidate
+            self.assertIn(target,choices)
+            h=horse(1)
+            for factor,grade in choices[target].items():
+                h['assessments'][factor]['grade']=grade
+            return h
+
+        # Weighted score max=300, divided by 3 for a 100-point display.
+        for raw,expected in ((0,'C'),(164,'C'),(165,'B'),
+                             (209,'B'),(210,'A'),(254,'A'),
+                             (255,'S'),(300,'S')):
+            with self.subTest(raw=raw):
+                h=make_weighted(raw)
+                result=evaluate_race(race([h,horse(2)]))
+                row=next(x for x in result['horses'] if x['number']==1)
+                self.assertEqual(row['overall'],expected)
+                self.assertEqual(row['score100'],round(raw/3,2))
+                self.assertEqual(result['scoreThresholds'],SCORE_THRESHOLDS)
+        missing=make_weighted(300)
+        del missing['assessments']['body_condition']
+        partial=next(x for x in evaluate_race(race([missing,horse(2)]))['horses']
+                     if x['number']==1)
+        self.assertIsNone(partial['score100'])
+        self.assertEqual(partial['overall'],'未評価')
 
     def test_future_evidence_unused(self):
         h = horse(1); h['assessments']['training']['evidence'][0]['availableAt'] = '2026-10-27T11:00:00+09:00'
