@@ -2,7 +2,11 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('/tmp/keiba-owner-scorecard.js','utf8');
-function boot(decision=true,saved={},hash='',researchHandoff=null,stagedUnsavedResearch=false){
+function boot(decision=true,saved={},hash='',researchHandoff=null,stagedUnsavedResearch=false,fixedNow=null){
+ const BrowserDate=fixedNow?class extends Date {
+  constructor(...args){super(...(args.length?args:[fixedNow]));}
+  static now(){return Date.parse(fixedNow);}
+ }:Date;
  const nodes=new Map(),links=[],alerts=[],writes=[],cleared=[],tempWrites=[];
  const tempStore=new Map(researchHandoff?[[
   'keiba-nine-owner-research-scorecard-handoff-v1',JSON.stringify(researchHandoff)
@@ -31,7 +35,7 @@ function boot(decision=true,saved={},hash='',researchHandoff=null,stagedUnsavedR
     location:{hash,pathname:'/my-scorecard',search:'',assign:url=>links.push(url)},
     history:{replaceState:(...args)=>cleared.push(args[2])}
   },
-  Date,JSON,Set,Map,Object,String,Number,Error,URLSearchParams,localStorage,sessionStorage,
+  Date:BrowserDate,JSON,Set,Map,Object,String,Number,Error,URLSearchParams,localStorage,sessionStorage,
   confirm:()=>decision,console
  };
  const runSource=stagedUnsavedResearch?source.replace('receiveResearchPrefill();',
@@ -554,7 +558,7 @@ const predayMeetings=['東京','京都','福島'].map(track=>({
  kind:'jrdb-preday-provisional',date:'2026-11-07',track,
  races:Array.from({length:12},(_,i)=>fakeRace(i+1))
 }));
-const pd=boot(true,{[PREDAY]:predayMeetings}),pe=pd.el;
+const pd=boot(true,{[PREDAY]:predayMeetings},'',null,false,'2026-11-07T00:00:00Z'),pe=pd.el;
 assert.equal(pe('scoreDate').value,'2026-11-07',
  'opening manual scorecard chooses upcoming imported meeting date');
 assert.equal(pe('scoreTrack').value,'福島',
