@@ -69,6 +69,20 @@ class BridgeTests(unittest.TestCase):
             fetch_mail_brief(settings, DATE, TIMES,
                              opener=lambda *_args, **_kw: FakeResponse({"ok": False}))
 
+    def test_http_errors_report_only_safe_status_categories(self):
+        from urllib.error import HTTPError
+        settings = {BRIDGE_URL: URL, BRIDGE_TOKEN: TOKEN}
+        for code, category in ((401, "Remote HTTP 401"), (403, "Remote HTTP 403"),
+                               (404, "Remote HTTP 404"), (503, "Remote HTTP 503"),
+                               (418, "Remote HTTP failure")):
+            def fail(_request, _timeout):
+                raise HTTPError(URL, code, "secret response must not leak", None, None)
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(BridgeUnavailable, category) as caught:
+                    fetch_mail_brief(settings, DATE, TIMES, opener=fail)
+                self.assertNotIn(TOKEN, str(caught.exception))
+                self.assertNotIn("secret response", str(caught.exception))
+
     def test_missing_owner_calendar_shows_safe_issue_code(self):
         settings = {**SETTINGS, BRIDGE_URL: URL, BRIDGE_TOKEN: TOKEN}
         _notes, sync = load_owner_live_notes(settings, today=DATE)
