@@ -1,4 +1,4 @@
-/* Browser-only six-section backup import/export safety tests; synthetic horse names. */
+/* Browser-only seven-section backup with legacy 4/5/6-section safety tests. */
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-backup.js','utf8');
@@ -8,8 +8,9 @@ const keys=[
  'keiba-nine-jrdb-personal-mail-v1',
  'keiba-nine-owner-manual-numbers-v1',
  'keiba-nine-owner-factor-notes-v1',
- 'keiba-nine-jrdb-preday-runners-v1'
-],format='keiba-nine-owner-local-all-v3';
+ 'keiba-nine-jrdb-preday-runners-v1',
+ 'keiba-nine-owner-server-receipts-v1'
+],format='keiba-nine-owner-local-all-v4';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -22,8 +23,16 @@ const preday={kind:'jrdb-preday-provisional',date:'2099-01-09',track:'東京',ra
  {race:1,postTime:'09:55',expected:3,runners:[
   {number:1,name:'架空A',style:'逃'},{number:2,name:'架空B',style:'先'},{number:3,name:'架空C',style:'未確認'}
  ]}]};
+const signedReceipt={signature:'a'.repeat(64),snapshot:{
+ date:'2099-01-09',track:'東京',race:1,
+ sourceKind:'prestart-locked',actualPurchase:false,
+ lockedAt:'2099-01-08T18:00:00+09:00',
+ scheduledOffAt:'2099-01-09T09:55:00+09:00',
+ trifectaTickets:[[1,2,3]],trioTickets:[],
+ scheduleVerified:false,predictionVerified:false
+}};
 const fixture=()=>({
- [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],[keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday]
+ [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],[keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],[keys[6]]:[signedReceipt]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -72,7 +81,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -122,7 +131,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
  assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
- assert.match(e('backupPreview').textContent,/元の6種類の記録へ戻しました/);
+ assert.match(e('backupPreview').textContent,/元の7種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -146,7 +155,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  }
  // Previous (four-part) exports remain importable and preserve existing factor notes.
  page.storage.set(keys[4],JSON.stringify([factor]));
- const fourParts=fixture();delete fourParts[keys[4]];delete fourParts[keys[5]];
+ const fourParts=fixture();delete fourParts[keys[4]];delete fourParts[keys[5]];delete fourParts[keys[6]];
  const legacyFile=fakeFile(JSON.stringify({
   format:'keiba-nine-owner-local-all-v1',exportedAt:'2099-01-08T23:00:00Z',sections:fourParts
  }));
@@ -188,7 +197,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  }
  // Previous five-section exports remain importable without erasing a newer
  // pre-day 36R roster (the extra sixth section is not in the old file).
- const legacyFive=fixture();delete legacyFive[keys[5]];
+ const legacyFive=fixture();delete legacyFive[keys[5]];delete legacyFive[keys[6]];
  page.storage.set(keys[5],JSON.stringify([preday]));
  const older=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v2',
   exportedAt:'2099-01-08T23:00:00Z',sections:legacyFive}));
@@ -198,5 +207,32 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  e('backupRestore').onclick();
  assert.deepEqual(JSON.parse(page.storage.get(keys[5])),[preday],
   'restore older 5-part backup preserves the current private pre-day roster');
- console.log('Owner local six-part backup: export, restore, legacy safety, pre-day validation, quota rollback PASS');
+ // Tamper-evident receipts are backed up but HMAC verification still belongs
+ // to the authenticated server when they are used for the 100-yen review.
+ const currentSeven=boot(fixture());
+ assert.match(currentSeven.el('backupSummary').textContent,/固定記録1R/);
+ assert.equal(currentSeven.el('backupDownload').disabled,false);
+ for(const tamper of [
+  {...signedReceipt,signature:'BAD'},
+  {...signedReceipt,snapshot:{...signedReceipt.snapshot,lockedAt:'2099-01-10T10:00:00+09:00'}},
+  {...signedReceipt,snapshot:{...signedReceipt.snapshot,trifectaTickets:[[1,1,2]]}}
+ ]){
+  const invalid=boot({...fixture(),[keys[6]]:[tamper]});
+  assert.equal(invalid.el('backupDownload').disabled,true,
+   'malformed receipt must not be copied into a new backup');
+ }
+ // A v3 six-part backup never erases the newer seventh collection.
+ const legacySix=fixture();delete legacySix[keys[6]];
+ const existing=boot(fixture());
+ const oldSix=fakeFile(JSON.stringify({
+  format:'keiba-nine-owner-local-all-v3',
+  exportedAt:'2099-01-08T23:00:00Z',sections:legacySix
+ }));
+ existing.el('backupFile').files=[oldSix];
+ await existing.el('backupFile').onchange();await flush();
+ assert.equal(existing.el('backupRestore').disabled,false);
+ existing.el('backupRestore').onclick();
+ assert.deepEqual(JSON.parse(existing.storage.get(keys[6])),[signedReceipt],
+  'restoring v3 backup must preserve sealed receipts');
+ console.log('Owner local seven-part backup: signed receipt preservation, legacy restore, quota rollback PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
