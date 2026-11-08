@@ -744,6 +744,10 @@ function validateHistory(h){
   // observations instead of joining to numbers with uncertain identity.
   const rosterVerified=roster&&roster.size===item.runnerCount&&
    item.runners.every(h=>roster.has(h.number));
+  // A complete roster must match exactly. Only an unassessed/held race
+  // may fall back to redacted race-level counters.
+  if(roster&&roster.size>0&&!rosterVerified)
+   throw Error('現在の馬番と過去資料の馬番が不一致');
   perRace.set(id,{...item,runners:rosterVerified?item.runners:[],
    rosterVerified:!!rosterVerified});
  }
