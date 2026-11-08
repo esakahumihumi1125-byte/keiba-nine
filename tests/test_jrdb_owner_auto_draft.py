@@ -109,20 +109,30 @@ class AutoDraftTests(unittest.TestCase):
                 self.assertEqual(race["status"], "provisional_draft")
                 self.assertEqual(race["points"], expected)
 
-    def test_equal_grade_cutoff_holds_instead_of_choosing_by_number(self):
-        # Rank 2/3 tie cannot be silently used as 1st candidate.
+    def test_equal_grade_cutoffs_expand_safely_or_hold(self):
+        # Rank 2/3 tie: expand first to three rather than pick by horse number.
         pairs = [("S","S"),("S","A"),("A","S"),
                  ("A","B"),("B","B"),("B","C"),("C","C")]
         race = generate(programme(7),research(pairs))["races"][0]
-        self.assertEqual(race["status"],"hold")
-        self.assertEqual(race["reason"],"ambiguous_equal_grade_boundary")
-        self.assertEqual(race["points"],0)
-        self.assertEqual(race["tickets"],[])
-        # Rank 5/6 also ties, making second-place cutoff ambiguous.
+        self.assertEqual(race["status"],"provisional_draft")
+        self.assertEqual(race["first"],[1,2,3])
+        self.assertEqual(race["points"],36)
+        self.assertEqual(race["runners"][1]["comparisonRank"],2)
+        self.assertEqual(race["runners"][2]["comparisonRank"],2)
+        # Rank 5/6 tie: keep those equal-score runners together in third.
         pairs = [("S","S"),("S","A"),("A","A"),
                  ("A","B"),("B","B"),("C","A"),("C","C")]
         race = generate(programme(7),research(pairs))["races"][0]
+        self.assertEqual(race["status"],"provisional_draft")
+        self.assertEqual(race["second"],[1,2,3,4])
+        self.assertEqual(race["third"],[1,2,3,4,5,6,7])
+        self.assertEqual(race["points"],30)
+        # All runners tied: any first boundary is arbitrary, so hold.
+        pairs = [("A","A")]*7
+        race = generate(programme(7),research(pairs))["races"][0]
+        self.assertEqual(race["status"],"hold")
         self.assertEqual(race["reason"],"ambiguous_equal_grade_boundary")
+        self.assertEqual(race["tickets"],[])
 
     def test_missing_factor_or_time_holds_no_tickets(self):
         pairs = PAIRS[:-1]+[("未評価","C")]
