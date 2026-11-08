@@ -31,6 +31,7 @@ from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_J
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
 from jrdb_owner_auto_draft import build_owner_auto_drafts
+from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
                                     JS as AUTO_FORECAST_JS,
                                     CSS as AUTO_FORECAST_CSS)
@@ -2050,10 +2051,19 @@ def create_app(settings=None):
                 research = owner_day_research(
                     programme, fetch_horse_entries(day),
                     fetch_training_analysis(day), fetch_recent_runs(day), day)
+                captured_at = _now_in_jst()
                 report = build_owner_auto_drafts(
-                    programme, research, day, now=_now_in_jst())
+                    programme, research, day, now=captured_at)
+                signing_secret = (archive_signing_secret(settings)
+                                  if archive_enabled(settings) else password)
+                receipts = seal_auto_research_drafts(
+                    report, signing_secret, now=captured_at)
+                report['researchReceipts'] = receipts
+                report['researchReceiptCount'] = len(receipts)
+                report['serverStamped'] = True
+                report['captureAuditVerified'] = False
             except (JRDBError, ProgrammeFormatError, CoverageError,
-                    ValueError, TypeError, KeyError):
+                    ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError):
                 logging.warning('KEIBA_AUTO_DRAFT=source_or_validation_failed')
                 return response('502 Bad Gateway', {
                     'error': 'JRDB資料を安全に自動照合できませんでした。研究用3連単案は作成しません。'})
