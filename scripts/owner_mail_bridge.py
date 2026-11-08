@@ -111,9 +111,14 @@ def fetch_mail_brief(settings, expected_date, race_times, opener=urlopen):
         if len(raw) > 12000:
             raise BridgeUnavailable("Remote payload too large")
         doc = json.loads(raw.decode("utf-8"))
+        if isinstance(doc, dict) and doc.get("ok") is False:
+            raise BridgeUnavailable("Remote rejected request")
         return validate_bridge_feed(doc, expected_date, race_times)
-    except (HTTPError, URLError, TimeoutError, OSError, ValueError,
-            UnicodeError) as exc:
+    except HTTPError as exc:
+        raise BridgeUnavailable("Remote HTTP failure") from exc
+    except json.JSONDecodeError as exc:
+        raise BridgeUnavailable("Remote non-JSON response") from exc
+    except (URLError, TimeoutError, OSError, UnicodeError) as exc:
         raise BridgeUnavailable("Remote source unavailable") from exc
 
 
@@ -131,6 +136,7 @@ def load_owner_live_notes(settings, *, today=None, opener=urlopen):
         if parsed["date"] == today or not configured:
             current = parsed
     status = "未設定"
+    issue = None
     if configured:
         try:
             from owner_forecast_delivery import (decode_plain_owner_snapshot,
@@ -154,7 +160,16 @@ def load_owner_live_notes(settings, *, today=None, opener=urlopen):
                     "schema": "keiba-nine-owner-live-notes-v1", "date": today,
                     "races": list(merged.values())}, ensure_ascii=False))
             status = "接続済み"
-        except (BridgeUnavailable, ValueError):
+        except (BridgeUnavailable, ValueError) as exc:
             status = "要確認"
+            # Only a fixed category is returned to the authenticated owner.
+            # Never expose response bodies, provider text, URLs or credentials.
+            issue = {
+                "No matching race calendar": "calendar",
+                "Remote rejected request": "rejected",
+                "Remote HTTP failure": "http",
+                "Remote non-JSON response": "non_json",
+                "Remote source unavailable": "network",
+            }.get(str(exc), "format")
     return current, {"configured": configured, "status": status,
-                     "autoChangesToPicks": False}
+                     "issue": issue, "autoChangesToPicks": False}
