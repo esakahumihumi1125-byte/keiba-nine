@@ -1299,6 +1299,76 @@ function validateHistory(h){
   if(seenFive.size!==historyCoordinates.size)
    throw Error('5項目研究レース不足');
  }
+ // The new ten-factor inventory is optional for old saved snapshots.
+ // It only describes where fields exist; ZERO factors are fully assessed.
+ if(h.tenFactorSourceInventory!==undefined){
+  const inv=h.tenFactorSourceInventory,expected=new Map(
+   TEN.map(([key,,weight])=>[key,weight]));
+  if(!h.fiveFactorHypotheses||!inv||
+     inv.version!=='owner-ten-factor-source-inventory-1'||
+     inv.policyVersion!=='research-5'||
+     inv.raceCount!==historyCoordinates.size||
+     inv.factorCount!==10||inv.totalWeight!==100||
+     inv.verifiedGrades!==0||inv.researchOnly!==true||
+     inv.privateOwnerOnly!==true||
+     inv.independentJraVerified!==false||
+     inv.overallPredictionReady!==false||
+     inv.bettingReady!==false||inv.autoPurchase!==false||
+     !inv.factorWeights||Object.keys(inv.factorWeights).length!==10||
+     [...expected].some(([key,weight])=>inv.factorWeights[key]!==weight)||
+     !Array.isArray(inv.races)||inv.races.length!==historyCoordinates.size)
+    throw Error('10項目の資料一覧の形式不正');
+  const allowed=new Set(['complete_fields_observed',
+   'partial_fields_observed','no_fields_observed']);
+  const intervals=new Set(['under14Days','days14to55','days56plus','unknown']);
+  const remaining=['pedigree','draw_weight','jockey_stable',
+   'rotation','body_condition'];
+  const seenRaces=new Set();
+  for(const race of inv.races){
+   const id=race?.track+'|'+race?.race,detail=perRace.get(id);
+   if(!detail?.fiveFactor||seenRaces.has(id)||
+      race.runnerCount!==detail.runnerCount||
+      race.verifiedGrades!==0||race.overallReady!==false||
+      race.independentJraVerified!==false||race.bettingReady!==false||
+      !Array.isArray(race.runners)||race.runners.length!==race.runnerCount||
+      !race.remainingFieldCoverage||
+      Object.keys(race.remainingFieldCoverage).length!==5)
+    throw Error('10項目の資料とレースが不一致');
+   seenRaces.add(id);
+   const five=new Map(detail.fiveFactor.runners.map(h=>[h.number,h]));
+   const sourceSeen=new Set(),totals=Object.fromEntries(remaining.map(k=>[k,0]));
+   for(const horse of race.runners){
+    if(!Number.isInteger(horse?.number)||sourceSeen.has(horse.number)||
+       !five.has(horse.number)||horse.verifiedGrades!==0||
+       horse.overallScore!==null||horse.overallRank!==null||
+       typeof horse.bodyShapeCodePresent!=='boolean'||
+       !horse.provisionalBands||
+       Object.keys(horse.provisionalBands).length!==5||
+       !horse.sourceStates||Object.keys(horse.sourceStates).length!==5)
+     throw Error('10項目の馬番・採点状態が不正');
+    sourceSeen.add(horse.number);
+    if(['training','recent','course_distance','pace','ground'].some(k=>
+       horse.provisionalBands[k]!==five.get(horse.number).bands[k]))
+     throw Error('10項目の暫定ランクと資料が不一致');
+    if(['pedigree','draw_weight','jockey_stable'].some(k=>
+        !allowed.has(horse.sourceStates[k]))||
+       !intervals.has(horse.sourceStates.rotation)||
+       horse.sourceStates.body_condition!=='race_day_bodyweight_unavailable')
+     throw Error('未評価の資料状態に不正な値');
+    for(const k of remaining){
+     totals[k]+=Number(k==='body_condition'?false:
+      k==='rotation'?horse.sourceStates[k]!=='unknown':
+      horse.sourceStates[k]==='complete_fields_observed');
+    }
+   }
+   if(sourceSeen.size!==race.runnerCount||
+      remaining.some(k=>totals[k]!==race.remainingFieldCoverage[k]))
+    throw Error('10項目の頭数・資料集計不一致');
+   detail.tenInventory=race;
+  }
+  if(seenRaces.size!==historyCoordinates.size)
+   throw Error('10項目のレース不足');
+ }
  validateWatchCapture(h.watchCapture,h);
  return results;
 }
@@ -1467,6 +1537,28 @@ $('autoHistoryAudit').onclick=async()=>{
       '（研究用・総合点なし）','muted'));
     }
     card.append(five);
+   }
+   if(details.rosterVerified&&details.tenInventory){
+    const ten=dom('details');
+    ten.append(dom('summary','10項目の資料状況（残り5項目・正式採点0/10）'));
+    ten.append(dom('p','血統・枠斤量・騎手厩舎・ローテは資料があるかの確認のみ。馬体形状コードは当日の馬体重ではありません。総合点・馬券は未確定。','muted'));
+    const names={
+     complete_fields_observed:'資料あり',
+     partial_fields_observed:'一部あり',
+     no_fields_observed:'資料不足',
+     under14Days:'中13日以内',days14to55:'中14〜55日',
+     days56plus:'中56日以上',unknown:'間隔不明',
+     race_day_bodyweight_unavailable:'当日馬体重未取得'
+    };
+    for(const horse of details.tenInventory.runners){
+     const v=horse.sourceStates;
+     ten.append(dom('p',horse.number+'番｜血統 '+names[v.pedigree]+
+      '／枠斤量 '+names[v.draw_weight]+
+      '／騎手厩舎 '+names[v.jockey_stable]+
+      '／ローテ '+names[v.rotation]+
+      '／馬体重 '+names[v.body_condition]+'（評価未実施）','muted'));
+    }
+    card.append(ten);
    }
    const pressureLabel={
     coverage_insufficient:'位置取りの資料不足',
