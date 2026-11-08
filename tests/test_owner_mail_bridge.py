@@ -75,7 +75,7 @@ class BridgeTests(unittest.TestCase):
         for code, category in ((401, "Remote HTTP 401"), (403, "Remote HTTP 403"),
                                (404, "Remote HTTP 404"), (503, "Remote HTTP 503"),
                                (418, "Remote HTTP failure")):
-            def fail(_request, _timeout):
+            def fail(_request, timeout):
                 raise HTTPError(URL, code, "secret response must not leak", None, None)
             with self.subTest(code=code):
                 with self.assertRaisesRegex(BridgeUnavailable, category) as caught:
