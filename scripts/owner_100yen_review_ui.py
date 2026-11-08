@@ -140,11 +140,23 @@ async function readReport(day){
 }
 
 let request=0;
-$('day').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
-$('day').onchange=()=>{request++;clear();$('status').textContent='開催日を選んで確認してください。';};
+function validDay(day){
+ if(typeof day!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(day))return false;
+ const d=new Date(day+'T12:00:00Z');
+ return Number.isFinite(d.valueOf())&&d.toISOString().slice(0,10)===day;
+}
+const selected=typeof location!=='undefined'&&typeof location.search==='string'
+ ?/^\?date=(20\d{2}-\d{2}-\d{2})$/.exec(location.search):null;
+const fromForecast=selected&&validDay(selected[1])?selected[1]:null;
+$('day').value=fromForecast||
+ new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+$('day').onchange=()=>{
+ request++;$('load').disabled=false;clear();
+ $('status').textContent='開催日を選んで確認してください。';
+};
 $('load').onclick=async()=>{
  const seq=++request,day=$('day').value,button=$('load');clear();
- if(!/^20\d{2}-\d{2}-\d{2}$/.test(day)){
+ if(!validDay(day)){
   $('status').textContent='開催日を選択してください。';return;}
  button.disabled=true;$('status').textContent='本人用の固定済み予想を確認中…';
  try{
@@ -163,4 +175,7 @@ $('load').onclick=async()=>{
  }catch(_){if(seq===request)$('status').textContent='安全な集計ができませんでした。予想・購入記録には影響しません。';}
  finally{if(seq===request)button.disabled=false;}
 };
+// Review only already frozen research records. No paid JRDB calls or
+// forecast generation, and no storage writes are triggered by opening.
+if(document.visibilityState!=='hidden')$('load').onclick();
 })();"""

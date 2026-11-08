@@ -71,6 +71,11 @@ class Owner100YenPageTests(unittest.TestCase):
         # but must never edit, replace or remove the saved forecast receipts.
         self.assertNotIn("localStorage.setItem", js)
         self.assertNotIn("localStorage.removeItem", js)
+        self.assertIn("fromForecast", js)
+        self.assertIn("if(document.visibilityState!=='hidden')$('load').onclick();", js)
+        forecast_js=call(private, "/owner-auto-forecast.js")["body"].decode()
+        self.assertIn("autoReviewLink", forecast_js)
+        self.assertIn("updateReviewLink", forecast_js)
 
     def test_unconfigured_returns_empty_not_fake_losses(self):
         private = create_app({**SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY":"1",

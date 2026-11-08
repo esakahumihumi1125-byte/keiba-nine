@@ -18,7 +18,7 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
-<a href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
+<a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
 <section>
 <h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
@@ -348,10 +348,19 @@ function saveAutoReceipts(data,day){
 
 let request=0;
 $('autoDay').value=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+function updateReviewLink(){
+ const day=$('autoDay').value;
+ const valid=/^20\d{2}-\d{2}-\d{2}$/.test(day)&&
+  !Number.isNaN(new Date(day+'T12:00:00Z').valueOf())&&
+  new Date(day+'T12:00:00Z').toISOString().slice(0,10)===day;
+ $('autoReviewLink').href='/owner-100yen-review'+
+  (valid?'?date='+encodeURIComponent(day):'');
+}
 $('autoDay').onchange=()=>{
  // Invalidate the old response and unlock the button. A slow old request
  // must not leave the new day permanently disabled on iPhone.
  request++;$('autoRun').disabled=false;
+ updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoSummary').textContent='未取得';
  $('autoSavedStatus').textContent=localReceiptStatus(
@@ -405,6 +414,7 @@ $('autoRun').onclick=async()=>{
 };
 $('autoSavedStatus').textContent=localReceiptStatus(
  $('autoDay').value.replaceAll('-',''));
+updateReviewLink();
 // Opening the authenticated owner page is the only automatic trigger.
 // No timers, background provider polling, or auto-purchase.
 if(document.visibilityState!=='hidden')$('autoRun').onclick();
