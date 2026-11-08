@@ -73,23 +73,30 @@ class VenueOnlyFailureTests(unittest.TestCase):
         self.assertEqual(payload['sourceGoing'], '重')
         self.assertFalse(payload['predictionReady'])
 
-    def test_auth_quota_and_mismatches_never_fallback(self):
-        reasons = (
-            'JRDB request failed (HTTP 401)',
-            'JRDB request failed (HTTP 403)',
-            'JRDB request failed (HTTP 429)',
-            'JRDB returned a different race request',
-            'JRDB returned a different endpoint',
-            'Unexpected JRDB response format',
+    def test_auth_quota_and_mismatch_keep_venue_unknown_only(self):
+        cases = (
+            ('JRDB request failed (HTTP 401)', 'permission'),
+            ('JRDB request failed (HTTP 403)', 'permission'),
+            ('JRDB request failed (HTTP 429)', 'rate_limit'),
+            ('JRDB request failed (HTTP 404)', 'http'),
+            ('JRDB returned a different race request', 'inconsistent'),
+            ('JRDB returned a different endpoint', 'inconsistent'),
+            ('Unexpected JRDB response format', 'provider_response'),
         )
-        for reason in reasons:
+        for reason, category in cases:
             with self.subTest(reason=reason):
                 result = self.request(JRDBError(reason))
-                self.assertEqual(result['status'], '502 Bad Gateway')
-                body = result['body'].decode()
-                self.assertIn('停止箇所：馬場／API応答', body)
-                self.assertNotIn(reason, body)
-                self.assertNotIn('synthetic-app', body)
+                self.assertEqual(result['status'], '200 OK')
+                payload = json.loads(result['body'])
+                self.assertEqual(payload['venueFetchStatus'], 'unavailable')
+                self.assertEqual(payload['venueFailureKind'], category)
+                self.assertEqual(payload['sourceGoing'], '未確認')
+                self.assertFalse(payload['predictionReady'])
+                self.assertFalse(payload['bettingReady'])
+                self.assertFalse(payload['officialJraFinalVerification'])
+                self.assertNotIn(reason, repr(payload))
+                self.assertNotIn('synthetic-app', repr(payload))
+                self.assertNotIn('synthetic-user', repr(payload))
 
 
 if __name__ == '__main__':
