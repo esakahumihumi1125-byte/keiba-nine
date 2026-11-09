@@ -96,6 +96,11 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <section>
 <h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
+<details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
+<p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
+<div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
+<p id="autoHoldStatus" class="muted" role="status">開催日を取得すると見送り理由を確認できます。</p>
+</details>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
 <select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
@@ -674,7 +679,11 @@ function render(input,day){
  const passport=data.sourcePassport?.sourceAuditAvailable?
   new Map(data.sourcePassport.races.map(r=>[r.track+'|'+r.race,r])):null;
  const host=$('autoRaces'),tabs=$('autoVenues'),
-  select=$('autoRacePick'),nodes=[],groups=new Map();
+  holdTabs=$('autoHoldReasons'),select=$('autoRacePick'),
+  nodes=[],groups=new Map();
+ holdTabs.replaceChildren();$('autoHoldStatus').textContent=
+  data.holdCount?'見送り '+data.holdCount+'R。理由を選択できます。':
+   'この開催日に見送りはありません。';
  select.disabled=true;select.replaceChildren();
  const allOption=dom('option','全Rを一覧表示');allOption.value='';
  select.append(allOption);select.value='';
@@ -776,7 +785,8 @@ function render(input,day){
   }
   const raceKey=race.track+'|'+race.race;
   nodes.push({key:raceKey,track:race.track,
-   draft:race.status==='provisional_draft'&&!changedLock,node:detail});
+   draft:race.status==='provisional_draft'&&!changedLock,
+   holdReason:race.status==='hold'?race.reason:null,node:detail});
   const option=dom('option',race.track+' '+race.race+'R｜'+
    (race.status==='provisional_draft'
     ?changedLock?'固定済みと不一致・新案非表示':
@@ -786,11 +796,13 @@ function render(input,day){
  }
  // Selection uses an already verified day snapshot. No extra JRDB calls,
  // no prediction reconstruction, no receipt or purchase write.
- function show(track,key='',draftsOnly=false){
+ function show(track,key='',draftsOnly=false,holdReason=''){
   const frag=document.createDocumentFragment();
   let visible=0;
   for(const item of nodes){
-   if(key?item.key===key:draftsOnly?item.draft:!track||item.track===track){
+   if(key?item.key===key:
+     holdReason?item.holdReason===holdReason:
+     draftsOnly?item.draft:!track||item.track===track){
     item.node.open=Boolean(key);
     frag.append(item.node);visible++;
    }
@@ -798,12 +810,17 @@ function render(input,day){
   host.replaceChildren(frag);
   $('autoViewingStatus').textContent=key
    ?'選択中：'+key.replace('|',' ')+'R。研究用データのみ。'
+   :holdReason?'見送り理由：'+SHORT_HOLDS[holdReason]+' '+visible+
+     'Rを表示。発走後に新しい買い目は作りません。'
    :draftsOnly?'発走前の研究用下書き '+visible+'Rを表示（確定予想ではありません）'
    :track?track+' '+visible+'Rを表示（正式予想ではありません）'
    :'全場 '+visible+'Rを表示。レース選択で1Rだけ開けます。';
   for(const b of tabs.querySelectorAll('button'))b.setAttribute(
-   'aria-pressed',String(b.dataset.mode==='drafts'?draftsOnly:
-    !draftsOnly&&b.dataset.track===track));
+   'aria-pressed',String(!key&&!holdReason&&
+    (b.dataset.mode==='drafts'?draftsOnly:
+     !draftsOnly&&b.dataset.track===track)));
+  for(const b of holdTabs.querySelectorAll('button'))
+   b.setAttribute('aria-pressed',String(!key&&b.dataset.reason===holdReason));
  }
  select.disabled=nodes.length===0;
  select.onchange=()=>{
@@ -828,6 +845,16 @@ function render(input,day){
   draftButton.setAttribute('aria-pressed','false');
   draftButton.onclick=()=>{select.value='';show('','',true);};
   tabs.append(draftButton);
+ }
+ // Only prevalidated reasons: render a read-only filter from this snapshot.
+ // No extra provider requests, no receipt writes and no 10-factor scoring.
+ for(const [reason,count] of Object.entries(data.holdReasons)
+   .filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1])){
+  const button=dom('button',SHORT_HOLDS[reason]+' '+count+'R');
+  button.type='button';button.dataset.reason=reason;
+  button.setAttribute('aria-pressed','false');
+  button.onclick=()=>{select.value='';show('','',false,reason);};
+  holdTabs.append(button);
  }
  show('');
  const breakdown=Object.entries(data.holdReasons).sort((a,b)=>b[1]-a[1])
@@ -1766,6 +1793,8 @@ $('autoDay').onchange=()=>{
  request++;$('autoRun').disabled=false;
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoHoldReasons').replaceChildren();
+ $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
  $('autoRacePick').disabled=true;
  $('autoRacePick').replaceChildren();
  $('autoRacePick').value='';
@@ -1910,6 +1939,8 @@ $('autoRun').onclick=async()=>{
  button.disabled=true;$('autoStatus').textContent='JRDB資料を一括照合し、自動暫定案を作成中…';
  clearHistory();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoHoldReasons').replaceChildren();
+ $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
  $('autoRacePick').disabled=true;
  $('autoRacePick').replaceChildren();
  $('autoRacePick').value='';
@@ -1972,6 +2003,8 @@ $('autoRun').onclick=async()=>{
   $('autoStatus').textContent=detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoHoldReasons').replaceChildren();
+ $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
   $('autoRacePick').disabled=true;
   $('autoRacePick').replaceChildren();
   $('autoRacePick').value='';
@@ -2435,6 +2468,8 @@ function resumeOwnerDay(){
  $('autoDay').value=today;
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoHoldReasons').replaceChildren();
+ $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
  $('autoRacePick').disabled=true;
  $('autoRacePick').replaceChildren();
  $('autoRacePick').value='';
