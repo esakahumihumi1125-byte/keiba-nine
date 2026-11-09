@@ -463,7 +463,7 @@ function boot(){
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
-  receiptVerificationOk=true;
+  receiptVerificationOk=true,archiveReady=false,archiveCorrupt=false;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -504,6 +504,25 @@ function boot(){
   if(url.startsWith('/api/jrdb/prestart-body?'))
    return {ok:prestartOk&&url.endsWith('date='+day),
     json:async()=>structuredClone(prestartResponse)};
+  if(url.startsWith('/api/owner-archive-read?')){
+   if(!archiveReady)return {ok:true,json:async()=>({
+    archiveEnabled:false,persistentStorageReady:false,available:false,
+    raceCount:0,receipts:[],actualPurchase:false,
+    officialScheduleVerified:false,captureAuditVerified:false,
+    officialFeedConnected:false
+   })};
+   const requested=new URL('http://localhost'+url).searchParams.get('date');
+   const rows=JSON.parse(storage.get(STORAGE)||'[]').filter(
+    r=>r.snapshot.date===requested);
+   const saved=structuredClone(rows);
+   if(archiveCorrupt&&saved.length)saved[0].snapshot.trifectaTickets[0][0]=17;
+   return {ok:true,json:async()=>({
+    archiveEnabled:true,persistentStorageReady:true,available:saved.length>0,
+    raceCount:saved.length,receipts:saved,actualPurchase:false,
+    officialScheduleVerified:false,captureAuditVerified:false,
+    officialFeedConnected:false
+   })};
+  }
   if(url==='/api/owner-100yen-verify-receipts'){
    const args=JSON.parse(options.body);
    const signed=args.receipts;
@@ -573,6 +592,8 @@ function boot(){
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
+  setArchiveReady:x=>archiveReady=x,
+  setArchiveCorrupt:x=>archiveCorrupt=x,
   setConnectionCount:x=>connectionCount=x,
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
@@ -981,6 +1002,45 @@ function boot(){
  a.get('autoDay').onchange();
  assert.equal(a.storage.get(STORAGE),unchangedBeforeProof);
 
+ // Server archive viewer must be strictly opt-in and must never
+ // create/replace research receipts, or claim disabled Postgres is enabled.
+ assert.equal(a.requests.filter(x=>x.url.startsWith('/api/owner-archive-read?')).length,0);
+ const savedBeforeArchive=a.storage.get(STORAGE);
+ const archiveBtn=a.get('autoArchiveRead');
+ await archiveBtn.onclick();
+ assert.match(a.get('autoArchiveStatus').textContent,/永続保存は未設定/);
+ assert.equal(a.get('autoArchiveRaces').children.length,0);
+ assert.equal(a.storage.get(STORAGE),savedBeforeArchive);
+ let archiveCalls=a.requests.filter(x=>
+  x.url.startsWith('/api/owner-archive-read?'));
+ assert.equal(archiveCalls.length,1);
+ assert.equal(archiveCalls[0].url,'/api/owner-archive-read?date=2099-01-01');
+ assert.equal(archiveCalls[0].options.credentials,'same-origin');
+ a.setArchiveReady(true);
+ await archiveBtn.onclick();
+ archiveCalls=a.requests.filter(x=>
+  x.url.startsWith('/api/owner-archive-read?'));
+ assert.equal(archiveCalls.length,2);
+ assert.match(a.get('autoArchiveStatus').textContent,/サーバー保存済みの研究記録 1R/);
+ assert.match(a.get('autoArchiveStatus').textContent,/iPhoneには書き戻していません/);
+ assert.equal(a.get('autoArchiveRaces').children.length,1);
+ assert.match(a.get('autoArchiveRaces').children[0].children[0].textContent,/東京 1R.*40点/);
+ assert.equal(a.storage.get(STORAGE),savedBeforeArchive);
+ a.setArchiveCorrupt(true);
+ await archiveBtn.onclick();
+ assert.match(a.get('autoArchiveStatus').textContent,/安全に確認できません/);
+ assert.equal(a.get('autoArchiveRaces').children.length,0);
+ assert.equal(a.storage.get(STORAGE),savedBeforeArchive);
+ a.setArchiveCorrupt(false);
+ a.get('autoDay').value='2099-01-02';
+ a.get('autoDay').onchange();
+ const archiveBeforeDate=a.requests.length;
+ await archiveBtn.onclick();
+ assert.equal(a.requests.length,archiveBeforeDate+1);
+ assert.match(a.get('autoArchiveStatus').textContent,/この開催日のサーバー保存済み/);
+ a.get('autoDay').value='2099-01-01';
+ a.get('autoDay').onchange();
+ assert.equal(a.storage.get(STORAGE),savedBeforeArchive);
  // A later forecast is NOT allowed to overwrite the earlier frozen receipt.
  a.setServer(resultWith('b'.repeat(64)));
  await a.get('autoRun').onclick();
