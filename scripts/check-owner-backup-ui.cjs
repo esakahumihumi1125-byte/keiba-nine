@@ -1,4 +1,4 @@
-/* Browser-only eight-section backup with legacy 4/5/6/7-section safety tests. */
+/* Browser-only nine-section backup with legacy 4/5/6/7-section safety tests. */
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-backup.js','utf8');
@@ -10,8 +10,9 @@ const keys=[
  'keiba-nine-owner-factor-notes-v1',
  'keiba-nine-jrdb-preday-runners-v1',
  'keiba-nine-owner-server-receipts-v1',
- 'keiba-nine-owner-rebound-watch-receipts-v1'
-],format='keiba-nine-owner-local-all-v5';
+ 'keiba-nine-owner-rebound-watch-receipts-v1',
+ 'keiba-nine-owner-three-core-receipts-v1'
+],format='keiba-nine-owner-local-all-v6';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -43,10 +44,25 @@ const reboundWatch={signature:'b'.repeat(64),snapshot:{
  researchOnly:true,officialJraVerified:false,actualPurchase:false,
  winnerPickReady:false,captureAuditVerified:false
 }};
+const coreStudy={signature:'c'.repeat(64),snapshot:{
+ version:'owner-three-core-receipt-1',
+ date:'20990109',track:'東京',race:1,
+ sourceKind:'prestart-uncalibrated-70-research',
+ capturedAt:'2099-01-09T07:15:00+09:00',
+ scheduledOffAt:'2099-01-09T09:55:00+09:00',
+ raceRunnerCount:3,observedRunnerCount:1,
+ horses:[{number:1,bands:{
+  training:'S',course_distance:'A',pace:'B'
+ },rawThirdPoints:150}],
+ researchOnly:true,officialJraVerified:false,
+ sourceHypothesesUncalibrated:true,actualPurchase:false,
+ predictionReady:false
+}};
 const fixture=()=>({
  [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],
  [keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],
- [keys[6]]:[signedReceipt],[keys[7]]:[reboundWatch]
+ [keys[6]]:[signedReceipt],[keys[7]]:[reboundWatch],
+ [keys[8]]:[coreStudy]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -95,7 +111,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -145,7 +161,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
  assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
- assert.match(e('backupPreview').textContent,/元の8種類の記録へ戻しました/);
+ assert.match(e('backupPreview').textContent,/元の9種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -252,7 +268,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
   'restoring v3 backup must preserve protected rebound watches');
  // Version 4 seven-part backup should preserve the eighth (new) watch
  // collection: older backup files cannot erase predictions captured later.
- const legacySeven=fixture();delete legacySeven[keys[7]];
+ const legacySeven=fixture();delete legacySeven[keys[7]];delete legacySeven[keys[8]];
  const v4=boot(fixture());
  const oldSeven=fakeFile(JSON.stringify({
   format:'keiba-nine-owner-local-all-v4',
@@ -265,7 +281,22 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  v4.el('backupRestore').onclick();
  assert.deepEqual(JSON.parse(v4.storage.get(keys[7])),[reboundWatch],
   'v4 restore must preserve existing new rebound capture');
- // A full eight-part file round-trips a signed research watch.
+ // A v5 eight-part backup must NOT erase the new signed 70-point
+ // research snapshot, just as older v3/v4 never erase newer sections.
+ const legacyEight=fixture();delete legacyEight[keys[8]];
+ const v5=boot(fixture());
+ const oldEight=fakeFile(JSON.stringify({
+  format:'keiba-nine-owner-local-all-v5',
+  exportedAt:'2099-01-08T23:00:00Z',sections:legacyEight
+ }));
+ v5.el('backupFile').files=[oldEight];
+ await v5.el('backupFile').onchange();await flush();
+ assert.equal(v5.el('backupRestore').disabled,false);
+ assert.match(v5.el('backupPreview').textContent,/旧8種類のバックアップ/);
+ v5.el('backupRestore').onclick();
+ assert.deepEqual(JSON.parse(v5.storage.get(keys[8])),[coreStudy],
+  'v5 restore must not erase first-write prestart 70-point study');
+ // A full nine-part file round-trips both kinds of signed research.
  const full=boot(fixture());
  assert.match(full.el('backupSummary').textContent,/巻き返し候補1R/);
  assert.equal(full.el('backupDownload').disabled,false);
@@ -277,6 +308,32 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(full.el('backupRestore').disabled,false);
  full.el('backupRestore').onclick();
  assert.deepEqual(JSON.parse(full.storage.get(keys[7])),[reboundWatch]);
+ assert.deepEqual(JSON.parse(full.storage.get(keys[8])),[coreStudy]);
+ assert.match(full.el('backupSummary').textContent,/70点研究固定1R/);
+ for(const bad of [
+  {...coreStudy,signature:'WRONG'},
+  {...coreStudy,snapshot:{...coreStudy.snapshot,actualPurchase:true}},
+  {...coreStudy,snapshot:{...coreStudy.snapshot,officialJraVerified:true}},
+  {...coreStudy,snapshot:{...coreStudy.snapshot,capturedAt:'2099-01-09T11:00:00+09:00'}},
+  {...coreStudy,snapshot:{...coreStudy.snapshot,horses:[{number:1,bands:{
+    training:'S',course_distance:'A',pace:'B'
+   },rawThirdPoints:200}]}},
+  {...coreStudy,snapshot:{...coreStudy.snapshot,horses:[{number:1,bands:{
+    training:'未評価',course_distance:'A',pace:'B'
+   },rawThirdPoints:150}]}}
+ ]){
+  const invalid=boot({...fixture(),[keys[8]]:[bad]});
+  assert.equal(invalid.el('backupDownload').disabled,true);
+  const file=fakeFile(JSON.stringify({
+   format,exportedAt:'2099-01-08T23:00:00Z',
+   sections:{...fixture(),[keys[8]]:[bad]}
+  }));
+  full.el('backupFile').files=[file];
+  await full.el('backupFile').onchange();await flush();
+  assert.equal(full.el('backupRestore').disabled,true);
+ }
+ assert.equal(boot({...fixture(),[keys[8]]:[coreStudy,coreStudy]})
+  .el('backupDownload').disabled,true);
  // Never export or restore malicious/retroactive/colliding watch records.
  for(const damaged of [
   {...reboundWatch,signature:'wrong'},
@@ -305,6 +362,6 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const double=boot({...fixture(),[keys[7]]:[reboundWatch,reboundWatch]});
  assert.equal(double.el('backupDownload').disabled,true,
   'duplicate sealed race must be rejected');
- assert.ok(!js.includes('fetch('),'all eight sections must remain browser-local');
- console.log('Owner local eight-part backup: rebound watch preservation, legacy restore, quota rollback PASS');
+ assert.ok(!js.includes('fetch('),'all nine sections must remain browser-local');
+ console.log('Owner local nine-part backup: rebound watch preservation, legacy restore, quota rollback PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
