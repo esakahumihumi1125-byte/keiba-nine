@@ -7,6 +7,7 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
+const R6_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 const day='20990101', date='2099-01-01';
 const pairs=[['S','S',8,'S'],['S','A',7,'A'],['A','A',6,'A'],
  ['A','B',5,'B'],['B','B',4,'B'],['B','C',3,'C'],['C','C',2,'C']];
@@ -1007,6 +1008,19 @@ function boot(){
       races:signed.map(x=>({status:'pending',track:x.snapshot.track,
        race:x.snapshot.race,date:x.snapshot.date}))}
    }:{error:'server_authorization_failure'}};
+  }
+  if(url==='/api/owner-research6-draft-verify'){
+   const args=JSON.parse(options.body);
+   const ok=Array.isArray(args.receipts)&&args.receipts.length>0&&
+    args.receipts.every(x=>x.signature==='e'.repeat(64));
+   return {ok,json:async()=>ok?{
+    version:'owner-research6-draft-verify-1',
+    serverSigned:true,recordCount:args.receipts.length,
+    researchOnly:true,privateOwnerOnly:true,
+    officialJraVerified:false,independentJraScheduleVerified:false,
+    formalPredictionReady:false,resultComparisonReady:false,
+    bettingReady:false,actualPurchase:false,autoPurchase:false
+   }:{error:'bad_signature'}};
   }
   if(url==='/api/owner-three-core-verify'){
    const args=JSON.parse(options.body);
@@ -2556,6 +2570,46 @@ function boot(){
  coreView.get('autoDay').value='2099-01-03';coreView.get('autoDay').onchange();
  assert.equal(coreView.get('autoFiveProviderCheck').disabled,true);
  assert.equal(coreView.get('autoFiveProviderRaces').children.length,0);
+ // Signed 79-point prestart tickets are isolated from the older 85 study
+ // and remain usable for non-mutating server verification after race off.
+ const r6Proof=boot(),r6First=[1,2],r6Second=[1,2,3,4,5],
+  r6Third=[1,2,3,4,5,6,7],r6Tickets=[];
+ for(const x of r6First)for(const y of r6Second)for(const z of r6Third)
+  if(x!==y&&x!==z&&y!==z)r6Tickets.push([x,y,z]);
+ const r6Entry={signature:'e'.repeat(64),snapshot:{
+  version:'owner-research6-draft-receipt-1',
+  date:day,track:'東京',race:1,
+  sourceKind:'prestart-unverified-research6-79-draft',
+  capturedAt:'2099-01-01T09:00:00+09:00',
+  scheduledOffAt:'2099-01-01T12:00:00+09:00',
+  policyVersion:'research-6',researchWeight:79,
+  remainingUnassessedWeight:21,runnerCount:7,
+  first:r6First,second:r6Second,third:r6Third,
+  tickets:r6Tickets,points:40,amountYen:4000,
+  researchOnly:true,officialJraVerified:false,
+  predictionReady:false,actualPurchase:false
+ }};
+ r6Proof.storage.set(R6_STORAGE,JSON.stringify([r6Entry]));
+ r6Proof.get('autoDay').value=date;
+ r6Proof.get('autoDay').onchange();
+ assert.match(r6Proof.get('autoResearch6DraftSaveStatus').textContent,/初回固定した新79点/);
+ assert.equal(r6Proof.get('autoResearch6DraftVerify').disabled,false);
+ assert.equal(r6Proof.get('autoResearch6DraftSaved').children.length,1);
+ const r6Original=r6Proof.storage.get(R6_STORAGE);
+ await r6Proof.get('autoResearch6DraftVerify').onclick();
+ assert.match(r6Proof.get('autoResearch6DraftVerifyStatus').textContent,/署名を確認：1R/);
+ assert.equal(r6Proof.storage.get(R6_STORAGE),r6Original);
+ assert.equal(r6Proof.requests.filter(x=>
+  x.url==='/api/owner-research6-draft-verify').length,1);
+ assert.equal(r6Proof.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
+ const forgedR6=boot();
+ forgedR6.storage.set(R6_STORAGE,JSON.stringify([{
+  ...r6Entry,snapshot:{...r6Entry.snapshot,amountYen:9900}
+ }]));
+ forgedR6.get('autoDay').value=date;
+ forgedR6.get('autoDay').onchange();
+ assert.equal(forgedR6.get('autoResearch6DraftVerify').disabled,true);
+ assert.match(forgedR6.get('autoResearch6DraftSaveStatus').textContent,/確認できません/);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
