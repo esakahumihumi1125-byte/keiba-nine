@@ -26,6 +26,13 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <h2>開催日の利用状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <a href="#autoVenues">開催日のレース一覧に進む</a>
+<details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
+<p class="muted">本人が押した時だけJRA公式ページから開催場別の出馬表PDFリンクを探します。PDFの内容は自動解析しません。出走馬・取消・馬場・発走時刻を公式情報と自分で照合するための補助です。</p>
+<button id="autoOfficialPdf" type="button">選択日のJRA公式PDFリンクを探す</button>
+<p id="autoOfficialPdfStatus" class="muted" role="status">未確認。PDFリンクの存在だけではJRA公式照合済みとは扱いません。</p>
+<div id="autoOfficialPdfLinks"></div>
+<a href="https://www.jra.go.jp/keiba/rpdf/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く</a>
+</details>
 <details><summary>土曜朝の使い方（3ステップ）</summary>
 <p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
 <p class="muted">② 下の「下書きのみ」を選ぶか、競馬場・レースを選択して1着／2着／3着の3連単と重複除外した点数を確認する。これは調教・近走だけの研究用下書きで、10項目の本予想や投票推奨ではない。</p>
@@ -958,10 +965,15 @@ function saveAutoReceipts(data,day){
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
+ officialPdfSeq=0,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
+ officialPdfSeq++;
+ $('autoOfficialPdf').disabled=false;
+ $('autoOfficialPdfStatus').textContent='公式PDFリンクは未確認。出馬表の内容を自動照合していません。';
+ $('autoOfficialPdfLinks').replaceChildren();
  archiveReadSeq++;
  $('autoArchiveRead').disabled=false;
  $('autoArchiveStatus').textContent='サーバー保存済みの研究記録は未確認です。';
@@ -1703,6 +1715,68 @@ $('autoDay').onchange=()=>{
   $('autoDay').value.replaceAll('-',''));
  showFixedHistory($('autoDay').value.replaceAll('-',''));
  $('autoStatus').textContent='開催日を選んでな。';
+};
+// Optional, JRA-only HTML index lookup. Never use the PDF URL as evidence
+// of specific runners, scratches, going, off times, finalized picks or ROI.
+$('autoOfficialPdf').onclick=async()=>{
+ const button=$('autoOfficialPdf'),date=$('autoDay').value;
+ if(button.disabled)return;
+ const seq=++officialPdfSeq;
+ button.disabled=true;
+ $('autoOfficialPdfLinks').replaceChildren();
+ $('autoOfficialPdfStatus').textContent='選択日のJRA公式PDFリンクを確認中…';
+ try{
+  if(!/^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/.test(date)||
+     Number.isNaN(new Date(date+'T12:00:00Z').valueOf())||
+     new Date(date+'T12:00:00Z').toISOString().slice(0,10)!==date)
+   throw Error('invalid_day');
+  const resp=await fetch('/api/jra/official-pdf-links?date='+encodeURIComponent(date),{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  if(seq!==officialPdfSeq||date!==$('autoDay').value)return;
+  if(!resp.ok)throw Error('official_index_unavailable');
+  const info=await resp.json();
+  if(seq!==officialPdfSeq||date!==$('autoDay').value)return;
+  if(!info||info.version!=='jra-official-pdf-link-discovery-1'||
+     info.date!==date||info.indexUrl!=='https://www.jra.go.jp/keiba/rpdf/'||
+     info.pdfContentsRead!==false||
+     info.officialRunnerNumbersVerified!==false||
+     info.entryChangeVerified!==false||
+     info.predictionReady!==false||info.bettingReady!==false||
+     !Array.isArray(info.links)||info.links.length>10||
+     info.linkFound!==(info.links.length>0))
+   throw Error('bad_jra_index');
+  const courses=new Set(['札幌','函館','福島','新潟','東京','中山',
+   '中京','京都','阪神','小倉']),seen=new Set(),validated=[];
+  for(const row of info.links){
+   if(!row||!courses.has(row.track)||seen.has(row.track)||
+      typeof row.url!=='string'||row.url.length>350)
+    throw Error('invalid_official_link');
+   seen.add(row.track);
+   const u=new URL(row.url);
+   if(u.protocol!=='https:'||!['www.jra.go.jp','jra.jp'].includes(u.hostname)||
+      u.port!==''||!u.pathname.startsWith('/keiba/rpdf/')||
+      !u.pathname.toLowerCase().endsWith('.pdf')||u.search||u.hash||
+      u.username||u.password)
+    throw Error('invalid_official_url');
+   validated.push(row);
+  }
+  const links=$('autoOfficialPdfLinks');
+  for(const item of validated){
+   const a=dom('a',date+' '+item.track+'｜JRA公式出馬表PDFを開く');
+   a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';
+   links.append(a);
+  }
+  $('autoOfficialPdfStatus').textContent=validated.length
+   ?'JRA公式の出馬表PDFリンク '+validated.length+
+    '競馬場分を確認。PDFの馬番・取消・馬場・発走時刻は自動照合していません。'
+   :'PDFリンクはまだ検出できません。未掲載・掲載遅れ・形式変更などの可能性があり、開催なしとは判断しません。';
+ }catch(_){if(seq===officialPdfSeq){
+  $('autoOfficialPdfLinks').replaceChildren();
+  $('autoOfficialPdfStatus').textContent=
+   'JRA公式PDFリンクを確認できませんでした。JRA公式一覧から手動で確認してください。';
+ }}finally{if(seq===officialPdfSeq)button.disabled=false;}
 };
 // One explicit, owner-authenticated /tra request. No background probe.
 $('autoConnectionCheck').onclick=async()=>{
