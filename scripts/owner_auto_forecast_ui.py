@@ -2681,6 +2681,101 @@ function validateHistory(h){
   if(seenRaces.size!==historyCoordinates.size)
    throw Error('新配点79点のレース欠落');
  }
+ // Research-6 remaining 21-weight presence: never a scored factor.
+ if(h.remaining21SourceGaps!==undefined){
+  const v=h.remaining21SourceGaps,
+   keys=['pedigree','draw_weight','jockey_stable','rotation','body_condition'],
+   weights={pedigree:6,draw_weight:3,jockey_stable:10,rotation:1,body_condition:1},
+   explanations={
+    pedigree:'父・母父の独立した同条件実績と時系列検証',
+    draw_weight:'枠と相対斤量の同条件成績と時系列検証',
+    jockey_stable:'騎手・厩舎の条件別成績と馬の能力差調整',
+    rotation:'前走間隔に応じた条件別成績と時系列検証',
+    body_condition:'発走前の当日馬体重と前走比・JRA独立確認'
+   };
+  if(!v||v.version!=='owner-remaining21-source-gaps-1'||
+     v.policyVersion!=='research-6'||v.sourcePolicyVersion!=='research-5'||
+     v.raceCount!==historyCoordinates.size||
+     v.initialResearchWeight!==79||v.remainingWeight!==21||
+     v.totalWeight!==100||!v.factorWeights||
+     Object.keys(v.factorWeights).length!==5||
+     keys.some(k=>v.factorWeights[k]!==weights[k])||
+     v.verifiedFactorCount!==0||v.formallyEvaluatedHorseCount!==0||
+     v.officialJraVerified!==false||v.independentResultsVerified!==false||
+     v.historicalBandsCalibrated!==false||
+     v.overallPredictionReady!==false||v.bettingReady!==false||
+     v.autoPurchase!==false||v.researchOnly!==true||
+     v.privateOwnerOnly!==true||v.extraProviderCalls!==0||
+     v.changesExistingReceipts!==false||
+     v.changesExistingTickets!==false||v.changesExistingRoi!==false||
+     !Array.isArray(v.races)||v.races.length!==historyCoordinates.size||
+     !Number.isInteger(v.priorSourceFourCompleteCount))
+   throw Error('新配点21点の資料確認形式が不正');
+  const seenRaces=new Set();let overallComplete=0;
+  for(const race of v.races){
+   const id=race?.track+'|'+race?.race,detail=perRace.get(id);
+   if(!detail?.newWeightFive||!detail?.tenInventory||seenRaces.has(id)||
+      race.runnerCount!==detail.runnerCount||race.gradeReady!==false||
+      race.trifectaReady!==false||
+      !Array.isArray(race.horses)||race.horses.length!==race.runnerCount||
+      !race.sourceCoverageByFactor||
+      Object.keys(race.sourceCoverageByFactor).length!==5||
+      !Number.isInteger(race.priorSourceFourCompleteCount)||
+      !Number.isInteger(race.research79ObservedCount))
+    throw Error('新配点21点のレースと研究値が不一致');
+   seenRaces.add(id);
+   const old=new Map(detail.newWeightFive.horses.map(x=>[x.number,x])),
+     source=new Map(detail.tenInventory.runners.map(x=>[x.number,x])),
+     count=Object.fromEntries(keys.map(k=>[k,0])),seen=new Set();
+   let priorComplete=0,observed79=0;
+   for(const horse of race.horses){
+    const n=horse?.number,a=old.get(n),b=source.get(n);
+    if(!Number.isInteger(n)||n<1||n>18||seen.has(n)||!a||!b||
+       horse.research79Observed!==(a.evidenceScore79!==null)||
+       horse.research79!==a.evidenceScore79||
+       !horse.sourceStates||!horse.sourceFieldsPresent||
+       !horse.missingValidation||!Array.isArray(horse.missingSourceFields)||
+       Object.keys(horse.sourceStates).length!==5||
+       Object.keys(horse.sourceFieldsPresent).length!==5||
+       Object.keys(horse.missingValidation).length!==5||
+       horse.verifiedFactorCount!==0||horse.formalScore100!==null||
+       horse.formalGrade!=='未評価'||horse.bettingReady!==false||
+       !Number.isInteger(horse.sourceFieldCoverageEquivalent21))
+     throw Error('新配点21点の馬番・得点の不正');
+    seen.add(n);let coverage=0,fields=0;
+    const missing=[];
+    for(const k of keys){
+     const state=b.sourceStates[k],
+      ok=k==='body_condition'?false:
+       k==='rotation'?state!=='unknown':
+       state==='complete_fields_observed';
+     if(horse.sourceStates[k]!==state||
+        horse.sourceFieldsPresent[k]!==ok||
+        horse.missingValidation[k]!==explanations[k])
+      throw Error('新配点21点の根拠資料の不一致');
+     if(ok)coverage+=weights[k];
+     else missing.push(k);
+     count[k]+=Number(ok);fields+=Number(ok);
+    }
+    if(horse.sourceFieldCoverageEquivalent21!==coverage||
+       JSON.stringify(horse.missingSourceFields)!==JSON.stringify(missing))
+     throw Error('新配点21点の資料カバー計算不一致');
+    priorComplete+=Number(fields===4);
+    observed79+=Number(horse.research79Observed);
+   }
+   if(seen.size!==old.size||seen.size!==source.size||
+      race.priorSourceFourCompleteCount!==priorComplete||
+      race.research79ObservedCount!==observed79||
+      keys.some(k=>race.sourceCoverageByFactor[k]!==count[k]||
+       count[k]!==detail.tenInventory.remainingFieldCoverage[k]))
+    throw Error('新配点21点の件数不一致');
+   overallComplete+=priorComplete;
+   detail.remaining21=race;
+  }
+  if(seenRaces.size!==historyCoordinates.size||
+     overallComplete!==v.priorSourceFourCompleteCount)
+   throw Error('新配点21点の対象不足');
+ }
  validateWatchCapture(h.watchCapture,h);
  return results;
 }
@@ -3724,6 +3819,32 @@ $('autoHistoryAudit').onclick=async()=>{
       ' '+horse.evidenceScore79.toFixed(2)+'/79点')+
       '（正式得点ではありません）','muted'));
     }
+    card.append(panel);
+   }
+   if(details.rosterVerified&&details.remaining21){
+    const r=details.remaining21,panel=dom('details');
+    panel.append(dom('summary','新配点：残り21点の資料不足を馬番別に確認'));
+    panel.append(dom('p','新配点の残り21点＝血統6・枠斤量3・騎手厩舎10'+
+     '・ローテ1・当日馬体重1。資料の有無だけを表示します。'+
+     '能力評価・正式100点・買い目ではありません。','muted'));
+    panel.append(dom('p','前日4項目の資料がすべてある馬 '+
+     r.priorSourceFourCompleteCount+'/'+r.runnerCount+
+     '頭。新79点研究がそろう馬 '+r.research79ObservedCount+'/'+r.runnerCount+
+     '頭。馬体重1点と全10項目の正式能力評価は未完了。','muted'));
+    const names={pedigree:'血統',draw_weight:'枠斤量',
+     jockey_stable:'騎手厩舎',rotation:'ローテ',body_condition:'当日馬体重'};
+    for(const horse of r.horses){
+     panel.append(dom('p',horse.number+'番｜新79点研究 '+
+      (horse.research79Observed?horse.research79.toFixed(2)+'/79':'未評価')+
+      '｜残り21点の資料カバー配点相当 '+
+      horse.sourceFieldCoverageEquivalent21+'/21（得点ではない）'+
+      '｜資料不足：'+horse.missingSourceFields.map(k=>names[k]).join('・')+
+      '｜全10項目の正式採点は未評価','muted'));
+    }
+    panel.append(dom('p','次に必要：血統別同条件実績、枠と斤量の検証、'+
+     '騎手・厩舎の条件別成績、ローテの時系列比較、当日馬体重、'+
+     'JRA公式出走・取消・馬場・発走時刻の独立照合。'+
+     '既存の署名記録と収支は変更しません。','muted'));
     card.append(panel);
    }
    if(details.rosterVerified&&details.tenInventory){

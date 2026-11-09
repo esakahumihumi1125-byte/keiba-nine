@@ -649,6 +649,61 @@ function withNewWeightFive(report){
  };
  return report;
 }
+function withRemaining21(report){
+ withNewWeightFive(report);
+ const keys=['pedigree','draw_weight','jockey_stable','rotation','body_condition'],
+  weights={pedigree:6,draw_weight:3,jockey_stable:10,rotation:1,body_condition:1},
+  textByFactor={
+   pedigree:'父・母父の独立した同条件実績と時系列検証',
+   draw_weight:'枠と相対斤量の同条件成績と時系列検証',
+   jockey_stable:'騎手・厩舎の条件別成績と馬の能力差調整',
+   rotation:'前走間隔に応じた条件別成績と時系列検証',
+   body_condition:'発走前の当日馬体重と前走比・JRA独立確認'
+  };
+ const races=report.newWeightFiveResearch.races.map(five=>{
+  const inv=report.tenFactorSourceInventory.races.find(x=>
+   x.track===five.track&&x.race===five.race),
+   byNumber=new Map(inv.runners.map(x=>[x.number,x]));
+  const horses=five.horses.map(h=>{
+   const states=byNumber.get(h.number).sourceStates;
+   const present=Object.fromEntries(keys.map(k=>[k,
+    k==='body_condition'?false:k==='rotation'?
+     states[k]!=='unknown':states[k]==='complete_fields_observed']));
+   return {
+    number:h.number,research79Observed:h.evidenceScore79!==null,
+    research79:h.evidenceScore79,sourceStates:{...states},
+    sourceFieldsPresent:present,
+    sourceFieldCoverageEquivalent21:keys.reduce((sum,k)=>
+     sum+(present[k]?weights[k]:0),0),
+    missingSourceFields:keys.filter(k=>!present[k]),
+    missingValidation:{...textByFactor},verifiedFactorCount:0,
+    formalScore100:null,formalGrade:'未評価',bettingReady:false
+   };
+  });
+  return {track:five.track,race:five.race,runnerCount:horses.length,
+   horses,priorSourceFourCompleteCount:horses.filter(h=>
+    keys.slice(0,4).every(k=>h.sourceFieldsPresent[k])).length,
+   research79ObservedCount:horses.filter(h=>h.research79Observed).length,
+   sourceCoverageByFactor:{...inv.remainingFieldCoverage},
+   gradeReady:false,trifectaReady:false};
+ });
+ report.remaining21SourceGaps={
+  version:'owner-remaining21-source-gaps-1',
+  policyVersion:'research-6',sourcePolicyVersion:'research-5',
+  raceCount:races.length,races,factorWeights:weights,
+  remainingWeight:21,initialResearchWeight:79,totalWeight:100,
+  priorSourceFourCompleteCount:races.reduce(
+   (sum,x)=>sum+x.priorSourceFourCompleteCount,0),
+  verifiedFactorCount:0,formallyEvaluatedHorseCount:0,
+  officialJraVerified:false,independentResultsVerified:false,
+  historicalBandsCalibrated:false,overallPredictionReady:false,
+  bettingReady:false,autoPurchase:false,
+  researchOnly:true,privateOwnerOnly:true,extraProviderCalls:0,
+  changesExistingReceipts:false,changesExistingTickets:false,
+  changesExistingRoi:false
+ };
+ return report;
+}
 function withPedigreePreflight(report){
  withFiveCore(report);
  const inv=report.tenFactorSourceInventory;
@@ -1474,6 +1529,42 @@ function boot(){
  a.setHistorical(withNewWeightFive(historical()));
  await a.get('autoHistoryAudit').onclick();
 
+ // Remaining research-6 21 is only presence, never a 100-point score.
+ const beforeGap=a.requests.length,old85=a.storage.get(FIVE_STORAGE);
+ a.setHistorical(withRemaining21(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const gapCard=a.get('autoHistoryAuditRaces').children[0];
+ const gapPanel=gapCard.children.find(x=>x.tag==='details'&&
+  /新配点：残り21点の資料不足/.test(x.children[0]?.textContent||''));
+ assert.ok(gapPanel);
+ assert.match(gapPanel.children[1].textContent,/騎手厩舎10/);
+ assert.match(gapPanel.children[2].textContent,/正式能力評価は未完了/);
+ assert.match(gapPanel.children[3].textContent,
+  /1番｜新79点研究 未評価｜残り21点の資料カバー配点相当 20\/21（得点ではない）/);
+ assert.match(gapPanel.children[3].textContent,/資料不足：当日馬体重/);
+ assert.match(gapPanel.children.at(-1).textContent,/JRA公式出走/);
+ assert.equal(a.requests.slice(beforeGap).filter(x=>
+  x.url==='/api/jrdb/history').length,1);
+ assert.equal(a.storage.get(FIVE_STORAGE),old85);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ for(const mutate of [
+  h=>h.remaining21SourceGaps.factorWeights.jockey_stable=2,
+  h=>h.remaining21SourceGaps.races[0].horses[0].formalScore100=80,
+  h=>h.remaining21SourceGaps.races[0].horses[0].sourceFieldCoverageEquivalent21=21,
+  h=>h.remaining21SourceGaps.races[0].horses[0].sourceFieldsPresent.body_condition=true,
+  h=>h.remaining21SourceGaps.races[0].horses[0].sourceStates.rotation='unknown',
+  h=>h.remaining21SourceGaps.races[0].horses[0].missingSourceFields=[],
+  h=>h.remaining21SourceGaps.races[0].research79ObservedCount=7,
+  h=>h.remaining21SourceGaps.officialJraVerified=true,
+ ]){
+  const invalid=withRemaining21(historical());mutate(invalid);
+  a.setHistorical(invalid);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+  assert.equal(a.storage.get(FIVE_STORAGE),old85);
+ }
  // Supporting six-weight factors: source fields are not real six points.
  const beforeSix=a.requests.length;
  a.setHistorical(withSupportSix(historical()));
