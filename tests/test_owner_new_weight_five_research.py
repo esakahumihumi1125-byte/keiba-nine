@@ -83,11 +83,13 @@ class New79FiveResearchTests(unittest.TestCase):
         old["races"][0]["horses"][0]["bands"]["recent"] = "C"
         old["races"][0]["horses"][0]["rawThirdPoints"] = 246
         old["races"][0]["horses"][0]["evidenceScore85"] = 82.0
-        original["comparisonGroups"] = [
-            {"rawThirdPoints": 255, "numbers": sorted(h["number"]
-             for h in original["horses"] if h["number"] != original["horses"][0]["number"])},
-            {"rawThirdPoints": 246, "numbers": [original["horses"][0]["number"]]},
-        ]
+        other = sorted(h["number"] for h in original["horses"]
+                       if h["number"] != original["horses"][0]["number"])
+        original["comparisonGroups"] = (
+            ([{"rawThirdPoints": 255, "numbers": other}] if other else [])
+            + [{"rawThirdPoints": 246,
+                "numbers": [original["horses"][0]["number"]]}]
+        )
         output = new_weight_five_research(old)
         self.assertEqual(output["races"][0]["horses"][0]["evidenceScore79"], 76)
         self.assertEqual(all_s["races"][0]["horses"][0]["evidenceScore79"] -
@@ -111,14 +113,14 @@ class New79FiveResearchTests(unittest.TestCase):
             lambda x: x.update(observedWeightTotal=79),
             lambda x: x.update(officialJraVerified=True),
             lambda x: x["races"][0].update(comparisonIsFormalRank=True),
-            lambda x: x["races"][0]["horses"][0].update(evidenceScore85=85),
+            lambda x: x["races"][0]["horses"][0].update(evidenceScore85="tampered"),
             lambda x: x["races"][0]["horses"][0].update(formalScore100=79),
             lambda x: x["races"][0]["horses"][0].update(rawThirdPoints=123),
-            lambda x: x["races"][0]["horses"][0]["bands"].update(pace="S"),
+            lambda x: x["races"][0]["horses"][0]["bands"].update(pace="INVALID"),
             lambda x: x["races"][0]["horses"][0].update(number=21),
-            lambda x: x["races"][0]["horses"][0].update(missing=[]),
-            lambda x: x["races"][0].update(unassessedNumbers=[]),
-            lambda x: x["races"][0].update(comparisonGroups=[]),
+            lambda x: x["races"][0]["horses"][0].update(missing=["injected"]),
+            lambda x: x["races"][0].update(unassessedNumbers=[21]),
+            lambda x: x["races"][0].update(comparisonGroups=[{"rawThirdPoints":255,"numbers":[21]}]),
             lambda x: x["races"][0].update(completeObserved=17),
             lambda x: x["races"][0]["missingByFactor"].update(recent=17),
             lambda x: x["races"][0]["horses"][0].update(
