@@ -107,7 +107,7 @@ def full_ten_factor_preview(snapshot, *, now):
         a = horse.get("assessments")
         if not isinstance(a, dict) or set(a) - set(FACTORS):
             raise CoverageError("Invalid factor names")
-        weighted, absent, grades = 0, [], {}
+        weighted, absent, grades, contributions = 0, [], {}, {}
         for key, weight in FACTORS.items():
             item = a.get(key)
             if item is not None and (
@@ -119,7 +119,16 @@ def full_ten_factor_preview(snapshot, *, now):
                 grades[key] = UNASSESSED
                 continue
             grades[key] = item["grade"]
-            weighted += POINTS[item["grade"]] * weight
+            # Exact integer third-points avoid 100-point rounding drift.
+            # Contribution is informational; only complete evidence can
+            # activate a race score or a ranking. Do not leak source IDs.
+            numerator = POINTS[item["grade"]] * weight
+            weighted += numerator
+            contributions[key] = {
+                "grade": item["grade"], "weight": weight,
+                "earned100": round(numerator / 3, 2),
+                "rawThirdPoints": numerator,
+            }
         if absent:
             missing[n] = absent
 
@@ -144,6 +153,7 @@ def full_ten_factor_preview(snapshot, *, now):
         }
         ranking.append({
             "number": n, "grades": grades, "weightedPoints": weighted,
+            "factorContributions": contributions,
         })
 
     # Do not extrapolate or sort partial 2-factor material into a full ranking.
@@ -153,6 +163,14 @@ def full_ten_factor_preview(snapshot, *, now):
     ranking.sort(key=lambda h: (-h["weightedPoints"], h["number"]))
     for pos, horse in enumerate(ranking):
         horse["score100"] = round(horse["weightedPoints"] / 3, 2)
+        # With all ten factors, the exact contribution sum MUST equal the
+        # unrounded total used for S/A/B/C and finishing order.
+        assert (len(horse["factorContributions"]) == len(FACTORS)
+                and sum(row["rawThirdPoints"]
+                        for row in horse["factorContributions"].values())
+                == horse["weightedPoints"]
+                and sum(row["weight"]
+                        for row in horse["factorContributions"].values()) == 100)
         horse["overallGrade"] = _grade(horse["weightedPoints"])
         horse["rank"] = (ranking[pos - 1]["rank"]
                          if pos and ranking[pos - 1]["weightedPoints"] == horse["weightedPoints"]
