@@ -708,6 +708,24 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),picksBeforePdf);
  assert.equal(a.requests.filter(r=>
   r.url.startsWith('/api/jrdb/owner-auto-draft?')).length,1);
+ // If an iPhone switches dates while the JRA HTML request is slow, the
+ // old-day PDF links cannot reappear after the date has been cleared.
+ let releaseJra;
+ const pauseJra=new Promise(resolve=>{releaseJra=resolve});
+ a.waitNextFetch(pauseJra);
+ const lateJra=jraButton.onclick();
+ assert.equal(jraButton.disabled,true);
+ a.get('autoDay').value='2099-01-02';
+ a.get('autoDay').onchange();
+ assert.equal(jraButton.disabled,false);
+ assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+ releaseJra();
+ await lateJra;
+ assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+ assert.match(a.get('autoOfficialPdfStatus').textContent,/未確認/);
+ assert.equal(a.storage.get(STORAGE),picksBeforePdf);
+ a.get('autoDay').value='2099-01-01';
+ a.get('autoDay').onchange();
  // No paid body source read until an explicit owner click.
  assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?')).length,0);
  const beforeBody=a.storage.get(STORAGE);
