@@ -70,6 +70,65 @@ class FullTenFactorGateTests(unittest.TestCase):
         self.assertEqual(len(set(map(tuple, result["trifecta"]["tickets"]))), 40)
         self.assertTrue(all(len(set(t)) == 3 for t in result["trifecta"]["tickets"]))
 
+    def test_exact_all_ten_factor_contributions_sum_to_100(self):
+        """Every displayed item is evidence-backed; round only for display."""
+        source = fixture()
+        source["horses"][0]["assessments"]["recent"]["grade"] = "C"
+        source["horses"][0]["assessments"]["training"]["grade"] = "A"
+        untouched = copy.deepcopy(source)
+        output = full_ten_factor_preview(source, now=NOW)
+        first = next(r for r in output["ranking"] if r["number"] == 1)
+        self.assertEqual(source, untouched)
+        rows = first["factorContributions"]
+        self.assertEqual(set(rows), set(FACTORS))
+        self.assertEqual({k: v["weight"] for k, v in rows.items()}, FACTORS)
+        self.assertEqual(rows["training"], {
+            "grade": "A", "weight": 30, "earned100": 20.0, "rawThirdPoints": 60
+        })
+        self.assertEqual(rows["recent"], {
+            "grade": "C", "weight": 3, "earned100": 0.0, "rawThirdPoints": 0
+        })
+        self.assertEqual(rows["course_distance"]["earned100"], 20.0)
+        self.assertEqual(rows["pace"]["earned100"], 20.0)
+        self.assertEqual(rows["ground"]["earned100"], 12.0)
+        self.assertEqual(rows["pedigree"]["earned100"], 8.0)
+        self.assertEqual(rows["draw_weight"]["earned100"], 3.0)
+        self.assertEqual(rows["jockey_stable"]["earned100"], 2.0)
+        self.assertEqual(rows["rotation"]["earned100"], 1.0)
+        self.assertEqual(rows["body_condition"]["earned100"], 1.0)
+        self.assertEqual(first["weightedPoints"], sum(
+            row["rawThirdPoints"] for row in rows.values()
+        ))
+        self.assertEqual(first["score100"], 87.0)
+        self.assertEqual(first["overallGrade"], "S")
+        self.assertNotIn("sourceId", repr(first))
+        self.assertNotIn("reference", repr(first))
+
+    def test_low_recent_results_have_only_three_point_maximum_impact(self):
+        baseline = fixture()
+        worse = fixture()
+        worse["horses"][0]["assessments"]["recent"]["grade"] = "C"
+        a = full_ten_factor_preview(baseline, now=NOW)
+        b = full_ten_factor_preview(worse, now=NOW)
+        total = lambda result: next(
+            h["score100"] for h in result["ranking"] if h["number"] == 1
+        )
+        self.assertEqual(total(a) - total(b), 3.0)
+        self.assertEqual(total(b), 97.0)
+        self.assertEqual(next(
+            h["overallGrade"] for h in b["ranking"] if h["number"] == 1
+        ), "S")
+
+    def test_no_partial_score_ledger_when_evidence_is_missing(self):
+        source = fixture()
+        del source["horses"][0]["assessments"]["body_condition"]
+        report = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(report["status"], "missing_evidence")
+        self.assertEqual(report["ranking"], [])
+        self.assertEqual(report["trifecta"]["points"], 0)
+        self.assertEqual(report["missingByNumber"], {1: ["body_condition"]})
+        self.assertNotIn("factorContributions", repr(report))
+
     def test_missing_eighth_factor_never_normalizes_partial_grade(self):
         source = fixture()
         del source["horses"][0]["assessments"]["ground"]
