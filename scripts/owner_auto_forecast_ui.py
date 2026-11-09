@@ -310,6 +310,77 @@ function validateContext(data){
   throw Error('レース条件の集計が不一致');
  return ctx;
 }
+function validateSourcePassport(data){
+ const a=data.sourcePassport;
+ if(a===undefined)return null; // older private snapshots stay readable
+ if(!a||a.version!=='owner-day-source-passport-1'||
+    a.policyVersion!=='research-5'||
+    a.newProviderRequests!==0||a.gradedFactors!==0||
+    a.verifiedPredictions!==0||a.independentJraVerified!==false||
+    a.purchaseReady!==false||typeof a.sourceAuditAvailable!=='boolean'||
+    !Array.isArray(a.races))
+  throw Error('10項目資料進捗の形式不正');
+ if(!a.sourceAuditAvailable){
+  if(a.raceCount!==0||a.races.length!==0||
+     a.reason!=='source_audit_unavailable')
+   throw Error('資料進捗の照合保留形式不正');
+  return a;
+ }
+ if(a.reason!=='unvalidated_source_observations_only'||
+    a.raceCount!==data.raceCount||a.races.length!==data.raceCount||
+    a.observedMaterialRaces!==
+     (data.sourceMaterials.status==='observed'?data.raceCount:0))
+  throw Error('資料進捗のレース数不一致');
+ const draft=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+ const provisional=new Map(data.tenFactorPreview.races.map(r=>[r.track+'|'+r.race,r]));
+ const course=new Map(data.raceContext.races.map(r=>[r.track+'|'+r.race,r]));
+ const material=new Map(data.sourceMaterials.races.map(r=>[r.track+'|'+r.race,r]));
+ const eight=TEN.map(([key])=>key).filter(k=>!['training','recent'].includes(k));
+ const observed=['pedigree','drawWeight','rotation','personnel','body','pastCorner'];
+ const seen=new Set();
+ for(const row of a.races){
+  const id=row?.track+'|'+row?.race,original=draft.get(id);
+  const ten=provisional.get(id),ctx=course.get(id),src=material.get(id);
+  if(!original||!ten||!ctx||seen.has(id)||
+     row.draftStatus!==original.status||
+     !Number.isInteger(row.programmeRunnerCount)||
+     row.programmeRunnerCount<0||row.programmeRunnerCount>18||
+     !Number.isInteger(row.provisionalTrainingCount)||
+     !Number.isInteger(row.provisionalRecentCount)||
+     row.officialJraVerified!==false||
+     row.verifiedFactorCount!==0||
+     row.completeTenFactorReady!==false||
+     row.independentResultsConnected!==false||
+     row.purchaseReady!==false||
+     row.raceDayBodyweightVerifiedCount!==0||
+     row.courseContextPresent!==ctx.courseInfoPresent||
+     row.goingContextPresent!==ctx.goingAvailable||
+     !Array.isArray(row.unassessedFactorKeys)||
+     row.unassessedFactorKeys.join('|')!==eight.join('|'))
+   throw Error('レース別資料進捗に不整合');
+  seen.add(id);
+  const count=key=>ten.horses.filter(h=>GRADES.has(h.grades[key])&&
+   h.grades[key]!=='未評価').length;
+  if(row.provisionalTrainingCount!==count('training')||
+     row.provisionalRecentCount!==count('recent'))
+   throw Error('仮評価頭数の不整合');
+  if(data.sourceMaterials.status==='observed'){
+   if(!src||row.sourceMaterialsObserved!==true||
+      row.programmeRunnerCount!==src.runnerCount||
+      !row.additionalFieldCounts||
+      Object.keys(row.additionalFieldCounts).length!==observed.length||
+      observed.some(k=>row.additionalFieldCounts[k]!==src.counts[k])||
+      (original.status==='provisional_draft'&&
+       row.programmeRunnerCount!==ten.runnerCount))
+    throw Error('観測資料と頭数の不整合');
+  }else if(row.sourceMaterialsObserved!==false||
+           row.additionalFieldCounts!==null||
+           row.programmeRunnerCount!==ten.runnerCount)
+   throw Error('未取得資料の取り違え');
+ }
+ if(seen.size!==data.raceCount)throw Error('レース別資料進捗不足');
+ return a;
+}
 function validate(data,day){
  if(!data||data.version!=='jrdb-owner-auto-draft-1'||data.date!==day||
   data.researchOnly!==true||data.privateOwnerOnly!==true||
@@ -412,6 +483,7 @@ function validate(data,day){
  }
  validateTen(data);
  validateContext(data);
+ validateSourcePassport(data);
  return data;
 }
 function runnerView(h,index){
@@ -459,6 +531,8 @@ function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
  const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
+ const passport=data.sourcePassport?.sourceAuditAvailable?
+  new Map(data.sourcePassport.races.map(r=>[r.track+'|'+r.race,r])):null;
  const host=$('autoRaces'),tabs=$('autoVenues'),nodes=[],groups=new Map();
  host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
  for(const race of data.races){
@@ -512,6 +586,26 @@ function render(input,day){
     dom('p','コース距離・馬場適性は未接続。調教・近走以外の8項目は未採点。','muted'));
   }else{
    detail.append(dom('p','追加8項目の資料確認は未完了（予想・買い目とは別）。','muted'));
+  }
+  if(passport){
+   const row=passport.get(race.track+'|'+race.race);
+   const panel=dom('details',undefined,'source-passport');
+   panel.append(dom('summary','10項目の資料進捗（正式採点0/10）'));
+   panel.append(dom('p','調教の仮評価 '+row.provisionalTrainingCount+
+    '頭／近走の仮評価 '+row.provisionalRecentCount+
+    '頭。両方とも正式採点ではなく、残り8項目は未評価。','muted'));
+   if(row.sourceMaterialsObserved){
+    panel.append(dom('p','既存資料の記録数：'+
+     Object.entries(MATERIAL_LABELS).map(([k,label])=>
+      label+' '+row.additionalFieldCounts[k]+'/'+row.programmeRunnerCount+'頭').join('／')+
+     '。記録の存在は能力や適性を示しません。','muted'));
+   }else panel.append(dom('p','追加資料の件数は照合保留。0件扱いにしません。','muted'));
+   panel.append(dom('p','コース情報 '+(row.courseContextPresent?'あり':'未確認')+
+    '／当日馬場情報 '+(row.goingContextPresent?'あり':'未確認')+
+    '。過去の位置取りや馬体形状コードは、展開予測・当日馬体重の採点ではありません。','muted'));
+   panel.append(dom('p','JRA公式出走馬・取消・馬場・発走時刻の独立確認：未接続。'+
+    '総合評価・確定予想・購入は未実施。過去資料は下の任意照合で確認できます。','muted'));
+   detail.append(panel);
   }
   if(race.status==='provisional_draft')detail.append(formation(race));
   nodes.push({track:race.track,node:detail});
