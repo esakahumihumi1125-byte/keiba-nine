@@ -47,6 +47,7 @@ from owner_rebound_receipts import (
 )
 from owner_rebound_provider_results import summarize_provider_watch_results
 from owner_three_core_provider_results import compare_three_core_provider_results
+from owner_five_core_provider_results import compare_five_core_provider_results
 from owner_prestart_tse_review import compare_prestart_tickets, ProvisionalResultError
 from owner_three_core_receipts import (
     issue_three_core_receipts, verify_three_core_receipts, CoreReceiptError
@@ -2627,6 +2628,58 @@ def create_app(settings=None):
                 return response('502 Bad Gateway', {
                     'error': 'JRDB暫定着順を安全に照合できません。元の記録は変更しません。'})
             return response('200 OK', comparison)
+        if method == 'POST' and path == '/api/owner-five-core-provider-check':
+            # Only after authenticated HMAC verification. Single opt-in
+            # JRDB /tse read; never official JRA validation or ROI.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人専用サービスでのみ利用できます。'})
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or not all(settings.get(k) for k in (
+                        'JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': 'JRDB成績の取得設定を確認できません。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '85点研究照合の形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < size <= 250000:
+                    raise FiveCoreReceiptError('Invalid 85-point comparison body size')
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise FiveCoreReceiptError('Incomplete comparison request')
+                args = json.loads(raw)
+                if not isinstance(args, dict) or set(args) != {'date', 'receipts'}:
+                    raise FiveCoreReceiptError('Client outcome injection rejected')
+                day = args['date']
+                originals = verify_five_core_receipts(
+                    args['receipts'], password, day)
+                if not originals:
+                    raise FiveCoreReceiptError('No sealed 85-point observations')
+                stamp = datetime.fromisoformat(_now_in_jst())
+                from owner_rebound_receipts import _timestamp
+                if not any(stamp >= _timestamp(r['scheduledOffAt'])
+                           for r in originals):
+                    return response('200 OK',
+                        compare_five_core_provider_results(
+                            originals, [], day, now=stamp, source_read_count=0))
+            except (FiveCoreReceiptError, ValueError, TypeError, KeyError):
+                return response('400 Bad Request', {
+                    'error': '発走前85点研究記録を検証できません。保存済み記録は変更しません。'})
+            try:
+                rows = fetch_finished_race_results(day)
+                review = compare_five_core_provider_results(
+                    originals, rows, day, now=stamp)
+            except (JRDBError, FiveCoreReceiptError,
+                    ValueError, TypeError, KeyError):
+                return response('502 Bad Gateway', {
+                    'error': 'JRDB暫定結果と85点研究記録を安全に照合できませんでした。'})
+            return response('200 OK', review)
         if method == 'POST' and path == '/api/owner-three-core-provider-check':
             # Postrace JRDB observations are NOT official JRA results and
             # can never update HMAC study receipts, tickets or ROI.
