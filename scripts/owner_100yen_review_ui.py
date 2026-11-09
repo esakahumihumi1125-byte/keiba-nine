@@ -56,6 +56,14 @@ const el=(tag,text,klass)=>{const v=document.createElement(tag);
  if(text!==undefined)v.textContent=String(text);if(klass)v.className=klass;return v;};
 const yen=n=>Number.isInteger(n)?n.toLocaleString('ja-JP')+'円':'—';
 const pct=n=>typeof n==='number'&&Number.isFinite(n)?n.toFixed(1)+'%':'未確定';
+const MISS={
+ trifecta_hit:'的中',winner_not_selected:'1着馬を評価外',
+ winner_wrong_slot:'1着馬を2・3着に評価',second_not_selected:'2着馬を評価外',
+ second_wrong_slot:'2着馬を別着順に評価',
+ third_not_selected:'3着馬を評価外',
+ third_wrong_slot:'3着馬を別着順に評価',
+ combination_missing:'組み合わせ漏れ'
+};
 function stat(name,value){const x=el('div',undefined,'stat');
  x.append(el('small',name),el('strong',value));return x;}
 function table(headers,rows){const root=el('div',undefined,'table-scroll');
@@ -91,9 +99,12 @@ function draw(input){
     x.trifectaHits+'R',x.trioHits+'R',pct(x.roiPercent)])));
  }else $('venue').append(el('p','対象となる固定済み買い目はありません。','empty'));
  if(v.races.length){
-  $('races').append(table(['レース','状態','3連単点数','3連複点数','仮想収支'],
+  $('races').append(table(['レース','状態','3連単点数','3連複点数','3連単の検証','仮想収支'],
    v.races.map(x=>[x.track+x.race+'R',
    x.status==='pending'?'結果待ち':'公式結果を確認',x.trifectaPoints,x.trioPoints,
+   x.status==='pending'?'結果待ち':
+    !x.trifectaPoints?'3連単なし':
+    Object.hasOwn(MISS,x.trifectaMissReason)?MISS[x.trifectaMissReason]:'要再確認',
    x.status==='pending'?'未確定':yen(x.returnedYen-x.investedYen)])));
  }else $('races').append(el('p','この日の発走前固定済み予想はありません。','empty'));
 }
