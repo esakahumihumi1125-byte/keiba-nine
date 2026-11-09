@@ -15,6 +15,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.parse import urlsplit
 
 from keiba_100yen_review import _date, ReviewInputError, VENUES
+from jra_result_podium_guard import podium_payout_consistency, PodiumConsistencyError
 from owner_official_settlement_replay import (
     _source_url, SettlementReplayError
 )
@@ -193,12 +194,22 @@ def parse_public_result_candidate(html, url, date, track, race):
         raise JraPublicProbeError("Refund/special settlement needs manual source review")
     trifecta = _payouts(section, "3連単")
     trio = _payouts(section, "3連複")
+    try:
+        podium = podium_payout_consistency(p.rows, trifecta, trio)
+    except PodiumConsistencyError:
+        raise JraPublicProbeError(
+            "Finishing table and payouts could not be independently reconciled"
+        ) from None
     return {
         "version": VERSION, "date": date, "track": track, "race": race,
         "trifectaCandidates": trifecta, "trioCandidates": trio,
+        "payoutMatchesDisplayedPodium": podium["payoutMatchesDisplayedPodium"],
+        "podiumShape": podium["podiumShape"],
+        "matchingTrifectaCount": podium["matchingTrifectaCount"],
+        "matchingTrioCount": podium["matchingTrioCount"],
         "sourceHostAllowlisted": True,
         "visibleRaceIdentityMatched": True,
-        "payoutLayoutParsed": True,
+        "payoutLayoutParsed": True, "podiumChecked": True,
         "officialJraVerified": False, "sourceAuthenticityAttested": False,
         "finalityVerified": False, "refundsVerified": False,
         "settlementReady": False, "officialRoiPercent": None,
