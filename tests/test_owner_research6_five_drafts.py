@@ -180,7 +180,7 @@ class OwnerFiveDraftTests(unittest.TestCase):
             lambda p,s: s["races"][0].update(runnerCount=99),
             lambda p,s: p[0].update(racekey="0926ff01"),
             lambda p,s: p[0].update(racedate="20990102"),
-            lambda p,s: p[0].update(fakeOfficialConfirmed=True),
+            lambda p,s: p[0].update(racecourse_cd="09"),
         ]
         for change in cases:
             p, s = materials()
