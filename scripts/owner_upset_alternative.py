@@ -6,7 +6,7 @@ change or overwrite the normal formation; never uses odds, popularity or
 post-race results. Conflicting/tied lower-ranked winners are held for review.
 """
 from keiba_trifecta_builder import (
-    build_trifecta, REQUIRED_EVIDENCE, MAX_POINTS, STAKE_YEN,
+    build_trifecta, REQUIRED_EVIDENCE, MAX_POINTS, STAKE_YEN, FormationError,
 )
 
 VERSION = "owner-upset-alternative-1"
@@ -105,10 +105,15 @@ def build_upset_alternative(ranking, review, evidence, primary):
                      ranking[third_size - 1]["weightedPoints"] ==
                      ranking[third_size]["weightedPoints"])):
                 continue
-            proposed = build_trifecta(
-                numbers, evidence=evidence, first=first,
-                second=numbers[:second_size], third=numbers[:third_size],
-            )
+            try:
+                proposed = build_trifecta(
+                    numbers, evidence=evidence, first=first,
+                    second=numbers[:second_size], third=numbers[:third_size],
+                )
+            except FormationError:
+                # The shared builder must retain its hard 48-point ceiling.
+                # Only this single candidate formation is discarded.
+                continue
             if (proposed["status"] != "review_only"
                     or not 1 <= proposed["points"] <= min(MAX_RESEARCH_POINTS, MAX_POINTS)):
                 continue
