@@ -754,6 +754,33 @@ function withResearch6Uncertainty(report){
  };
  return report;
 }
+function withResearch6FiveDrafts(report){
+ withNewWeightFive(report);
+ const study=report.newWeightFiveResearch;
+ const races=study.races.map(r=>({
+  track:r.track,race:r.race,postTime:'12:00',
+  status:'hold',reason:'incomplete_five_factors',
+  first:[],second:[],third:[],tickets:[],points:0,amountYen:0,
+  completeObserved:r.completeObserved,runnerCount:r.runnerCount,
+  rankedResearch:[],researchOnly:true,overallPredictionReady:false,
+  officialJraVerified:false,bettingReady:false,autoPurchase:false
+ }));
+ report.research6FiveDrafts={
+  version:'owner-research6-fivecore-drafts-1',
+  policyVersion:'research-6',date:day,
+  raceCount:races.length,draftCount:0,holdCount:races.length,
+  holdReasons:{incomplete_five_factors:races.length},races,
+  unitYen:100,researchFactorWeight:79,
+  factorWeights:{training:30,course_distance:17,pace:17,ground:12,recent:3},
+  remainingUnassessedWeight:21,
+  officialJraVerified:false,researchOnly:true,privateOwnerOnly:true,
+  overallPredictionReady:false,bettingReady:false,autoPurchase:false,
+  actualPurchase:false,extraProviderCalls:0,
+  changesExistingReceipts:false,changesExistingTickets:false,
+  changesExistingRoi:false
+ };
+ return report;
+}
 function withPedigreePreflight(report){
  withFiveCore(report);
  const inv=report.tenFactorSourceInventory;
@@ -1649,6 +1676,40 @@ function boot(){
   assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
   assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
   assert.equal(a.storage.get(FIVE_STORAGE),old85Interval);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+ }
+ // Research6 five-factor 3連単 preview holds every incomplete race.
+ const beforeFiveDraft=a.requests.length,oldFiveDraft=a.storage.get(FIVE_STORAGE);
+ a.setHistorical(withResearch6FiveDrafts(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const testCard=a.get('autoHistoryAuditRaces').children[0];
+ const fiveDraftPanel=testCard.children.find(x=>x.tag==='details'&&
+  /新配点79点から作る3連単研究用下書き/.test(
+   x.children[0]?.textContent||''));
+ assert.ok(fiveDraftPanel);
+ assert.match(fiveDraftPanel.children[1].textContent,/血統6・枠斤量3・騎手厩舎10/);
+ assert.match(fiveDraftPanel.children[2].textContent,/買い目は保留/);
+ assert.match(fiveDraftPanel.children[2].textContent,/5項目が全頭そろっていない/);
+ assert.equal(a.requests.slice(beforeFiveDraft).filter(x=>
+  x.url==='/api/jrdb/history').length,1);
+ assert.equal(a.storage.get(FIVE_STORAGE),oldFiveDraft);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ for(const mutate of [
+  h=>h.research6FiveDrafts.factorWeights.pace=20,
+  h=>h.research6FiveDrafts.races[0].points=40,
+  h=>h.research6FiveDrafts.races[0].tickets=[[1,2,3]],
+  h=>h.research6FiveDrafts.races[0].status='five_factor_research_draft',
+  h=>h.research6FiveDrafts.races[0].rankedResearch=[{number:1,research79:79}],
+  h=>h.research6FiveDrafts.races[0].reason='unknown_reason',
+  h=>h.research6FiveDrafts.draftCount=1,
+  h=>h.research6FiveDrafts.officialJraVerified=true,
+ ]){
+  const forged=withResearch6FiveDrafts(historical());mutate(forged);
+  a.setHistorical(forged);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+  assert.equal(a.storage.get(FIVE_STORAGE),oldFiveDraft);
   assert.equal(a.storage.get(STORAGE),oldRecord);
  }
  // Supporting six-weight factors: source fields are not real six points.
