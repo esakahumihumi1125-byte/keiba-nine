@@ -1,4 +1,4 @@
-"""Owner-private, offline pedigree 8-weight cohort evidence with a strict time cut.
+"""Owner-private, offline pedigree 6-weight cohort evidence with a strict time cut.
 
 The source is a trusted caller's *separate* historical full-race dataset. The
 current bounded JRDB history lookup does not provide this population. This
@@ -216,7 +216,7 @@ def study_pedigree_cohorts(target, historic_races):
             "grade": UNASSESSED, "score8": None,
         })
     return {
-        "version": VERSION, "factor": "pedigree", "weight": 8,
+        "version": VERSION, "factor": "pedigree", "weight": 6,
         "date": target["raceDate"], "track": target["track"], "race": target["race"],
         "runnerCount": len(rows), "horses": rows,
         "providedHistoricalRaces": len(historic_races),
