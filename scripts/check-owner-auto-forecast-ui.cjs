@@ -1617,6 +1617,7 @@ function boot(){
  assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
  // Explicit postrace comparison reads at most one provider query and
  // must not store outcome as a forecast, graded score or purchased ticket.
+ const ticketBeforeProvider=coreView.storage.get(STORAGE);
  const requestsBeforeCoreCompare=coreView.requests.length;
  await coreView.get('autoCoreProviderCheck').onclick();
  assert.equal(coreView.requests.length,requestsBeforeCoreCompare+1);
@@ -1627,7 +1628,7 @@ function boot(){
  assert.match(card.children[1].textContent,/JRDB暫定1〜3着：1→2→3/);
  assert.match(card.children[2].textContent,/発走前研究値：50.00\/70点/);
  assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
- assert.equal(coreView.storage.get(STORAGE),undefined);
+ assert.equal(coreView.storage.get(STORAGE),ticketBeforeProvider);
  coreView.setCoreProviderCorrupt(true);
  await coreView.get('autoCoreProviderCheck').onclick();
  assert.match(coreView.get('autoCoreProviderStatus').textContent,/安全に比較できませんでした/);
