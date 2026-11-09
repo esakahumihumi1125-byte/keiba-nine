@@ -56,6 +56,9 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 </section>
 <section>
 <h2>発走前に固定した買い目の履歴</h2>
+<button id="autoReceiptVerify" type="button">この日の固定買い目をサーバーで署名確認</button>
+<p id="autoReceiptVerifyStatus" class="muted" role="status">未確認。端末内の署名付き研究記録だけを本人用サーバーで検証します。原データの追加取得や買い目の変更はありません。</p>
+<p class="muted">署名が正しくてもJRA公式の発走時刻・結果・実購入・サーバー保存を証明するものではありません。サーバー保存が未設定なら、別途バックアップが必要です。</p>
 <p id="autoHistoryStatus" class="muted" role="status">この端末の固定記録を読み込み中です。</p>
 <div id="autoHistory"></div>
 <p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
@@ -756,6 +759,51 @@ function localReceiptStatus(day){
   return '端末内の固定記録を確認できません。既存データは変更しません。';
  }
 }
+function selectedReceiptsForVerification(day){
+ // Reuse only the locally locked per-day receipts. This code NEVER submits
+ // paid JRDB rows or secrets, and cannot create retrospective race tickets.
+ if(!/^20[0-9]{6}$/.test(day))throw Error('bad_date');
+ const date=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+ const raw=localStorage.getItem(RECEIPTS_KEY);
+ if(!raw)return [];
+ if(raw.length>650000)throw Error('oversized_store');
+ const values=JSON.parse(raw);
+ if(!Array.isArray(values)||values.length>360)throw Error('bad_store');
+ const seen=new Set(),selected=[];
+ const tracks=new Set(['札幌','函館','福島','新潟','東京',
+  '中山','中京','京都','阪神','小倉']);
+ for(const entry of values){
+  const p=entry?.snapshot;
+  if(!p||typeof p.date!=='string'||typeof entry.signature!=='string'||
+     !/^[a-f0-9]{64}$/.test(entry.signature))
+   throw Error('bad_receipt');
+  if(p.date!==date)continue;
+  if(!tracks.has(p.track)||!Number.isInteger(p.race)||
+     p.race<1||p.race>12||seen.has(p.track+'|'+p.race)||
+     p.sourceKind!=='prestart-locked'||p.actualPurchase!==false||
+     p.scheduleVerified!==false||p.predictionVerified!==false||
+     !Array.isArray(p.trifectaTickets)||p.trifectaTickets.length<1||
+     p.trifectaTickets.length>48||
+     !Array.isArray(p.trioTickets)||p.trioTickets.length!==0||
+     typeof p.lockedAt!=='string'||typeof p.scheduledOffAt!=='string'||
+     !Number.isFinite(Date.parse(p.lockedAt))||
+     !Number.isFinite(Date.parse(p.scheduledOffAt))||
+     Date.parse(p.lockedAt)>=Date.parse(p.scheduledOffAt))
+   throw Error('invalid_source');
+  const combinations=new Set();
+  for(const ticket of p.trifectaTickets){
+   if(!Array.isArray(ticket)||ticket.length!==3||
+      ticket.some(n=>!Number.isInteger(n)||n<1||n>18)||
+      new Set(ticket).size!==3||combinations.has(ticket.join('-')))
+    throw Error('invalid_ticket');
+   combinations.add(ticket.join('-'));
+  }
+  seen.add(p.track+'|'+p.race);
+  selected.push(entry);
+ }
+ if(selected.length>36)throw Error('too_many');
+ return selected;
+}
 function showFixedHistory(day){
  const root=$('autoHistory'),label=$('autoHistoryStatus');
  root.replaceChildren();
@@ -871,11 +919,14 @@ function saveAutoReceipts(data,day){
 
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
- prestartSeq=0,connectionSeq=0,
+ prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
+ receiptVerifySeq++;
+ $('autoReceiptVerify').disabled=false;
+ $('autoReceiptVerifyStatus').textContent='署名は未確認。保存済み記録は変更していません。';
  connectionSeq++;
  $('autoConnectionCheck').disabled=false;
  $('autoConnectionStatus').textContent='診断は未実行。';
@@ -1739,6 +1790,59 @@ $('autoRun').onclick=async()=>{
   $('autoTenWeights').replaceChildren();
   $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
  finally{if(seq===request)button.disabled=false;}
+};
+// The existing signed-receipt verifier does NOT contact JRDB, settle
+// racing results, create receipts, write a server archive or purchase bets.
+$('autoReceiptVerify').onclick=async()=>{
+ const button=$('autoReceiptVerify');
+ if(button.disabled)return;
+ const day=$('autoDay').value.replaceAll('-','');
+ const seq=++receiptVerifySeq;
+ button.disabled=true;
+ $('autoReceiptVerifyStatus').textContent='端末内記録を確認中…';
+ try{
+  const signed=selectedReceiptsForVerification(day);
+  if(seq!==receiptVerifySeq)return;
+  if(!signed.length){
+   $('autoReceiptVerifyStatus').textContent=
+    'この日の固定済み研究記録はありません。発走後に買い目は作成しません。';
+   return;
+  }
+  const formatted=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+  const payload=JSON.stringify({date:formatted,receipts:signed});
+  if(payload.length>60000)throw Error('request_too_large');
+  $('autoReceiptVerifyStatus').textContent='本人専用サーバーで署名を検証中…';
+  const resp=await fetch('/api/owner-100yen-verify-receipts',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body:payload
+  });
+  const result=await resp.json();
+  if(seq!==receiptVerifySeq||day!==$('autoDay').value.replaceAll('-'))return;
+  if(!resp.ok||result?.available!==true||result.serverSigned!==true||
+     result.captureAuditVerified!==false||
+     result.officialScheduleVerified!==false||
+     result.officialFeedConnected!==false||
+     result.review?.version!=='keiba-100yen-review-1'||
+     result.review.actualPurchase!==false||
+     result.review.unitYen!==100||
+     result.review.reviewedRaces!==0||
+     result.review.pendingRaces!==signed.length||
+     result.review.totalInvestedYen!==0||
+     result.review.totalReturnedYen!==0||
+     result.review.roiPercent!==null||
+     !Array.isArray(result.review.races)||
+     result.review.races.length!==signed.length||
+     result.review.races.some(r=>r.status!=='pending'))
+   throw Error('unverified');
+  $('autoReceiptVerifyStatus').textContent=
+   'サーバー署名の照合成功：'+signed.length+
+   'R。すべて結果未確認の研究記録。JRA公式時刻・結果・実購入・サーバー保存は未検証。'+
+   '元の買い目と仮想収支は変更していません。';
+ }catch(_){if(seq===receiptVerifySeq){
+  $('autoReceiptVerifyStatus').textContent=
+   '署名を確認できませんでした。保存済みの記録は消さず、バックアップと接続設定を確認してください。';
+ }}finally{if(seq===receiptVerifySeq)button.disabled=false;}
 };
 $('autoHistoryAudit').onclick=async()=>{
  const button=$('autoHistoryAudit'),day=historyDay;
