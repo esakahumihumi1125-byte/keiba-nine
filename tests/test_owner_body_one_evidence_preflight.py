@@ -69,6 +69,9 @@ class BodyOneResearchTests(unittest.TestCase):
 
     def test_count_conflicts_and_fake_official_grade_fail_closed(self):
         base = snapshot()
+        # The source sorts race names in Japanese; explicitly place the
+        # two-runner Tokyo fixture first before mutation-based assertions.
+        base["races"].sort(key=lambda row: row["track"] != "東京")
         cases = (
             lambda x: x.update(officialBodyWeightVerified=True),
             lambda x: x["races"][0]["runners"][0].update(bodyConditionScore1=1),
