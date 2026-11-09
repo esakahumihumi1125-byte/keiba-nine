@@ -9,7 +9,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="warning"><strong>実戦用の確定予想ではありません。</strong>
 JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自動計算します。
 血統・適性・枠・展開・馬場など残り8項目、JRA公式出走取消・発走時刻の照合はまだ未完成。
-資料が不足したレースは見送り。実際の投票・購入・記録への保存は一切行いません。</p>
+資料が不足したレースは見送り。実際の投票・購入・正式収支への記録は行わず、発走前の研究用記録のみ端末に固定します。</p>
 <section>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
 <button id="autoRun" type="button">全場・全Rを再分析する</button>
@@ -23,6 +23,9 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 馬場情報の追加取得も最大1回だけ試みます。取得できなくても既存の発走前記録は維持します。
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
+<h2>開催日の利用状況</h2>
+<p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
+<a href="#autoRaces">開催日のレース一覧に進む</a>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
 <p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
 <a href="/owner-backup">固定済み買い目など8種類の端末記録をバックアップする</a>。
@@ -588,6 +591,19 @@ function sourceNextChecks(row){
  items.push('JRA公式の出走馬・取消・馬場・発走時刻を独立照合');
  return items;
 }
+function morningStatus(data,day,localStatus){
+ const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+ if(data.raceCount===0)
+  return iso+'：JRDB番組0R。開催なし・提供前・資料不足の区別は未確認。予想は作成していません。固定済みの以前の研究記録は変更しません。';
+ return iso+'：番組 '+data.raceCount+'R／発走前の研究用3連単下書き '+
+  data.draftCount+'R／見送り '+data.holdCount+'R。'+
+  (data.draftCount===0
+    ?'買い目を無理に作りません。'
+    :'下の「下書きのみ」から買い目を選べます。')+
+  ' 発走前固定の状態：'+localStatus+
+  ' 10項目本採点・JRA公式出走取消／発走時刻の独立確認は未完了。'+
+  (data.archiveEnabled?'サーバー保存は別途検証が必要。':'サーバー永続保存は未設定。');
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
@@ -685,7 +701,8 @@ function render(input,day){
   }
   if(race.status==='provisional_draft')detail.append(formation(race));
   const raceKey=race.track+'|'+race.race;
-  nodes.push({key:raceKey,track:race.track,node:detail});
+  nodes.push({key:raceKey,track:race.track,
+   draft:race.status==='provisional_draft',node:detail});
   const option=dom('option',race.track+' '+race.race+'R｜'+
    (race.status==='provisional_draft'?'研究用下書き '+race.points+'点':'見送り'));
   option.value=raceKey;select.append(option);
@@ -693,11 +710,11 @@ function render(input,day){
  }
  // Selection uses an already verified day snapshot. No extra JRDB calls,
  // no prediction reconstruction, no receipt or purchase write.
- function show(track,key=''){
+ function show(track,key='',draftsOnly=false){
   const frag=document.createDocumentFragment();
   let visible=0;
   for(const item of nodes){
-   if(key?item.key===key:!track||item.track===track){
+   if(key?item.key===key:draftsOnly?item.draft:!track||item.track===track){
     item.node.open=Boolean(key);
     frag.append(item.node);visible++;
    }
@@ -705,10 +722,12 @@ function render(input,day){
   host.replaceChildren(frag);
   $('autoViewingStatus').textContent=key
    ?'選択中：'+key.replace('|',' ')+'R。研究用データのみ。'
+   :draftsOnly?'発走前の研究用下書き '+visible+'Rを表示（確定予想ではありません）'
    :track?track+' '+visible+'Rを表示（正式予想ではありません）'
    :'全場 '+visible+'Rを表示。レース選択で1Rだけ開けます。';
   for(const b of tabs.querySelectorAll('button'))b.setAttribute(
-   'aria-pressed',String(b.dataset.track===track));
+   'aria-pressed',String(b.dataset.mode==='drafts'?draftsOnly:
+    !draftsOnly&&b.dataset.track===track));
  }
  select.disabled=nodes.length===0;
  select.onchange=()=>{
@@ -721,9 +740,17 @@ function render(input,day){
  };
  for(const track of ['',...groups.keys()]){
   const button=dom('button',track?track+' '+groups.get(track)+'R':'全場 '+data.raceCount+'R');
-  button.type='button';button.dataset.track=track;
+  button.type='button';button.dataset.track=track;button.dataset.mode='venue';
   button.setAttribute('aria-pressed','false');
   button.onclick=()=>{select.value='';show(track);};tabs.append(button);
+ }
+ if(data.draftCount>0){
+  const draftButton=dom('button','下書きのみ '+data.draftCount+'R');
+  draftButton.type='button';draftButton.dataset.track='';
+  draftButton.dataset.mode='drafts';
+  draftButton.setAttribute('aria-pressed','false');
+  draftButton.onclick=()=>{select.value='';show('','',true);};
+  tabs.append(draftButton);
  }
  show('');
  const breakdown=Object.entries(data.holdReasons).sort((a,b)=>b[1]-a[1])
@@ -1664,6 +1691,7 @@ $('autoDay').onchange=()=>{
  clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
+ $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(
@@ -1781,12 +1809,15 @@ $('autoRun').onclick=async()=>{
    ?'必要なときに過去の同条件資料を確認できます。':'この開催日のレースはありません。';
   try{
    const localStatus=saveAutoReceipts(body,day);
+   $('autoMorningStatus').textContent=morningStatus(body,day,localReceiptStatus(day));
    $('autoSavedStatus').textContent=body.archiveEnabled
     ?'サーバー固定済み '+body.archiveRecordCount+'R／前の買い目を優先したレース '+
       body.archiveConflictCount+'R。'+localStatus
     :'サーバー保存は未設定。'+localStatus;
    showFixedHistory(day);
   }catch(_){
+   $('autoMorningStatus').textContent=morningStatus(body,day,
+    '端末への新規保存に失敗。元の記録は変更していません。');
    $('autoSavedStatus').textContent='研究記録の端末保存はできませんでした。結果表示と実購入記録には影響しません。';
   }
   $('autoStatus').textContent='暫定評価を自動生成しました。作成できないレースは無理に選定していません。';
@@ -1796,6 +1827,7 @@ $('autoRun').onclick=async()=>{
   $('autoStatus').textContent=detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoSummary').textContent='予想は未作成';
+  $('autoMorningStatus').textContent='JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
   $('autoSourceSummary').textContent='資料進捗の取得に失敗しました。以前の集計は表示しません。';
   $('autoTenWeights').replaceChildren();
   $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
@@ -2257,6 +2289,7 @@ function resumeOwnerDay(){
  clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
+ $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(today.replaceAll('-',''));
