@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-100yen-review.js','utf8');
-function boot(query,reviewFixture=null){
+function boot(query,reviewFixture=null,provisionalFixture=null){
  const elements=new Map(),requests=[],storage=new Map();
  let pending=null;
  function node(tag){
@@ -30,6 +30,12 @@ function boot(query,reviewFixture=null){
   };
   if(url.startsWith('/api/owner-100yen-review'))return {
     ok:true,json:async()=>({available:!!reviewFixture,review:reviewFixture})
+  };
+  if(url.startsWith('/api/owner-archive-read'))return {
+    ok:true,json:async()=>({archiveEnabled:false,persistentStorageReady:false,available:false,receipts:[]})
+  };
+  if(url==='/api/owner-prestart-tse-review')return {
+    ok:true,json:async()=>provisionalFixture
   };
   throw Error('Unexpected backend request');
  };
@@ -93,5 +99,71 @@ function boot(query,reviewFixture=null){
  assert.match(body.children[0].children[4].textContent,/1着馬を2・3着に評価/);
  assert.equal(body.children[1].children[4].textContent,'結果待ち');
  assert.equal(d.storage.size,0);
- console.log('Owner 100-yen review: auto open, day handoff, stale fetch, miss reasons, read-only PASS');
+
+ // The optional postrace comparison must NOT run on page open.
+ const sample={
+  version:'owner-prestart-tse-comparison-1',date:'2099-01-02',
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  independentJraVerified:false,payoutVerified:false,roiPercent:null,
+  officialHitCount:null,realPredictionReady:false,actualPurchase:false,
+  bettingReady:false,changesExistingReceipts:false,providerReadCount:1,
+  raceCount:2,observedRaceCount:1,pendingRaceCount:1,
+  provisionalExactCombinationCount:0,provisionalFirstCandidateCount:0,
+  races:[
+   {track:'東京',race:1,providerStatus:'provider_podium_observed',
+    trifectaPoints:40,firstCandidateObserved:false,secondCandidateObserved:true,
+    thirdCandidateObserved:true,exactCombinationObserved:false,
+    firstMissType:'wrong_slot',officialVerified:false},
+   {track:'京都',race:2,providerStatus:'pending',trifectaPoints:30,
+    firstCandidateObserved:null,secondCandidateObserved:null,
+    thirdCandidateObserved:null,exactCombinationObserved:null,
+    firstMissType:null,officialVerified:false}
+  ]
+ };
+ const e=boot('?date=2099-01-02',fake,sample);
+ await new Promise(r=>setImmediate(r));
+ assert.equal(e.requests.length,2);
+ const signed=[{snapshot:{date:'2099-01-02',track:'東京',race:1},
+  signature:'a'.repeat(64)}];
+ e.storage.set('keiba-nine-owner-server-receipts-v1',JSON.stringify(signed));
+ await e.get('provisionalCheck').onclick();
+ assert.equal(e.requests.length,4);
+ assert.match(e.requests[2].url,/owner-archive-read/);
+ assert.equal(e.requests[3].url,'/api/owner-prestart-tse-review');
+ assert.equal(e.requests[3].opts.method,'POST');
+ assert.equal(e.requests[3].opts.headers['X-Keiba-Request'],'private');
+ assert.equal(JSON.parse(e.requests[3].opts.body).receipts.length,1);
+ assert.match(e.get('provisionalStatus').textContent,/公式の結果・的中・払戻・回収率に加算していません/);
+ assert.equal(e.get('provisionalRaces').children.length,3);
+ assert.match(e.get('provisionalRaces').children[1].textContent,/勝ち馬を2・3着候補に配置/);
+ assert.match(e.get('provisionalRaces').children[2].textContent,/保留/);
+ assert.equal(e.storage.size,1);
+ e.get('day').value='2099-01-03';e.get('day').onchange();
+ assert.equal(e.get('provisionalRaces').children.length,0);
+
+ const forged=boot('?date=2099-01-02',fake,
+  {...sample,officialJraVerified:true});
+ await new Promise(r=>setImmediate(r));
+ forged.storage.set('keiba-nine-owner-server-receipts-v1',JSON.stringify(signed));
+ await forged.get('provisionalCheck').onclick();
+ assert.equal(forged.get('provisionalRaces').children.length,0);
+ assert.match(forged.get('provisionalStatus').textContent,/暫定照合ができませんでした/);
+ const missing=boot('?date=2099-01-02',fake,sample);
+ await new Promise(r=>setImmediate(r));
+ await missing.get('provisionalCheck').onclick();
+ assert.equal(missing.requests.length,3);
+ assert.equal(missing.storage.size,0);
+ const staleProvisional=boot('?date=2099-01-02',fake,sample);
+ await new Promise(r=>setImmediate(r));
+ staleProvisional.storage.set('keiba-nine-owner-server-receipts-v1',JSON.stringify(signed));
+ let releaseProvisional;
+ const holdProvisional=new Promise(resolve=>{releaseProvisional=resolve});
+ staleProvisional.delay(holdProvisional);
+ const waiting=staleProvisional.get('provisionalCheck').onclick();
+ staleProvisional.get('day').value='2099-01-03';
+ staleProvisional.get('day').onchange();
+ releaseProvisional();await waiting;
+ assert.equal(staleProvisional.get('provisionalRaces').children.length,0);
+ assert.equal(staleProvisional.storage.size,1);
+ console.log('Owner 100-yen review: provisional comparison opt-in/read-only PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
