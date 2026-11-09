@@ -42,12 +42,12 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <details><summary>土曜朝の使い方（3ステップ）</summary>
 <p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
 <p class="muted">② 下の「下書きのみ」を選ぶか、競馬場・レースを選択して1着／2着／3着の3連単と重複除外した点数を確認する。これは調教・近走だけの研究用下書きで、10項目の本予想や投票推奨ではない。</p>
-<p class="muted">③ 発走前の固定記録を確認し、必要に応じて「9種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
+<p class="muted">③ 発走前の固定記録を確認し、必要に応じて「10種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
 </details>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
 <p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p>
 <p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
-<a href="/owner-backup">固定済み買い目など8種類の端末記録をバックアップする</a>。
+<a href="/owner-backup">固定済み買い目など10種類の端末記録をバックアップする</a>。
 既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
 <a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
@@ -71,6 +71,11 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p id="autoCoreProviderStatus" class="muted" role="status">署名付き70点研究記録のある開催日を選んでください。</p>
 <div id="autoCoreProviderRaces"></div>
 <div id="autoCoreSaved"></div>
+</details>
+<details><summary>発走前に固定した5項目85点の研究記録（正式未評価）</summary>
+<p class="muted">調教30・近走3・コース距離20・展開20・馬場12の未検証の研究値です。履歴の照合時にサーバーが発走前と確認し、署名できた馬だけを初回固定します。正式100点、馬券、勝率、JRA結果ではありません。</p>
+<p id="autoFiveSaveStatus" class="muted" role="status">85点研究の保存状況は未確認です。</p>
+<div id="autoFiveSaved"></div>
 </details>
 <button id="autoWatchResultCheck" type="button" disabled>固定した巻き返し候補とJRDB成績を参考照合</button>
 <p class="muted">署名済み候補がこのiPhoneにある開催日だけ利用できます。押した時のみJRDBの成績を1回取得。
@@ -102,7 +107,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <div id="autoHistory"></div>
 <p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
 署名はこの画面では検証していません。後付け予想ではありません。</p>
-<a href="/owner-backup">9種類の記録をバックアップ・復元する</a>
+<a href="/owner-backup">10種類の記録をバックアップ・復元する</a>
 </section>
 <section><h2>10項目の配点と評価状況</h2>
 <p id="autoTenStatus" class="muted" role="status">予想資料の取得後に表示します。</p>
@@ -1146,6 +1151,7 @@ function saveAutoReceipts(data,day){
 
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
+const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
  officialPdfSeq=0,coreVerifySeq=0,coreProviderSeq=0,
@@ -1161,6 +1167,7 @@ function clearHistory(){
  $('autoCoreVerify').disabled=false;
  $('autoCoreVerifyStatus').textContent='署名は未確認。研究値は正式100点ではありません。';
  showSavedCore($('autoDay').value.replaceAll('-',''));
+ showSavedFive($('autoDay').value.replaceAll('-',''));
  officialPdfSeq++;
  $('autoOfficialPdf').disabled=false;
  $('autoOfficialPdfStatus').textContent='公式PDFリンクは未確認。出馬表の内容を自動照合していません。';
@@ -1347,6 +1354,143 @@ function saveCoreReceipts(receipts){
  return '発走前研究値を初回固定：新規 '+added+'R／既存 '+existing+
   'R（上書きなし）。署名付き、予測精度・正式結果は未検証。';
 }
+
+function validateSavedFiveEntry(entry){
+ const p=entry?.snapshot,keys=['training','course_distance','pace','ground','recent'],
+       weights={training:30,course_distance:20,pace:20,ground:12,recent:3},
+       points={S:3,A:2,B:1,C:0};
+ if(!p||typeof entry.signature!=='string'||
+    !/^[a-f0-9]{64}$/.test(entry.signature)||
+    p.version!=='owner-five-core-receipt-1'||
+    p.sourceKind!=='prestart-uncalibrated-85-research'||
+    p.researchOnly!==true||p.sourceHypothesesUncalibrated!==true||
+    p.officialJraVerified!==false||p.predictionReady!==false||
+    p.actualPurchase!==false||!/^20\d{6}$/.test(p.date)||
+    !['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'].includes(p.track)||
+    !Number.isInteger(p.race)||p.race<1||p.race>12||
+    !Number.isInteger(p.raceRunnerCount)||p.raceRunnerCount<1||
+    p.raceRunnerCount>18||!Array.isArray(p.horses)||
+    !Number.isInteger(p.observedRunnerCount)||
+    p.observedRunnerCount<1||p.observedRunnerCount>p.raceRunnerCount||
+    p.observedRunnerCount!==p.horses.length||
+    Object.keys(p).length!==15||
+    typeof p.capturedAt!=='string'||typeof p.scheduledOffAt!=='string')
+  throw Error('85点研究の署名付き記録の構造が不正');
+ const captured=Date.parse(p.capturedAt),off=Date.parse(p.scheduledOffAt);
+ if(!Number.isFinite(captured)||!Number.isFinite(off)||captured>=off||
+    off-captured>7*86400000||
+    new Date(off).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'})
+      .replaceAll('-','')!==p.date)
+  throw Error('85点研究の保存時刻が不正');
+ let previous=0;
+ for(const horse of p.horses){
+  if(!horse||Object.keys(horse).length!==3||!Number.isInteger(horse.number)||
+     horse.number<=previous||horse.number>18||
+     !horse.bands||Object.keys(horse.bands).length!==5||
+     keys.some(k=>!Object.hasOwn(points,horse.bands[k]))||
+     !Number.isInteger(horse.rawThirdPoints)||
+     horse.rawThirdPoints!==keys.reduce(
+      (sum,k)=>sum+weights[k]*points[horse.bands[k]],0))
+   throw Error('85点研究の馬番・計算値が不正');
+  previous=horse.number;
+ }
+ return p;
+}
+function savedFiveDay(day){
+ if(!/^20\d{6}$/.test(day))throw Error('開催日が不正');
+ const raw=localStorage.getItem(FIVE_STORAGE);
+ if(raw&&raw.length>2000000)throw Error('85点記録が大きすぎます');
+ const all=JSON.parse(raw||'[]');
+ if(!Array.isArray(all)||all.length>360)throw Error('85点の保存数が不正');
+ const keys=new Set(),picked=[];
+ for(const entry of all){
+  const p=validateSavedFiveEntry(entry),key=p.date+'|'+p.track+'|'+p.race;
+  if(keys.has(key))throw Error('保存済み85点の競馬場・R重複');
+  keys.add(key);if(p.date===day)picked.push(entry);
+ }
+ if(picked.length>36)throw Error('85点の開催日記録が多すぎます');
+ return {all,picked};
+}
+function showSavedFive(day){
+ $('autoFiveSaved').replaceChildren();
+ try{
+  const {picked}=savedFiveDay(day);
+  $('autoFiveSaveStatus').textContent=picked.length?
+   'この端末に初回固定した研究85点 '+picked.length+
+    'R。署名はこの表示では未検証。正式100点・結果・回収率に加算しません。':
+   'この日には固定した85点研究値がありません。発走後の後付け生成は禁止。';
+  for(const row of picked){
+   const p=row.snapshot,card=dom('details');
+   card.append(dom('summary',p.track+p.race+'R｜研究85点・'+p.horses.length+'頭分'));
+   for(const h of p.horses)
+    card.append(dom('p',h.number+'番｜調教 '+h.bands.training+
+     '／近走 '+h.bands.recent+'／コース '+h.bands.course_distance+
+     '／展開 '+h.bands.pace+'／馬場 '+h.bands.ground+
+     '｜研究比較値 '+(h.rawThirdPoints/3).toFixed(2)+'/85（未検証）','muted'));
+   $('autoFiveSaved').append(card);
+  }
+ }catch(_){
+  $('autoFiveSaveStatus').textContent=
+   '保存済み85点研究の確認不可。既存データを消さず、バックアップを確保してください。';
+ }
+}
+function validateFiveCapture(capture,rows,day){
+ if(!capture||capture.version!=='owner-five-core-receipt-1'||
+    capture.date!==day||capture.serverSigned!==true||
+    capture.researchOnly!==true||capture.privateOwnerOnly!==true||
+    capture.jraScheduleVerified!==false||
+    capture.officialResultsVerified!==false||
+    capture.calibrationReady!==false||capture.bettingReady!==false||
+    capture.actualPurchase!==false||!Number.isInteger(capture.receiptCount)||
+    capture.receiptCount<0||capture.receiptCount>36||
+    !Array.isArray(capture.receipts)||
+    capture.receiptCount!==capture.receipts.length||
+    !Number.isInteger(capture.postOffOrMissingTimeRaces)||
+    capture.postOffOrMissingTimeRaces<0)
+  throw Error('85点研究の発走前証明が不正');
+ const byRace=new Map(rows.filter(x=>x.ownerRunnerDetails?.fiveCore)
+  .map(x=>[x.track+'|'+x.race,x.ownerRunnerDetails.fiveCore]));
+ const seen=new Set();
+ for(const entry of capture.receipts){
+  const p=validateSavedFiveEntry(entry),id=p.track+'|'+p.race,
+        source=byRace.get(id);
+  if(p.date!==day||seen.has(id)||!source||
+     p.raceRunnerCount!==source.runnerCount||
+     p.observedRunnerCount!==source.completeObserved)
+   throw Error('85点の研究対象が元の馬番と不一致');
+  seen.add(id);
+  const byNumber=new Map(source.horses.map(h=>[h.number,h]));
+  const observed=new Set();
+  for(const h of p.horses){
+   const original=byNumber.get(h.number);
+   if(!original||original.rawThirdPoints!==h.rawThirdPoints||
+      Object.keys(h.bands).some(k=>h.bands[k]!==original.bands[k]))
+    throw Error('85点の研究値が元資料と不一致');
+   observed.add(h.number);
+  }
+  if(source.horses.some(h=>(h.rawThirdPoints!==null)!==observed.has(h.number)))
+   throw Error('85点研究の未評価馬が矛盾');
+ }
+ return capture.receipts;
+}
+function saveFiveReceipts(receipts,day){
+ if(!receipts.length)return '発走前に固定できる研究用85点はありません。';
+ const saved=savedFiveDay(day),all=saved.all,seen=new Set(all.map(x=>{
+  const p=x.snapshot;return p.date+'|'+p.track+'|'+p.race;
+ }));
+ let added=0,old=0;const combined=all.slice();
+ for(const entry of receipts){
+  const p=validateSavedFiveEntry(entry),id=p.date+'|'+p.track+'|'+p.race;
+  if(seen.has(id)){old++;continue;}
+  combined.push(entry);seen.add(id);added++;
+ }
+ if(combined.length>360||JSON.stringify(combined).length>2000000)
+  throw Error('85点研究の端末保存上限');
+ if(added)localStorage.setItem(FIVE_STORAGE,JSON.stringify(combined));
+ return '研究85点を発走前に初回固定：新規'+added+
+  'R／既存'+old+'R（上書きなし）。正式10項目・的中率未評価。';
+}
+
 function storedWatchDay(day){
  const raw=localStorage.getItem(WATCH_STORAGE);
  if(raw&&raw.length>700000)throw Error('保存した候補記録が大きすぎます');
@@ -3113,6 +3257,37 @@ $('autoHistoryAudit').onclick=async()=>{
   }
   showSavedCore(day);
   $('autoCoreSaveStatus').textContent=coreMessage;
+  let fiveMessage='この過去資料には発走前に署名した85点研究記録がありません。';
+  if(raw.fiveCoreCapture!==undefined){
+   try{
+    const receipts=validateFiveCapture(raw.fiveCoreCapture,rows,day);
+    if(receipts.length){
+     const body=JSON.stringify({date:day,receipts});
+     if(body.length>250000)throw Error('85点研究の検証サイズ超過');
+     const resp=await fetch('/api/owner-five-core-verify',{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+       'Accept':'application/json'},body
+     });
+     const check=await resp.json();
+     if(seq!==historySeq||historyDay!==day)return;
+     if(!resp.ok||check.version!=='owner-five-core-verify-1'||
+        check.serverSigned!==true||check.recordCount!==receipts.length||
+        check.researchOnly!==true||check.privateOwnerOnly!==true||
+        check.officialJraVerified!==false||
+        check.independentJraScheduleVerified!==false||
+        check.calibrationReady!==false||check.resultComparisonReady!==false||
+        check.bettingReady!==false||check.autoPurchase!==false||
+        check.actualPurchase!==false)
+      throw Error('85点研究の署名を検証できません');
+     fiveMessage=saveFiveReceipts(receipts,day);
+    }else fiveMessage='発走前85点の固定対象なし。発走後に追加しません。';
+   }catch(_){
+    fiveMessage='85点研究の署名・保存に失敗。以前の記録は変更していません。';
+   }
+  }
+  showSavedFive(day);
+  $('autoFiveSaveStatus').textContent=fiveMessage;
   // The server checks signatures, not just browser-provided timestamps.
   // Never send an outcome or an officialVerified flag from the device.
   let watchSaveStatus='発走前の署名付き候補はまだ固定できていません。';
