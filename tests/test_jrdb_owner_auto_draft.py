@@ -381,6 +381,18 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["sourceReadCount"],4)
         self.assertEqual(body["tenFactorPreview"]["factorCount"],10)
         self.assertEqual(body["tenFactorPreview"]["fullPredictionRaceCount"],0)
+        source_passport = body["sourcePassport"]
+        self.assertEqual(source_passport["version"],"owner-day-source-passport-1")
+        self.assertEqual(source_passport["raceCount"],body["raceCount"])
+        self.assertTrue(source_passport["sourceAuditAvailable"])
+        self.assertEqual(source_passport["newProviderRequests"],0)
+        self.assertEqual(source_passport["gradedFactors"],0)
+        self.assertFalse(source_passport["independentJraVerified"])
+        self.assertFalse(source_passport["purchaseReady"])
+        self.assertEqual(source_passport["observedMaterialRaces"],body["raceCount"])
+        self.assertTrue(all(x["verifiedFactorCount"]==0
+                            and not x["completeTenFactorReady"]
+                            for x in source_passport["races"]))
         self.assertEqual(body["raceContext"]["conditionProviderFetchStatus"],"received")
         self.assertFalse(body["officialJraVerified"])
         for forbidden in ("racekey","horse_id","PRIVATE-SIRE",
@@ -409,6 +421,11 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["sourceMaterials"]["status"],"unavailable")
         self.assertEqual(body["sourceMaterials"]["gradedNewFactors"],0)
         self.assertEqual(body["sourceMaterials"]["races"],[])
+        self.assertEqual(body["sourcePassport"]["newProviderRequests"],0)
+        self.assertEqual(body["sourcePassport"]["gradedFactors"],0)
+        self.assertTrue(body["sourcePassport"]["sourceAuditAvailable"])
+        self.assertIsNone(
+            body["sourcePassport"]["races"][0]["additionalFieldCounts"])
         self.assertEqual(body["tenFactorPreview"]["factorCount"],10)
         self.assertEqual(body["tenFactorPreview"]["fullPredictionRaceCount"],0)
 
