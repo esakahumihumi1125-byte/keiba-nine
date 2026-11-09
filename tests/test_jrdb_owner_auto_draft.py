@@ -697,6 +697,52 @@ class AutoDraftHTTPTests(unittest.TestCase):
                                 'private-signer-value', 'horse_id', 'racekey'):
                     self.assertNotIn(private, out['body'].decode())
 
+    def test_jrdb_http_status_categories_guide_recovery_without_leaking(self):
+        from jrdb_private import JRDBError
+        cases = (
+            ("401", "provider_auth", "entries"),
+            ("403", "provider_entitlement", "training"),
+            ("429", "provider_rate_limit", "recent"),
+            ("500", "provider", "programme"),
+        )
+        for status, expected, stage in cases:
+            with self.subTest(status=status, stage=stage):
+                method = {
+                    "programme": "fetch_race_program",
+                    "entries": "fetch_horse_entries",
+                    "training": "fetch_training_analysis",
+                    "recent": "fetch_recent_runs",
+                }[stage]
+                with (
+                    patch('private_service.fetch_race_program', return_value=[]),
+                    patch('private_service.normalize_program_rows',
+                          return_value=programme()),
+                    patch('private_service.fetch_horse_entries', return_value=[]),
+                    patch('private_service.fetch_training_analysis', return_value=[]),
+                    patch('private_service.fetch_recent_runs', return_value=[]),
+                    patch('private_service.' + method,
+                          side_effect=JRDBError('JRDB request failed (HTTP ' +
+                                                status + ')')),
+                    patch('private_service.logging.warning') as logger,
+                ):
+                    response = call(self.app, '/api/jrdb/owner-auto-draft',
+                                    QUERY_STRING='date=' + DAY)
+                self.assertEqual(response['status'], '502 Bad Gateway')
+                result = json.loads(response['body'])
+                self.assertEqual(result['failureStage'], stage)
+                self.assertEqual(result['failureKind'], expected)
+                self.assertIsNone(result['failureDetail'])
+                self.assertNotIn('researchReceipts', result)
+                self.assertNotIn('trifectaTickets', result)
+                self.assertNotIn('api_key', response['body'].decode())
+                self.assertNotIn('x-user-key', response['body'].decode())
+                self.assertEqual(logger.call_count, 1)
+                self.assertEqual(
+                    logger.call_args.args[0],
+                    'KEIBA_AUTO_DRAFT_FAILURE stage=%s kind=%s detail=%s',
+                )
+                self.assertEqual(logger.call_args.args[1:], (stage, expected, 'none'))
+
     def test_whole_day_draft_failure_reports_only_fixed_reason(self):
         from jrdb_owner_auto_draft import DAY_DRAFT_ISSUES
         self.assertEqual(DAY_DRAFT_ISSUES["Research snapshot mismatch"],
