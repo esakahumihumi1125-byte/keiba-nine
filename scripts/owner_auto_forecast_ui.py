@@ -26,6 +26,7 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <h2>開催日の利用状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <a href="#autoVenues">開催日のレース一覧に進む</a>
+<p class="muted"><a href="#autoHistoryAudit">研究用85点の比較順へ進む</a>（下の過去データ照合ボタンを押すと表示。追加API取得は本人の操作時のみ）</p>
 <details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
 <p class="muted">本人が押した時だけJRA公式ページから開催場別の出馬表PDFリンクを探します。PDFの内容は自動解析しません。出走馬・取消・馬場・発走時刻を公式情報と自分で照合するための補助です。</p>
 <button id="autoOfficialPdf" type="button">選択日のJRA公式PDFリンクを探す</button>
@@ -3073,6 +3074,19 @@ $('autoHistoryAudit').onclick=async()=>{
     dom('p','履歴不足：'+row.runnersWithIncompleteHistory+
       '頭。適性・10項目総合点は未評価。'));
    const details=row.ownerRunnerDetails,pace=details.paceScenario;
+   // One-screen summary after the owner explicitly opts into history reads.
+   // Unassessed horses are NEVER sorted below known scores.
+   if(details.rosterVerified&&details.fiveCore){
+    const core=details.fiveCore,head=core.comparisonGroups.slice(0,3);
+    const groups=head.map(g=>g.numbers.map(n=>n+'番').join('＝')+
+     '（'+(g.rawThirdPoints/3).toFixed(2)+'/85）');
+    const line=groups.length?
+     '研究85点比較（上位最大3グループ・同点並列）｜'+groups.join(' ＞ ')+
+     (core.comparisonGroups.length>3?' ほかは詳細欄':''):
+     '研究85点比較｜5項目がそろう馬は0頭';
+    card.append(dom('p',line+'。未評価 '+core.unassessedNumbers.length+
+     '頭（順位付けしない）。正式な良い馬順・勝率・買い目ではありません。','muted'));
+   }
    if(details.rosterVerified&&details.fiveFactor){
     const five=dom('details');
     five.append(dom('summary','馬番別5項目の研究目安を見る（正式採点0/10）'));
