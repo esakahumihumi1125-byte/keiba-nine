@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-100yen-review.js','utf8');
-function boot(query,reviewFixture=null,provisionalFixture=null){
+function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=null){
  const elements=new Map(),requests=[],storage=new Map();
  let pending=null;
  function node(tag){
@@ -32,7 +32,9 @@ function boot(query,reviewFixture=null,provisionalFixture=null){
     ok:true,json:async()=>({available:!!reviewFixture,review:reviewFixture})
   };
   if(url.startsWith('/api/owner-archive-read'))return {
-    ok:true,json:async()=>({archiveEnabled:false,persistentStorageReady:false,available:false,receipts:[]})
+    ok:true,json:async()=>archiveFixture||{
+     archiveEnabled:false,persistentStorageReady:false,available:false,receipts:[]
+    }
   };
   if(url==='/api/owner-prestart-tse-review')return {
     ok:true,json:async()=>provisionalFixture
@@ -123,8 +125,24 @@ function boot(query,reviewFixture=null,provisionalFixture=null){
  const e=boot('?date=2099-01-02',fake,sample);
  await new Promise(r=>setImmediate(r));
  assert.equal(e.requests.length,2);
- const signed=[{snapshot:{date:'2099-01-02',track:'東京',race:1},
-  signature:'a'.repeat(64)}];
+ const tickets=n=>{
+  const all=[];
+  for(let x=1;x<=18&&all.length<n;x++)
+   for(let y=1;y<=18&&all.length<n;y++)
+    for(let z=1;z<=18&&all.length<n;z++)
+     if(x!==y&&x!==z&&y!==z)all.push([x,y,z]);
+  return all;
+ };
+ const createSigned=(track,race,n)=>({
+  snapshot:{date:'2099-01-02',track,race,
+   sourceKind:'prestart-locked',actualPurchase:false,
+   scheduleVerified:false,predictionVerified:false,
+   lockedAt:'2099-01-01T12:00:00+09:00',
+   scheduledOffAt:'2099-01-02T10:00:00+09:00',
+   trifectaTickets:tickets(n),trioTickets:[]},
+  signature:'a'.repeat(64)
+ });
+ const signed=[createSigned('東京',1,40),createSigned('京都',2,30)];
  e.storage.set('keiba-nine-owner-server-receipts-v1',JSON.stringify(signed));
  await e.get('provisionalCheck').onclick();
  assert.equal(e.requests.length,4);
@@ -132,7 +150,8 @@ function boot(query,reviewFixture=null,provisionalFixture=null){
  assert.equal(e.requests[3].url,'/api/owner-prestart-tse-review');
  assert.equal(e.requests[3].opts.method,'POST');
  assert.equal(e.requests[3].opts.headers['X-Keiba-Request'],'private');
- assert.equal(JSON.parse(e.requests[3].opts.body).receipts.length,1);
+ assert.equal(JSON.parse(e.requests[3].opts.body).receipts.length,2);
+ assert.match(e.get('provisionalStatus').textContent,/この端末の固定記録 2Rをすべて対象/);
  assert.match(e.get('provisionalStatus').textContent,/公式の結果・的中・払戻・回収率に加算していません/);
  assert.equal(e.get('provisionalRaces').children.length,3);
  assert.match(e.get('provisionalRaces').children[1].textContent,/勝ち馬を2・3着候補に配置/);
@@ -148,6 +167,52 @@ function boot(query,reviewFixture=null,provisionalFixture=null){
  await forged.get('provisionalCheck').onclick();
  assert.equal(forged.get('provisionalRaces').children.length,0);
  assert.match(forged.get('provisionalStatus').textContent,/暫定照合ができませんでした/);
+
+ // A response may not silently omit or fabricate a signed race, nor report
+ // different point counts from the signed original.
+ for(const mutate of [
+  obj=>obj.races.pop(),
+  obj=>obj.races[1].track='阪神',
+  obj=>obj.races[0].trifectaPoints=39,
+  obj=>obj.races[1].race=1,
+  obj=>obj.races[0].track='京都',
+ ]){
+  const altered=JSON.parse(JSON.stringify(sample));mutate(altered);
+  const bad=boot('?date=2099-01-02',fake,altered);
+  await new Promise(r=>setImmediate(r));
+  bad.storage.set('keiba-nine-owner-server-receipts-v1',JSON.stringify(signed));
+  await bad.get('provisionalCheck').onclick();
+  assert.equal(bad.get('provisionalRaces').children.length,0);
+  assert.match(bad.get('provisionalStatus').textContent,/暫定照合ができませんでした/);
+  assert.equal(bad.storage.size,1);
+ }
+ // The archive can be configured but empty; legacy local receipts still count.
+ const emptyArchive=boot('?date=2099-01-02',fake,sample,{
+  archiveEnabled:true,persistentStorageReady:true,available:false,
+  raceCount:0,receipts:[]
+ });
+ await new Promise(r=>setImmediate(r));
+ emptyArchive.storage.set('keiba-nine-owner-server-receipts-v1',JSON.stringify(signed));
+ await emptyArchive.get('provisionalCheck').onclick();
+ assert.match(emptyArchive.get('provisionalStatus').textContent,/この端末の固定記録 2Rをすべて対象/);
+ const archive=boot('?date=2099-01-02',fake,sample,{
+  archiveEnabled:true,persistentStorageReady:true,available:true,
+  raceCount:2,receipts:signed
+ });
+ await new Promise(r=>setImmediate(r));
+ await archive.get('provisionalCheck').onclick();
+ assert.equal(archive.requests.length,4);
+ assert.match(archive.get('provisionalStatus').textContent,/サーバー固定記録 2Rをすべて対象/);
+ assert.equal(archive.storage.size,0);
+ // Malformed local records are rejected before another provider read.
+ const corrupt=boot('?date=2099-01-02',fake,sample);
+ await new Promise(r=>setImmediate(r));
+ const tampered=JSON.parse(JSON.stringify(signed));
+ tampered[0].snapshot.trifectaTickets.push([1,2,3]);
+ corrupt.storage.set('keiba-nine-owner-server-receipts-v1',JSON.stringify(tampered));
+ await corrupt.get('provisionalCheck').onclick();
+ assert.equal(corrupt.requests.length,3);
+ assert.match(corrupt.get('provisionalStatus').textContent,/暫定照合ができませんでした/);
  const missing=boot('?date=2099-01-02',fake,sample);
  await new Promise(r=>setImmediate(r));
  await missing.get('provisionalCheck').onclick();
