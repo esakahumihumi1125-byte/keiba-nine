@@ -26,6 +26,12 @@ class OwnerRenderDeployFallbackTests(unittest.TestCase):
         owner = raw.split("  deploy-jrdb:\n", 1)[1]
         self.assertNotIn("RENDER_JRDB_DEPLOY_HOOK_URL", preview)
         self.assertNotIn("RENDER_DEPLOY_HOOK_URL", owner)
+        self.assertIn(
+            "'https://api.render.com/deploy/srv-dbo1m515efls73cl39s0?key='*",
+            owner,
+        )
+        self.assertIn("case \"$RENDER_JRDB_DEPLOY_HOOK_URL\" in", owner)
+        self.assertIn("BLOCKED (wrong hook destination)", owner)
         for part, secret in (
             (preview, "RENDER_DEPLOY_HOOK_URL"),
             (owner, "RENDER_JRDB_DEPLOY_HOOK_URL"),
