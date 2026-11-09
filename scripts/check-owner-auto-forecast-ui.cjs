@@ -903,7 +903,7 @@ function boot(){
   x=>x.tag==='details'&&/重点3項目の研究用70点/.test(x.children[0]?.textContent||''));
  assert.ok(threePanel);
  assert.equal(threePanel.children.length,10);
- assert.match(threePanel.children[1].textContent,/正式100点・勝率・正式順位ではありません/);
+ assert.match(threePanel.children[1].textContent,/総合100点・勝率・正式順位ではありません/);
  assert.match(threePanel.children[2].textContent,/正式な採点項目としては未承認/);
  assert.match(threePanel.children[3].textContent,/1番｜調教 S／コース 未評価／展開 未評価/);
  assert.match(threePanel.children[3].textContent,/研究用未評価/);
