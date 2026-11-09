@@ -3115,6 +3115,157 @@ function verifyCoreProviderReport(result,receipts,day){
  }
  return out;
 }
+
+function verifyFiveProviderReport(report,receipts,day){
+ const weights={training:30,course_distance:20,pace:20,ground:12,recent:3};
+ const tally=Object.fromEntries(Object.keys(weights).map(k=>[k,{S:0,A:0,B:0,C:0}]));
+ if(!report||report.version!=='owner-five-core-provider-observation-1'||
+    report.date!==day||
+    report.sourceKind!=='jrdb-tse-unverified-podium-observation'||
+    !Number.isInteger(report.providerSourceReadCount)||
+    ![0,1].includes(report.providerSourceReadCount)||
+    report.raceCount!==receipts.length||
+    !Array.isArray(report.races)||report.races.length!==receipts.length||
+    !Number.isInteger(report.observedRaceCount)||
+    !Number.isInteger(report.observedStudiedWinnerCount)||
+    !Number.isInteger(report.observedTopGroupWinnerCount)||
+    report.observedStudiedWinnerCount>report.observedRaceCount||
+    report.observedTopGroupWinnerCount>report.observedStudiedWinnerCount||
+    report.verifiedRaceCount!==0||report.confirmedHitCount!==null||
+    report.officialJraVerified!==false||
+    report.jraIndependentConfirmation!==false||
+    report.officialFeedConnected!==false||
+    report.outcomeCalibrationReady!==false||
+    report.modelAccuracyPercent!==null||report.bettingReady!==false||
+    report.actualPurchase!==false||report.payoutVerified!==false||
+    report.roiPercent!==null||report.historicalBandsNotCalibrated!==true||
+    report.sourceIncompleteCouldChange!==true||
+    report.researchOnly!==true||report.privateOwnerOnly!==true||
+    !report.winnerBandCounts||
+    Object.keys(report.winnerBandCounts).sort().join(',')!==
+    Object.keys(weights).sort().join(','))
+  throw Error('85点の集計元が不正');
+ const sources=new Map(receipts.map(r=>[r.snapshot.track+'|'+r.snapshot.race,r.snapshot]));
+ if(sources.size!==receipts.length)throw Error('署名85点が重複');
+ const seen=new Set(),checked=[];let observed=0,studied=0,top=0;
+ for(const row of report.races){
+  const id=row?.track+'|'+row?.race,original=sources.get(id);
+  if(!original||seen.has(id)||row.scoredRunnerCount!==original.horses.length||
+     !['pending','podium_observed'].includes(row.providerStatus)||
+     row.studyGroupNotFormalRank!==true||
+     row.officialVerified!==false||row.predictionHitVerified!==null)
+    throw Error('85点結果が固定レースと一致しない');
+  seen.add(id);
+  if(row.providerStatus==='pending'){
+   if(row.observedPodiumNumbers!==null||row.studiedWinnerObserved!==null||
+      row.winnerStudyScore85!==null||row.winnerStudyBands!==null||
+      row.winnerStudyGroup!==null||row.winnerInTopStudyGroup!==null)
+    throw Error('保留なのに勝ち馬を採点');
+   checked.push(row);continue;
+  }
+  observed++;
+  if(report.providerSourceReadCount!==1||
+     !Array.isArray(row.observedPodiumNumbers)||
+     row.observedPodiumNumbers.length!==3||
+     row.observedPodiumNumbers.some(n=>!Number.isInteger(n)||n<1||n>18)||
+     new Set(row.observedPodiumNumbers).size!==3||
+     typeof row.studiedWinnerObserved!=='boolean')
+   throw Error('暫定結果が不正');
+  const horse=original.horses.find(h=>h.number===row.observedPodiumNumbers[0]);
+  if(row.studiedWinnerObserved!==Boolean(horse))
+   throw Error('1着馬と固定85点が不一致');
+  if(horse){
+   studied++;
+   const groups=[...new Set(original.horses.map(h=>h.rawThirdPoints))]
+    .sort((a,b)=>b-a);
+   const tier=groups.indexOf(horse.rawThirdPoints)+1;
+   if(row.winnerStudyScore85!==Math.round(horse.rawThirdPoints*100/3)/100||
+      !row.winnerStudyBands||
+      Object.keys(row.winnerStudyBands).sort().join(',')!==
+       Object.keys(weights).sort().join(',')||
+      Object.keys(weights).some(k=>row.winnerStudyBands[k]!==horse.bands[k])||
+      row.winnerStudyGroup!==tier||row.winnerInTopStudyGroup!==(tier===1))
+    throw Error('研究85点の点数・同点グループが不正');
+   if(tier===1)top++;
+   for(const k of Object.keys(weights))tally[k][horse.bands[k]]++;
+  }else if(row.winnerStudyScore85!==null||row.winnerStudyBands!==null||
+           row.winnerStudyGroup!==null||row.winnerInTopStudyGroup!==null)
+   throw Error('未評価の勝ち馬を採点');
+  checked.push(row);
+ }
+ if(seen.size!==receipts.length||observed!==report.observedRaceCount||
+    studied!==report.observedStudiedWinnerCount||
+    top!==report.observedTopGroupWinnerCount)
+  throw Error('対象85点レースの集計が不一致');
+ for(const k of Object.keys(weights)){
+  if(Object.keys(report.winnerBandCounts[k]||{}).sort().join(',')!=='A,B,C,S'||
+     Object.keys(tally[k]).some(g=>report.winnerBandCounts[k][g]!==tally[k][g]))
+   throw Error('85点要素別の集計不一致');
+ }
+ return checked;
+}
+$('autoFiveProviderCheck').onclick=async()=>{
+ const button=$('autoFiveProviderCheck'),day=$('autoDay').value.replaceAll('-','');
+ if(button.disabled)return;
+ const seq=++fiveProviderSeq;button.disabled=true;
+ $('autoFiveProviderRaces').replaceChildren();
+ $('autoFiveProviderStatus').textContent='固定済み研究85点とJRDB暫定着順を照合中…';
+ try{
+  const receipts=savedFiveDay(day).picked;
+  if(!receipts.length)throw Error('no_records');
+  const body=JSON.stringify({date:day,receipts});
+  if(body.length>250000)throw Error('request_too_large');
+  const res=await fetch('/api/owner-five-core-provider-check',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body
+  });
+  const report=await res.json();
+  if(seq!==fiveProviderSeq||day!==$('autoDay').value.replaceAll('-',''))return;
+  if(!res.ok)throw Error('provider_unavailable');
+  const checked=verifyFiveProviderReport(report,receipts,day);
+  const cards=[];
+  for(const row of checked){
+   const card=dom('details');
+   card.append(dom('summary',row.track+' '+row.race+'R｜'+
+    (row.providerStatus==='pending'?'暫定成績待ち':'JRDB暫定1〜3着観測')));
+   if(row.providerStatus==='pending'){
+    card.append(dom('p','暫定成績が欠損・未確定。予想外れ、低評価とは扱いません。','muted'));
+   }else{
+    card.append(dom('p','JRDB暫定1〜3着：'+row.observedPodiumNumbers.join('→')+
+     '（JRA公式未照合）','muted'));
+    if(row.studiedWinnerObserved){
+     card.append(dom('p','1着馬'+row.observedPodiumNumbers[0]+
+      '番｜固定研究値 '+row.winnerStudyScore85.toFixed(2)+
+      '/85・研究比較 '+row.winnerStudyGroup+
+      'グループ（同点並列、正式順位ではない）','muted'));
+     card.append(dom('p','調教 '+row.winnerStudyBands.training+
+      '／近走 '+row.winnerStudyBands.recent+
+      '／コース '+row.winnerStudyBands.course_distance+
+      '／展開 '+row.winnerStudyBands.pace+
+      '／馬場 '+row.winnerStudyBands.ground,'muted'));
+    }else card.append(dom('p','1着馬は固定85点の5項目が不足。未評価。','muted'));
+   }
+   cards.push(card);
+  }
+  $('autoFiveProviderRaces').replaceChildren(...cards);
+  $('autoFiveProviderStatus').textContent=
+   'JRDB暫定1〜3着観測 '+report.observedRaceCount+'/'+report.raceCount+
+   'R／勝ち馬に85点研究値あり '+report.observedStudiedWinnerCount+
+   'R／研究比較の最高同点グループ '+report.observedTopGroupWinnerCount+
+   'R（正式な予想成績ではない）。JRA公式結果・的中率・回収率未照合。'+
+   '固定値と3連単・購入記録は無変更。';
+ }catch(_){if(seq===fiveProviderSeq){
+  $('autoFiveProviderRaces').replaceChildren();
+  $('autoFiveProviderStatus').textContent=
+   '固定85点とJRDB暫定着順を安全に比較できませんでした。'+
+   '署名や成績を確認してください。固定記録は無変更。';
+ }}finally{
+  if(seq===fiveProviderSeq&&day===$('autoDay').value.replaceAll('-',''))
+   button.disabled=false;
+ }
+};
+
 $('autoCoreProviderCheck').onclick=async()=>{
  const button=$('autoCoreProviderCheck'),day=$('autoDay').value.replaceAll('-','');
  if(button.disabled)return;
