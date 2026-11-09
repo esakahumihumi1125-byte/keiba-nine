@@ -119,6 +119,27 @@ class FullTenFactorGateTests(unittest.TestCase):
             h["overallGrade"] for h in b["ranking"] if h["number"] == 1
         ), "S")
 
+    def test_s_grade_uses_exact_integer_boundary_not_rounded_display(self):
+        # 30+12+3 S->A loses 45 raw third-points: 85.00 / 100.
+        at = fixture()
+        for factor in ("training", "ground", "draw_weight"):
+            at["horses"][0]["assessments"][factor]["grade"] = "A"
+        at_result = full_ten_factor_preview(at, now=NOW)
+        at_first = next(h for h in at_result["ranking"] if h["number"] == 1)
+        self.assertEqual(at_first["weightedPoints"], 255)
+        self.assertEqual(at_first["score100"], 85.0)
+        self.assertEqual(at_first["overallGrade"], "S")
+        # The additional 1-point rotation reduction makes 84.67, an A.
+        below = copy.deepcopy(at)
+        below["horses"][0]["assessments"]["rotation"]["grade"] = "A"
+        below_result = full_ten_factor_preview(below, now=NOW)
+        below_first = next(h for h in below_result["ranking"]
+                           if h["number"] == 1)
+        self.assertEqual(below_first["weightedPoints"], 254)
+        self.assertEqual(below_first["score100"], 84.67)
+        self.assertEqual(below_first["overallGrade"], "A")
+        self.assertEqual(below_first["factorContributions"]["rotation"]["earned100"], 0.67)
+
     def test_no_partial_score_ledger_when_evidence_is_missing(self):
         source = fixture()
         del source["horses"][0]["assessments"]["body_condition"]
