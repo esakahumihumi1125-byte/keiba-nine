@@ -1,6 +1,7 @@
 name: Owner Render deploy after private checks
-# Optional fallback: requires a private GitHub Actions repository secret.
-# Without RENDER_DEPLOY_HOOK_URL this workflow is inert and never deploys.
+# Two independent fallback hooks: the public preview can fail without blocking
+# the private JRDB service, and vice versa. Both need a separately configured
+# GitHub Actions secret; neither can read the other's URL.
 on:
   workflow_run:
     workflows: ["Private service checks"]
@@ -12,7 +13,7 @@ concurrency:
   group: keiba-nine-owner-render-after-checks
   cancel-in-progress: false
 jobs:
-  deploy:
+  deploy-preview:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -21,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Only trigger a deploy when the most recent main commit passed
+      - name: Trigger preview only if this exact main SHA passed
         env:
           GH_TOKEN: ${{ github.token }}
           PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -29,25 +30,29 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]]; then
-            echo '### Render deployment: NOT STARTED' >> "$GITHUB_STEP_SUMMARY"
-            echo 'The private RENDER_DEPLOY_HOOK_URL repository secret is not configured. This green workflow run does not mean Render was updated.' >> "$GITHUB_STEP_SUMMARY"
-            echo 'RENDER_DEPLOY_HOOK_URL is not configured: deploy safely skipped.'
+            echo '### Preview: SKIPPED (no private deploy hook)' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Preview deploy hook not configured; no deploy requested.'
             exit 0
           fi
-          # Never deploy when a newer commit has been pushed but not yet tested.
           LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
           if [[ "$LATEST" != "$PASSED_SHA" ]]; then
-            echo 'Tested SHA is not current main: skip obsolete deployment.'
+            echo '### Preview: SKIPPED (superseded commit)' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          # The URL contains a secret key: do not print or persist it.
-          # Trigger latest branch deployment without a ref (ref would disable native auto deploy).
+          # Never print or persist the credential-bearing hook URL.
           curl --fail --silent --show-error --max-time 25 --request POST \
             --output /dev/null "$RENDER_DEPLOY_HOOK_URL"
-          echo 'Render deploy hook accepted the request; live status must still be checked.'
-          echo '### Render deployment: REQUEST SENT' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Deploy hook request was accepted, but Render must still report the expected commit as live.' >> "$GITHUB_STEP_SUMMARY"
-      - name: Deploy JRDB owner service after checks (optional separate hook)
+          echo '### Preview: DEPLOY REQUEST SENT (verify Live SHA separately)' >> "$GITHUB_STEP_SUMMARY"
+  deploy-jrdb:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger private JRDB owner service only if this exact main SHA passed
         env:
           GH_TOKEN: ${{ github.token }}
           PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -55,15 +60,16 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${RENDER_JRDB_DEPLOY_HOOK_URL:-}" ]]; then
-            echo 'JRDB owner deploy hook not configured: deployment safely skipped.' >> "$GITHUB_STEP_SUMMARY"
+            echo '### JRDB owner: SKIPPED (no private deploy hook)' >> "$GITHUB_STEP_SUMMARY"
+            echo 'JRDB owner deploy hook not configured; no deploy requested.'
             exit 0
           fi
           LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
           if [[ "$LATEST" != "$PASSED_SHA" ]]; then
-            echo 'JRDB owner deployment skipped: a newer main revision exists.'
+            echo '### JRDB owner: SKIPPED (superseded commit)' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          # The hook is secret: never echo it or send credentials to Github Pages.
+          # Never print the hook, keys, race data, or private account details.
           curl --fail --silent --show-error --max-time 25 --request POST \
             --output /dev/null "$RENDER_JRDB_DEPLOY_HOOK_URL"
-          echo 'JRDB owner deploy hook accepted; confirm matching SHA is live on Render.' >> "$GITHUB_STEP_SUMMARY"
+          echo '### JRDB owner: DEPLOY REQUEST SENT (verify Live SHA separately)' >> "$GITHUB_STEP_SUMMARY"
