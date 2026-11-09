@@ -37,7 +37,7 @@ def payload(track="東京", race=1, status="settled"):
         "schema": SCHEMA,
         "date": DAY, "track": track, "race": race,
         "sourceUrl": "https://www.jra.go.jp/JRADB/accessS.html?"
-                     "CNAME=pw01sde0101209901010120990412%2FAB",
+                     "CNAME=pw01sde0105209901010120990412%2FAB",
         "sourceCollectedAt": "2099-04-12T11:25:00+09:00",
         "finalizedAt": "2099-04-12T11:00:00+09:00",
         "status": status,
