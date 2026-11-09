@@ -704,6 +704,56 @@ function withRemaining21(report){
  };
  return report;
 }
+function withResearch6Uncertainty(report){
+ withRemaining21(report);
+ const w={training:30,recent:3,course_distance:17,pace:17,ground:12,
+  pedigree:6,draw_weight:3,jockey_stable:10,rotation:1,body_condition:1},
+  five=['training','course_distance','pace','ground','recent'],
+  pts={S:3,A:2,B:1,C:0};
+ const races=report.newWeightFiveResearch.races.map(r=>{
+  const horses=r.horses.map(h=>{
+   const missing=five.filter(k=>h.bands[k]==='未評価');
+   const unresolved=21+missing.reduce((sum,k)=>sum+w[k],0),
+    lower=five.reduce((sum,k)=>sum+
+     (h.bands[k]==='未評価'?0:w[k]*pts[h.bands[k]]),0);
+   return {
+    number:h.number,observedHypothesisFactors:5-missing.length,
+    unassessedFiveFactors:missing,unassessedTotalWeight:unresolved,
+    jockeyStableStillUnassessedWeight:10,otherUnassessedWeight:unresolved-10,
+    lowerResearchRawThirdPoints:lower,
+    upperResearchRawThirdPoints:lower+3*unresolved,
+    lowerResearchBound:Math.round(lower*100/3)/100,
+    upperResearchBound:Math.round((lower+3*unresolved)*100/3)/100,
+    formalScore100:null,formalGrade:'未評価',formalRank:null,
+    scoreIsCalibrated:false,bettingReady:false
+   };
+  });
+  for(const h of horses){
+   h.arithmeticallyAbove=horses.filter(x=>x.number!==h.number&&
+    h.lowerResearchRawThirdPoints>x.upperResearchRawThirdPoints)
+    .map(x=>x.number);
+   h.researchPossibleBestRank=1+horses.filter(x=>x.number!==h.number&&
+    x.lowerResearchRawThirdPoints>h.upperResearchRawThirdPoints).length;
+   h.researchPossibleWorstRank=1+horses.filter(x=>x.number!==h.number&&
+    x.upperResearchRawThirdPoints>=h.lowerResearchRawThirdPoints).length;
+  }
+  return {track:r.track,race:r.race,runnerCount:horses.length,
+   horses,strictAdvantagePairCount:horses.reduce((sum,h)=>
+    sum+h.arithmeticallyAbove.length,0),
+   researchOnly:true,formalRankReady:false,trifectaReady:false};
+ });
+ report.research6Uncertainty={
+  version:'owner-research6-uncertainty-intervals-1',
+  policyVersion:'research-6',raceCount:races.length,races,
+  factorWeights:w,observedFactorWeightCeiling:79,alwaysUnassessedWeight:21,
+  jockeyStableUnassessedWeight:10,verifiedFactorCount:0,
+  formalScoreReady:false,officialJraVerified:false,bettingReady:false,
+  autoPurchase:false,researchOnly:true,privateOwnerOnly:true,
+  extraProviderCalls:0,changesExistingReceipts:false,
+  changesExistingTickets:false,changesExistingRoi:false
+ };
+ return report;
+}
 function withPedigreePreflight(report){
  withFiveCore(report);
  const inv=report.tenFactorSourceInventory;
@@ -1564,6 +1614,42 @@ function boot(){
   assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
   assert.equal(a.storage.get(STORAGE),oldRecord);
   assert.equal(a.storage.get(FIVE_STORAGE),old85);
+ }
+ // Research-6 mathematical intervals are not full 100-point grades.
+ const beforeInterval=a.requests.length,old85Interval=a.storage.get(FIVE_STORAGE);
+ a.setHistorical(withResearch6Uncertainty(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const intervalCard=a.get('autoHistoryAuditRaces').children[0];
+ const intervalPanel=intervalCard.children.find(x=>x.tag==='details'&&
+  /新配点100点・未評価項目による順位変動シミュレーション/.test(
+   x.children[0]?.textContent||''));
+ assert.ok(intervalPanel);
+ assert.match(intervalPanel.children[1].textContent,/騎手・厩舎だけで10点/);
+ assert.match(intervalPanel.children[1].textContent,/正式100点の採点・勝率・予想順位・買い目ではありません/);
+ assert.match(intervalPanel.children[3].textContent,/1番｜研究用の100点仮定幅/);
+ assert.match(intervalPanel.children[3].textContent,/騎手厩舎10点含む/);
+ assert.match(intervalPanel.children[3].textContent,/正式評価：未評価/);
+ assert.equal(a.requests.slice(beforeInterval).filter(x=>
+  x.url==='/api/jrdb/history').length,1);
+ assert.equal(a.storage.get(FIVE_STORAGE),old85Interval);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ for(const mutate of [
+  h=>h.research6Uncertainty.factorWeights.jockey_stable=2,
+  h=>h.research6Uncertainty.races[0].horses[0].lowerResearchBound=100,
+  h=>h.research6Uncertainty.races[0].horses[0].upperResearchRawThirdPoints=300,
+  h=>h.research6Uncertainty.races[0].horses[0].formalScore100=95,
+  h=>h.research6Uncertainty.races[0].horses[0].formalGrade='S',
+  h=>h.research6Uncertainty.races[0].horses[0].researchPossibleBestRank=0,
+  h=>h.research6Uncertainty.races[0].strictAdvantagePairCount=99,
+  h=>h.research6Uncertainty.officialJraVerified=true,
+ ]){
+  const invalid=withResearch6Uncertainty(historical());mutate(invalid);
+  a.setHistorical(invalid);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+  assert.equal(a.storage.get(FIVE_STORAGE),old85Interval);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
  }
  // Supporting six-weight factors: source fields are not real six points.
  const beforeSix=a.requests.length;
