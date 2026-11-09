@@ -36,6 +36,7 @@ from jrdb_ten_factor_source_inventory import ten_factor_source_inventory
 from owner_three_core_research import three_core_research
 from owner_four_core_research import four_core_research
 from owner_five_core_research import five_core_research
+from owner_pedigree_evidence_preflight import pedigree_evidence_preflight
 
 VERSION = "bounded-history-1"
 MAX_LOOKUPS_PER_RUN = 12
@@ -254,6 +255,7 @@ def run_bounded_history_audit(programme, entries, previous,
             five_factor_view, ten_source_inventory,
             three_core_view, four_core_view
         )
+        pedigree_preflight = pedigree_evidence_preflight(ten_source_inventory)
         all_factor_materials = combine_ten_factor_observations(
             course_matrix, personnel_matrix
         )
@@ -326,6 +328,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "threeCoreResearch": three_core_view,
         "fourCoreResearch": four_core_view,
         "fiveCoreResearch": five_core_view,
+        "pedigreeEvidencePreflight": pedigree_preflight,
         "reboundContextReview": rebound_review,
         "allTenFactorSources": all_factor_materials,
         "realAssessmentPreflight": readiness_preflight,

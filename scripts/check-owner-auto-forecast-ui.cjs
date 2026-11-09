@@ -573,6 +573,36 @@ function withFiveCore(report){
  };
  return report;
 }
+function withPedigreePreflight(report){
+ withFiveCore(report);
+ const inv=report.tenFactorSourceInventory;
+ const races=inv.races.map(race=>{
+  const horses=race.runners.map(h=>{
+   const parentageComplete=h.sourceStates.pedigree==='complete_fields_observed';
+   const missingEvidence=(parentageComplete?[]:['parentage_fields_incomplete'])
+    .concat(['independent_condition_matched_cohort_unavailable',
+     'temporal_holdout_not_validated']);
+   return {number:h.number,parentageSourceState:h.sourceStates.pedigree,
+    parentageComplete,independentCohortValidated:false,
+    conditionMatched:false,outOfTimeCalibrated:false,missingEvidence,
+    grade:'未評価',score8:null,bettingReady:false};
+  });
+  return {track:race.track,race:race.race,runnerCount:race.runnerCount,
+   parentageCompleteCount:horses.filter(h=>h.parentageComplete).length,
+   independentCohortValidatedCount:0,verifiedPedigreeGrades:0,
+   horses,pedigreeScoreReady:false};
+ });
+ report.pedigreeEvidencePreflight={
+  version:'owner-pedigree-evidence-preflight-1',policyVersion:'research-5',
+  factor:'pedigree',weight:8,raceCount:races.length,races,
+  pedigreeGradesVerified:0,independentCohortAvailable:false,
+  temporalValidationComplete:false,researchOnly:true,privateOwnerOnly:true,
+  officialJraVerified:false,overallPredictionReady:false,
+  bettingReady:false,autoPurchase:false,changesExistingTickets:false,
+  changesExistingReceipts:false
+ };
+ return report;
+}
 function prestart(){
  return {
   version:'private-prestart-body-1',date:day,raceCount:1,
@@ -1091,6 +1121,35 @@ function boot(){
  assert.match(remainingPanel.children.at(-1).textContent,
   /能力点・予想スコア・S\/A\/B\/Cではありません/);
 
+ // Parentage completeness is not a validated eight-weight performance grade.
+ const pedigreeBefore=a.requests.length;
+ a.setHistorical(withPedigreePreflight(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const pedigreePanel=a.get('autoHistoryAuditRaces').children[0].children.find(
+  x=>x.tag==='details'&&/血統8点の採点準備/.test(
+   x.children[0]?.textContent||''));
+ assert.ok(pedigreePanel);
+ assert.match(pedigreePanel.children[1].textContent,/血統S\/A\/B\/Cも8点の実得点も付けません/);
+ assert.match(pedigreePanel.children[2].textContent,/血統の能力評価まで確認できた馬 0\/7頭/);
+ assert.match(pedigreePanel.children[3].textContent,/1番｜父・母父 両方あり.*血統8点 未評価/);
+ assert.equal(a.requests.slice(pedigreeBefore).filter(
+  r=>r.url==='/api/jrdb/history').length,1);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ assert.equal(a.storage.get(CORE_STORAGE),coreBeforeFive);
+ for(const mutate of [
+  h=>h.pedigreeEvidencePreflight.races[0].horses[0].score8=8,
+  h=>h.pedigreeEvidencePreflight.races[0].horses[0].grade='S',
+  h=>h.pedigreeEvidencePreflight.independentCohortAvailable=true,
+  h=>h.pedigreeEvidencePreflight.races[0].parentageCompleteCount=7,
+  h=>h.pedigreeEvidencePreflight.races[0].horses[0].missingEvidence=[],
+ ]){
+  const invalid=withPedigreePreflight(historical());mutate(invalid);
+  a.setHistorical(invalid);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+ }
  const fiveCalls=a.requests.slice(beforeFive);
  assert.equal(fiveCalls.filter(x=>x.url==='/api/jrdb/history').length,1);
  assert.equal(fiveCalls.filter(x=>x.url.startsWith('/api/jrdb/owner-auto-draft?')).length,0);
