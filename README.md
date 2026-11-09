@@ -12,6 +12,7 @@
 - [本人用10項目の資料確認・直前馬体重の件数チェック（2026-11-09）](docs/owner-ten-factor-source-inventory.md)
 - [JRDB本人用の自動更新：iPhoneで最初の1回だけ行う設定](docs/jrdb-owner-automatic-deploy-once.md)
 - [本人用予想のサーバー永続保存：安全な有効化・保存済み記録の読み取り](docs/owner-postgres-archive-activation.md)
+- [11月14日（土）本人用アプリの利用手順・停止条件](docs/owner-saturday-2026-11-14.md)
 - [本人認証付き接続サービスの実装と設定](docs/private-service.md)
 - [本人用サーバーの設置準備](docs/private-deployment.md)
 - [iPhoneだけで作る本人用・架空データ画面（Render Free・任意）](docs/render-iphone-preview.md)
