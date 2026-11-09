@@ -124,7 +124,7 @@ class FiveCoreResearchTests(unittest.TestCase):
     def test_promotion_tamper_previous_study_or_recent_roster_mismatch(self):
         mutators = (
             lambda f, i, t, q: i["races"][0]["runners"][0][
-                "provisionalBands"].update(recent="未評価"),
+                "provisionalBands"].update(recent="UNTRUSTED"),
             lambda f, i, t, q: q["races"][0]["horses"][0].update(
                 rawThirdPoints=255),
             lambda f, i, t, q: q.update(officialJraVerified=True),
@@ -134,8 +134,8 @@ class FiveCoreResearchTests(unittest.TestCase):
             lambda f, i, t, q: f["races"][0]["runners"][0].update(
                 actualGradesVerified=1),
         )
-        for mutate in mutators:
-            with self.subTest(mutate=repr(mutate)):
+        for index, mutate in enumerate(mutators):
+            with self.subTest(case=index):
                 five, inventory, three, four = sources()
                 mutate(five, inventory, three, four)
                 with self.assertRaises(CoverageError):
