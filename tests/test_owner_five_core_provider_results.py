@@ -77,6 +77,7 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
                             for r in result["races"]))
         for broken in (
             complete()[:2],
+            [row(horse="01", finish="withdrawn")],
             complete() + [row(horse="01", finish="04")],
             [row(horse="01", finish="01"),
              row(horse="02", finish="01"),
@@ -96,7 +97,6 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
             [row(horse="19")],
             [row(race="13")],
             [row(racedate="20990413")],
-            [row(finish="withdrawn")],
         ):
             with self.subTest(bad=bad), self.assertRaises(FiveCoreReceiptError):
                 compare_five_core_provider_results(
@@ -116,7 +116,10 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
     def test_private_route_one_result_request_only_and_no_user_supplied_results(self):
         originals, receipts = signed()
         app = create_app({**SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY": "1",
-                          "KEIBA_RENDER_PREVIEW_ONLY": "0"})
+                          "KEIBA_RENDER_PREVIEW_ONLY": "0",
+                          "JRDB_PRIVATE_ENABLED": "1",
+                          "JRDB_API_KEY": "synthetic",
+                          "JRDB_AUTH_KEY": "synthetic"})
         with patch("private_service._now_in_jst",
                    return_value="2099-04-12T23:00:00+09:00"), patch(
                     "private_service.fetch_finished_race_results",
