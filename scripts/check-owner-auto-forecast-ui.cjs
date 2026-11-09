@@ -392,7 +392,8 @@ function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
  let next=resultWith('a'.repeat(64)),historicalResponse=historical(),
   historyOk=true,providerCorrupt=false,holdFetch=null,
-  prestartResponse=prestart(),prestartOk=true;
+  prestartResponse=prestart(),prestartOk=true,
+  configured=true,connectionOK=true,connectionCount=1;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -418,6 +419,16 @@ function boot(){
   requests.push({url,options});
   const pause=holdFetch;holdFetch=null;
   if(pause)await pause;
+  if(url==='/api/setup')return {ok:true,json:async()=>({
+   jrdbConfigured:configured,liveConnectionVerified:false,
+   realPredictionEnabled:false,prestartBodyEnabled:false
+  })};
+  if(url.startsWith('/api/jrdb/connection-test?'))return {
+   ok:connectionOK,json:async()=>({
+    date:day,connectionVerified:true,predictionReady:false,
+    providerDataStored:false,programmeCount:connectionCount
+   })
+  };
   if(url==='/api/jrdb/history')
    return {ok:historyOk,json:async()=>structuredClone(historicalResponse)};
   if(url.startsWith('/api/jrdb/prestart-body?'))
@@ -475,6 +486,8 @@ function boot(){
   setServerRaw:x=>next=x,
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
+  setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
+  setConnectionCount:x=>connectionCount=x,
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
@@ -486,6 +499,40 @@ function boot(){
  assert.equal(a.requests.length,1);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
+ // JRDB connection probe is a deliberate, independently limited action.
+ assert.equal(a.requests.filter(r=>r.url==='/api/setup').length,0);
+ assert.equal(a.requests.filter(r=>
+  r.url.startsWith('/api/jrdb/connection-test?')).length,0);
+ const receiptBeforeConnection=a.storage.get(STORAGE);
+ await a.get('autoConnectionCheck').onclick();
+ assert.equal(a.requests.filter(r=>r.url==='/api/setup').length,1);
+ const sourceChecks=a.requests.filter(r=>
+  r.url.startsWith('/api/jrdb/connection-test?'));
+ assert.equal(sourceChecks.length,1);
+ assert.equal(sourceChecks[0].url,'/api/jrdb/connection-test?date='+day);
+ assert.equal(sourceChecks[0].options.credentials,'same-origin');
+ assert.match(a.get('autoConnectionStatus').textContent,/接続成功：1R/);
+ assert.equal(a.storage.get(STORAGE),receiptBeforeConnection);
+ a.setConfigured(false);
+ await a.get('autoConnectionCheck').onclick();
+ assert.equal(a.requests.filter(r=>
+  r.url.startsWith('/api/jrdb/connection-test?')).length,1);
+ assert.match(a.get('autoConnectionStatus').textContent,/設定が未完了/);
+ a.setConfigured(true);
+ a.setConnectionOK(false);
+ await a.get('autoConnectionCheck').onclick();
+ assert.match(a.get('autoConnectionStatus').textContent,/接続確認ができません/);
+ a.setConnectionOK(true);
+ a.setConnectionCount(0);
+ await a.get('autoConnectionCheck').onclick();
+ assert.match(a.get('autoConnectionStatus').textContent,/開催レース0件/);
+ const requestsBeforeWrongDate=a.requests.length;
+ a.get('autoDay').value='2099-02-31';
+ await a.get('autoConnectionCheck').onclick();
+ assert.equal(a.requests.length,requestsBeforeWrongDate);
+ assert.match(a.get('autoConnectionStatus').textContent,/正しく選択/);
+ a.get('autoDay').value=date;
+ assert.equal(a.storage.get(STORAGE),receiptBeforeConnection);
  // No paid body source read until an explicit owner click.
  assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?')).length,0);
  const beforeBody=a.storage.get(STORAGE);
