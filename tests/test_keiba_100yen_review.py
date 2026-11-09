@@ -144,6 +144,50 @@ class HypotheticalReviewTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ReviewInputError):
                 review_100yen([p], [r])
 
+    def test_miss_reason_identifies_uncovered_finishing_slot(self):
+        scenarios = (
+            ([1, 2, 3], "trifecta_hit"),
+            ([3, 1, 2], "winner_wrong_slot"),
+            ([4, 2, 3], "winner_not_selected"),
+            ([1, 3, 2], "second_wrong_slot"),
+            ([1, 4, 3], "second_not_selected"),
+            ([1, 2, 4], "third_not_selected"),
+        )
+        for finish, expected in scenarios:
+            with self.subTest(finish=finish):
+                outcome_row = outcome()
+                outcome_row["finish"] = finish
+                result = review_100yen([snapshot()], [outcome_row])
+                self.assertEqual(result["races"][0]["trifectaMissReason"], expected)
+                self.assertEqual(result["trifectaMissReasons"][expected], 1)
+                self.assertEqual(
+                    result["venueBreakdown"][0]["trifectaMissReasons"][expected], 1
+                )
+                self.assertEqual(sum(result["trifectaMissReasons"].values()), 1)
+
+    def test_no_exact_combination_despite_each_place_covered(self):
+        prediction = snapshot()
+        prediction["trifectaTickets"] = [[1, 2, 4], [2, 3, 5]]
+        prediction["trioTickets"] = []
+        result_row = outcome()
+        result_row["finish"] = [1, 3, 5]
+        result = review_100yen([prediction], [result_row])
+        self.assertEqual(result["races"][0]["trifectaMissReason"],
+                         "combination_missing")
+        self.assertFalse(result["races"][0]["hitTrifecta"])
+
+    def test_pending_and_trio_only_have_no_false_miss_reason(self):
+        prediction = snapshot()
+        pending = review_100yen([prediction], [])
+        self.assertIsNone(pending["races"][0]["trifectaMissReason"])
+        self.assertEqual(sum(pending["trifectaMissReasons"].values()), 0)
+        trio = snapshot()
+        trio["trifectaTickets"] = []
+        report = review_100yen([trio], [outcome()])
+        self.assertIsNone(report["races"][0]["trifectaMissReason"])
+        self.assertEqual(sum(report["trifectaMissReasons"].values()), 0)
+        self.assertTrue(report["races"][0]["hitTrio"])
+
     def test_duplicate_race_or_invalid_tickets_fail_closed(self):
         p = snapshot()
         with self.assertRaises(ReviewInputError):
