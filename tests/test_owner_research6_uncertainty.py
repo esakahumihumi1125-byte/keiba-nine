@@ -7,7 +7,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from jrdb_coverage import CoverageError
 from owner_research6_uncertainty import research6_uncertainty_intervals
-from test_owner_remaining21_source_gaps import original
+from test_jrdb_history_pipeline import run_case, context
+
+
+def original():
+    report = run_case(context())
+    return report["newWeightFiveResearch"], report["remaining21SourceGaps"]
 
 
 class Research6UncertaintyTests(unittest.TestCase):
