@@ -551,6 +551,34 @@ function summarizeDaySourcePassport(a, expectedCount){
   'R／追加資料の件数照合 '+observed+
   'R。正式採点0/10・JRA公式独立照合なし。買い目は変更しません。';
 }
+function sourceNextChecks(row){
+ // Data-presence triage, not a factor score, medical-style "risk" score,
+ // win probability, prediction ranking or purchase recommendation.
+ const items=[],total=row.programmeRunnerCount;
+ const lacks=(have,label)=>{
+  if(Number.isInteger(total)&&total>0&&have<total)
+   items.push(label+' '+(total-have)+'頭を確認');
+ };
+ // Zero in a held post-off race may be a deliberately hidden roster.
+ if(row.draftStatus==='provisional_draft'){
+  lacks(row.provisionalTrainingCount,'調教の仮評価不足');
+  lacks(row.provisionalRecentCount,'近走の仮評価不足');
+ }
+ if(!row.courseContextPresent)items.push('コース・距離の番組情報を確認');
+ if(!row.goingContextPresent)items.push('当日の馬場情報を確認');
+ if(!row.sourceMaterialsObserved){
+  items.push('血統・枠斤量・騎手厩舎・ローテの元資料を確認');
+ }else if(row.draftStatus==='provisional_draft'){
+  const fields=[['pedigree','父・母父'],['drawWeight','枠・負担重量'],
+   ['rotation','前走間隔'],['personnel','騎手・厩舎'],['pastCorner','過去4角']];
+  for(const [key,label] of fields)lacks(row.additionalFieldCounts[key],label+'の記録不足');
+ }
+ // Body "count" in /tky is conformation, never an actual weigh-in.
+ items.push('当日馬体重の確認（形状コードは代用不可）');
+ items.push('各項目の適性・展開・能力の根拠に基づく採点');
+ items.push('JRA公式の出走馬・取消・馬場・発走時刻を独立照合');
+ return items;
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
@@ -637,6 +665,11 @@ function render(input,day){
     TEN.filter(([key])=>row.unassessedFactorKeys.includes(key))
      .map(([,label,weight])=>label+weight+'点').join('／')+
     '。資料の記録数だけでS/A/B/Cの評価はできません。','muted'));
+   const next=dom('details',undefined,'source-next');
+   next.append(dom('summary','次に確認する資料（買い目は変えない）'));
+   for(const text of sourceNextChecks(row))
+    next.append(dom('p','・'+text,'muted'));
+   panel.append(next);
    panel.append(dom('p','JRA公式出走馬・取消・馬場・発走時刻の独立確認：未接続。'+
     '総合評価・確定予想・購入は未実施。過去資料は下の任意照合で確認できます。','muted'));
    detail.append(panel);
