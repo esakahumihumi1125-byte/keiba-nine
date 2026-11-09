@@ -1724,8 +1724,10 @@ def create_app(settings=None):
                 return response('502 Bad Gateway', {'error': 'JRA公式PDF一覧へ接続・解析できませんでした。後ほどJRA公式ページで確認してください。'})
             return response('200 OK', result)
         if method == 'GET' and path == '/api/jrdb/connection-test':
-            # Owner-initiated single /tra request. No paid data is returned,
-            # stored, logged, shared with Pages or interpreted as a forecast.
+            # Owner-initiated single /tra request. No paid ROWS or dates are
+            # returned to logs, stored, shared with Pages or used to predict.
+            # Log only fixed outcome codes so connection can be checked in
+            # private Render logs without revealing any provider material.
             configured = (settings.get('JRDB_PRIVATE_ENABLED') == '1'
                           and settings.get('GITHUB_ACTIONS') != 'true'
                           and approved_api_base(settings.get('JRDB_API_BASE_URL', ''))
@@ -1752,10 +1754,20 @@ def create_app(settings=None):
                     hint = 'JRDBの通信回数制限です。再試行の間隔を空けてください。'
                 else:
                     hint = 'JRDBとの通信に失敗しました。接続先やβ版アカウントを確認してください。'
+                code = ('auth' if 'HTTP 401' in message else
+                        'entitlement' if 'HTTP 403' in message else
+                        'rate_limit' if 'HTTP 429' in message else 'network_or_response')
+                logging.warning('KEIBA_JRDB_CONNECTION_TEST status=failed kind=%s', code)
                 return response('502 Bad Gateway', {'error': hint})
             except (ProgrammeFormatError, ValueError, TypeError):
+                logging.warning('KEIBA_JRDB_CONNECTION_TEST status=invalid_programme')
                 return response('502 Bad Gateway', {
                     'error': 'JRDBからの番組形式または開催日が一致しません。β版の仕様を確認してください。'})
+            # No query day, API keys, paid rows or exact source counts in logs.
+            logging.warning(
+                'KEIBA_JRDB_CONNECTION_TEST status=connected programme=%s',
+                'present' if programme else 'empty',
+            )
             return response('200 OK', {
                 'date': date, 'connectionVerified': True,
                 'programmeCount': len(programme),
