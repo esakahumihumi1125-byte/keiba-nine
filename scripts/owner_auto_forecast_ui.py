@@ -55,6 +55,13 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <button id="autoHistoryAudit" type="button" disabled>過去の同条件を最大8件照合する</button>
 <p class="muted">発走前に照合した巻き返し候補は署名を検証し、iPhone内に最初の候補を固定します。事後の再分析で候補を上書きしません。これは公式結果や馬券購入の証明ではありません。</p>
 <p id="autoHistoryWatchSave" class="muted" role="status">発走前の候補記録は未確認。</p>
+<details><summary>発走前に固定した重点3項目70点の研究記録</summary>
+<p class="muted">調教30・コース距離20・展開20の<b>未検証の研究値</b>を、発走前に本人用サーバーが署名した場合だけiPhoneに初回固定します。これは正式な100点予想・勝率・3連単・JRA公式結果ではありません。発走後の後付け採点や再分析による上書きはしません。</p>
+<p id="autoCoreSaveStatus" class="muted" role="status">まだ研究用70点の署名付き固定記録は確認していません。</p>
+<button id="autoCoreVerify" type="button">この日の70点研究記録の署名を確認</button>
+<p id="autoCoreVerifyStatus" class="muted" role="status">未確認。署名の検証だけで成績や回収率は集計しません。</p>
+<div id="autoCoreSaved"></div>
+</details>
 <button id="autoWatchResultCheck" type="button" disabled>固定した巻き返し候補とJRDB成績を参考照合</button>
 <p class="muted">署名済み候補がこのiPhoneにある開催日だけ利用できます。押した時のみJRDBの成績を1回取得。
 JRDBはJRA公式から独立した結果確認ではないので、表示は暫定値です。公式的中・回収率に加算しません。</p>
@@ -1060,13 +1067,18 @@ function saveAutoReceipts(data,day){
 }
 
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
+const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
- officialPdfSeq=0,
+ officialPdfSeq=0,coreVerifySeq=0,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
+ coreVerifySeq++;
+ $('autoCoreVerify').disabled=false;
+ $('autoCoreVerifyStatus').textContent='署名は未確認。研究値は正式100点ではありません。';
+ showSavedCore($('autoDay').value.replaceAll('-',''));
  officialPdfSeq++;
  $('autoOfficialPdf').disabled=false;
  $('autoOfficialPdfStatus').textContent='公式PDFリンクは未確認。出馬表の内容を自動照合していません。';
@@ -1096,6 +1108,158 @@ function clearHistory(){
  $('autoWatchResultRaces').replaceChildren();
  $('autoWatchResultStatus').textContent='発走前の固定候補がありません。';
  refreshWatchResultsAvailability();
+}
+// Signed pre-off, owner-only observations, not prediction purchases.
+// Use immutable first write per race and NEVER overwrite on recomputation.
+function savedCoreDay(day){
+ if(!/^20[0-9]{6}$/.test(day))throw Error('研究記録の日付が不正');
+ const raw=localStorage.getItem(CORE_STORAGE);
+ if(raw&&raw.length>1800000)throw Error('研究記録が大きすぎます');
+ const all=JSON.parse(raw||'[]');
+ if(!Array.isArray(all)||all.length>360)throw Error('研究記録の保存形式が不正');
+ const seen=new Set(),selected=[];
+ for(const item of all){
+  const p=item?.snapshot;
+  if(!p||typeof item.signature!=='string'||!/^[a-f0-9]{64}$/.test(item.signature)||
+     p.version!=='owner-three-core-receipt-1'||
+     p.sourceKind!=='prestart-uncalibrated-70-research'||
+     p.researchOnly!==true||p.officialJraVerified!==false||
+     p.sourceHypothesesUncalibrated!==true||
+     p.actualPurchase!==false||p.predictionReady!==false||
+     !Number.isInteger(p.race)||p.race<1||p.race>12||
+     typeof p.track!=='string'||typeof p.date!=='string'||
+     !Array.isArray(p.horses)||p.horses.length<1||p.horses.length>18||
+     p.observedRunnerCount!==p.horses.length||
+     !Number.isInteger(p.raceRunnerCount)||p.raceRunnerCount<p.horses.length||
+     p.raceRunnerCount>18)
+    throw Error('保存済みの70点研究記録が不正');
+  const key=p.date+'|'+p.track+'|'+p.race;
+  if(seen.has(key))throw Error('研究記録に重複あり');
+  seen.add(key);
+  if(p.date===day)selected.push(item);
+ }
+ if(selected.length>36)throw Error('開催日の研究記録が多すぎます');
+ return selected;
+}
+function showSavedCore(day){
+ $('autoCoreSaved').replaceChildren();
+ try{
+  const records=savedCoreDay(day);
+  $('autoCoreSaveStatus').textContent=records.length
+   ?'端末に初回固定した70点研究値 '+records.length+
+     'R。現在の署名は未検証。3連単・正式回収率には含めません。'
+   :'この日の固定済み70点研究記録はありません。発走後に新しい研究値は作りません。';
+  for(const row of records){
+   const p=row.snapshot,card=dom('details');
+   card.append(dom('summary',p.track+' '+p.race+'R｜研究用70点・'+p.horses.length+'頭分'),
+    dom('p','固定 '+p.capturedAt+'／JRDB暫定発走 '+p.scheduledOffAt+
+     '。公式出走確認・成績未照合。','muted'));
+   for(const horse of p.horses){
+    card.append(dom('p',horse.number+'番｜調教 '+horse.bands.training+
+     '・コース '+horse.bands.course_distance+'・展開 '+horse.bands.pace+
+     '｜研究値 '+(horse.rawThirdPoints/3).toFixed(2)+'/70点','muted'));
+   }
+   $('autoCoreSaved').append(card);
+  }
+ }catch(_){
+  $('autoCoreSaveStatus').textContent=
+   '保存済み70点研究記録を確認できません。元データを削除・上書きせずバックアップを確保してください。';
+ }
+}
+function validateCoreCapture(capture,rows,day){
+ if(!capture||capture.version!=='owner-three-core-receipt-1'||
+    capture.date!==day||capture.serverSigned!==true||
+    capture.researchOnly!==true||capture.privateOwnerOnly!==true||
+    capture.jraScheduleVerified!==false||
+    capture.officialResultsVerified!==false||
+    capture.calibrationReady!==false||capture.bettingReady!==false||
+    capture.actualPurchase!==false||
+    !Number.isInteger(capture.receiptCount)||
+    capture.receiptCount<0||capture.receiptCount>36||
+    !Number.isInteger(capture.postOffOrMissingTimeRaces)||
+    capture.postOffOrMissingTimeRaces<0||
+    !Array.isArray(capture.receipts)||
+    capture.receipts.length!==capture.receiptCount)
+  throw Error('70点研究の署名記録が不正');
+ const byRace=new Map(rows.filter(r=>r.ownerRunnerDetails?.threeCore).map(r=>[
+  r.track+'|'+r.race,r.ownerRunnerDetails.threeCore
+ ]));
+ const seen=new Set(),points={S:3,A:2,B:1,C:0},
+       weights={training:30,course_distance:20,pace:20};
+ for(const record of capture.receipts){
+  const p=record?.snapshot,identity=p?.track+'|'+p?.race,
+        source=byRace.get(identity);
+  if(!p||typeof record.signature!=='string'||
+     !/^[a-f0-9]{64}$/.test(record.signature)||
+     !source||seen.has(identity)||p.version!==capture.version||
+     p.date!==day||p.sourceKind!=='prestart-uncalibrated-70-research'||
+     p.researchOnly!==true||p.officialJraVerified!==false||
+     p.sourceHypothesesUncalibrated!==true||
+     p.actualPurchase!==false||p.predictionReady!==false||
+     typeof p.capturedAt!=='string'||typeof p.scheduledOffAt!=='string'||
+     p.raceRunnerCount!==source.runnerCount||
+     !Array.isArray(p.horses)||p.horses.length<1||
+     p.horses.length>18||p.observedRunnerCount!==p.horses.length||
+     p.observedRunnerCount>p.raceRunnerCount)
+    throw Error('70点研究の開催日・馬番が不一致');
+  seen.add(identity);
+  const captured=Date.parse(p.capturedAt),off=Date.parse(p.scheduledOffAt);
+  if(!Number.isFinite(captured)||!Number.isFinite(off)||
+     captured>=off||off-captured>7*86400000||
+     new Date(off).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'})
+      .replaceAll('-','')!==day)
+   throw Error('70点研究が発走前に固定されていません');
+  const horseMap=new Map(source.horses.map(h=>[h.number,h])),used=new Set();
+  let prev=0;
+  for(const h of p.horses){
+   const original=horseMap.get(h?.number);
+   if(!original||!Number.isInteger(h.number)||h.number<=prev||h.number>18||
+      used.has(h.number)||!h.bands||
+      Object.keys(h.bands).length!==3||
+      Object.keys(weights).some(k=>
+       h.bands[k]!==original.bands[k]||
+       !Object.hasOwn(points,h.bands[k]))||
+      !Number.isInteger(h.rawThirdPoints)||
+      h.rawThirdPoints!==original.rawThirdPoints||
+      h.rawThirdPoints!==Object.keys(weights).reduce(
+       (n,k)=>n+weights[k]*points[h.bands[k]],0))
+    throw Error('70点研究の元資料に不一致');
+   used.add(h.number);prev=h.number;
+  }
+  if(used.size!==source.completeCoreObserved||
+     source.horses.some(h=>(h.rawThirdPoints!==null)!==used.has(h.number)))
+   throw Error('70点研究の評価頭数が不一致');
+ }
+ return capture.receipts;
+}
+function saveCoreReceipts(receipts){
+ if(!receipts.length)return '発走前に固定できる研究用70点はありません。';
+ const raw=localStorage.getItem(CORE_STORAGE);
+ if(raw&&raw.length>1800000)throw Error('研究記録が大きすぎます');
+ const previous=JSON.parse(raw||'[]');
+ if(!Array.isArray(previous)||previous.length>360)
+  throw Error('研究記録の保存形式が不正');
+ const used=new Set();
+ for(const record of previous){
+  const p=record?.snapshot;
+  if(!p||typeof record.signature!=='string'||
+     !/^[a-f0-9]{64}$/.test(record.signature))
+   throw Error('以前の研究記録が不正');
+  const id=p.date+'|'+p.track+'|'+p.race;
+  if(used.has(id))throw Error('以前の研究記録に重複');
+  used.add(id);
+ }
+ const combined=previous.slice();let added=0,existing=0;
+ for(const record of receipts){
+  const p=record.snapshot,id=p.date+'|'+p.track+'|'+p.race;
+  if(used.has(id)){existing++;continue;}
+  used.add(id);combined.push(record);added++;
+ }
+ if(combined.length>360||JSON.stringify(combined).length>1800000)
+  throw Error('70点研究記録の保存上限');
+ if(added)localStorage.setItem(CORE_STORAGE,JSON.stringify(combined));
+ return '発走前研究値を初回固定：新規 '+added+'R／既存 '+existing+
+  'R（上書きなし）。署名付き、予測精度・正式結果は未検証。';
 }
 function storedWatchDay(day){
  const raw=localStorage.getItem(WATCH_STORAGE);
