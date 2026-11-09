@@ -119,7 +119,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">総合S：85点以上／A：70点以上／B：55点以上／C：55点未満。
 10項目の根拠がそろうまでは総合点・総合順位は「未評価」です。</p>
 <details><summary>正式100点の計算方法・安全確認</summary>
-<p class="muted">各項目の配点に対してS＝満点、A＝2/3、B＝1/3、C＝0として足し合わせます。合計は100点満点。例えば調教A＝20/30点・近走C＝0/3点・残り8項目がすべてS＝67/67点なら、合計87点のS。近走だけで総合を決めません。</p>
+<p class="muted">各項目の配点に対してS＝満点、A＝2/3、B＝1/3、C＝0として足し合わせます。新100点配点（research-6）：コース・距離17／展開・脚質17／血統6／騎手・厩舎10。合計100点満点。旧70点・82点・85点の署名済み研究履歴は旧配点のまま保持し、正式100点とは混ぜません。例えば調教A＝20/30点・近走C＝0/3点・残り8項目がすべてS＝67/67点なら、合計87点のS。近走だけで総合を決めません。</p>
 <p class="muted">ただしこれは<b>独立した根拠で10項目を検証できた時だけ</b>動く正式採点エンジンの計算式です。現在のJRDB調教・近走ランクは仮評価で、正式採点には昇格していません。8項目の能力判定、JRA公式の出走・取消・馬場・発走時刻の独立照合、当日馬体重、発走前の照合が不足する間は総合点・正式買い目を出しません。</p>
 <p class="muted">根拠不足、発走済み、取消・出走確認の保留、点数同点の候補境界では正式3連単を作りません。表示中の3連単は引き続き2項目による研究用下書きです。</p>
 </details>
@@ -195,9 +195,9 @@ const $=id=>document.getElementById(id);
 const GRADES=new Set(['S','A','B','C','未評価']);
 const TEN=[
  ['training','調教',30],['recent','近走',3],
- ['course_distance','コース・距離',20],['pace','展開・脚質',20],
- ['ground','馬場',12],['pedigree','血統',8],
- ['draw_weight','枠・斤量',3],['jockey_stable','騎手・厩舎',2],
+ ['course_distance','コース・距離',17],['pace','展開・脚質',17],
+ ['ground','馬場',12],['pedigree','血統',6],
+ ['draw_weight','枠・斤量',3],['jockey_stable','騎手・厩舎',10],
  ['rotation','ローテ',1],['body_condition','馬体重',1]
 ];
 const MISSING={
@@ -279,7 +279,7 @@ const dom=(tag,value,cls)=>{const d=document.createElement(tag);
  if(value!==undefined)d.textContent=String(value);if(cls)d.className=cls;return d;};
 function validateTen(data){
  const p=data.tenFactorPreview;
- if(!p||p.version!=='owner-ten-factor-contract-1'||p.policyVersion!=='research-5'||
+ if(!p||p.version!=='owner-ten-factor-contract-1'||p.policyVersion!=='research-6'||
     p.factorCount!==10||p.totalWeight!==100||
     p.gradeThresholds?.S!==85||p.gradeThresholds?.A!==70||
     p.gradeThresholds?.B!==55||p.researchOnly!==true||
@@ -386,7 +386,7 @@ function validateSourcePassport(data){
  const a=data.sourcePassport;
  if(a===undefined)return null; // older private snapshots stay readable
  if(!a||a.version!=='owner-day-source-passport-1'||
-    a.policyVersion!=='research-5'||
+    a.policyVersion!=='research-6'||
     a.newProviderRequests!==0||a.gradedFactors!==0||
     a.verifiedPredictions!==0||a.independentJraVerified!==false||
     a.purchaseReady!==false||typeof a.sourceAuditAvailable!=='boolean'||

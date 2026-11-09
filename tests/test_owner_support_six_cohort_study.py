@@ -50,8 +50,9 @@ class SupportSixCohortTests(unittest.TestCase):
         original = copy.deepcopy((TARGET, history))
         report = support_six_cohort_study(TARGET, history)
         self.assertEqual((TARGET, history), original)
+        self.assertEqual(report["weightTotal"], 14)
         self.assertEqual(report["factorWeights"], {
-            "draw_weight": 3, "jockey_stable": 2, "rotation": 1})
+            "draw_weight": 3, "jockey_stable": 10, "rotation": 1})
         self.assertEqual(report["pastRacesEligible"], 12)
         self.assertEqual(report["matchingBaseline"]["observedRunners"], 72)
         self.assertEqual(report["matchingBaseline"]["observedWins"], 12)

@@ -15,8 +15,19 @@ FACTORS = {
     'ground': 12, 'pedigree': 8, 'draw_weight': 3, 'jockey_stable': 2,
     'rotation': 1, 'body_condition': 1,
 }
-TOTAL_WEIGHT = sum(FACTORS.values())
-assert len(FACTORS) == 10 and TOTAL_WEIGHT == 100
+# Previous research-5 weights remain immutable for already sealed 70/82/85
+# observations and their original score arithmetic. Never reuse this label
+# for a changed factor distribution.
+OWNER_FORMAL_POLICY_VERSION = 'research-6'
+OWNER_FORMAL_FACTORS = {
+    'training': 30, 'recent': 3, 'course_distance': 17, 'pace': 17,
+    'ground': 12, 'pedigree': 6, 'draw_weight': 3, 'jockey_stable': 10,
+    'rotation': 1, 'body_condition': 1,
+}
+TOTAL_WEIGHT = sum(OWNER_FORMAL_FACTORS.values())
+assert (len(FACTORS) == len(OWNER_FORMAL_FACTORS) == 10
+        and sum(FACTORS.values()) == TOTAL_WEIGHT == 100
+        and set(FACTORS) == set(OWNER_FORMAL_FACTORS))
 CORE = {'training', 'recent', 'course_distance', 'pace', 'ground'}
 WIN_FACTORS = {'training', 'recent', 'course_distance', 'pace'}
 # A lower-ranked winner deserves an extra review only when two independently
@@ -75,10 +86,10 @@ def evaluate_race(race):
     evaluated = []
     for horse in horses:
         assessments = horse.get('assessments', {})
-        if not isinstance(assessments, dict) or set(assessments) - set(FACTORS):
+        if not isinstance(assessments, dict) or set(assessments) - set(OWNER_FORMAL_FACTORS):
             raise ValueError('Unknown assessment factor')
         grades, reasons, missing, weighted, coverage = {}, {}, [], 0, 0
-        for factor, weight in FACTORS.items():
+        for factor, weight in OWNER_FORMAL_FACTORS.items():
             item = assessments.get(factor)
             if item is not None and (not isinstance(item, dict) or item.get('grade') not in (*POINTS, '未評価')):
                 raise ValueError('Invalid assessment grade')
@@ -156,7 +167,7 @@ def evaluate_race(race):
         review = 'review_candidates'
     # Always require review; never silently clip a fourth/fifth-ranked contender.
     return {
-        'policyVersion': POLICY_VERSION,
+        'policyVersion': OWNER_FORMAL_POLICY_VERSION,
         'scoreThresholds': dict(SCORE_THRESHOLDS),
         'recordType': 'test', 'status': 'draft',
         'publishable': False, 'validated': False, 'asOf': race['asOf'],

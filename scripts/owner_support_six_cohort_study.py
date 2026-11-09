@@ -1,4 +1,4 @@
-"""Strict time-cut, owner-private cohort evidence for support factors (3+2+1).
+"""Strict time-cut, owner-private cohort evidence for support factors (3+10+1).
 
 This is an OFFLINE, descriptive study. The present JRDB bounded-history bridge
 does not supply the complete comparable result population required here.
@@ -12,7 +12,8 @@ import re
 from datetime import timedelta
 from statistics import median
 
-from evaluation_policy import FACTORS, POLICY_VERSION
+from evaluation_policy import (OWNER_FORMAL_FACTORS as FACTORS,
+    OWNER_FORMAL_POLICY_VERSION as POLICY_VERSION)
 from owner_pedigree_cohort_study import (
     JST, ID, TRACKS, SURFACES, GOINGS, _date, _time, _distance_band,
     PedigreeCohortError
@@ -21,7 +22,7 @@ from owner_pedigree_cohort_study import (
 VERSION = "owner-support-six-timecut-cohort-1"
 KEYS = ("draw_weight", "jockey_stable", "rotation")
 WEIGHTS = {k: FACTORS[k] for k in KEYS}
-assert WEIGHTS == {"draw_weight": 3, "jockey_stable": 2, "rotation": 1}
+assert WEIGHTS == {"draw_weight": 3, "jockey_stable": 10, "rotation": 1}
 TARGET_FIELDS = frozenset((
     "raceDate", "track", "race", "capturedAt", "scheduledOffAt",
     "surface", "distanceM", "going", "classCode", "runners"
@@ -253,7 +254,7 @@ def support_six_cohort_study(target, history):
         "version": VERSION, "policyVersion": POLICY_VERSION,
         "date": target["raceDate"], "track": target["track"],
         "race": target["race"], "runnerCount": roster_count,
-        "factorWeights": dict(WEIGHTS), "weightTotal": 6,
+        "factorWeights": dict(WEIGHTS), "weightTotal": 14,
         "racesProvided": len(history), "pastRacesEligible": available,
         "futureOrUnpublishedRacesExcluded": future,
         "otherConditionRacesExcluded": unmatched,
@@ -272,6 +273,6 @@ def support_six_cohort_study(target, history):
         "note": (
             "枠位置と相対斤量、騎手と厩舎、休養間隔の過去母数・"
             "着順を分けた研究用観測。独立JRA照合と時系列検証が"
-            "未完成。枠斤量3・騎手厩舎2・ローテ1は正式未評価。"
+            "未完成。枠斤量3・騎手厩舎10・ローテ1は正式未評価。"
         ),
     }

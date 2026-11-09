@@ -7,7 +7,9 @@ Incomplete, late, tied-boundary, or unverified evidence yields zero tickets.
 """
 from datetime import datetime
 
-from evaluation_policy import FACTORS, POINTS, POLICY_VERSION, SCORE_THRESHOLDS, supported, timestamp
+from evaluation_policy import (OWNER_FORMAL_FACTORS as FACTORS,
+    OWNER_FORMAL_POLICY_VERSION as POLICY_VERSION, POINTS, SCORE_THRESHOLDS,
+    supported, timestamp)
 from jrdb_coverage import CoverageError
 from jrdb_owner_auto_draft import _safe_formation_sizes
 from keiba_trifecta_builder import REQUIRED_EVIDENCE, build_trifecta

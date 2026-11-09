@@ -8,7 +8,8 @@ tickets and the strict no-retroactive-ranking rule.
 
 No extra provider calls, source rows, prediction claims, or purchases.
 """
-from evaluation_policy import FACTORS, CORE, POLICY_VERSION, TOTAL_WEIGHT, SCORE_THRESHOLDS
+from evaluation_policy import (OWNER_FORMAL_FACTORS as FACTORS, CORE,
+    OWNER_FORMAL_POLICY_VERSION as POLICY_VERSION, TOTAL_WEIGHT, SCORE_THRESHOLDS)
 from jrdb_coverage import CoverageError
 from jrdb_factor_preflight import FACTOR_LABELS
 from jrdb_owner_auto_draft import VERSION as DRAFT_VERSION

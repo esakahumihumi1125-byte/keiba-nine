@@ -16,9 +16,9 @@ class TenFactorContractTests(unittest.TestCase):
         self.assertEqual(len(policy),10)
         self.assertEqual(sum(f["weight"] for f in policy),100)
         self.assertEqual({f["key"]:f["weight"] for f in policy},{
-            "training":30,"recent":3,"course_distance":20,"pace":20,
-            "ground":12,"pedigree":8,"draw_weight":3,
-            "jockey_stable":2,"rotation":1,"body_condition":1,
+            "training":30,"recent":3,"course_distance":17,"pace":17,
+            "ground":12,"pedigree":6,"draw_weight":3,
+            "jockey_stable":10,"rotation":1,"body_condition":1,
         })
         self.assertEqual({f["key"]:f["label"] for f in policy}["body_condition"],"馬体重")
         self.assertEqual(set(f["key"] for f in policy),{

@@ -4,7 +4,8 @@ No additional JRDB calls, raw provider rows, results, odds, runner identities,
 credentials or scores. An observed input field never becomes a graded factor.
 This is only a source coverage/status audit for the owner iPhone screen.
 """
-from evaluation_policy import FACTORS, POLICY_VERSION
+from evaluation_policy import (OWNER_FORMAL_FACTORS as FACTORS,
+    OWNER_FORMAL_POLICY_VERSION as POLICY_VERSION)
 from jrdb_coverage import CoverageError
 from jrdb_owner_auto_draft import VERSION as DRAFT_VERSION
 from owner_ten_factor_contract import VERSION as TEN_VERSION
