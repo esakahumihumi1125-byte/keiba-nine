@@ -1022,7 +1022,7 @@ function boot(){
  const tenPanel=a.get('autoHistoryAuditRaces').children[0].children.find(
   x=>x.tag==='details'&&/10項目の資料状況/.test(x.children[0]?.textContent||''));
  assert.ok(tenPanel);
- assert.equal(tenPanel.children.length,9);
+ assert.equal(tenPanel.children.length,10);
  assert.match(tenPanel.children[2].textContent,/1番｜血統 資料あり/);
  assert.match(tenPanel.children[2].textContent,/当日馬体重未取得/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
