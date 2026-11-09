@@ -191,7 +191,7 @@ def support_six_cohort_study(target, history):
     roster_count = len(target["runners"])
     field_band = _field_band(roster_count)
     hist = {k: {} for k in (
-        "frame", "weight", "jockey", "trainer", "rotation"
+        "frame", "weight", "jockey", "trainer", "jockey_trainer_pair", "rotation"
     )}
     base = {}
     seen, available, future, unmatched = set(), 0, 0, 0
@@ -227,6 +227,10 @@ def support_six_cohort_study(target, history):
             _record(hist["weight"], _weight_band(h["carriedKg"], midpoint), identity, h)
             _record(hist["jockey"], h["jockeyRef"], identity, h)
             _record(hist["trainer"], h["trainerRef"], identity, h)
+            # A rider's success with OTHER trainers is not evidence that
+            # this exact rider/trainer combination has raced successfully.
+            _record(hist["jockey_trainer_pair"],
+                    (h["jockeyRef"], h["trainerRef"]), identity, h)
             _record(hist["rotation"], _rotation_band(past_day, h["lastRunDate"]),
                     identity, h)
 
@@ -240,11 +244,19 @@ def support_six_cohort_study(target, history):
                 _weight_band(h["carriedKg"], target_mid))),
             "jockey": _summary(hist["jockey"].get(h["jockeyRef"])),
             "trainer": _summary(hist["trainer"].get(h["trainerRef"])),
+            "jockeyTrainerPair": _summary(hist["jockey_trainer_pair"].get(
+                (h["jockeyRef"], h["trainerRef"]))),
             "rotation": _summary(hist["rotation"].get(rotation)),
         }
         horses.append({
             "number": h["number"], "cohortEvidence": summaries,
             "rotationSourceAvailable": rotation is not None,
+            "jockeyTrainerPairCoverageMet": (
+                summaries["jockeyTrainerPair"]["minimumCoverageMet"]),
+            "jockeyAndTrainerIndividualCoverageMet": (
+                summaries["jockey"]["minimumCoverageMet"]
+                and summaries["trainer"]["minimumCoverageMet"]),
+            "pairEffectIndependentlyValidated": False,
             "grades": dict.fromkeys(KEYS, UNKNOWN),
             "scores": dict.fromkeys(KEYS, None),
             "independentSourcesVerified": False,
@@ -272,7 +284,9 @@ def support_six_cohort_study(target, history):
         "changesExistingTickets": False, "changesExistingRoi": False,
         "note": (
             "枠位置と相対斤量、騎手と厩舎、休養間隔の過去母数・"
-            "着順を分けた研究用観測。独立JRA照合と時系列検証が"
+            "着順を分けた研究用観測。騎手×厩舎の同一ペアを"
+            "個別に照合し、別ペアの成績で欠損を補いません。"
+            "独立JRA照合と時系列検証が"
             "未完成。枠斤量3・騎手厩舎10・ローテ1は正式未評価。"
         ),
     }
