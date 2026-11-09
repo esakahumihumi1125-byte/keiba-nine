@@ -23,14 +23,14 @@ for(const a of first)for(const b of second)for(const c of third)
 const sortedTickets=tickets.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
 const POLICY=[
  ['training','調教',30,true],['recent','近走',3,true],
- ['course_distance','コース・距離',20,true],['pace','展開・脚質',20,true],
- ['ground','馬場',12,true],['pedigree','血統',8,false],
- ['draw_weight','枠・斤量',3,false],['jockey_stable','騎手・厩舎',2,false],
+ ['course_distance','コース・距離',17,true],['pace','展開・脚質',17,true],
+ ['ground','馬場',12,true],['pedigree','血統',6,false],
+ ['draw_weight','枠・斤量',3,false],['jockey_stable','騎手・厩舎',10,false],
  ['rotation','ローテ',1,false],['body_condition','馬体重',1,false]
 ];
 function withTenPreview(r){
  r.tenFactorPreview={
-  version:'owner-ten-factor-contract-1',policyVersion:'research-5',
+  version:'owner-ten-factor-contract-1',policyVersion:'research-6',
   factorCount:10,totalWeight:100,normalization:'weighted_mean_over_100',
   scoreUnit:'0_to_100',gradeThresholds:{S:85,A:70,B:55},
   researchOnly:true,overallPredictionReady:false,officialJraVerified:false,
@@ -65,7 +65,7 @@ function withSourcePassport(r){
  const drafts=new Map(r.races.map(x=>[x.track+'|'+x.race,x]));
  const materialAvailable=r.sourceMaterials.status==='observed';
  r.sourcePassport={
-  version:'owner-day-source-passport-1',policyVersion:'research-5',
+  version:'owner-day-source-passport-1',policyVersion:'research-6',
   raceCount:r.races.length,sourceAuditAvailable:true,
   observedMaterialRaces:materialAvailable?r.races.length:0,
   gradedFactors:0,verifiedPredictions:0,
