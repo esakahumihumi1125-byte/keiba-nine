@@ -169,6 +169,17 @@ function full36RaceDraft(){
  data.sourcePassport.raceCount=36;
  return data;
 }
+function full36MixedHolds(){
+ const data=full36RaceDraft();
+ data.races[12].reason='missing_factors'; // 京都 1R
+ data.races[24].reason='ambiguous_equal_grade_boundary'; // 福島 1R
+ data.holdReasons={
+  after_provisional_off:33,
+  missing_factors:1,
+  ambiguous_equal_grade_boundary:1,
+ };
+ return data;
+}
 function researchBand(samples,hits,complete){
  if(!complete)return ['未評価','incomplete_history'];
  if(samples<3)return ['未評価','sample_below_three'];
@@ -1061,6 +1072,7 @@ function boot(){
  assert.match(a.get('autoSavedStatus').textContent,/再分析に失敗.*固定済み研究記録 1R/);
  assert.equal(a.get('autoRaces').children.length,0);
  assert.equal(a.get('autoVenues').children.length,0);
+ assert.equal(a.get('autoHoldReasons').children.length,0);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
  assert.match(a.get('autoHistoryStatus').textContent,/固定 1R/);
@@ -1378,6 +1390,46 @@ function boot(){
  assert.equal(full.get('autoRaces').children[0].children.length,36);
  assert.equal(full.requests.length,paidRequestsBeforePick);
  assert.equal(full.storage.get(STORAGE),archivedBeforePick);
+ // All 36R are already validated before UI filtering. Mixed holds should
+ // be navigable with one tap and must never generate past-off tickets.
+ const mixed=boot();
+ await new Promise(r=>setImmediate(r));
+ mixed.setServerRaw(full36MixedHolds());
+ await mixed.get('autoRun').onclick();
+ const reasonButtons=mixed.get('autoHoldReasons').children;
+ assert.equal(reasonButtons.length,3);
+ assert.equal(reasonButtons[0].dataset.reason,'after_provisional_off');
+ assert.match(reasonButtons[0].textContent,/発走済み 33R/);
+ assert.equal(reasonButtons[1].dataset.reason,'missing_factors');
+ assert.match(reasonButtons[1].textContent,/調教・近走不足 1R/);
+ assert.equal(reasonButtons[2].dataset.reason,'ambiguous_equal_grade_boundary');
+ assert.match(reasonButtons[2].textContent,/候補同点 1R/);
+ const beforeHoldFilter=mixed.requests.length;
+ const beforeHoldStorage=mixed.storage.get(STORAGE);
+ reasonButtons[1].onclick();
+ assert.equal(reasonButtons[1]['aria-pressed'],'true');
+ assert.match(mixed.get('autoViewingStatus').textContent,/見送り理由：調教・近走不足 1R/);
+ assert.equal(mixed.get('autoRaces').children[0].children.length,1);
+ assert.match(mixed.get('autoRaces').children[0].children[0].children[0].textContent,/京都 1R 見送り/);
+ assert.equal(mixed.get('autoRaces').children[0].children[0].children.some(x=>x.className==='formation'),false);
+ reasonButtons[2].onclick();
+ assert.equal(reasonButtons[1]['aria-pressed'],'false');
+ assert.equal(reasonButtons[2]['aria-pressed'],'true');
+ assert.equal(mixed.get('autoRaces').children[0].children.length,1);
+ assert.match(mixed.get('autoRaces').children[0].children[0].children[0].textContent,/福島 1R 見送り/);
+ reasonButtons[0].onclick();
+ assert.equal(mixed.get('autoRaces').children[0].children.length,33);
+ assert.match(mixed.get('autoViewingStatus').textContent,/見送り理由：発走済み 33R/);
+ assert.equal(mixed.requests.length,beforeHoldFilter);
+ assert.equal(mixed.storage.get(STORAGE),beforeHoldStorage);
+ mixed.get('autoVenues').children[1].onclick();
+ assert.equal(mixed.get('autoRaces').children[0].children.length,12);
+ assert.equal(reasonButtons[0]['aria-pressed'],'false');
+ mixed.get('autoDay').value='2099-01-02';
+ mixed.get('autoDay').onchange();
+ assert.equal(mixed.get('autoHoldReasons').children.length,0);
+ assert.match(mixed.get('autoHoldStatus').textContent,/開催日を取得すると/);
+ assert.equal(mixed.storage.get(STORAGE),beforeHoldStorage);
  // Each 401/403/429 cause is actionable on Saturday without printing
  // untrusted JRDB response text or mutating first-write research tickets.
  const failures=boot();
