@@ -76,7 +76,7 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
                         group["invalid"] = True
                     group["places"][place] = n
 
-    out, winner_count = [], 0
+    out, winner_count, top_group_count = [], 0, 0
     band_counts = {k: {b: 0 for b in BANDS} for k in KEYS}
     for key in order:
         original = frozen[key]
@@ -92,8 +92,17 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
         podium = [group["places"][place] for place in (1, 2, 3)] if good else None
         frozen_horses = {h["number"]: h for h in original["horses"]}
         winner = frozen_horses.get(podium[0]) if good else None
+        # Group *only* horses whose five factors were captured prestart.
+        # Ties share the same evidence comparison tier, never horse-number
+        # tie-breaks and never a calibrated ability or betting rank.
+        groups = sorted({h["rawThirdPoints"] for h in original["horses"]},
+                        reverse=True)
+        study_group = (groups.index(winner["rawThirdPoints"]) + 1
+                       if winner is not None else None)
+        in_top_group = (study_group == 1 if study_group is not None else None)
         if winner is not None:
             winner_count += 1
+            top_group_count += in_top_group
             for factor in KEYS:
                 band_counts[factor][winner["bands"][factor]] += 1
         out.append({
@@ -108,6 +117,9 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
             "winnerStudyBands": (
                 dict(winner["bands"]) if winner else None
             ),
+            "winnerStudyGroup": study_group,
+            "winnerInTopStudyGroup": in_top_group,
+            "studyGroupNotFormalRank": True,
             "officialVerified": False,
             "predictionHitVerified": None,
         })
@@ -119,6 +131,7 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
         "raceCount": len(out), "races": out,
         "observedRaceCount": observed,
         "observedStudiedWinnerCount": winner_count,
+        "observedTopGroupWinnerCount": top_group_count,
         "winnerBandCounts": band_counts,
         "verifiedRaceCount": 0, "confirmedHitCount": None,
         "officialJraVerified": False,
