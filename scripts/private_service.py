@@ -2247,7 +2247,18 @@ def create_app(settings=None):
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError) as exc:
                 if isinstance(exc, JRDBError):
-                    kind = 'provider'
+                    # Safe, coarse operator diagnostics for Saturday. The
+                    # private adapter emits HTTP status codes itself; do not
+                    # include any source messages, URLs or keys in responses.
+                    message = str(exc)
+                    if 'HTTP 401)' in message:
+                        kind = 'provider_auth'
+                    elif 'HTTP 403)' in message:
+                        kind = 'provider_entitlement'
+                    elif 'HTTP 429)' in message:
+                        kind = 'provider_rate_limit'
+                    else:
+                        kind = 'provider'
                 elif isinstance(exc, ProgrammeFormatError):
                     kind = 'programme_format'
                 elif isinstance(exc, CoverageError):
