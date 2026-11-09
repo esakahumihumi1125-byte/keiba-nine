@@ -66,9 +66,25 @@ def five_core_research(five, inventory, three, four):
                 "formalScore100": None, "formalGrade": UNKNOWN,
                 "formalRank": None, "bettingReady": False,
             })
+        # Stable evidence groups by exact third-points, never rank tied
+        # horses by their number or assign an untested formal position.
+        buckets = {}
+        unassessed = []
+        for horse in horses:
+            if horse["rawThirdPoints"] is None:
+                unassessed.append(horse["number"])
+            else:
+                buckets.setdefault(horse["rawThirdPoints"], []).append(horse["number"])
+        order_groups = [
+            {"rawThirdPoints": raw, "numbers": sorted(buckets[raw])}
+            for raw in sorted(buckets, reverse=True)
+        ]
         result.append({
             "track": four_race["track"], "race": four_race["race"],
             "runnerCount": len(horses), "horses": horses,
+            "comparisonGroups": order_groups,
+            "unassessedNumbers": sorted(unassessed),
+            "comparisonIsFormalRank": False,
             "completeObserved": sum(h["rawThirdPoints"] is not None
                                     for h in horses),
             "missingByFactor": missing_counts,
@@ -89,6 +105,7 @@ def five_core_research(five, inventory, three, four):
         "researchOnly": True, "privateOwnerOnly": True,
         "note": ("調教30・近走3・過去同条件20・過去位置取り20・"
                  "過去馬場12の研究用85点。近走の比重は最大3点。"
-                 "仮ランクは未検証で正式S/A/B/C・3連単に反映しない。"
+                 "同点馬は同一グループとし未評価は並べない。"
+                  "比較の順序は未検証で正式S/A/B/C・3連単に反映しない。"
                  "項目未評価なら85点研究値も未評価。"),
     }
