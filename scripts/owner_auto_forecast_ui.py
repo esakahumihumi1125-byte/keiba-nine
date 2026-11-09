@@ -1950,6 +1950,62 @@ function validateHistory(h){
   if(seenRaces.size!==historyCoordinates.size)
    throw Error('10項目のレース不足');
  }
+ // Parent names are not a bloodline performance assessment.
+ if(h.pedigreeEvidencePreflight!==undefined){
+  const p=h.pedigreeEvidencePreflight;
+  if(!p||p.version!=='owner-pedigree-evidence-preflight-1'||
+     p.policyVersion!=='research-5'||p.factor!=='pedigree'||
+     p.weight!==8||p.raceCount!==historyCoordinates.size||
+     p.pedigreeGradesVerified!==0||
+     p.independentCohortAvailable!==false||
+     p.temporalValidationComplete!==false||
+     p.researchOnly!==true||p.privateOwnerOnly!==true||
+     p.officialJraVerified!==false||p.overallPredictionReady!==false||
+     p.bettingReady!==false||p.autoPurchase!==false||
+     p.changesExistingTickets!==false||p.changesExistingReceipts!==false||
+     !Array.isArray(p.races)||p.races.length!==historyCoordinates.size)
+   throw Error('血統8点の準備資料の形式不正');
+  const seen=new Set();
+  for(const race of p.races){
+   const id=race?.track+'|'+race?.race,detail=perRace.get(id);
+   if(seen.has(id)||!detail?.tenInventory||
+      race.runnerCount!==detail.runnerCount||
+      !Number.isInteger(race.parentageCompleteCount)||
+      race.parentageCompleteCount!==detail.tenInventory.remainingFieldCoverage.pedigree||
+      race.independentCohortValidatedCount!==0||
+      race.verifiedPedigreeGrades!==0||race.pedigreeScoreReady!==false||
+      !Array.isArray(race.horses)||race.horses.length!==race.runnerCount)
+    throw Error('血統8点の頭数・資料が不一致');
+   seen.add(id);
+   const source=new Map(detail.tenInventory.runners.map(x=>[x.number,x]));
+   const numbers=new Set();
+   for(const horse of race.horses){
+    const n=horse?.number,base=source.get(n);
+    if(!Number.isInteger(n)||n<1||n>18||numbers.has(n)||
+       !base||!horse.parentageSourceState||
+       horse.parentageSourceState!==base.sourceStates.pedigree||
+       horse.parentageComplete!==(horse.parentageSourceState==='complete_fields_observed')||
+       horse.independentCohortValidated!==false||
+       horse.conditionMatched!==false||
+       horse.outOfTimeCalibrated!==false||
+       horse.grade!=='未評価'||horse.score8!==null||
+       horse.bettingReady!==false||!Array.isArray(horse.missingEvidence))
+     throw Error('血統8点の個別証拠が不一致');
+    const expected=(horse.parentageComplete?[]:['parentage_fields_incomplete']).concat([
+     'independent_condition_matched_cohort_unavailable',
+     'temporal_holdout_not_validated'
+    ]);
+    if(horse.missingEvidence.join(',')!==expected.join(','))
+     throw Error('血統8点の不足資料が不一致');
+    numbers.add(n);
+   }
+   if(numbers.size!==race.runnerCount)
+    throw Error('血統8点の馬番不足');
+   detail.pedigreePreflight=race;
+  }
+  if(seen.size!==historyCoordinates.size)
+   throw Error('血統8点のレース不足');
+ }
  // This is an optional *uncalibrated* 70-weight research comparison
  // from the same fully checked historical response; not a formal score.
  if(h.threeCoreResearch!==undefined){
@@ -2971,6 +3027,22 @@ $('autoHistoryAudit').onclick=async()=>{
      '頭。当日馬体重は未取得なので資料カバーは最大14/15。'+
      '資料カバー配点は能力点・予想スコア・S/A/B/Cではありません。','muted'));
     card.append(ten);
+   }
+   if(details.rosterVerified&&details.pedigreePreflight){
+    const p=details.pedigreePreflight,panel=dom('details');
+    panel.append(dom('summary','血統8点の採点準備を見る（正式未評価）'));
+    panel.append(dom('p','父・母父が分かるだけではコース・距離・馬場適性は判定できません。血統別の独立した過去実績と未来情報を除いた期間検証が必要です。今は血統S/A/B/Cも8点の実得点も付けません。','muted'));
+    panel.append(dom('p','父・母父の資料が両方ある馬 '+
+     p.parentageCompleteCount+'/'+p.runnerCount+
+     '頭。血統の能力評価まで確認できた馬 0/'+p.runnerCount+'頭。','muted'));
+    for(const horse of p.horses){
+     const state=horse.parentageComplete?'両方あり':
+      horse.parentageSourceState==='partial_fields_observed'?'一部不足':'両方不足';
+     panel.append(dom('p',horse.number+'番｜父・母父 '+state+
+      '／同条件の血統実績 未接続／時系列検証 未実施'+
+      '／血統8点 未評価（予想には反映しません）','muted'));
+    }
+    card.append(panel);
    }
    const pressureLabel={
     coverage_insufficient:'位置取りの資料不足',
