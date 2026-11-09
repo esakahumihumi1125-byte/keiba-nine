@@ -37,7 +37,7 @@ def past(n, *, day=None, track="京都", going="重", klass="C2",
             {"number": i, "frame": i, "carriedKg": 55.0 if i <= 3 else 58.0,
              "jockeyRef": "JOCKEY001" if i <= 3 else "JOCKEY002",
              "trainerRef": "STABLE001" if i <= 3 else "STABLE002",
-             "lastRunDate": "2026-09-20",
+             "lastRunDate": "2026-09-10",
              "horseRef": f"HORSE{n:02d}{i:02d}", "finish": i}
             for i in range(1, 7)
         ],
