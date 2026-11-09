@@ -38,6 +38,7 @@ from owner_four_core_research import four_core_research
 from owner_five_core_research import five_core_research
 from owner_new_weight_five_research import new_weight_five_research
 from owner_remaining21_source_gaps import remaining21_source_gaps
+from owner_research6_uncertainty import research6_uncertainty_intervals
 from owner_pedigree_evidence_preflight import pedigree_evidence_preflight
 from owner_support_six_preflight import support_six_preflight
 
@@ -262,6 +263,9 @@ def run_bounded_history_audit(programme, entries, previous,
         new_weight_remaining = remaining21_source_gaps(
             new_weight_five_view, ten_source_inventory
         )
+        new_weight_sensitivity = research6_uncertainty_intervals(
+            new_weight_five_view, new_weight_remaining
+        )
         pedigree_preflight = pedigree_evidence_preflight(ten_source_inventory)
         support_six = support_six_preflight(ten_source_inventory)
         all_factor_materials = combine_ten_factor_observations(
@@ -338,6 +342,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "fiveCoreResearch": five_core_view,
         "newWeightFiveResearch": new_weight_five_view,
         "remaining21SourceGaps": new_weight_remaining,
+        "research6Uncertainty": new_weight_sensitivity,
         "pedigreeEvidencePreflight": pedigree_preflight,
         "supportSixPreflight": support_six,
         "reboundContextReview": rebound_review,
