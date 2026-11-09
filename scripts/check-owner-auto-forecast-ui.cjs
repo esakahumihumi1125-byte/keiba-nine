@@ -6,6 +6,7 @@ const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
+const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const day='20990101', date='2099-01-01';
 const pairs=[['S','S',8,'S'],['S','A',7,'A'],['A','A',6,'A'],
  ['A','B',5,'B'],['B','B',4,'B'],['B','C',3,'C'],['C','C',2,'C']];
@@ -706,7 +707,7 @@ function boot(){
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
   receiptVerificationOk=true,coreVerificationOk=true,
-  coreProviderCorrupt=false,
+  coreProviderCorrupt=false,fiveProviderCorrupt=false,
   archiveReady=false,archiveCorrupt=false,
   autoDraftOk=true,officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
@@ -808,6 +809,39 @@ function boot(){
     autoPurchase:false,actualPurchase:false
    }:{error:'signature_mismatch'}};
   }
+  if(url==='/api/owner-five-core-provider-check'){
+   const args=JSON.parse(options.body),snap=args.receipts[0].snapshot;
+   const winner=snap.horses[0],keys=['training','course_distance','pace','ground','recent'];
+   const tally=Object.fromEntries(keys.map(k=>[k,{S:0,A:0,B:0,C:0}]));
+   for(const k of keys)tally[k][winner.bands[k]]++;
+   return {ok:true,json:async()=>({
+    version:'owner-five-core-provider-observation-1',date:args.date,
+    sourceKind:'jrdb-tse-unverified-podium-observation',
+    providerSourceReadCount:1,raceCount:args.receipts.length,
+    races:args.receipts.map((entry,i)=>({
+     track:entry.snapshot.track,race:entry.snapshot.race,
+     providerStatus:i===0?'podium_observed':'pending',
+     observedPodiumNumbers:i===0?[winner.number,2,3]:null,
+     scoredRunnerCount:entry.snapshot.horses.length,
+     studiedWinnerObserved:i===0?true:null,
+     winnerStudyScore85:i===0?winner.rawThirdPoints/3:null,
+     winnerStudyBands:i===0?structuredClone(winner.bands):null,
+     winnerStudyGroup:i===0?(fiveProviderCorrupt?2:1):null,
+     winnerInTopStudyGroup:i===0?true:null,
+     studyGroupNotFormalRank:true,
+     officialVerified:false,predictionHitVerified:null,
+    })),
+    observedRaceCount:1,observedStudiedWinnerCount:1,
+    observedTopGroupWinnerCount:1,winnerBandCounts:tally,
+    verifiedRaceCount:0,confirmedHitCount:null,
+    officialJraVerified:false,jraIndependentConfirmation:false,
+    officialFeedConnected:false,outcomeCalibrationReady:false,
+    modelAccuracyPercent:null,bettingReady:false,actualPurchase:false,
+    payoutVerified:false,roiPercent:null,
+    historicalBandsNotCalibrated:true,
+    sourceIncompleteCouldChange:true,researchOnly:true,privateOwnerOnly:true
+   })};
+  }
   if(url==='/api/owner-three-core-provider-check'){
    const args=JSON.parse(options.body);
    const snap=args.receipts[0].snapshot,first=snap.horses[0];
@@ -904,6 +938,7 @@ function boot(){
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
   setCoreVerificationOk:x=>coreVerificationOk=x,
   setCoreProviderCorrupt:x=>coreProviderCorrupt=x,
+  setFiveProviderCorrupt:x=>fiveProviderCorrupt=x,
   setArchiveReady:x=>archiveReady=x,
   setArchiveCorrupt:x=>archiveCorrupt=x,
   setOfficialPdfLinks:x=>officialPdfLinks=x,
