@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from evaluation_policy import FACTORS
+from evaluation_policy import OWNER_FORMAL_FACTORS as FACTORS
 from jrdb_coverage import CoverageError
 from owner_full_ten_factor import full_ten_factor_preview
 
@@ -88,12 +88,12 @@ class FullTenFactorGateTests(unittest.TestCase):
         self.assertEqual(rows["recent"], {
             "grade": "C", "weight": 3, "earned100": 0.0, "rawThirdPoints": 0
         })
-        self.assertEqual(rows["course_distance"]["earned100"], 20.0)
-        self.assertEqual(rows["pace"]["earned100"], 20.0)
+        self.assertEqual(rows["course_distance"]["earned100"], 17.0)
+        self.assertEqual(rows["pace"]["earned100"], 17.0)
         self.assertEqual(rows["ground"]["earned100"], 12.0)
-        self.assertEqual(rows["pedigree"]["earned100"], 8.0)
+        self.assertEqual(rows["pedigree"]["earned100"], 6.0)
         self.assertEqual(rows["draw_weight"]["earned100"], 3.0)
-        self.assertEqual(rows["jockey_stable"]["earned100"], 2.0)
+        self.assertEqual(rows["jockey_stable"]["earned100"], 10.0)
         self.assertEqual(rows["rotation"]["earned100"], 1.0)
         self.assertEqual(rows["body_condition"]["earned100"], 1.0)
         self.assertEqual(first["weightedPoints"], sum(
