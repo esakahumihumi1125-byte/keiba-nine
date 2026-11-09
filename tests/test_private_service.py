@@ -870,7 +870,7 @@ class PrivateServiceTests(unittest.TestCase):
                'JRDB_AUTH_KEY': 'sensitive-user-key-not-for-logs'}
         app = create_app(cfg)
         for count, label in ((0, 'empty'), (1, 'present')):
-            with self.subTest(count=count), (
+            with (self.subTest(count=count),
                 patch('private_service.fetch_race_program',
                       return_value=[{'private_horse_name': 'DO-NOT-LOG'}]),
                 patch('private_service.normalize_program_rows',
