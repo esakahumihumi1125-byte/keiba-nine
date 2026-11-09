@@ -679,9 +679,12 @@ function render(input,day){
  $('autoSourceSummary').textContent=summarizeDaySourcePassport(
   data.sourcePassport,data.raceCount);
  for(const race of data.races){
+  const changedLock=fixed.blocked.has(race.track+'|'+race.race);
   const detail=dom('details'),title=dom('summary',
    race.track+' '+race.race+'R '+
-   (race.status==='provisional_draft'?'研究用自動案 '+race.points+'点':'見送り'));
+   (race.status==='provisional_draft'
+    ?changedLock?'固定済みとの不一致・再分析案非表示':
+      '研究用自動案 '+race.points+'点':'見送り'));
   detail.append(title);
   const course=courseRows.get(race.track+'|'+race.race);
   const condition=course.goingAvailable?course.going+'（JRDB資料）':'馬場未確認';
@@ -769,9 +772,11 @@ function render(input,day){
   }
   const raceKey=race.track+'|'+race.race;
   nodes.push({key:raceKey,track:race.track,
-   draft:race.status==='provisional_draft',node:detail});
+   draft:race.status==='provisional_draft'&&!changedLock,node:detail});
   const option=dom('option',race.track+' '+race.race+'R｜'+
-   (race.status==='provisional_draft'?'研究用下書き '+race.points+'点':'見送り'));
+   (race.status==='provisional_draft'
+    ?changedLock?'固定済みと不一致・新案非表示':
+      '研究用下書き '+race.points+'点':'見送り'));
   option.value=raceKey;select.append(option);
   groups.set(race.track,(groups.get(race.track)||0)+1);
  }
@@ -811,8 +816,9 @@ function render(input,day){
   button.setAttribute('aria-pressed','false');
   button.onclick=()=>{select.value='';show(track);};tabs.append(button);
  }
- if(data.draftCount>0){
-  const draftButton=dom('button','下書きのみ '+data.draftCount+'R');
+ const safeDraftCount=nodes.filter(item=>item.draft).length;
+ if(safeDraftCount>0){
+  const draftButton=dom('button','下書きのみ '+safeDraftCount+'R');
   draftButton.type='button';draftButton.dataset.track='';
   draftButton.dataset.mode='drafts';
   draftButton.setAttribute('aria-pressed','false');
@@ -1961,7 +1967,14 @@ $('autoRun').onclick=async()=>{
    error.message.startsWith('停止した工程：')?error.message:null;
   $('autoStatus').textContent=detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
+  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+  $('autoRacePick').disabled=true;
+  $('autoRacePick').replaceChildren();
+  $('autoRacePick').value='';
+  $('autoViewingStatus').textContent='この日の新しい下書きは確認できません。固定履歴は下で確認できます。';
   $('autoSummary').textContent='予想は未作成';
+  $('autoSavedStatus').textContent='再分析に失敗。'+localReceiptStatus(day);
+  showFixedHistory(day);
   $('autoFixedConsistency').textContent='今回の再分析結果は未確認です。以前の固定済み研究記録は変更していません。';
   $('autoMorningStatus').textContent='JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
   $('autoSourceSummary').textContent='資料進捗の取得に失敗しました。以前の集計は表示しません。';
