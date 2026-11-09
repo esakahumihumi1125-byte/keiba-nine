@@ -57,6 +57,40 @@ function withTenPreview(r){
  };
  return r;
 }
+function withSourcePassport(r){
+ const source=new Map(r.sourceMaterials.races.map(x=>[x.track+'|'+x.race,x]));
+ const course=new Map(r.raceContext.races.map(x=>[x.track+'|'+x.race,x]));
+ const drafts=new Map(r.races.map(x=>[x.track+'|'+x.race,x]));
+ const materialAvailable=r.sourceMaterials.status==='observed';
+ r.sourcePassport={
+  version:'owner-day-source-passport-1',policyVersion:'research-5',
+  raceCount:r.races.length,sourceAuditAvailable:true,
+  observedMaterialRaces:materialAvailable?r.races.length:0,
+  gradedFactors:0,verifiedPredictions:0,
+  independentJraVerified:false,purchaseReady:false,newProviderRequests:0,
+  reason:'unvalidated_source_observations_only',
+  races:r.tenFactorPreview.races.map(ten=>{
+   const id=ten.track+'|'+ten.race,material=source.get(id),context=course.get(id);
+   const original=drafts.get(id);
+   return {
+    track:ten.track,race:ten.race,draftStatus:original.status,
+    programmeRunnerCount:materialAvailable?material.runnerCount:ten.runnerCount,
+    provisionalTrainingCount:ten.horses.filter(h=>h.grades.training!=='未評価').length,
+    provisionalRecentCount:ten.horses.filter(h=>h.grades.recent!=='未評価').length,
+    sourceMaterialsObserved:materialAvailable,
+    additionalFieldCounts:materialAvailable?structuredClone(material.counts):null,
+    courseContextPresent:context.courseInfoPresent,
+    goingContextPresent:context.goingAvailable,
+    raceDayBodyweightVerifiedCount:0,officialJraVerified:false,
+    verifiedFactorCount:0,
+    unassessedFactorKeys:POLICY.slice(2).map(x=>x[0]),
+    completeTenFactorReady:false,independentResultsConnected:false,
+    purchaseReady:false
+   };
+  })
+ };
+ return r;
+}
 const research=()=>({
  version:'jrdb-owner-auto-draft-1',date:day,researchOnly:true,
  privateOwnerOnly:true,officialJraVerified:false,
@@ -98,7 +132,7 @@ function resultWith(signature){
    scheduleVerified:false,predictionVerified:false
   }
  }];
- return withTenPreview(result);
+ return withSourcePassport(withTenPreview(result));
 }
 function researchBand(samples,hits,complete){
  if(!complete)return ['未評価','incomplete_history'];
@@ -778,6 +812,23 @@ function boot(){
  assert.match(watchText,/コース距離・展開・馬場を確認/);
  assert.match(firstTen.children[1].children[0].children[1].textContent,/S（仮）/);
  assert.match(firstTen.children[1].children[2].children[1].textContent,/未評価/);
+ const sourcePanel=firstDetail.children.find(x=>x.className==='source-passport');
+ assert.ok(sourcePanel);
+ assert.match(sourcePanel.children[0].textContent,/正式採点0\/10/);
+ assert.match(sourcePanel.children[1].textContent,/調教の仮評価 7頭/);
+ assert.match(sourcePanel.children[2].textContent,/件数は照合保留/);
+ assert.match(sourcePanel.children[3].textContent,/当日馬場情報 あり/);
+ assert.match(sourcePanel.children[4].textContent,/JRA公式.*未接続/);
+ const tamperedPassport=resultWith('c'.repeat(64));
+ tamperedPassport.sourcePassport.races[0].verifiedFactorCount=10;
+ a.setServerRaw(tamperedPassport);
+ const beforePassportFail=a.storage.get(STORAGE);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoTenStatus').textContent,/確認できません/);
+ assert.equal(a.storage.get(STORAGE),beforePassportFail);
+ // Reset current result to keep all later receipt tests independent.
+ a.setServerRaw(resultWith('a'.repeat(64)));
+ await a.get('autoRun').onclick();
  assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
