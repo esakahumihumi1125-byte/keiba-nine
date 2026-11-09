@@ -94,9 +94,9 @@ def _safe_identity(date, track, race, url):
         if (track not in VENUES or type(race) is not int or
                 not 1 <= race <= 12):
             raise ValueError()
-        _source_url(url, date.replace("-", ""))
+        _source_url(url, date.replace("-", ""), track, race)
         parsed = urlsplit(url)
-        if parsed.hostname not in ("www.jra.go.jp", "jra.jp", "app.jra.jp"):
+        if parsed.hostname not in ("www.jra.go.jp", "jra.jp", "app.jra.jp", "sp.jra.jp"):
             raise ValueError()
     except (ReviewInputError, SettlementReplayError, TypeError,
             ValueError, AttributeError):

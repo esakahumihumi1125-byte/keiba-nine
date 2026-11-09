@@ -26,7 +26,21 @@ VERSION = "owner-official-settlement-replay-1"
 SCHEMA = "owner-jra-result-attestation-v1"
 STAKE = 100
 MAX_RACES = 36
-OFFICIAL_HOSTS = {"www.jra.go.jp", "jra.jp", "app.jra.jp"}
+OFFICIAL_HOSTS = {"www.jra.go.jp", "jra.jp", "app.jra.jp", "sp.jra.jp"}
+# Central racecourse codes confirmed against JRA's venue-code scheme.
+OFFICIAL_TRACK_CODES = {
+    "札幌": "01", "函館": "02", "福島": "03", "新潟": "04",
+    "東京": "05", "中山": "06", "中京": "07", "京都": "08",
+    "阪神": "09", "小倉": "10",
+}
+# The result URL uses 2 routing digits, a 2-digit venue code, year,
+# meeting, meeting-day, race, race date and a changing page checksum.
+# This is a descriptive identifier check, NOT official authenticity proof.
+OFFICIAL_CNAME = re.compile(
+    r"(?:pw01sde|sw01sde)(?:01|10)(0[1-9]|10)"
+    r"(20\d{2})(0[1-9]|1[0-2])(0[1-9]|1[0-2])"
+    r"(0[1-9]|1[0-2])(20\d{6})/[0-9A-Fa-f]{2}\Z"
+)
 MAX_PAYOUT = 1_000_000_000
 
 
@@ -66,7 +80,7 @@ def sign_authenticated_source_record(payload, secret):
     return {"payload": payload, "signature": _signature(payload, secret)}
 
 
-def _source_url(url, compact_day):
+def _source_url(url, compact_day, track, race):
     if (not isinstance(url, str) or len(url) > 500
             or any(ord(c) < 32 for c in url)):
         raise SettlementReplayError("Official source URL missing")
@@ -81,9 +95,17 @@ def _source_url(url, compact_day):
         cname = qs.get("CNAME")
         if set(qs) != {"CNAME"} or not cname or len(cname) != 1:
             raise ValueError()
-        if (not cname[0].startswith(("pw01sde", "sw01sde"))
-                or compact_day not in cname[0]
-                or len(cname[0]) > 100):
+        # A same-day JRA URL can belong to a *different venue or race*.
+        # Reject that mismatch before any hypothetical settlement calculation.
+        match = OFFICIAL_CNAME.fullmatch(cname[0])
+        if (not match or track not in OFFICIAL_TRACK_CODES
+                or type(race) is not int or not 1 <= race <= 12):
+            raise ValueError()
+        venue, year, meeting, day_of_meeting, race_code, date_code = match.groups()
+        if (venue != OFFICIAL_TRACK_CODES[track]
+                or year != compact_day[:4]
+                or date_code != compact_day
+                or race_code != f"{race:02d}"):
             raise ValueError()
     except ValueError:
         raise SettlementReplayError("Unrecognized official results URL") from None
@@ -134,7 +156,7 @@ def _validate_payload(p):
             raise ValueError()
     except (ReviewInputError, ValueError, KeyError, TypeError):
         raise SettlementReplayError("Unconfirmed official result timeline") from None
-    _source_url(p["sourceUrl"], day.replace("-", ""))
+    _source_url(p["sourceUrl"], day.replace("-", ""), p["track"], p["race"])
     trip = _unique_tickets(p["trifectaPayouts"], "trifecta", with_yen=True)
     trio = _unique_tickets(p["trioPayouts"], "trio", with_yen=True)
     refund_trip = _unique_tickets(p["trifectaRefunds"], "trifecta", with_yen=False)
