@@ -185,7 +185,11 @@ const FAILURE_STAGE={
  receipt_archiving:'サーバー記録の固定保存'
 };
 const FAILURE_KIND={
- provider:'API通信・権限',programme_format:'番組形式',
+ provider:'JRDB API通信・応答',
+ provider_auth:'JRDB認証（401：APIキー・認証キーを確認）',
+ provider_entitlement:'JRDB利用権限（403：β版の利用権限を確認）',
+ provider_rate_limit:'JRDB通信回数の制限（429：間隔を空けて再試行）',
+ programme_format:'番組形式',
  source_validation:'資料間の整合性',receipt_guard:'記録の署名検証',
  invalid_data:'資料形式'
 };
