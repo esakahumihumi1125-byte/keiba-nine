@@ -185,6 +185,94 @@ class OwnerArchiveTests(unittest.TestCase):
                 app,"/api/owner-100yen-archived",
                 QUERY_STRING="date=2099-02-31")["status"],"400 Bad Request")
 
+    def test_owner_archive_read_is_read_only_and_authenticated(self):
+        # The operator has opted into persistent Postgres in this synthetic
+        # test, not in the real free-tier Render workspace.
+        save_first_and_read(ARCHIVE_CONFIG, self.password, DAY, self.receipts,
+                            connect=self.db.connect)
+        app = create_app(ARCHIVE_CONFIG)
+        baseline = copy.deepcopy(self.db.rows)
+        def load(settings, signing_secret, day):
+            return read_day(settings, signing_secret, day,
+                            connect=self.db.connect)
+        with patch("private_service.read_archived_day", side_effect=load):
+            result = call(app, "/api/owner-archive-read",
+                          QUERY_STRING="date="+DAY)
+            self.assertEqual(result["status"], "200 OK")
+            body = json.loads(result["body"])
+            self.assertTrue(body["archiveEnabled"])
+            self.assertTrue(body["persistentStorageReady"])
+            self.assertTrue(body["available"])
+            self.assertEqual(body["raceCount"], 1)
+            self.assertEqual(body["receipts"], self.receipts)
+            self.assertFalse(body["officialScheduleVerified"])
+            self.assertFalse(body["captureAuditVerified"])
+            self.assertFalse(body["officialFeedConnected"])
+            self.assertFalse(body["actualPurchase"])
+            self.assertEqual(self.db.rows, baseline)
+            self.assertNotIn("fake_password", result["body"].decode())
+            self.assertNotIn("synthetic-independent-signing-secret",
+                             result["body"].decode())
+            self.assertEqual(
+                call(app, "/api/owner-archive-read",
+                     QUERY_STRING="date="+DAY, auth="")["status"],
+                "401 Unauthorized")
+            self.assertEqual(
+                call(app, "/api/owner-archive-read",
+                     QUERY_STRING="date="+DAY,
+                     HTTP_X_KEIBA_REQUEST="")["status"], "403 Forbidden")
+            self.assertEqual(
+                call(app, "/api/owner-archive-read",
+                     QUERY_STRING="date="+DAY,
+                     HTTP_SEC_FETCH_SITE="cross-site")["status"], "403 Forbidden")
+            for query in ("", "date=2099-02-31",
+                          "date="+DAY+"&date="+DAY,
+                          "date="+DAY+"&unexpected=1"):
+                with self.subTest(query=query):
+                    self.assertEqual(
+                        call(app, "/api/owner-archive-read",
+                             QUERY_STRING=query)["status"],
+                        "400 Bad Request")
+            self.assertEqual(self.db.rows, baseline)
+        preview = create_app({**ARCHIVE_CONFIG,
+                              "KEIBA_RENDER_PRIVATE_ONLY": "0",
+                              "KEIBA_RENDER_PREVIEW_ONLY": "1"})
+        self.assertEqual(
+            call(preview, "/api/owner-archive-read",
+                 QUERY_STRING="date="+DAY)["status"], "404 Not Found")
+
+    def test_owner_archive_read_fail_closed_and_no_server_persistence_claim(self):
+        disabled = create_app(setup(sample_race()))
+        response = call(disabled, "/api/owner-archive-read",
+                        QUERY_STRING="date="+DAY)
+        self.assertEqual(response["status"], "200 OK")
+        payload = json.loads(response["body"])
+        self.assertEqual(payload["raceCount"], 0)
+        self.assertEqual(payload["receipts"], [])
+        self.assertFalse(payload["archiveEnabled"])
+        self.assertFalse(payload["persistentStorageReady"])
+        self.assertFalse(payload["available"])
+        # An archive configured without a durable store never falls back
+        # to local files or falsely returns an empty successfully-read DB.
+        bad = create_app({**ARCHIVE_CONFIG, DSN_KEY: ""})
+        result = call(bad, "/api/owner-archive-read",
+                      QUERY_STRING="date="+DAY)
+        self.assertEqual(result["status"], "503 Service Unavailable")
+        self.assertNotIn("postgresql:", result["body"].decode())
+        self.assertNotIn("fake_password", result["body"].decode())
+        # Previously signed but tampered rows are never returned.
+        save_first_and_read(ARCHIVE_CONFIG, self.password, DAY, self.receipts,
+                            connect=self.db.connect)
+        self.db.rows[(DAY, "東京", 1)]["snapshot"]["trifectaTickets"][0][0] = 17
+        def load(settings, signing_secret, day):
+            return read_day(settings, signing_secret, day,
+                            connect=self.db.connect)
+        with patch("private_service.read_archived_day", side_effect=load):
+            blocked = call(create_app(ARCHIVE_CONFIG),
+                           "/api/owner-archive-read", QUERY_STRING="date="+DAY)
+        self.assertEqual(blocked["status"], "503 Service Unavailable")
+        self.assertNotIn("17", blocked["body"].decode())
+
     def test_archive_disabled_is_safe_and_does_not_require_db(self):
         app=create_app(setup(sample_race()))
         result=call(app,"/api/owner-100yen-archived",QUERY_STRING="date="+DAY)
