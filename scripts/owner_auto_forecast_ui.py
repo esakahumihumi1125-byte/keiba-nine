@@ -24,6 +24,9 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
+<p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
+<a href="/owner-backup">固定済み買い目など8種類の端末記録をバックアップする</a>。
+既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
 <a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
 <section>
@@ -67,6 +70,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 </section>
 <section>
 <h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
+<p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <div id="autoRaces"></div>
 </section>
@@ -527,6 +531,23 @@ function formation(r){
   dom('p',r.tickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
  return block;
 }
+function summarizeDaySourcePassport(a, expectedCount){
+ // Read only the validated, same-request count passport. Never infer
+ // verified grades or JRA matching from material presence.
+ if(!a)return '資料進捗一覧は旧版のデータに含まれていません。正式10項目の評価は未完了。';
+ if(!a.sourceAuditAvailable)
+  return '資料の件数集計は照合保留。総合10項目の正式採点・JRA公式照合は未完了。';
+ const rows=a.races,aggregate=(key)=>rows.reduce((total,r)=>total+r[key],0);
+ const course=rows.filter(r=>r.courseContextPresent).length;
+ const going=rows.filter(r=>r.goingContextPresent).length;
+ const observed=rows.filter(r=>r.sourceMaterialsObserved).length;
+ if(rows.length!==expectedCount)throw Error('集計レース数の不一致');
+ return '資料進捗：'+rows.length+'R中、調教の仮評価がある馬 '+
+  aggregate('provisionalTrainingCount')+'頭／近走 '+aggregate('provisionalRecentCount')+
+  '頭。コース条件 '+course+'R／当日馬場資料 '+going+
+  'R／追加資料の件数照合 '+observed+
+  'R。正式採点0/10・JRA公式独立照合なし。買い目は変更しません。';
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
@@ -535,6 +556,8 @@ function render(input,day){
   new Map(data.sourcePassport.races.map(r=>[r.track+'|'+r.race,r])):null;
  const host=$('autoRaces'),tabs=$('autoVenues'),nodes=[],groups=new Map();
  host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
+ $('autoSourceSummary').textContent=summarizeDaySourcePassport(
+  data.sourcePassport,data.raceCount);
  for(const race of data.races){
   const detail=dom('details'),title=dom('summary',
    race.track+' '+race.race+'R '+
@@ -1506,6 +1529,7 @@ $('autoDay').onchange=()=>{
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  clearHistory();
  $('autoSummary').textContent='未取得';
+ $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(
@@ -1634,6 +1658,7 @@ $('autoRun').onclick=async()=>{
   $('autoStatus').textContent=detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoSummary').textContent='予想は未作成';
+  $('autoSourceSummary').textContent='資料進捗の取得に失敗しました。以前の集計は表示しません。';
   $('autoTenWeights').replaceChildren();
   $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
  finally{if(seq===request)button.disabled=false;}
@@ -1946,6 +1971,7 @@ function resumeOwnerDay(){
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  clearHistory();
  $('autoSummary').textContent='未取得';
+ $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(today.replaceAll('-',''));
