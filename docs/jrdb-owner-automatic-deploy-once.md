@@ -20,6 +20,18 @@
 3. [GitHub Actions Secrets設定](https://github.com/esakahumihumi1125-byte/keiba-nine/settings/secrets/actions) を開き、**New repository secret** を押す。
 4. **Name** に `RENDER_JRDB_DEPLOY_HOOK_URL` と入力。**Secret** にさっきコピーした本人用サービスのDeploy Hook URLを貼り、**Add secret** で保存する。値を画面に共有しない。
 
+## 自動更新の初回実地検証
+
+秘密URLの登録後、リポジトリの `main` に安全な更新を入れ、
+`Private service checks` → `Owner Render deploy after private checks / deploy-jrdb` →
+Render `keiba-nine-owner-jrdb` の順で確認する。
+
+検証は **Render APIからの手動デプロイを使わない**。
+GitHub Actionsで `DEPLOY REQUEST SENT` となり、Render上で同じSHAが
+`Live` になった場合だけ自動更新成功と判断する。
+`SKIPPED` / `BLOCKED` / `failure` は未成功。
+Secretの値・Deploy Hook URLを診断ログやチャットに転載しない。
+
 ## 登録後の確認方法
 
 Secretを追加しただけでは、過去に完了したGitHub Actionsは自動で再実行しない。**次のmainへのコード更新**をきっかけに動く。
