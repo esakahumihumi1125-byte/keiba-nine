@@ -54,8 +54,8 @@ class PedigreeEvidencePreflightTests(unittest.TestCase):
         mutations = (
             lambda d: d.update(overallPredictionReady=True),
             lambda d: d.update(verifiedGrades=1),
-            lambda d: d["races"][0]["runners"][0].update(number=18),
-            lambda d: d["races"][0]["runners"][1].update(number=1),
+            lambda d: d["races"][-1]["runners"][0].update(number=19),
+            lambda d: d["races"][-1]["runners"][1].update(number=1),
             lambda d: d["races"][0]["runners"][0].update(overallScore=99),
             lambda d: d["races"][0]["runners"][0]["sourceStates"].update(
                 pedigree="S"),
