@@ -1429,7 +1429,7 @@ $('autoConnectionCheck').onclick=async()=>{
   $('autoConnectionStatus').textContent='開催日を正しく選択してください。';
   return;
  }
- const seq=++connectionSeq,day=selected.replaceAll('-');
+ const seq=++connectionSeq,day=selected.replaceAll('-','');
  button.disabled=true;
  $('autoConnectionStatus').textContent='接続設定を確認中…';
  try{
