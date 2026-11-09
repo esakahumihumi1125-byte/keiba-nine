@@ -28,6 +28,7 @@ from jrdb_day_review_gate import build_day_review_queue
 from jrdb_day_factor_progress import summarize_day_factor_progress
 from jrdb_day_materials_progress import summarize_day_materials
 from jrdb_prestart_body import audit_prestart_body
+from owner_body_one_evidence_preflight import body_one_evidence_preflight
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
@@ -2016,6 +2017,8 @@ def create_app(settings=None):
                 entries = fetch_horse_entries(date)
                 prestart = fetch_prestart_body(date)
                 report = audit_prestart_body(programme, entries, prestart, date)
+                # Same already-validated TPD data, not a fourth provider call.
+                report['bodyOneEvidencePreflight'] = body_one_evidence_preflight(report)
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     ValueError, KeyError, TypeError):
                 return response('502 Bad Gateway', {
