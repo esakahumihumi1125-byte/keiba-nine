@@ -679,7 +679,7 @@ function withSupportSix(report){
  return report;
 }
 function prestart(){
- return {
+ const result={
   version:'private-prestart-body-1',date:day,raceCount:1,
   races:[{
    track:'東京',race:1,registered:7,prestartRowsMatched:6,
@@ -699,6 +699,39 @@ function prestart(){
   oddsUsed:false,officialBodyWeightVerified:false,bodyConditionGraded:false,
   realPredictionReady:false,purchaseReady:false
  };
+ const gate={
+  version:'owner-body-one-evidence-preflight-1',
+  date:day,policyVersion:'research-5',
+  factor:'body_condition',weight:1,raceCount:result.raceCount,
+  races:result.races.map(row=>({
+   track:row.track,race:row.race,runnerCount:row.registered,
+   completeMeasuredPairs:row.weightChangeRecords,
+   missingMeasuredPairs:row.registered-row.weightChangeRecords,
+   verifiedGradeCount:0,scoreReady:false,
+   horses:row.runners.map(h=>{
+    const gaps=[];
+    if(!h.prestartRowMatched)gaps.push('prestart_runner_row_unavailable');
+    if(!h.bodyWeightRecorded)gaps.push('body_weight_measurement_missing');
+    if(!h.weightChangeRecorded)gaps.push('previous_weight_comparison_missing');
+    gaps.push('independent_jra_weight_not_verified',
+     'body_condition_effect_not_calibrated','temporal_holdout_not_validated');
+    return {
+     number:h.number,sourcePairPresent:h.bodyWeightRecorded&&h.weightChangeRecorded,
+     missingEvidence:gaps,grade:'未評価',score1:null,
+     officialVerified:false,effectValidated:false,
+     temporalValidationComplete:false,bettingReady:false
+    };
+   })
+  })),
+  verifiedGradeCount:0,officialJraVerified:false,
+  sourceTimestampVerified:false,conditionEffectValidated:false,
+  outOfTimeValidated:false,overallPredictionReady:false,
+  bettingReady:false,autoPurchase:false,researchOnly:true,
+  privateOwnerOnly:true,changesExistingTickets:false,
+  changesExistingReceipts:false
+ };
+ result.bodyOneEvidencePreflight=gate;
+ return result;
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
@@ -1103,11 +1136,19 @@ function boot(){
  assert.equal(bodyRequests[0].options.credentials,'same-origin');
  assert.equal(a.get('autoPrestartRaces').children.length,1);
  assert.match(a.get('autoPrestartStatus').textContent,/馬体重記録 4頭/);
+ assert.match(a.get('autoPrestartStatus').textContent,/資料ペア 3頭/);
+ assert.match(a.get('autoPrestartStatus').textContent,/馬体1点は未評価/);
  assert.match(a.get('autoPrestartRaces').children[0].children[1].textContent,/JRA公式未確認/);
  const bodyPanel=a.get('autoPrestartRaces').children[0].children[2];
  assert.match(bodyPanel.children[0].textContent,/馬番別の資料を見る/);
  assert.match(bodyPanel.children[1].textContent,/1番｜馬体重 記録あり／前走比 記録あり/);
  assert.match(bodyPanel.children[7].textContent,/7番｜馬体重 未取得／前走比 未取得/);
+ const bodyGate=a.get('autoPrestartRaces').children[0].children[3];
+ assert.match(bodyGate.children[0].textContent,/採点準備：体重＋前走比あり 3\/7頭/);
+ assert.match(bodyGate.children[1].textContent,/記録があっても採点しません/);
+ assert.match(bodyGate.children[2].textContent,/1番｜体重＋前走比 記録あり/);
+ assert.match(bodyGate.children[8].textContent,/7番｜体重＋前走比 不足/);
+ assert.match(bodyGate.children[8].textContent,/直前情報行なし/);
  assert.equal(a.storage.get(STORAGE),beforeBody);
  const wrongBody=prestart();
  wrongBody.races[0].bodyWeightRecords=18;
@@ -1124,6 +1165,14 @@ function boot(){
   h=>h.races[0].runners[0].weightChangeRecorded=false,
   h=>h.races[0].runners[1].number=1,
   h=>h.races[0].runners[6].bodyWeightRecorded=true,
+  h=>h.bodyOneEvidencePreflight.races[0].completeMeasuredPairs=7,
+  h=>h.bodyOneEvidencePreflight.races[0].horses[0].score1=1,
+  h=>h.bodyOneEvidencePreflight.races[0].horses[0].grade='S',
+  h=>h.bodyOneEvidencePreflight.races[0].horses[0].officialVerified=true,
+  h=>h.bodyOneEvidencePreflight.races[0].horses[6].sourcePairPresent=true,
+  h=>h.bodyOneEvidencePreflight.races[0].horses[6].missingEvidence=[],
+  h=>h.bodyOneEvidencePreflight.races[0].horses[1].number=1,
+  h=>h.bodyOneEvidencePreflight.races[0].race=2,
  ]){
   const forged=prestart();mutate(forged);
   a.setPrestart(forged);
