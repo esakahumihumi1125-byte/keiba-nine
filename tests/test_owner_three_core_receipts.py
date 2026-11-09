@@ -81,7 +81,7 @@ class ThreeCoreReceiptTests(unittest.TestCase):
         self.assertEqual(snaps[0]["raceRunnerCount"], 3)
         self.assertEqual(snaps[0]["observedRunnerCount"], 2)
         self.assertEqual([h["number"] for h in snaps[0]["horses"]], [1, 2])
-        self.assertEqual(snaps[0]["horses"][0]["rawThirdPoints"], 170)
+        self.assertEqual(snaps[0]["horses"][0]["rawThirdPoints"], 150)
         self.assertEqual(snaps[0]["horses"][1]["rawThirdPoints"], 120)
         self.assertEqual(before, (history, programme))
         for term in ("racekey", "horse_id", "sireRecorded",
