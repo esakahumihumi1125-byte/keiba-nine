@@ -170,7 +170,16 @@ class MultiWinnerSettlementReplayTests(unittest.TestCase):
             replay_attested_settlements(
                 receipts(), PASS, DAY, [valid], RESULT_SECRET,
                 now=datetime(2099, 4, 12, 1, 30, tzinfo=timezone.utc))
-        another = attest(payload(track="阪神"))
+        # Mismatched source page is rejected even before result signing.
+        with self.assertRaises(SettlementReplayError):
+            attest(payload(track="阪神"))
+        # A different properly identified race may be signed in isolation,
+        # but cannot be replayed against the owner's locked race set.
+        other = payload(track="京都", race=3)
+        other["sourceUrl"] = (
+            "https://www.jra.go.jp/JRADB/accessS.html?"
+            "CNAME=pw01sde0108209901010320990412%2FAB")
+        another = attest(other)
         with self.assertRaises(SettlementReplayError):
             replay_attested_settlements(
                 receipts(), PASS, DAY, [another], RESULT_SECRET, now=NOW)
