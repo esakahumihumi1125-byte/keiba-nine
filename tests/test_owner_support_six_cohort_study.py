@@ -67,6 +67,14 @@ class SupportSixCohortTests(unittest.TestCase):
         self.assertEqual(inner["relativeWeight"]["observedWinRatePercent"], 33.33)
         self.assertEqual(inner["jockey"]["observedWins"], 12)
         self.assertEqual(inner["trainer"]["observedTop3"], 36)
+        self.assertEqual(inner["jockeyTrainerPair"]["observedRunners"], 36)
+        self.assertEqual(inner["jockeyTrainerPair"]["observedWins"], 12)
+        self.assertEqual(inner["jockeyTrainerPair"]["observedTop3"], 36)
+        self.assertEqual(inner["jockeyTrainerPair"]["distinctHistoricalRaces"], 12)
+        self.assertTrue(inner["jockeyTrainerPair"]["minimumCoverageMet"])
+        self.assertTrue(report["horses"][0]["jockeyTrainerPairCoverageMet"])
+        self.assertTrue(report["horses"][0]["jockeyAndTrainerIndividualCoverageMet"])
+        self.assertFalse(report["horses"][0]["pairEffectIndependentlyValidated"])
         self.assertEqual(inner["rotation"]["observedRunners"], 72)
         self.assertTrue(inner["rotation"]["minimumCoverageMet"])
         self.assertEqual(report["horses"][-1]["cohortEvidence"]["rotation"]
@@ -89,6 +97,47 @@ class SupportSixCohortTests(unittest.TestCase):
                         "horseRef", "resultAvailableAt", "trifectaTickets",
                         "payout"):
             self.assertNotIn(private, repr(report))
+
+    def test_separate_adequate_jockey_and_trainer_not_equivalent_to_same_pair(self):
+        # JOCKEY001 has 36 past starts, and STABLE001 independently has
+        # 36 past starts, but the rider NEVER rode for that particular stable.
+        history = [past(n) for n in range(1, 13)]
+        for race in history:
+            for row in race["runners"]:
+                row["trainerRef"] = ("STABLE002" if row["number"] <= 3
+                                     else "STABLE001")
+        before = copy.deepcopy(history)
+        report = support_six_cohort_study(TARGET, history)
+        self.assertEqual(history, before)
+        row = report["horses"][0]
+        self.assertTrue(row["cohortEvidence"]["jockey"]["minimumCoverageMet"])
+        self.assertTrue(row["cohortEvidence"]["trainer"]["minimumCoverageMet"])
+        self.assertEqual(
+            row["cohortEvidence"]["jockeyTrainerPair"]["observedRunners"], 0)
+        self.assertFalse(
+            row["cohortEvidence"]["jockeyTrainerPair"]["minimumCoverageMet"])
+        self.assertTrue(row["jockeyAndTrainerIndividualCoverageMet"])
+        self.assertFalse(row["jockeyTrainerPairCoverageMet"])
+        self.assertFalse(row["pairEffectIndependentlyValidated"])
+        self.assertEqual(row["grades"]["jockey_stable"], "未評価")
+        self.assertIsNone(row["scores"]["jockey_stable"])
+        for private in ("JOCKEY001", "STABLE001", "STABLE002"):
+            self.assertNotIn(private, repr(report))
+
+    def test_rider_trainer_pair_never_uses_unpublished_or_other_race_cohort(self):
+        history = [past(n) for n in range(1, 13)]
+        later = past(13, day="2026-11-13",
+                     availability="2026-11-13T23:30:00+09:00")
+        for h in later["runners"]:
+            h["jockeyRef"] = "JOCKEY001"
+            h["trainerRef"] = "STABLE001"
+        history.append(later)
+        report = support_six_cohort_study(TARGET, history)
+        self.assertEqual(report["futureOrUnpublishedRacesExcluded"], 1)
+        self.assertEqual(
+            report["horses"][0]["cohortEvidence"]["jockeyTrainerPair"]
+                  ["observedRunners"], 36)
+        self.assertFalse(report["holdoutValidationComplete"])
 
     def test_future_unpublished_and_mismatched_classes_excluded(self):
         history = [past(n) for n in range(1, 13)]
