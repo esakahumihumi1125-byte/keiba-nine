@@ -854,7 +854,14 @@ function boot(){
  assert.match(sourcePanel.children[4].textContent,/未評価の8項目/);
  assert.match(sourcePanel.children[4].textContent,/コース・距離20点/);
  assert.match(sourcePanel.children[4].textContent,/馬体重1点/);
- assert.match(sourcePanel.children[5].textContent,/JRA公式.*未接続/);
+ const nextSteps=sourcePanel.children[5];
+ assert.equal(nextSteps.className,'source-next');
+ assert.match(nextSteps.children[0].textContent,/次に確認する資料/);
+ assert.match(nextSteps.children[1].textContent,/血統・枠斤量・騎手厩舎・ローテ/);
+ assert.match(nextSteps.children[2].textContent,/当日馬体重の確認/);
+ assert.match(nextSteps.children[3].textContent,/根拠に基づく採点/);
+ assert.match(nextSteps.children[4].textContent,/JRA公式.*独立照合/);
+ assert.match(sourcePanel.children[6].textContent,/JRA公式.*未接続/);
  const tamperedPassport=resultWith('c'.repeat(64));
  tamperedPassport.sourcePassport.races[0].verifiedFactorCount=10;
  a.setServerRaw(tamperedPassport);
