@@ -248,7 +248,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(boot({...fixture(),[keys[10]]:[
   research6Draft,research6Draft]}).el('backupDownload').disabled,true);
  // Old nine-section v6 backup must not remove newly fixed 85-point records.
- const oldNine=fixture();delete oldNine[keys[9]];
+ const oldNine=fixture();for(const key of keys.slice(9))delete oldNine[key];
  const legacyNine=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v6',
   exportedAt:'2099-01-08T23:00:00Z',sections:oldNine}));
  const current85=boot(fixture()),original85=current85.storage.get(keys[9]);
