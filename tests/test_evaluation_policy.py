@@ -3,7 +3,8 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from evaluation_policy import evaluate_race, FACTORS, TOTAL_WEIGHT, POLICY_VERSION, SCORE_THRESHOLDS
+from evaluation_policy import (evaluate_race, OWNER_FORMAL_FACTORS as FACTORS,
+    TOTAL_WEIGHT, OWNER_FORMAL_POLICY_VERSION as POLICY_VERSION, SCORE_THRESHOLDS)
 
 
 def assessment(grade='A', win=False):
@@ -23,13 +24,13 @@ def race(horses=None):
 
 class EvaluationTests(unittest.TestCase):
     def test_owner_weights_are_exact_100_point_distribution(self):
-        self.assertEqual(POLICY_VERSION,'research-5')
+        self.assertEqual(POLICY_VERSION,'research-6')
         self.assertEqual(SCORE_THRESHOLDS, {'S':85, 'A':70, 'B':55})
         self.assertEqual(TOTAL_WEIGHT,100)
         self.assertEqual(FACTORS,{
-            'training':30,'recent':3,'course_distance':20,'pace':20,
-            'ground':12,'pedigree':8,'draw_weight':3,
-            'jockey_stable':2,'rotation':1,'body_condition':1,
+            'training':30,'recent':3,'course_distance':17,'pace':17,
+            'ground':12,'pedigree':6,'draw_weight':3,
+            'jockey_stable':10,'rotation':1,'body_condition':1,
         })
 
     def test_deterministic_no_mutation(self):
