@@ -1212,6 +1212,13 @@ function boot(){
  const beforeFive=a.requests.length,coreBeforeFive=a.storage.get(CORE_STORAGE);
  a.setHistorical(withFiveCore(historical()));
  await a.get('autoHistoryAudit').onclick();
+ const quickCard=a.get('autoHistoryAuditRaces').children[0];
+ const quickSummary=quickCard.children.find(x=>x.tag==='p'&&
+  /研究85点比較/.test(x.textContent));
+ assert.ok(quickSummary,'85-point evidence has a visible, zero-extra-click summary');
+ assert.match(quickSummary.textContent,/5項目がそろう馬は0頭/);
+ assert.match(quickSummary.textContent,/未評価 7頭/);
+ assert.match(quickSummary.textContent,/正式な良い馬順・勝率・買い目ではありません/);
  const fiveCorePanel=a.get('autoHistoryAuditRaces').children[0].children.find(
   x=>x.tag==='details'&&/重点5項目の研究用85点/.test(
    x.children[0]?.textContent||''));
