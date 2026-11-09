@@ -10,6 +10,7 @@
 - [JRDBの非公開接続準備](docs/jrdb-private.md)
 - [JRDB-API β版承認後の本人専用接続手順（2026-11-08）](docs/jrdb-api-beta-activation.md)
 - [本人用10項目の資料確認・直前馬体重の件数チェック（2026-11-09）](docs/owner-ten-factor-source-inventory.md)
+- [正式10項目100点採点エンジン・実レースへの接続条件（2026-11-09）](docs/owner-formal-ten-factor-scoring.md)
 - [JRDB本人用の自動更新：iPhoneで最初の1回だけ行う設定](docs/jrdb-owner-automatic-deploy-once.md)
 - [本人用予想のサーバー永続保存：安全な有効化・保存済み記録の読み取り](docs/owner-postgres-archive-activation.md)
 - [11月14日（土）本人用アプリの利用手順・停止条件](docs/owner-saturday-2026-11-14.md)
