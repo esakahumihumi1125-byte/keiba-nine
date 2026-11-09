@@ -72,6 +72,9 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
+<label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
+<select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
+<p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
 <div id="autoRaces"></div>
 </section>
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
@@ -90,10 +93,10 @@ section{background:#142b43;border:1px solid #4d6b85;border-radius:14px;padding:1
 .warning{background:#342d25;color:#ffe6b5;border:1px solid #9b8052;border-radius:10px;padding:12px;font-size:13px}
 .muted{font-size:13px;color:#c3d3e3}
 label{display:block;font-weight:700}
-input,button{font:inherit;min-height:45px;padding:11px;border-radius:10px;margin:7px 0;width:100%}
-input{background:#0c2135;color:white;border:1px solid #90a6b9}
+input,button,select{font:inherit;min-height:45px;padding:11px;border-radius:10px;margin:7px 0;width:100%}
+input,select{background:#0c2135;color:white;border:1px solid #90a6b9}
 button{background:#e8c774;color:#182b41;border:0;font-weight:800}
-button:disabled{opacity:.55}
+button:disabled,select:disabled{opacity:.55}
 .venue-tabs{display:flex;flex-wrap:wrap;gap:7px}
 .venue-tabs button{flex:1 1 100px;width:auto;background:#2b425b;color:#eaf3ff}
 .venue-tabs button[aria-pressed=true]{background:#e8c774;color:#152a3d}
@@ -554,7 +557,11 @@ function render(input,day){
  const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
  const passport=data.sourcePassport?.sourceAuditAvailable?
   new Map(data.sourcePassport.races.map(r=>[r.track+'|'+r.race,r])):null;
- const host=$('autoRaces'),tabs=$('autoVenues'),nodes=[],groups=new Map();
+ const host=$('autoRaces'),tabs=$('autoVenues'),
+  select=$('autoRacePick'),nodes=[],groups=new Map();
+ select.disabled=true;select.replaceChildren();
+ const allOption=dom('option','全Rを一覧表示');allOption.value='';
+ select.append(allOption);select.value='';
  host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
  $('autoSourceSummary').textContent=summarizeDaySourcePassport(
   data.sourcePassport,data.raceCount);
@@ -626,26 +633,55 @@ function render(input,day){
    panel.append(dom('p','コース情報 '+(row.courseContextPresent?'あり':'未確認')+
     '／当日馬場情報 '+(row.goingContextPresent?'あり':'未確認')+
     '。過去の位置取りや馬体形状コードは、展開予測・当日馬体重の採点ではありません。','muted'));
+   panel.append(dom('p','未評価の8項目：'+
+    TEN.filter(([key])=>row.unassessedFactorKeys.includes(key))
+     .map(([,label,weight])=>label+weight+'点').join('／')+
+    '。資料の記録数だけでS/A/B/Cの評価はできません。','muted'));
    panel.append(dom('p','JRA公式出走馬・取消・馬場・発走時刻の独立確認：未接続。'+
     '総合評価・確定予想・購入は未実施。過去資料は下の任意照合で確認できます。','muted'));
    detail.append(panel);
   }
   if(race.status==='provisional_draft')detail.append(formation(race));
-  nodes.push({track:race.track,node:detail});
+  const raceKey=race.track+'|'+race.race;
+  nodes.push({key:raceKey,track:race.track,node:detail});
+  const option=dom('option',race.track+' '+race.race+'R｜'+
+   (race.status==='provisional_draft'?'研究用下書き '+race.points+'点':'見送り'));
+  option.value=raceKey;select.append(option);
   groups.set(race.track,(groups.get(race.track)||0)+1);
  }
- function show(track){
+ // Selection uses an already verified day snapshot. No extra JRDB calls,
+ // no prediction reconstruction, no receipt or purchase write.
+ function show(track,key=''){
   const frag=document.createDocumentFragment();
-  for(const item of nodes)if(!track||item.track===track)frag.append(item.node);
+  let visible=0;
+  for(const item of nodes){
+   if(key?item.key===key:!track||item.track===track){
+    item.node.open=Boolean(key);
+    frag.append(item.node);visible++;
+   }
+  }
   host.replaceChildren(frag);
+  $('autoViewingStatus').textContent=key
+   ?'選択中：'+key.replace('|',' ')+'R。研究用データのみ。'
+   :track?track+' '+visible+'Rを表示（正式予想ではありません）'
+   :'全場 '+visible+'Rを表示。レース選択で1Rだけ開けます。';
   for(const b of tabs.querySelectorAll('button'))b.setAttribute(
-    'aria-pressed',String(b.dataset.track===track));
+   'aria-pressed',String(b.dataset.track===track));
  }
+ select.disabled=nodes.length===0;
+ select.onchange=()=>{
+  const key=select.value;
+  // Do not accept a stale or forged ID from an old day.
+  if(key&&!nodes.some(r=>r.key===key)){
+   select.value='';show('');return;
+  }
+  show(key?nodes.find(r=>r.key===key).track:'',key);
+ };
  for(const track of ['',...groups.keys()]){
   const button=dom('button',track?track+' '+groups.get(track)+'R':'全場 '+data.raceCount+'R');
   button.type='button';button.dataset.track=track;
   button.setAttribute('aria-pressed','false');
-  button.onclick=()=>show(track);tabs.append(button);
+  button.onclick=()=>{select.value='';show(track);};tabs.append(button);
  }
  show('');
  const breakdown=Object.entries(data.holdReasons).sort((a,b)=>b[1]-a[1])
@@ -1527,6 +1563,10 @@ $('autoDay').onchange=()=>{
  request++;$('autoRun').disabled=false;
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoRacePick').disabled=true;
+ $('autoRacePick').replaceChildren();
+ $('autoRacePick').value='';
+ $('autoViewingStatus').textContent='レースを取得すると選択できます。';
  clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
@@ -1603,6 +1643,10 @@ $('autoRun').onclick=async()=>{
  button.disabled=true;$('autoStatus').textContent='JRDB資料を一括照合し、自動暫定案を作成中…';
  clearHistory();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoRacePick').disabled=true;
+ $('autoRacePick').replaceChildren();
+ $('autoRacePick').value='';
+ $('autoViewingStatus').textContent='レースを取得すると選択できます。';
  try{
   const result=await fetch('/api/jrdb/owner-auto-draft?date='+encodeURIComponent(day),{
    credentials:'same-origin',cache:'no-store',
@@ -1969,6 +2013,10 @@ function resumeOwnerDay(){
  $('autoDay').value=today;
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+ $('autoRacePick').disabled=true;
+ $('autoRacePick').replaceChildren();
+ $('autoRacePick').value='';
+ $('autoViewingStatus').textContent='レースを取得すると選択できます。';
  clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
