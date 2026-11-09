@@ -97,6 +97,7 @@ def full_ten_factor_preview(snapshot, *, now):
         official = {}
     valid_official = {k: official.get(k) is True for k in OFFICIAL}
     numbers, ranking, missing, support_by_number = set(), [], {}, {}
+    blocked_numbers = set()
     for horse in horses:
         if not isinstance(horse, dict):
             raise CoverageError("Invalid runner assessment")
@@ -138,6 +139,8 @@ def full_ten_factor_preview(snapshot, *, now):
         concerns = horse.get("blockingConcerns", [])
         if not isinstance(concerns, list) or len(concerns) > 12:
             raise CoverageError("Malformed race blocking concerns")
+        if concerns:
+            blocked_numbers.add(n)
         source_ids = {}
         if not concerns:
             for factor in RECHECK_FACTORS:
@@ -213,7 +216,18 @@ def full_ten_factor_preview(snapshot, *, now):
         "ranking": ranking, "missingByNumber": {},
         "winnerRecheck": recheck,
         "independentJraVerified": all(valid_official.values()),
+        "blockedRunnerCount": len(blocked_numbers),
     }
+    # Even perfect 100-point evidence cannot override an unresolved
+    # scratched/uncertain runner. Do not build or display a formation while
+    # any horse still has a race-level blocking concern.
+    if blocked_numbers:
+        response["status"] = "unresolved_runner_blocker"
+        response["winnerRecheck"] = _empty_recheck()
+        response["upsetAlternative"] = hold_upset("full_ten_not_ready")
+        response["trifecta"] = build_trifecta(
+            [h["number"] for h in ranking], evidence=None)
+        return response
     # Source-based ties cannot be broken by horse number merely to fill slots.
     sizes = _safe_formation_sizes([
         {"weightedResearchPoints": h["weightedPoints"]} for h in ranking
