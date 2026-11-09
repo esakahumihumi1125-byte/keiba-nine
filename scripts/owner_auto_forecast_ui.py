@@ -39,6 +39,7 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p class="muted">③ 発走前の固定記録を確認し、必要に応じて「8種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
 </details>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
+<p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p>
 <p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
 <a href="/owner-backup">固定済み買い目など8種類の端末記録をバックアップする</a>。
 既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
@@ -616,8 +617,54 @@ function morningStatus(data,day,localStatus){
   ' 10項目本採点・JRA公式出走取消／発走時刻の独立確認は未完了。'+
   (data.archiveEnabled?'サーバー保存は別途検証が必要。':'サーバー永続保存は未設定。');
 }
+function sameTicketSet(first,second){
+ const canon=items=>items.map(t=>t.join('-')).sort().join('|');
+ return canon(first)===canon(second);
+}
+function compareFixedWithDrafts(data,day){
+ // Read the FIRST local prestart lock. Never rewrite it, and never
+ // assume a syntactically valid HMAC string has been verified by server.
+ // Ambiguous saved data blocks the newly generated formation display.
+ try{
+  const receipts=selectedReceiptsForVerification(day);
+  const byRace=new Map(receipts.map(row=>[
+   row.snapshot.track+'|'+row.snapshot.race,row.snapshot]));
+  const blocked=new Set(),held=[];
+  let matches=0,conflicts=0;
+  for(const race of data.races){
+   const key=race.track+'|'+race.race,previous=byRace.get(key);
+   if(!previous)continue;
+   if(race.status!=='provisional_draft'){
+    held.push(key);continue;
+   }
+   if(sameTicketSet(previous.trifectaTickets,race.tickets))matches++;
+   else{blocked.add(key);conflicts++;}
+  }
+  const unlisted=[...byRace.keys()].filter(k=>
+   !data.races.some(r=>r.track+'|'+r.race===k)).length;
+  return {blocked,unavailable:false,
+   total:receipts.length,matches,conflicts,held:held.length,unlisted};
+ }catch(_){
+  return {blocked:new Set(data.races.filter(r=>
+   r.status==='provisional_draft').map(r=>r.track+'|'+r.race)),
+   unavailable:true,total:null,matches:0,conflicts:0,held:0,unlisted:0};
+ }
+}
+function fixedComparisonMessage(report){
+ if(report.unavailable)
+  return '【保存記録の確認が必要】端末の固定済み研究記録を安全に読み取れません。再分析の買い目は表示しません。バックアップと署名検証を確認してください。元の記録は変更していません。';
+ if(report.conflicts)
+  return '【買い目の不一致 '+report.conflicts+
+   'R】再分析の下書きと最初に端末へ固定した3連単が異なります。再分析の新しい買い目は表示せず、下の「発走前に固定した買い目の履歴」で最初の買い目を確認してください。既存の固定買い目は上書きしていません。署名検証は別操作です。';
+ if(report.total)
+  return '端末に固定済みの研究記録 '+report.total+'R。今回の暫定案と馬番が一致 '+
+   report.matches+'R／今回は見送り '+report.held+'R／番組にない保存済み記録 '+
+   report.unlisted+'R。固定済みを後から変更しません。署名検証は別操作です。';
+ return 'この開催日の端末に固定済みの研究記録はまだありません。発走前に生成した研究用下書きのみ、初回に限り固定保存します。';
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
+ const fixed=compareFixedWithDrafts(data,day);
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
  const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
  const passport=data.sourcePassport?.sourceAuditAvailable?
@@ -628,6 +675,7 @@ function render(input,day){
  const allOption=dom('option','全Rを一覧表示');allOption.value='';
  select.append(allOption);select.value='';
  host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
+ $('autoFixedConsistency').textContent=fixedComparisonMessage(fixed);
  $('autoSourceSummary').textContent=summarizeDaySourcePassport(
   data.sourcePassport,data.raceCount);
  for(const race of data.races){
@@ -711,7 +759,14 @@ function render(input,day){
     '総合評価・確定予想・購入は未実施。過去資料は下の任意照合で確認できます。','muted'));
    detail.append(panel);
   }
-  if(race.status==='provisional_draft')detail.append(formation(race));
+  if(race.status==='provisional_draft'){
+   if(fixed.blocked.has(race.track+'|'+race.race))
+    detail.append(dom('p',fixed.unavailable
+     ?'端末固定記録の確認に失敗。新しい3連単案は非表示。保存済み記録を確認してな。'
+     :'【以前の固定買い目と不一致】新しい下書きの3連単を非表示にしました。下の発走前固定履歴を確認してな。',
+     'hold'));
+   else detail.append(formation(race));
+  }
   const raceKey=race.track+'|'+race.race;
   nodes.push({key:raceKey,track:race.track,
    draft:race.status==='provisional_draft',node:detail});
@@ -1709,6 +1764,7 @@ $('autoDay').onchange=()=>{
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
+ $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(
@@ -1906,6 +1962,7 @@ $('autoRun').onclick=async()=>{
   $('autoStatus').textContent=detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoSummary').textContent='予想は未作成';
+  $('autoFixedConsistency').textContent='今回の再分析結果は未確認です。以前の固定済み研究記録は変更していません。';
   $('autoMorningStatus').textContent='JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
   $('autoSourceSummary').textContent='資料進捗の取得に失敗しました。以前の集計は表示しません。';
   $('autoTenWeights').replaceChildren();
@@ -2369,6 +2426,7 @@ function resumeOwnerDay(){
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
+ $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(today.replaceAll('-',''));
