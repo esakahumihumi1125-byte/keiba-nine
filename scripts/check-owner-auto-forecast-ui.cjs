@@ -1049,6 +1049,7 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),beforePassportFail);
  assert.match(a.get('autoSourceSummary').textContent,/取得に失敗しました/);
  assert.match(a.get('autoMorningStatus').textContent,/新しい暫定予想は表示していません/);
+ assert.match(a.get('autoFixedConsistency').textContent,/再分析結果は未確認/);
  // Do not rerun the original receipt: first-write-wins is intentional.
  // The next test below supplies its own response and preserves this record.
  assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
@@ -1153,6 +1154,40 @@ function boot(){
  assert.equal(JSON.parse(a.storage.get(STORAGE))[0].signature,'a'.repeat(64));
  assert.match(a.get('autoSavedStatus').textContent,/新規 0R/);
  assert.equal(a.get('autoHistory').children.length,1);
+ assert.match(a.get('autoFixedConsistency').textContent,/今回の暫定案と馬番が一致 1R/);
+ // Real Saturday failure mode: the provider returns a NEW but perfectly
+ // shaped 40-point formation after a prior signed 40-point first write.
+ // The newer formation must NOT be mistaken for the frozen prestart picks.
+ const changed=resultWith('c'.repeat(64));
+ const secondChanged=[1,2,3,4,6];
+ const laterTickets=[];
+ for(const firstNumber of [1,2])
+  for(const secondNumber of secondChanged)
+   for(const thirdNumber of [1,2,3,4,5,6,7])
+    if(new Set([firstNumber,secondNumber,thirdNumber]).size===3)
+     laterTickets.push([firstNumber,secondNumber,thirdNumber]);
+ assert.equal(laterTickets.length,40);
+ changed.races[0].second=secondChanged;
+ changed.races[0].tickets=laterTickets;
+ changed.researchReceipts[0].snapshot.trifectaTickets=structuredClone(laterTickets);
+ const fixedBeforeConflict=a.storage.get(STORAGE),callsBeforeConflict=a.requests.length;
+ a.setServerRaw(changed);
+ await a.get('autoRun').onclick();
+ assert.equal(a.requests.length,callsBeforeConflict+1);
+ assert.equal(a.storage.get(STORAGE),fixedBeforeConflict);
+ assert.match(a.get('autoSavedStatus').textContent,/新規 0R/);
+ assert.match(a.get('autoFixedConsistency').textContent,/買い目の不一致 1R/);
+ assert.match(a.get('autoFixedConsistency').textContent,/最初の買い目を確認/);
+ const changedCard=a.get('autoRaces').children[0].children[0];
+ assert.equal(changedCard.children.some(x=>x.className==='formation'),false);
+ assert.match(changedCard.children.at(-1).textContent,/以前の固定買い目と不一致/);
+ assert.equal(a.get('autoHistory').children.length,1);
+ assert.match(a.get('autoHistory').children[0].children[5].textContent,/1→2→3/);
+ a.setServer(resultWith('b'.repeat(64)));
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoFixedConsistency').textContent,/今回の暫定案と馬番が一致 1R/);
+ assert.equal(a.get('autoRaces').children[0].children[0].children.some(x=>x.className==='formation'),true);
+ assert.equal(a.storage.get(STORAGE),fixedBeforeConflict);
  // Invalid graded/threshold payloads must never be rendered as 10-factor
  // finished predictions or be saved as new signed receipts.
  const beforeInvalidTen=a.storage.get(STORAGE);
