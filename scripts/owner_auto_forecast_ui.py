@@ -26,6 +26,8 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <h2>開催日の利用状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoOperationalNext" class="muted" role="status">土曜日の次の操作：当日の取得結果を確認中。</p>
+<p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
+<p id="autoRecordSafety" class="muted" role="status">固定記録の保管状態：まだ確認していません。</p>
 <a href="#autoVenues">開催日のレース一覧に進む</a>
 <p class="muted"><a href="#autoHistoryAudit">研究用85点の比較順へ進む</a>（下の過去データ照合ボタンを押すと表示。追加API取得は本人の操作時のみ）</p>
 <details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
@@ -647,6 +649,45 @@ function morningStatus(data,day,localStatus){
   (data.archiveEnabled?'サーバー保存は別途検証が必要。':'サーバー永続保存は未設定。');
 }
 // Actionable readiness without adding a paid fetch or promoting any factor.
+// Summarize the already-validated JRDB race slots only. A missing slot is
+// NEVER asserted to be a JRA cancellation, absence or official schedule.
+function programmeCoverage(data){
+ const venues=['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'];
+ const slots=new Map();
+ for(const race of data.races){
+  if(!venues.includes(race.track)||!Number.isInteger(race.race)||
+     race.race<1||race.race>12)throw Error('開催場・Rの照合不可');
+  if(!slots.has(race.track))slots.set(race.track,new Set());
+  if(slots.get(race.track).has(race.race))throw Error('重複開催R');
+  slots.get(race.track).add(race.race);
+ }
+ if(data.raceCount===0)
+  return 'JRDB番組：0R。開催なしとは断定できません。JRA公式の開催場・番組は未照合。';
+ if(slots.size>3)throw Error('通常の開催場数を超える資料');
+ const rows=[...slots].sort((a,b)=>venues.indexOf(a[0])-venues.indexOf(b[0]))
+  .map(([venue,seen])=>{
+   const absent=Array.from({length:12},(_,i)=>i+1).filter(n=>!seen.has(n));
+   return venue+' '+seen.size+'/12R'+(absent.length?
+    '（1〜12R中未検出候補 '+absent.map(n=>n+'R').join('・')+'）':
+    '（1〜12Rすべて検出）');
+  });
+ return 'JRDB番組：'+data.raceCount+'R／'+slots.size+'場。'+rows.join('／')+
+  '。未検出は開催中止・取消を意味しません。JRA公式との全場・全R照合は未完成。';
+}
+// Show structural local receipt counts only, never claim HMAC verification,
+// durable server storage, actual bets, or results.
+function recordRetentionStatus(data,day){
+ let count;
+ try{count=selectedReceiptsForVerification(day).length;}
+ catch(_){
+  return '【端末固定記録の確認失敗】件数を信用できません。以前のデータは変更せず、バックアップと署名確認を優先。';
+ }
+ return '固定研究記録：この端末に '+count+'R（署名は未検証）／'+
+  (data.archiveEnabled?
+   'サーバー固定の報告 '+data.archiveRecordCount+'R（実際の読取確認は別操作）':
+   'サーバー永続保存は未設定')+
+  '。Safariとホーム画面の保存領域は異なる場合があります。バックアップ画面で別に保管してください。';
+}
 function operationalNextStep(data,fixed){
  const warning='JRA公式の出走・取消・馬場・発走時刻は未照合。正式100点予想・実購入ではありません。';
  if(data.raceCount===0)
@@ -723,6 +764,7 @@ function render(input,day){
  jraDraftTracks=new Set(data.races.map(x=>x.track));updateJraCrosscheck();
  const fixed=compareFixedWithDrafts(data,day);
  $('autoOperationalNext').textContent=operationalNextStep(data,fixed);
+ $('autoProgrammeCoverage').textContent=programmeCoverage(data);
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
  const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
  const passport=data.sourcePassport?.sourceAuditAvailable?
@@ -2463,6 +2505,8 @@ $('autoDay').onchange=()=>{
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
  $('autoOperationalNext').textContent='土曜日の次の操作：当日の取得結果を確認中。';
+ $('autoProgrammeCoverage').textContent='開催場別の取得R数：まだ確認していません。';
+ $('autoRecordSafety').textContent='固定記録の保管状態：まだ確認していません。';
  $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
@@ -2655,10 +2699,12 @@ $('autoRun').onclick=async()=>{
       body.archiveConflictCount+'R。'+localStatus
     :'サーバー保存は未設定。'+localStatus;
    showFixedHistory(day);
+   $('autoRecordSafety').textContent=recordRetentionStatus(body,day);
   }catch(_){
    $('autoMorningStatus').textContent=morningStatus(body,day,
     '端末への新規保存に失敗。元の記録は変更していません。');
    $('autoSavedStatus').textContent='研究記録の端末保存はできませんでした。結果表示と実購入記録には影響しません。';
+   $('autoRecordSafety').textContent='【端末への新規固定失敗】既存の研究記録は上書きしません。バックアップ・署名確認が必要です。';
   }
   $('autoStatus').textContent='暫定評価を自動生成しました。作成できないレースは無理に選定していません。';
  }catch(error){if(seq===request){
@@ -2679,6 +2725,8 @@ $('autoRun').onclick=async()=>{
   $('autoFixedConsistency').textContent='今回の再分析結果は未確認です。以前の固定済み研究記録は変更していません。';
   $('autoMorningStatus').textContent='JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
   $('autoOperationalNext').textContent='【取得失敗・新規予想なし】上の停止工程と401/403/429等の原因表示を確認。日付・接続設定・利用権限を見直し、既存の固定履歴を先に確認してください。JRA公式照合と正式100点予想は未完了です。';
+  $('autoProgrammeCoverage').textContent='取得失敗：開催場別R数は確認できません。';
+  $('autoRecordSafety').textContent='新規記録なし。以前の固定記録は下の履歴で確認してください（署名は別操作）。';
   $('autoSourceSummary').textContent='資料進捗の取得に失敗しました。以前の集計は表示しません。';
   $('autoTenWeights').replaceChildren();
   $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
@@ -3541,6 +3589,8 @@ function resumeOwnerDay(){
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
  $('autoOperationalNext').textContent='土曜日の次の操作：当日の取得結果を確認中。';
+ $('autoProgrammeCoverage').textContent='開催場別の取得R数：まだ確認していません。';
+ $('autoRecordSafety').textContent='固定記録の保管状態：まだ確認していません。';
  $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
