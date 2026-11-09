@@ -1478,6 +1478,9 @@ function boot(){
  assert.match(a.get('autoMorningStatus').textContent,/研究用3連単下書き 1R／見送り 0R/);
  assert.match(a.get('autoMorningStatus').textContent,/10項目本採点.*未完了/);
  assert.match(a.get('autoMorningStatus').textContent,/サーバー永続保存は未設定/);
+ assert.match(a.get('autoOperationalNext').textContent,/研究用下書きあり/);
+ assert.match(a.get('autoOperationalNext').textContent,/全1R中、研究用3連単 1R／見送り 0R/);
+ assert.match(a.get('autoOperationalNext').textContent,/JRA公式の出走・取消・馬場・発走時刻は未照合/);
  const quickSingle=a.get('autoVenues').children.at(-1);
  assert.equal(quickSingle.dataset.mode,'drafts');
  assert.match(quickSingle.textContent,/下書きのみ 1R/);
@@ -1558,6 +1561,7 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),beforePassportFail);
  assert.match(a.get('autoSourceSummary').textContent,/取得に失敗しました/);
  assert.match(a.get('autoMorningStatus').textContent,/新しい暫定予想は表示していません/);
+ assert.match(a.get('autoOperationalNext').textContent,/取得失敗・新規予想なし/);
  assert.match(a.get('autoFixedConsistency').textContent,/再分析結果は未確認/);
  // Do not rerun the original receipt: first-write-wins is intentional.
  // The next test below supplies its own response and preserves this record.
@@ -1689,6 +1693,8 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),fixedBeforeConflict);
  assert.match(a.get('autoSavedStatus').textContent,/新規 0R/);
  assert.match(a.get('autoFixedConsistency').textContent,/買い目の不一致 1R/);
+ assert.match(a.get('autoOperationalNext').textContent,/固定記録の確認が必要/);
+ assert.match(a.get('autoOperationalNext').textContent,/照合保留・不一致 1R/);
  assert.match(a.get('autoFixedConsistency').textContent,/最初の買い目を確認/);
  assert.equal(a.get('autoVenues').children.some(x=>x.dataset.mode==='drafts'),false);
  const changedCard=a.get('autoRaces').children[0].children[0];
@@ -1710,6 +1716,7 @@ function boot(){
  assert.equal(a.get('autoRaces').children.length,0);
  assert.equal(a.get('autoVenues').children.length,0);
  assert.match(a.get('autoMorningStatus').textContent,/新しい暫定予想は表示していません/);
+ assert.match(a.get('autoOperationalNext').textContent,/取得失敗・新規予想なし/);
  assert.match(a.get('autoSavedStatus').textContent,/再分析に失敗.*固定済み研究記録 1R/);
  assert.match(a.get('autoHistoryStatus').textContent,/発走前固定 1R/);
  assert.equal(a.get('autoHistory').children.length,1);
@@ -1782,6 +1789,9 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),before);
  assert.match(a.get('autoSavedStatus').textContent,/ありません/);
  assert.match(a.get('autoMorningStatus').textContent,/研究用3連単下書き 0R／見送り 1R/);
+ assert.match(a.get('autoOperationalNext').textContent,/全1R見送り/);
+ assert.match(a.get('autoOperationalNext').textContent,/主な理由：発走済み 1R/);
+ assert.match(a.get('autoOperationalNext').textContent,/無理に3連単を作りません/);
  assert.match(a.get('autoMorningStatus').textContent,/買い目を無理に作りません/);
  assert.equal(a.get('autoVenues').children.filter(x=>x.dataset.mode==='drafts').length,0);
  // A date switch while a slow fetch is in flight must remain operable,
@@ -1804,6 +1814,7 @@ function boot(){
  release();
  await stale;
  assert.equal(b.get('autoSummary').textContent,'未取得');
+ assert.match(b.get('autoOperationalNext').textContent,/当日の取得結果を確認中/);
  assert.match(b.get('autoMorningStatus').textContent,/取得結果を確認中/);
  b.get('autoDay').value='2099-01-01';
  b.get('autoDay').onchange();
@@ -1843,6 +1854,7 @@ function boot(){
  await full.get('autoRun').onclick();
  assert.match(full.get('autoSummary').textContent,/36R中、研究用自動案 1R／見送り 35R/);
  assert.match(full.get('autoMorningStatus').textContent,/番組 36R／発走前の研究用3連単下書き 1R／見送り 35R/);
+ assert.match(full.get('autoOperationalNext').textContent,/全36R中、研究用3連単 1R／見送り 35R/);
  assert.match(full.get('autoMorningStatus').textContent,/サーバー永続保存は未設定/);
  const draftOnly36=full.get('autoVenues').children.at(-1);
  assert.match(draftOnly36.textContent,/下書きのみ 1R/);
@@ -1891,6 +1903,7 @@ function boot(){
  const reasonButtons=mixed.get('autoHoldReasons').children;
  assert.equal(reasonButtons.length,3);
  assert.equal(reasonButtons[0].dataset.reason,'after_provisional_off');
+ assert.match(mixed.get('autoOperationalNext').textContent,/主な見送り：発走済み 33R／候補同点 1R/);
  assert.match(reasonButtons[0].textContent,/発走済み 33R/);
  assert.equal(reasonButtons[1].dataset.reason,'missing_factors');
  assert.match(reasonButtons[1].textContent,/調教・近走不足 1R/);
@@ -1920,6 +1933,7 @@ function boot(){
  mixed.get('autoDay').value='2099-01-02';
  mixed.get('autoDay').onchange();
  assert.equal(mixed.get('autoHoldReasons').children.length,0);
+ assert.match(mixed.get('autoOperationalNext').textContent,/当日の取得結果を確認中/);
  assert.match(mixed.get('autoHoldStatus').textContent,/開催日を取得すると/);
  assert.equal(mixed.storage.get(STORAGE),beforeHoldStorage);
  // Each 401/403/429 cause is actionable on Saturday without printing

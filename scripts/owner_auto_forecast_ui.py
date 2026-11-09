@@ -25,6 +25,7 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <h2>開催日の利用状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
+<p id="autoOperationalNext" class="muted" role="status">土曜日の次の操作：当日の取得結果を確認中。</p>
 <a href="#autoVenues">開催日のレース一覧に進む</a>
 <p class="muted"><a href="#autoHistoryAudit">研究用85点の比較順へ進む</a>（下の過去データ照合ボタンを押すと表示。追加API取得は本人の操作時のみ）</p>
 <details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
@@ -645,6 +646,33 @@ function morningStatus(data,day,localStatus){
   ' 10項目本採点・JRA公式出走取消／発走時刻の独立確認は未完了。'+
   (data.archiveEnabled?'サーバー保存は別途検証が必要。':'サーバー永続保存は未設定。');
 }
+// Actionable readiness without adding a paid fetch or promoting any factor.
+function operationalNextStep(data,fixed){
+ const warning='JRA公式の出走・取消・馬場・発走時刻は未照合。正式100点予想・実購入ではありません。';
+ if(data.raceCount===0)
+  return '【番組0R・確認保留】JRDBが0件でも開催なしとは断定できません。'+
+   '次：日付・公開状況・JRDB接続を確認。後付けの買い目は作りません。'+warning;
+ const reasons=Object.entries(data.holdReasons).filter(([,count])=>count>0)
+  .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+ const lead=reasons.slice(0,2).map(([reason,count])=>
+  SHORT_HOLDS[reason]+' '+count+'R').join('／');
+ if(data.draftCount===0)
+  return '【全'+data.raceCount+'R見送り】'+
+   (lead?'主な理由：'+lead+'。':'理由の詳細はレース別に確認。')+
+   '次：下の見送り理由ボタンで資料不足と発走済みを区別。'+
+   '無理に3連単を作りません。'+warning;
+ if(fixed.unavailable||fixed.blocked.size>0)
+  return '【固定記録の確認が必要】研究用下書き '+data.draftCount+
+   'R中、固定済み記録との照合保留・不一致 '+fixed.blocked.size+
+   'R。次：固定記録の署名確認・バックアップを優先。'+
+   '異なる新しい買い目を表示しません。'+warning;
+ return '【研究用下書きあり】全'+data.raceCount+'R中、研究用3連単 '+data.draftCount+
+  'R／見送り '+data.holdCount+'R。'+
+  (lead?'主な見送り：'+lead+'。':'')+
+  '次：「下書きのみ」で1着・2着・3着と点数を確認。'+
+  (data.sourceMaterials.status==='unavailable'?
+   '追加8項目の資料件数は照合保留。':'')+warning;
+}
 function sameTicketSet(first,second){
  const canon=items=>items.map(t=>t.join('-')).sort().join('|');
  return canon(first)===canon(second);
@@ -694,6 +722,7 @@ function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  jraDraftTracks=new Set(data.races.map(x=>x.track));updateJraCrosscheck();
  const fixed=compareFixedWithDrafts(data,day);
+ $('autoOperationalNext').textContent=operationalNextStep(data,fixed);
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
  const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
  const passport=data.sourcePassport?.sourceAuditAvailable?
@@ -2433,6 +2462,7 @@ $('autoDay').onchange=()=>{
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
+ $('autoOperationalNext').textContent='土曜日の次の操作：当日の取得結果を確認中。';
  $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
@@ -2570,6 +2600,7 @@ $('autoRun').onclick=async()=>{
   $('autoStatus').textContent='開催日を選択してください。';return;
  }
  button.disabled=true;$('autoStatus').textContent='JRDB資料を一括照合し、自動暫定案を作成中…';
+ $('autoOperationalNext').textContent='JRDB取得・資料検証中。新しい研究用下書きの確認は完了していません。';
  clearHistory();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
@@ -2647,6 +2678,7 @@ $('autoRun').onclick=async()=>{
   showFixedHistory(day);
   $('autoFixedConsistency').textContent='今回の再分析結果は未確認です。以前の固定済み研究記録は変更していません。';
   $('autoMorningStatus').textContent='JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
+  $('autoOperationalNext').textContent='【取得失敗・新規予想なし】上の停止工程と401/403/429等の原因表示を確認。日付・接続設定・利用権限を見直し、既存の固定履歴を先に確認してください。JRA公式照合と正式100点予想は未完了です。';
   $('autoSourceSummary').textContent='資料進捗の取得に失敗しました。以前の集計は表示しません。';
   $('autoTenWeights').replaceChildren();
   $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
@@ -3508,6 +3540,7 @@ function resumeOwnerDay(){
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
+ $('autoOperationalNext').textContent='土曜日の次の操作：当日の取得結果を確認中。';
  $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
