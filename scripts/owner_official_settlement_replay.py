@@ -14,7 +14,7 @@ import hashlib
 import hmac
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urlsplit, parse_qs
 
 from keiba_100yen_review import _identity, _time, _tickets, ReviewInputError
@@ -126,7 +126,7 @@ def _validate_payload(p):
         collected = _time(p["sourceCollectedAt"])
         finalized = _time(p["finalizedAt"])
         if (collected < finalized
-                or finalized.astimezone(timezone.utc).date() <
+                or finalized.astimezone(timezone(timedelta(hours=9))).date() <
                     datetime.fromisoformat(day).date()
                 or p["sourceVerificationMethod"] !=
                     "server_authenticated_jra_page"
@@ -187,7 +187,7 @@ def replay_attested_settlements(receipts, receipt_secret, day,
                         trip, trio, refunds_trip, refunds_trio)
 
     out, done, pending, gross, received, refunded = [], 0, 0, 0, 0, 0
-    first_hits, trifecta_hits, trio_hits = 0, 0, 0
+    trifecta_hit_races, trio_hit_races = 0, 0
     for p in predictions:
         race = _identity(p)
         try:
@@ -213,24 +213,23 @@ def replay_attested_settlements(receipts, receipt_secret, day,
             tr_ref = dict.fromkeys(three, STAKE)
             tri_ref = dict.fromkeys(trio, STAKE)
         three_hits = [t for t in three if t in tr_payout]
-        trio_hits = [t for t in trio if t in tri_payout]
+        winning_trios = [t for t in trio if t in tri_payout]
         refunds = sum(t in tr_ref for t in three) + sum(t in tri_ref for t in trio)
         returned = (sum(tr_payout[t] for t in three_hits)
-                    + sum(tri_payout[t] for t in trio_hits)
+                    + sum(tri_payout[t] for t in winning_trios)
                     + refunds * STAKE)
         done += 1
         gross += stake
         received += returned
         refunded += refunds
-        trifecta_hits += bool(three_hits)
-        first_hits += bool(three_hits)  # exact winning ticket implies correct first
-        trio_hits += bool(trio_hits)
+        trifecta_hit_races += bool(three_hits)
+        trio_hit_races += bool(winning_trios)
         out.append({
             "track": race[1], "race": race[2],
             "status": "attested_replay",
             "ticketCount": len(three) + len(trio),
             "grossStakeYen": stake, "returnedYen": returned,
-            "trifectaHit": bool(three_hits), "trioHit": bool(trio_hits),
+            "trifectaHit": bool(three_hits), "trioHit": bool(winning_trios),
             "refundedTicketCount": refunds,
         })
     if set(signed) - {_identity(p) for p in predictions}:
@@ -242,8 +241,8 @@ def replay_attested_settlements(receipts, receipt_secret, day,
         "grossStakeYen": gross, "returnedYen": received,
         "netYen": received - gross,
         "refundedTicketCount": refunded,
-        "trifectaHitRaces": trifecta_hits,
-        "trioHitRaces": trio_hits,
+        "trifectaHitRaces": trifecta_hit_races,
+        "trioHitRaces": trio_hit_races,
         # Replay figures are isolated until the real JRA adapter is proven
         # at runtime. HMAC alone is NOT JRA authentication.
         "replayRoiPercent": round(100 * received / gross, 1) if gross else None,
