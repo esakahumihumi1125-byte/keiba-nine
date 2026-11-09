@@ -891,6 +891,28 @@ function boot(){
  assert.equal(a.requests.length,1);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
+ assert.match(a.get('autoJraCrosscheck').textContent,/独立照合 0R（未実施）/);
+ assert.match(a.get('autoJraCrosscheck').textContent,/JRDBの開催場 1場（東京）/);
+ assert.match(a.get('autoJraCrosscheck').textContent,/リンク発見も馬番・取消・馬場・発走時刻の一致を証明しません/);
+ // Public publishing times are only a clock-based guidance, with NO paid read.
+ const guide=boot();
+ await new Promise(r=>setImmediate(r));
+ const guideRequests=guide.requests.length;
+ guide.get('autoDay').value='2099-01-03'; // Saturday, fake now: Jan 1 (Thu morning JST).
+ guide.get('autoDay').onchange();
+ assert.match(guide.get('autoJraReleaseGuide').textContent,/2099-01-01 16時すぎ/);
+ assert.match(guide.get('autoJraCrosscheck').textContent,/JRDBの開催場 0場/);
+ assert.equal(guide.requests.length,guideRequests);
+ guide.advanceClock('2099-01-02T06:00:00Z');
+ guide.get('autoDay').onchange();
+ assert.match(guide.get('autoJraReleaseGuide').textContent,/通常公開目安は経過/);
+ assert.equal(guide.requests.length,guideRequests);
+ guide.get('autoDay').value='2099-01-05'; // weekday rule is explicitly unknown
+ guide.get('autoDay').onchange();
+ assert.match(guide.get('autoJraReleaseGuide').textContent,/平日・変則開催/);
+ guide.get('autoDay').value='2099-01-32';
+ guide.get('autoDay').onchange();
+ assert.match(guide.get('autoJraReleaseGuide').textContent,/開催日が不正/);
  // JRDB connection probe is a deliberate, independently limited action.
  assert.equal(a.requests.filter(r=>r.url==='/api/setup').length,0);
  assert.equal(a.requests.filter(r=>
@@ -943,12 +965,17 @@ function boot(){
   'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf');
  assert.equal(a.get('autoOfficialPdfLinks').children[0].rel,
   'noopener noreferrer');
+ assert.match(a.get('autoJraCrosscheck').textContent,/JRA公式PDFリンク 1場分/);
+ assert.match(a.get('autoJraCrosscheck').textContent,/リンク未検出 0場/);
+ assert.match(a.get('autoJraCrosscheck').textContent,/独立照合 0R（未実施）/);
  assert.match(a.get('autoOfficialPdfStatus').textContent,/馬番・取消・馬場・発走時刻は自動照合していません/);
  assert.equal(a.storage.get(STORAGE),picksBeforePdf);
  a.setOfficialPdfLinks([]);
  await jraButton.onclick();
  assert.match(a.get('autoOfficialPdfStatus').textContent,/まだ検出できません/);
  assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+ assert.match(a.get('autoJraCrosscheck').textContent,/リンク未検出 1場（東京）/);
+ assert.match(a.get('autoJraCrosscheck').textContent,/リンク未検出は開催なしを意味せず/);
  for(const bad of [
   'https://evil.test/keiba/rpdf/card.pdf',
   'http://www.jra.go.jp/keiba/rpdf/card.pdf',
@@ -973,6 +1000,7 @@ function boot(){
  a.setOfficialPdfOk(false);
  await jraButton.onclick();
  assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+ assert.match(a.get('autoJraCrosscheck').textContent,/JRA公式PDFリンクは未検索/);
  a.setOfficialPdfOk(true);
  assert.equal(a.storage.get(STORAGE),picksBeforePdf);
  assert.equal(a.requests.filter(r=>
