@@ -37,6 +37,7 @@ from owner_three_core_research import three_core_research
 from owner_four_core_research import four_core_research
 from owner_five_core_research import five_core_research
 from owner_pedigree_evidence_preflight import pedigree_evidence_preflight
+from owner_support_six_preflight import support_six_preflight
 
 VERSION = "bounded-history-1"
 MAX_LOOKUPS_PER_RUN = 12
@@ -256,6 +257,7 @@ def run_bounded_history_audit(programme, entries, previous,
             three_core_view, four_core_view
         )
         pedigree_preflight = pedigree_evidence_preflight(ten_source_inventory)
+        support_six = support_six_preflight(ten_source_inventory)
         all_factor_materials = combine_ten_factor_observations(
             course_matrix, personnel_matrix
         )
@@ -329,6 +331,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "fourCoreResearch": four_core_view,
         "fiveCoreResearch": five_core_view,
         "pedigreeEvidencePreflight": pedigree_preflight,
+        "supportSixPreflight": support_six,
         "reboundContextReview": rebound_review,
         "allTenFactorSources": all_factor_materials,
         "realAssessmentPreflight": readiness_preflight,

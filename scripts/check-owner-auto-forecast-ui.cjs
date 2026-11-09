@@ -603,6 +603,51 @@ function withPedigreePreflight(report){
  };
  return report;
 }
+function withSupportSix(report){
+ withFiveCore(report);
+ const weights={draw_weight:3,jockey_stable:2,rotation:1};
+ const gaps={
+  draw_weight:['draw_or_carried_weight_missing',
+   'field_and_weight_effects_unvalidated','temporal_holdout_not_validated'],
+  jockey_stable:['jockey_or_trainer_missing',
+   'comparable_personnel_performance_unvalidated','temporal_holdout_not_validated'],
+  rotation:['last_run_interval_missing',
+   'condition_matched_rotation_effect_unvalidated','temporal_holdout_not_validated']
+ };
+ const races=report.tenFactorSourceInventory.races.map(race=>{
+  const counts=Object.fromEntries(Object.keys(weights).map(k=>[k,0]));
+  const horses=race.runners.map(h=>{
+   const states=Object.fromEntries(Object.keys(weights).map(k=>[k,h.sourceStates[k]]));
+   const present=Object.fromEntries(Object.keys(weights).map(k=>[k,
+    k==='rotation'?states[k]!=='unknown':
+     states[k]==='complete_fields_observed']));
+   for(const k of Object.keys(weights))counts[k]+=Number(present[k]);
+   return {number:h.number,sourceStates:states,fieldPresent:present,
+    fieldPresenceWeight:Object.keys(weights).reduce((total,k)=>
+     total+(present[k]?weights[k]:0),0),
+    missingEvidence:Object.fromEntries(Object.keys(weights).map(k=>[k,
+     present[k]?gaps[k].slice(1):gaps[k].slice()])),
+    grades:Object.fromEntries(Object.keys(weights).map(k=>[k,'未評価'])),
+    scores:Object.fromEntries(Object.keys(weights).map(k=>[k,null])),
+    conditionalEffectVerified:false,outOfTimeValidated:false,bettingReady:false};
+  });
+  return {track:race.track,race:race.race,runnerCount:race.runnerCount,
+   fieldCompleteCounts:counts,
+   allThreeFieldCompleteCount:horses.filter(h=>
+    Object.values(h.fieldPresent).every(Boolean)).length,
+   verifiedFactorCount:0,scoreReady:false,horses};
+ });
+ report.supportSixPreflight={
+  version:'owner-support-six-preflight-1',policyVersion:'research-5',
+  factors:weights,weightTotal:6,raceCount:races.length,races,
+  verifiedFactorCount:0,conditionMatchedEffectValidated:false,
+  temporalValidationComplete:false,researchOnly:true,privateOwnerOnly:true,
+  officialJraVerified:false,overallPredictionReady:false,
+  bettingReady:false,autoPurchase:false,
+  changesExistingTickets:false,changesExistingReceipts:false
+ };
+ return report;
+}
 function prestart(){
  return {
   version:'private-prestart-body-1',date:day,raceCount:1,
@@ -1156,6 +1201,37 @@ function boot(){
  assert.ok(fiveCalls.every(x=>['/api/jrdb/history','/api/owner-rebound-verify'].includes(x.url)));
  assert.equal(a.storage.get(CORE_STORAGE),coreBeforeFive);
  assert.equal(a.storage.get(STORAGE),oldRecord);
+ // Supporting six-weight factors: source fields are not real six points.
+ const beforeSix=a.requests.length;
+ a.setHistorical(withSupportSix(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const supportPanel=a.get('autoHistoryAuditRaces').children[0].children.find(
+  x=>x.tag==='details'&&/枠斤量・騎手厩舎・ローテ6点/.test(
+   x.children[0]?.textContent||''));
+ assert.ok(supportPanel);
+ assert.match(supportPanel.children[1].textContent,/実得点は0点ではなく未評価/);
+ assert.match(supportPanel.children[2].textContent,/能力評価を検証できた馬 0\/7頭/);
+ assert.match(supportPanel.children[3].textContent,
+  /1番｜枠斤量 資料あり.*資料カバー配点相当 6\/6（実得点ではない）.*正式6点 未評価/);
+ assert.equal(a.requests.slice(beforeSix).filter(
+  x=>x.url==='/api/jrdb/history').length,1);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ assert.equal(a.storage.get(CORE_STORAGE),coreBeforeFive);
+ for(const mutate of [
+  h=>h.supportSixPreflight.races[0].horses[0].scores.draw_weight=3,
+  h=>h.supportSixPreflight.races[0].horses[0].grades.jockey_stable='S',
+  h=>h.supportSixPreflight.races[0].horses[0].fieldPresenceWeight=0,
+  h=>h.supportSixPreflight.races[0].allThreeFieldCompleteCount=0,
+  h=>h.supportSixPreflight.races[0].horses[0].missingEvidence.rotation=[],
+  h=>h.supportSixPreflight.conditionMatchedEffectValidated=true,
+ ]){
+  const invalid=withSupportSix(historical());mutate(invalid);
+  a.setHistorical(invalid);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+ }
  // A forged 85-point figure or injected formal readiness fails closed.
  for(const mutate of [
   h=>h.fiveCoreResearch.races[0].horses[0].evidenceScore85=85,
