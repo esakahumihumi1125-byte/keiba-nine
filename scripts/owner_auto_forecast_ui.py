@@ -2112,6 +2112,92 @@ function validateHistory(h){
   if(seenCoreRaces.size!==historyCoordinates.size)
    throw Error('重点4項目の照合レース不足');
  }
+ // An 85-weight research comparison adds only 3 points of recent
+ // observations. Never infer a formal S/A/B/C or overwrite 70-point locks.
+ if(h.fiveCoreResearch!==undefined){
+  const ext=h.fiveCoreResearch,
+        w={training:30,course_distance:20,pace:20,ground:12,recent:3};
+  if(!ext||ext.version!=='owner-five-core-research-1'||
+     ext.policyVersion!=='research-5'||
+     ext.raceCount!==historyCoordinates.size||
+     ext.researchOnly!==true||ext.privateOwnerOnly!==true||
+     ext.observedWeightTotal!==85||!ext.factorWeights||
+     Object.keys(ext.factorWeights).length!==5||
+     Object.keys(w).some(k=>ext.factorWeights[k]!==w[k])||
+     ext.factorGradesVerified!==0||ext.overallPredictionReady!==false||
+     ext.formalScoreReady!==false||ext.officialJraVerified!==false||
+     ext.bettingReady!==false||ext.autoPurchase!==false||
+     ext.changesExistingTickets!==false||
+     ext.changesExistingCoreReceipts!==false||
+     ext.historicalBandsNotCalibrated!==true||
+     ext.recentResultRankNotPrediction!==true||
+     !Array.isArray(ext.races)||ext.races.length!==historyCoordinates.size)
+   throw Error('重点5項目の研究資料が不正');
+  const seenRaces=new Set(),grades=new Set(['S','A','B','C','未評価']),
+        pts={S:3,A:2,B:1,C:0};
+  for(const race of ext.races){
+   const id=race?.track+'|'+race?.race,details=perRace.get(id);
+   if(seenRaces.has(id)||!details?.fourCore||!details?.fiveFactor||
+      !details?.tenInventory||race.runnerCount!==details.runnerCount||
+      race.formalGradeReady!==false||race.trifectaReady!==false||
+      race.researchOnly!==true||!Array.isArray(race.horses)||
+      race.horses.length!==race.runnerCount||
+      !race.missingByFactor||Object.keys(race.missingByFactor).length!==5||
+      !Number.isInteger(race.completeObserved)||
+      race.completeObserved<0||race.completeObserved>race.runnerCount)
+     throw Error('重点5項目の馬番が不一致');
+   seenRaces.add(id);
+   const prior=new Map(details.fourCore.horses.map(x=>[x.number,x])),
+         five=new Map(details.fiveFactor.runners.map(x=>[x.number,x])),
+         inv=new Map(details.tenInventory.runners.map(x=>[x.number,x])),
+         seen=new Set(),missingCount=Object.fromEntries(
+           Object.keys(w).map(k=>[k,0]));
+   let complete=0;
+   for(const horse of race.horses){
+    const n=horse?.number,fromFour=prior.get(n),
+          fromFive=five.get(n),fromTen=inv.get(n);
+    if(!Number.isInteger(n)||n<1||n>18||seen.has(n)||
+       !fromFour||!fromFive||!fromTen||
+       horse.scoreIsCalibrated!==false||
+       horse.formalScore100!==null||horse.formalGrade!=='未評価'||
+       horse.formalRank!==null||horse.bettingReady!==false||
+       !horse.bands||Object.keys(horse.bands).length!==5||
+       !Array.isArray(horse.missing)||horse.missing.length>5||
+       !Number.isInteger(horse.observedFactorCount))
+      throw Error('重点5項目の研究馬番が不正');
+    seen.add(n);
+    const missing=[];
+    for(const key of Object.keys(w)){
+     if(!grades.has(horse.bands[key])||
+        horse.bands[key]!==fromFive.bands[key]||
+        horse.bands[key]!==fromTen.provisionalBands[key]||
+        (key!=='recent'&&horse.bands[key]!==fromFour.bands[key]))
+      throw Error('重点5項目の資料が不一致');
+     if(horse.bands[key]==='未評価'){
+      missing.push(key);missingCount[key]++;
+     }
+    }
+    const expected=missing.length?null:Object.keys(w).reduce(
+       (sum,k)=>sum+w[k]*pts[horse.bands[k]],0);
+    if(horse.missing.join(',')!==missing.join(',')||
+       horse.observedFactorCount!==5-missing.length||
+       horse.rawThirdPoints!==expected||
+       horse.evidenceScore85!==(expected===null?null:
+         Math.round(expected*100/3)/100)||
+       (expected!==null&&(fromFour.rawThirdPoints===null||
+         expected!==fromFour.rawThirdPoints+
+            w.recent*pts[horse.bands.recent])))
+      throw Error('重点5項目の計算が不一致');
+    if(expected!==null)complete++;
+   }
+   if(seen.size!==race.runnerCount||complete!==race.completeObserved||
+      Object.keys(w).some(k=>missingCount[k]!==race.missingByFactor[k]))
+    throw Error('重点5項目の集計が不一致');
+   details.fiveCore=race;
+  }
+  if(seenRaces.size!==historyCoordinates.size)
+    throw Error('重点5項目の照合レース不足');
+ }
  validateWatchCapture(h.watchCapture,h);
  return results;
 }
@@ -2825,6 +2911,23 @@ $('autoHistoryAudit').onclick=async()=>{
       '（正式100点ではありません）','muted'));
     }
     card.append(trial);
+   }
+   if(details.rosterVerified&&details.fiveCore){
+    const core=details.fiveCore,panel=dom('details');
+    panel.append(dom('summary','重点5項目の研究用85点を見る（近走3点追加・正式採点0/10）'));
+    panel.append(dom('p','調教30・近走3・コース距離20・展開20・馬場12。近走の最大影響は3点だけ。過去走・馬場・位置取りから作った未検証の比較で、正式100点、勝率、馬券の順位ではありません。5項目のうち1つでも未評価なら85点も未評価。3連単と固定70点は変更しません。','muted'));
+    panel.append(dom('p','5項目の研究帯がそろう馬 '+core.completeObserved+
+      '/'+core.runnerCount+'頭。残る15点は血統8・枠斤量3・騎手厩舎2・ローテ1・当日馬体重1。これらは未採点。','muted'));
+    for(const horse of core.horses){
+     const b=horse.bands;
+     panel.append(dom('p',horse.number+'番｜調教 '+b.training+
+       '／近走 '+b.recent+'／コース '+b.course_distance+
+       '／展開 '+b.pace+'／馬場 '+b.ground+
+       '｜研究用'+(horse.evidenceScore85===null?
+        '未評価':' '+horse.evidenceScore85.toFixed(2)+'/85点')+
+       '（正式100点ではありません）','muted'));
+    }
+    card.append(panel);
    }
    if(details.rosterVerified&&details.tenInventory){
     const ten=dom('details');
