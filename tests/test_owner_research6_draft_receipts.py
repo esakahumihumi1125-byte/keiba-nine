@@ -100,7 +100,6 @@ class Draft79CaptureTests(unittest.TestCase):
         signed=issue_research6_draft_receipts(h,p,SECRET,DAY,now=NOW)["receipts"]
         mutations=(
             lambda x:x[0]["snapshot"]["tickets"][0].__setitem__(2,7),
-            lambda x:x[0]["snapshot"]["amountYen"].__class__,
             lambda x:x[0]["snapshot"].update(amountYen=9999),
             lambda x:x[0]["snapshot"].update(officialJraVerified=True),
             lambda x:x[0]["snapshot"].update(predictionReady=True),
