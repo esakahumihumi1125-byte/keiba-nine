@@ -463,7 +463,10 @@ function boot(){
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
-  receiptVerificationOk=true,archiveReady=false,archiveCorrupt=false;
+  receiptVerificationOk=true,archiveReady=false,archiveCorrupt=false,
+  officialPdfLinks=[{track:'東京',
+    url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
+  officialPdfOk=true;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -489,6 +492,17 @@ function boot(){
   requests.push({url,options});
   const pause=holdFetch;holdFetch=null;
   if(pause)await pause;
+  if(url.startsWith('/api/jra/official-pdf-links?')){
+   return {ok:officialPdfOk,json:async()=>({
+    version:'jra-official-pdf-link-discovery-1',
+    date:new URL('http://localhost'+url).searchParams.get('date'),
+    indexUrl:'https://www.jra.go.jp/keiba/rpdf/',
+    links:structuredClone(officialPdfLinks),
+    linkFound:officialPdfLinks.length>0,pdfContentsRead:false,
+    officialRunnerNumbersVerified:false,entryChangeVerified:false,
+    predictionReady:false,bettingReady:false,
+   })};
+  }
   if(url==='/api/setup')return {ok:true,json:async()=>({
    jrdbConfigured:configured,liveConnectionVerified:false,
    realPredictionEnabled:false,prestartBodyEnabled:false
@@ -582,7 +596,7 @@ function boot(){
  class FakeDate extends Date{
   constructor(...args){super(...(args.length?args:[now]))}
  }
- const context={document,localStorage,fetch,Intl,Date:FakeDate,JSON,Set,Map,Number,
+ const context={document,localStorage,fetch,Intl,URL,Date:FakeDate,JSON,Set,Map,Number,
   String,Array,Error,Promise,Object};
  vm.runInNewContext(js,context);
  get('autoDay').value=date;
@@ -594,6 +608,8 @@ function boot(){
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
   setArchiveReady:x=>archiveReady=x,
   setArchiveCorrupt:x=>archiveCorrupt=x,
+  setOfficialPdfLinks:x=>officialPdfLinks=x,
+  setOfficialPdfOk:x=>officialPdfOk=x,
   setConnectionCount:x=>connectionCount=x,
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
@@ -640,6 +656,58 @@ function boot(){
  assert.match(a.get('autoConnectionStatus').textContent,/正しく選択/);
  a.get('autoDay').value=date;
  assert.equal(a.storage.get(STORAGE),receiptBeforeConnection);
+ // JRA PDF discovery must be explicitly requested, use the chosen
+ // day, render only official PDF links, and never claim runner verification.
+ const jraButton=a.get('autoOfficialPdf');
+ assert.equal(a.requests.filter(r=>
+  r.url.startsWith('/api/jra/official-pdf-links?')).length,0);
+ const picksBeforePdf=a.storage.get(STORAGE),requestsBeforePdf=a.requests.length;
+ await jraButton.onclick();
+ assert.equal(a.requests.length,requestsBeforePdf+1);
+ const officialReq=a.requests.find(r=>
+  r.url.startsWith('/api/jra/official-pdf-links?'));
+ assert.equal(officialReq.url,'/api/jra/official-pdf-links?date=2099-01-01');
+ assert.equal(officialReq.options.credentials,'same-origin');
+ assert.equal(officialReq.options.headers['X-Keiba-Request'],'private');
+ assert.equal(a.get('autoOfficialPdfLinks').children.length,1);
+ assert.equal(a.get('autoOfficialPdfLinks').children[0].href,
+  'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf');
+ assert.equal(a.get('autoOfficialPdfLinks').children[0].rel,
+  'noopener noreferrer');
+ assert.match(a.get('autoOfficialPdfStatus').textContent,/馬番・取消・馬場・発走時刻は自動照合していません/);
+ assert.equal(a.storage.get(STORAGE),picksBeforePdf);
+ a.setOfficialPdfLinks([]);
+ await jraButton.onclick();
+ assert.match(a.get('autoOfficialPdfStatus').textContent,/まだ検出できません/);
+ assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+ for(const bad of [
+  'https://evil.test/keiba/rpdf/card.pdf',
+  'http://www.jra.go.jp/keiba/rpdf/card.pdf',
+  'https://www.jra.go.jp/keiba/rpdf/card.pdf?spoof=1',
+  'https://www.jra.go.jp/keiba/rpdf/card.html',
+ ]){
+  a.setOfficialPdfLinks([{track:'東京',url:bad}]);
+  await jraButton.onclick();
+  assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+  assert.match(a.get('autoOfficialPdfStatus').textContent,/確認できませんでした/);
+ }
+ a.setOfficialPdfLinks([
+  {track:'東京',url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-a.pdf'},
+  {track:'東京',url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-b.pdf'},
+ ]);
+ await jraButton.onclick();
+ assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+ assert.match(a.get('autoOfficialPdfStatus').textContent,/確認できませんでした/);
+ a.setOfficialPdfLinks([
+  {track:'東京',url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'},
+ ]);
+ a.setOfficialPdfOk(false);
+ await jraButton.onclick();
+ assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+ a.setOfficialPdfOk(true);
+ assert.equal(a.storage.get(STORAGE),picksBeforePdf);
+ assert.equal(a.requests.filter(r=>
+  r.url.startsWith('/api/jrdb/owner-auto-draft?')).length,1);
  // No paid body source read until an explicit owner click.
  assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?')).length,0);
  const beforeBody=a.storage.get(STORAGE);
