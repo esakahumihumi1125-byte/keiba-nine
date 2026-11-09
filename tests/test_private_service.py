@@ -864,6 +864,39 @@ class PrivateServiceTests(unittest.TestCase):
                 self.assertNotIn(b'secret-user', out['body'])
                 self.assertIn('error', json.loads(out['body']))
 
+    def test_jrdb_connection_diagnostic_logs_only_fixed_status_codes(self):
+        cfg = {**SETTINGS, 'JRDB_PRIVATE_ENABLED': '1',
+               'JRDB_API_KEY': 'sensitive-app-key-not-for-logs',
+               'JRDB_AUTH_KEY': 'sensitive-user-key-not-for-logs'}
+        app = create_app(cfg)
+        for count, label in ((0, 'empty'), (1, 'present')):
+            with self.subTest(count=count), (
+                patch('private_service.fetch_race_program',
+                      return_value=[{'private_horse_name': 'DO-NOT-LOG'}]),
+                patch('private_service.normalize_program_rows',
+                      return_value=[{}] * count),
+                patch('private_service.logging.warning') as logger,
+            ):
+                result = call(app, '/api/jrdb/connection-test',
+                              QUERY_STRING='date=20261107')
+                self.assertEqual(result['status'], '200 OK')
+                self.assertEqual(logger.call_count, 1)
+                self.assertEqual(logger.call_args.args[0],
+                                 'KEIBA_JRDB_CONNECTION_TEST status=connected programme=%s')
+                self.assertEqual(logger.call_args.args[1], label)
+                logged = str(logger.call_args)
+                for forbidden in ('20261107', 'DO-NOT-LOG', 'sensitive-app',
+                                  'sensitive-user', 'private_horse_name'):
+                    self.assertNotIn(forbidden, logged)
+        with (patch('private_service.fetch_race_program',
+                    side_effect=JRDBError('JRDB request failed (HTTP 403)')),
+              patch('private_service.logging.warning') as logger):
+            result = call(app, '/api/jrdb/connection-test',
+                          QUERY_STRING='date=20261107')
+            self.assertEqual(result['status'], '502 Bad Gateway')
+            self.assertEqual(logger.call_args.args[1], 'entitlement')
+            self.assertNotIn('20261107', str(logger.call_args))
+
     def test_owner_connection_button_only_enabled_after_setup(self):
         home = call(self.app, '/')['body'].decode()
         js = call(self.app, '/app.js')['body'].decode()
