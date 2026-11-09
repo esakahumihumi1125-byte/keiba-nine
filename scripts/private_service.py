@@ -33,6 +33,7 @@ from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
 from jrdb_owner_auto_draft import build_owner_auto_drafts, DAY_DRAFT_ISSUES
 from owner_ten_factor_contract import ten_factor_contract
+from owner_day_source_passport import safe_owner_day_source_passport
 from jrdb_owner_draft_materials import observe_owner_draft_materials, unavailable as unavailable_draft_materials
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
@@ -2175,6 +2176,10 @@ def create_app(settings=None):
                             TypeError, KeyError):
                         # Fixed label only; never log source data.
                         logging.warning('KEIBA_AUTO_DRAFT_CONTEXT=unavailable')
+                # Same snapshot, no additional provider reads. Optional
+                # read-only diagnostic must never mutate signed forecast
+                # receipts or create extra betting-ready grades.
+                report['sourcePassport'] = safe_owner_day_source_passport(report)
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError) as exc:
                 if isinstance(exc, JRDBError):
