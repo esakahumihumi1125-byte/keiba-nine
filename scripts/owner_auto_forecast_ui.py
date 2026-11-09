@@ -2406,6 +2406,42 @@ $('autoArchiveRead').onclick=async()=>{
    'サーバー保存済みの記録を安全に確認できません。設定・接続を確認してください。iPhone内の記録は無変更です。';
  }}finally{if(seq===archiveReadSeq)button.disabled=false;}
 };
+$('autoCoreVerify').onclick=async()=>{
+ const button=$('autoCoreVerify'),day=$('autoDay').value.replaceAll('-','');
+ if(button.disabled)return;
+ const seq=++coreVerifySeq;button.disabled=true;
+ $('autoCoreVerifyStatus').textContent='固定済み70点研究記録の署名を確認中…';
+ try{
+  const receipts=savedCoreDay(day);
+  if(!receipts.length){
+   $('autoCoreVerifyStatus').textContent='この日の固定済み70点研究記録はありません。';
+   return;
+  }
+  const payload=JSON.stringify({date:day,receipts});
+  if(payload.length>180000)throw Error('記録が大きすぎます');
+  const res=await fetch('/api/owner-three-core-verify',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body:payload
+  });
+  const result=await res.json();
+  if(seq!==coreVerifySeq||day!==$('autoDay').value.replaceAll('-',''))return;
+  if(!res.ok||result?.version!=='owner-three-core-verify-1'||
+     result.serverSigned!==true||result.recordCount!==receipts.length||
+     result.researchOnly!==true||result.privateOwnerOnly!==true||
+     result.officialJraVerified!==false||
+     result.independentJraScheduleVerified!==false||
+     result.calibrationReady!==false||result.resultComparisonReady!==false||
+     result.bettingReady!==false||result.autoPurchase!==false||
+     result.actualPurchase!==false)
+   throw Error('署名照合に失敗');
+  $('autoCoreVerifyStatus').textContent='サーバー署名確認成功：'+receipts.length+
+   'Rの発走前研究値。予想精度・JRA公式結果・馬券・回収率は未検証。元の固定値は変更していません。';
+ }catch(_){if(seq===coreVerifySeq){
+  $('autoCoreVerifyStatus').textContent=
+   '署名を確認できませんでした。記録を編集・削除せずバックアップを確保してください。';
+ }}finally{if(seq===coreVerifySeq)button.disabled=false;}
+};
 $('autoHistoryAudit').onclick=async()=>{
  const button=$('autoHistoryAudit'),day=historyDay;
  if(button.disabled||!day||day!==$('autoDay').value.replaceAll('-',''))return;
@@ -2423,6 +2459,44 @@ $('autoHistoryAudit').onclick=async()=>{
   if(seq!==historySeq)return;
   if(!res.ok)throw Error('履歴機能は利用不可');
   const rows=validateHistory(raw);
+  // Core research capture is optional in legacy saved history responses;
+  // new private /history calls send it signed before the provisional off.
+  // Never ingest user-provided outcomes or update existing 3連単 tickets.
+  let coreMessage='この履歴資料には発走前の署名付き70点研究記録がありません。既存記録は変更しません。';
+  if(raw.coreCapture!==undefined){
+   try{
+    const coreReceipts=validateCoreCapture(raw.coreCapture,rows,day);
+    if(coreReceipts.length){
+     const payload=JSON.stringify({date:day,receipts:coreReceipts});
+     if(payload.length>180000)throw Error('70点研究の転送サイズ超過');
+     const verified=await fetch('/api/owner-three-core-verify',{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+       'Accept':'application/json'},body:payload
+     });
+     const check=await verified.json();
+     if(seq!==historySeq||historyDay!==day)return;
+     if(!verified.ok||!check||
+        check.version!=='owner-three-core-verify-1'||
+        check.serverSigned!==true||check.recordCount!==coreReceipts.length||
+        check.researchOnly!==true||check.privateOwnerOnly!==true||
+        check.officialJraVerified!==false||
+        check.independentJraScheduleVerified!==false||
+        check.calibrationReady!==false||
+        check.resultComparisonReady!==false||
+        check.bettingReady!==false||check.autoPurchase!==false||
+        check.actualPurchase!==false)
+      throw Error('70点研究の署名検証が失敗');
+     coreMessage=saveCoreReceipts(coreReceipts);
+    }else{
+     coreMessage='この開催日は研究用70点の固定対象がありません。発走済み・資料不足の馬から後付け記録を作りません。';
+    }
+   }catch(_){
+    coreMessage='70点研究の署名検証または端末保存ができません。以前の固定記録は変更しません。';
+   }
+  }
+  showSavedCore(day);
+  $('autoCoreSaveStatus').textContent=coreMessage;
   // The server checks signatures, not just browser-provided timestamps.
   // Never send an outcome or an officialVerified flag from the device.
   let watchSaveStatus='発走前の署名付き候補はまだ固定できていません。';
