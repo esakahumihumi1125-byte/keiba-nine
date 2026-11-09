@@ -1651,7 +1651,10 @@ function boot(){
  assert.match(sourcePanel.children[2].textContent,/件数は照合保留/);
  assert.match(sourcePanel.children[3].textContent,/当日馬場情報 あり/);
  assert.match(sourcePanel.children[4].textContent,/未評価の8項目/);
- assert.match(sourcePanel.children[4].textContent,/コース・距離20点/);
+ assert.match(sourcePanel.children[4].textContent,/コース・距離17点/);
+  assert.match(sourcePanel.children[4].textContent,/展開・脚質17点/);
+  assert.match(sourcePanel.children[4].textContent,/血統6点/);
+  assert.match(sourcePanel.children[4].textContent,/騎手・厩舎10点/);
  assert.match(sourcePanel.children[4].textContent,/馬体重1点/);
  const nextSteps=sourcePanel.children[5];
  assert.equal(nextSteps.className,'source-next');
