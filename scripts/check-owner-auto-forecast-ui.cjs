@@ -2121,6 +2121,54 @@ function boot(){
  assert.equal(coreView.get('autoCoreProviderCheck').disabled,true);
  assert.equal(coreView.get('autoCoreProviderRaces').children.length,0);
  assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
+
+ // 85-weight results only after explicit tap, not page entry/history/date.
+ const fiveView=boot();
+ await new Promise(r=>setImmediate(r));
+ assert.equal(fiveView.requests.filter(x=>x.url==='/api/owner-five-core-provider-check').length,0);
+ const fiveSnapshot={
+  version:'owner-five-core-receipt-1',date:day,track:'東京',race:1,
+  sourceKind:'prestart-uncalibrated-85-research',
+  capturedAt:'2099-01-01T09:00:00+09:00',
+  scheduledOffAt:'2099-01-01T12:00:00+09:00',
+  raceRunnerCount:7,observedRunnerCount:1,
+  horses:[{number:1,bands:{
+   training:'S',course_distance:'A',pace:'B',ground:'A',recent:'C'
+  },rawThirdPoints:174}],
+  researchOnly:true,officialJraVerified:false,
+  sourceHypothesesUncalibrated:true,actualPurchase:false,
+  predictionReady:false
+ };
+ const fiveReceipt={snapshot:fiveSnapshot,signature:'d'.repeat(64)};
+ fiveView.storage.set(FIVE_STORAGE,JSON.stringify([fiveReceipt]));
+ fiveView.get('autoDay').value='2099-01-02';fiveView.get('autoDay').onchange();
+ fiveView.get('autoDay').value='2099-01-01';fiveView.get('autoDay').onchange();
+ assert.equal(fiveView.get('autoFiveSaved').children.length,1);
+ assert.match(fiveView.get('autoFiveSaved').children[0].children[0].textContent,
+  /研究85点・1頭分/);
+ const fiveLocked=fiveView.storage.get(FIVE_STORAGE);
+ const ticketsBeforeFive=fiveView.storage.get(STORAGE);
+ const fiveBefore=fiveView.requests.length;
+ await fiveView.get('autoFiveProviderCheck').onclick();
+ assert.equal(fiveView.requests.length,fiveBefore+1);
+ assert.equal(fiveView.requests.at(-1).url,'/api/owner-five-core-provider-check');
+ assert.equal(JSON.parse(fiveView.requests.at(-1).options.body).receipts.length,1);
+ assert.match(fiveView.get('autoFiveProviderStatus').textContent,/暫定1〜3着観測 1\/1R/);
+ assert.match(fiveView.get('autoFiveProviderStatus').textContent,/公式結果・的中率・回収率未照合/);
+ const fiveCard=fiveView.get('autoFiveProviderRaces').children[0];
+ assert.match(fiveCard.children[2].textContent,/58.00\/85・研究比較 1グループ/);
+ assert.match(fiveCard.children[3].textContent,/近走 C/);
+ assert.equal(fiveView.storage.get(FIVE_STORAGE),fiveLocked);
+ assert.equal(fiveView.storage.get(STORAGE),ticketsBeforeFive);
+ fiveView.setFiveProviderCorrupt(true);
+ await fiveView.get('autoFiveProviderCheck').onclick();
+ assert.match(fiveView.get('autoFiveProviderStatus').textContent,/安全に比較できませんでした/);
+ assert.equal(fiveView.get('autoFiveProviderRaces').children.length,0);
+ assert.equal(fiveView.storage.get(FIVE_STORAGE),fiveLocked);
+ fiveView.get('autoDay').value='2099-01-03';fiveView.get('autoDay').onchange();
+ assert.equal(fiveView.get('autoFiveProviderCheck').disabled,true);
+ assert.equal(fiveView.get('autoFiveProviderRaces').children.length,0);
+ assert.equal(fiveView.storage.get(FIVE_STORAGE),fiveLocked);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
