@@ -150,7 +150,7 @@ class FiveCoreAttestationTests(unittest.TestCase):
             "KEIBA_RENDER_PREVIEW_ONLY":"0"
         })
         with patch("private_service.fetch_finished_race_results") as results,patch(
-                "private_service.fetch_historical_race_programme") as paid:
+                "private_service.fetch_historical_race_program") as paid:
             response=call(private,"/api/owner-five-core-verify",method="POST",
                           data={"date":DAY,"receipts":receipts})
             results.assert_not_called()
