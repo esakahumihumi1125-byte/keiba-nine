@@ -2865,6 +2865,105 @@ function validateHistory(h){
   if(seenRaces.size!==historyCoordinates.size)
    throw Error('研究用100点幅のレース不足');
  }
+ // One owner-only 79/100 research 3連単 draft per prestart slot.
+ // This is a newer hypothesis alongside (not replacing) signed legacy 85.
+ if(h.research6FiveDrafts!==undefined){
+  const v=h.research6FiveDrafts,keys=[
+   'training','course_distance','pace','ground','recent'],
+   weights={training:30,course_distance:17,pace:17,ground:12,recent:3},
+   reasons=new Set(['missing_provisional_off','past_provisional_off',
+    'runner_count_unconfirmed','too_few_runners',
+    'incomplete_five_factors','tied_cutoff']);
+  if(!v||v.version!=='owner-research6-fivecore-drafts-1'||
+     v.policyVersion!=='research-6'||v.date!==historyDay||
+     v.researchFactorWeight!==79||
+     v.remainingUnassessedWeight!==21||v.unitYen!==100||
+     !v.factorWeights||Object.keys(v.factorWeights).length!==5||
+     keys.some(k=>v.factorWeights[k]!==weights[k])||
+     v.officialJraVerified!==false||
+     v.overallPredictionReady!==false||v.bettingReady!==false||
+     v.autoPurchase!==false||v.actualPurchase!==false||
+     v.researchOnly!==true||v.privateOwnerOnly!==true||
+     v.extraProviderCalls!==0||
+     v.changesExistingReceipts!==false||
+     v.changesExistingTickets!==false||v.changesExistingRoi!==false||
+     v.raceCount!==historyCoordinates.size||
+     !Array.isArray(v.races)||v.races.length!==historyCoordinates.size||
+     !Number.isInteger(v.draftCount)||!Number.isInteger(v.holdCount)||
+     !v.holdReasons||typeof v.holdReasons!=='object')
+   throw Error('79点研究用下書きの形式が不正');
+  const seenRaces=new Set(),counts={};let drafts=0,holds=0;
+  for(const race of v.races){
+   const id=race?.track+'|'+race?.race,d=perRace.get(id),
+    prior=d?.newWeightFive;
+   if(!prior||seenRaces.has(id)||
+      race.runnerCount!==prior.runnerCount||
+      race.completeObserved!==prior.completeObserved||
+      race.researchOnly!==true||race.officialJraVerified!==false||
+      race.overallPredictionReady!==false||race.bettingReady!==false||
+      race.autoPurchase!==false||
+      !Array.isArray(race.first)||!Array.isArray(race.second)||
+      !Array.isArray(race.third)||!Array.isArray(race.tickets)||
+      !Array.isArray(race.rankedResearch)||
+      !Number.isInteger(race.points)||!Number.isInteger(race.amountYen))
+    throw Error('79点研究用下書きの馬番照合不一致');
+   seenRaces.add(id);
+   if(race.status==='hold'){
+    if(!reasons.has(race.reason)||race.points!==0||race.amountYen!==0||
+       race.first.length||race.second.length||race.third.length||
+       race.tickets.length||race.rankedResearch.length)
+     throw Error('保留中の79点下書きに買い目が混入');
+    holds++;counts[race.reason]=(counts[race.reason]||0)+1;
+   }else if(race.status==='five_factor_research_draft'){
+    const runners=prior.horses.slice().sort((a,b)=>
+     b.rawThirdPoints-a.rawThirdPoints||a.number-b.number);
+    if(race.reason!=='unverified_five_factor_hypotheses'||
+       !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(race.postTime)||
+       runners.length<4||runners.some(x=>x.rawThirdPoints===null)||
+       race.rankedResearch.length!==runners.length||
+       race.first.length!==2&&race.first.length!==3||
+       race.second.length<=race.first.length||
+       race.second.length>5||race.third.length<race.second.length||
+       race.third.length>9)
+     throw Error('79点研究用下書きの根拠不足');
+    for(let i=0;i<runners.length;i++){
+     const a=race.rankedResearch[i],b=runners[i];
+     const rank=1+runners.filter(x=>
+      x.rawThirdPoints>b.rawThirdPoints).length;
+     if(!a||a.number!==b.number||a.research79!==b.evidenceScore79||
+        a.comparisonRank!==rank)
+      throw Error('79点研究用順位が資料と不一致');
+    }
+    const prefixes=[
+     [race.first,race.first.length],
+     [race.second,race.second.length],
+     [race.third,race.third.length]
+    ];
+    for(const [numbers,count] of prefixes){
+     if(JSON.stringify(numbers)!==JSON.stringify(
+        runners.slice(0,count).map(x=>x.number))||
+        (count<runners.length&&
+         runners[count-1].rawThirdPoints===runners[count].rawThirdPoints))
+      throw Error('79点研究用の同点馬を恣意的に除外');
+    }
+    const expected=[];
+    for(const x of race.first)for(const y of race.second)
+     for(const z of race.third)
+      if(x!==y&&x!==z&&y!==z)expected.push([x,y,z]);
+    if(expected.length<1||expected.length>40||
+       race.points!==expected.length||
+       race.amountYen!==expected.length*100||
+       JSON.stringify(race.tickets)!==JSON.stringify(expected))
+     throw Error('79点研究用の買い目算術不一致');
+    drafts++;
+   }else throw Error('79点研究用の状態が不正');
+   d.research6FiveDraft=race;
+  }
+  if(seenRaces.size!==historyCoordinates.size||
+     drafts!==v.draftCount||holds!==v.holdCount||
+     JSON.stringify(v.holdReasons)!==JSON.stringify(counts))
+   throw Error('79点研究用の件数不一致');
+ }
  validateWatchCapture(h.watchCapture,h);
  return results;
 }
@@ -3954,6 +4053,38 @@ $('autoHistoryAudit').onclick=async()=>{
       '｜研究順位の可能性 '+h0.researchPossibleBestRank+
       '～'+h0.researchPossibleWorstRank+
       '位｜正式評価：未評価','muted'));
+    }
+    card.append(p);
+   }
+   if(details.rosterVerified&&details.research6FiveDraft){
+    const draft=details.research6FiveDraft,p=dom('details');
+    p.append(dom('summary','新配点79点から作る3連単研究用下書き（正式予想ではない）'));
+    p.append(dom('p','調教30・近走3・コース17・展開17・馬場12の'+
+      '仮説的な比較のみ。血統6・枠斤量3・騎手厩舎10・ローテ1・'+
+      '当日馬体重1は未評価。JRA公式出走馬・取消・馬場・発走時刻も'+
+      '未照合で、購入推奨や正式100点予想ではありません。','muted'));
+    if(draft.status==='five_factor_research_draft'){
+     p.append(dom('p','1着 '+draft.first.join('・')+
+      '／2着 '+draft.second.join('・')+
+      '／3着 '+draft.third.join('・')+
+      '｜'+draft.points+'点・100円換算 '+draft.amountYen.toLocaleString()+
+      '円（未購入・署名保存なし）','muted'));
+     const all=dom('details');
+     all.append(dom('summary','3連単の研究用組み合わせ '+draft.points+'点'));
+     all.append(dom('p',draft.tickets.map(t=>t.join('→')).join('　'),'muted'));
+     p.append(all);
+    }else{
+     const descriptions={
+      missing_provisional_off:'暫定発走時刻がない',
+      past_provisional_off:'暫定発走時刻を過ぎた',
+      runner_count_unconfirmed:'JRDB番組の頭数と一致しない',
+      too_few_runners:'出走馬が4頭未満',
+      incomplete_five_factors:'5項目が全頭そろっていない',
+      tied_cutoff:'同点境界で候補を安全に区切れない'
+     };
+     p.append(dom('p','研究用買い目は保留：'+
+      descriptions[draft.reason]+'。未評価の馬を0点扱いして'+
+      '無理に点数を作りません。','muted'));
     }
     card.append(p);
    }
