@@ -877,6 +877,23 @@ function boot(){
  assert.match(a.get('autoSourceSummary').textContent,/当日馬場資料 1R/);
  assert.match(a.get('autoSourceSummary').textContent,/正式採点0\/10/);
  assert.match(a.get('autoSourceSummary').textContent,/買い目は変更しません/);
+ assert.match(a.get('autoMorningStatus').textContent,/2099-01-01：番組 1R/);
+ assert.match(a.get('autoMorningStatus').textContent,/研究用3連単下書き 1R／見送り 0R/);
+ assert.match(a.get('autoMorningStatus').textContent,/10項目本採点.*未完了/);
+ assert.match(a.get('autoMorningStatus').textContent,/サーバー永続保存は未設定/);
+ const quickSingle=a.get('autoVenues').children.at(-1);
+ assert.equal(quickSingle.dataset.mode,'drafts');
+ assert.match(quickSingle.textContent,/下書きのみ 1R/);
+ const requestsBeforeDraftOnly=a.requests.length;
+ const receiptsBeforeDraftOnly=a.storage.get(STORAGE);
+ quickSingle.onclick();
+ assert.equal(a.get('autoRaces').children[0].children.length,1);
+ assert.match(a.get('autoViewingStatus').textContent,/下書き 1Rを表示/);
+ assert.equal(quickSingle['aria-pressed'],'true');
+ assert.equal(a.requests.length,requestsBeforeDraftOnly);
+ assert.equal(a.storage.get(STORAGE),receiptsBeforeDraftOnly);
+ a.get('autoVenues').children[0].onclick();
+ assert.equal(quickSingle['aria-pressed'],'false');
  // iPhone selector shows one race without refetching or editing a receipt.
  const selector=a.get('autoRacePick');
  assert.equal(selector.disabled,false);
@@ -943,6 +960,7 @@ function boot(){
  assert.match(a.get('autoTenStatus').textContent,/確認できません/);
  assert.equal(a.storage.get(STORAGE),beforePassportFail);
  assert.match(a.get('autoSourceSummary').textContent,/取得に失敗しました/);
+ assert.match(a.get('autoMorningStatus').textContent,/新しい暫定予想は表示していません/);
  // Do not rerun the original receipt: first-write-wins is intentional.
  // The next test below supplies its own response and preserves this record.
  assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
@@ -1167,6 +1185,18 @@ function boot(){
  full.setServerRaw(full36RaceDraft());
  await full.get('autoRun').onclick();
  assert.match(full.get('autoSummary').textContent,/36R中、研究用自動案 1R／見送り 35R/);
+ assert.match(full.get('autoMorningStatus').textContent,/番組 36R／発走前の研究用3連単下書き 1R／見送り 35R/);
+ assert.match(full.get('autoMorningStatus').textContent,/サーバー永続保存は未設定/);
+ const draftOnly36=full.get('autoVenues').children.at(-1);
+ assert.match(draftOnly36.textContent,/下書きのみ 1R/);
+ const beforeDraftFilter36=full.requests.length;
+ const beforeDraftStore36=full.storage.get(STORAGE);
+ draftOnly36.onclick();
+ assert.equal(full.get('autoRaces').children[0].children.length,1);
+ assert.match(full.get('autoRaces').children[0].children[0].children[0].textContent,/東京 1R 研究用自動案 40点/);
+ assert.equal(full.requests.length,beforeDraftFilter36);
+ assert.equal(full.storage.get(STORAGE),beforeDraftStore36);
+ full.get('autoVenues').children[0].onclick();
  const all36=full.get('autoRacePick');
  assert.equal(all36.disabled,false);
  assert.equal(all36.children.length,37);
