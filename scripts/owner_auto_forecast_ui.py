@@ -2006,6 +2006,89 @@ function validateHistory(h){
   if(seen.size!==historyCoordinates.size)
    throw Error('血統8点のレース不足');
  }
+ // The three supporting inputs have six weight points, but only field
+ // presence is available. Do not let a forged grade enter a visible ticket.
+ if(h.supportSixPreflight!==undefined){
+  const p=h.supportSixPreflight,weights={draw_weight:3,jockey_stable:2,rotation:1};
+  if(!p||p.version!=='owner-support-six-preflight-1'||
+     p.policyVersion!=='research-5'||p.weightTotal!==6||
+     !p.factors||Object.keys(p.factors).length!==3||
+     Object.keys(weights).some(k=>p.factors[k]!==weights[k])||
+     p.raceCount!==historyCoordinates.size||p.verifiedFactorCount!==0||
+     p.conditionMatchedEffectValidated!==false||
+     p.temporalValidationComplete!==false||
+     p.researchOnly!==true||p.privateOwnerOnly!==true||
+     p.officialJraVerified!==false||p.overallPredictionReady!==false||
+     p.bettingReady!==false||p.autoPurchase!==false||
+     p.changesExistingTickets!==false||p.changesExistingReceipts!==false||
+     !Array.isArray(p.races)||p.races.length!==historyCoordinates.size)
+   throw Error('残り6点の準備資料の形式不正');
+  const seen=new Set(),keys=Object.keys(weights),
+        codes={
+         draw_weight:['draw_or_carried_weight_missing',
+          'field_and_weight_effects_unvalidated','temporal_holdout_not_validated'],
+         jockey_stable:['jockey_or_trainer_missing',
+          'comparable_personnel_performance_unvalidated','temporal_holdout_not_validated'],
+         rotation:['last_run_interval_missing',
+          'condition_matched_rotation_effect_unvalidated','temporal_holdout_not_validated']
+        };
+  for(const race of p.races){
+   const id=race?.track+'|'+race?.race,details=perRace.get(id);
+   if(seen.has(id)||!details?.tenInventory||
+      race.runnerCount!==details.runnerCount||
+      race.verifiedFactorCount!==0||race.scoreReady!==false||
+      !race.fieldCompleteCounts||Object.keys(race.fieldCompleteCounts).length!==3||
+      !Number.isInteger(race.allThreeFieldCompleteCount)||
+      !Array.isArray(race.horses)||race.horses.length!==race.runnerCount)
+    throw Error('残り6点の頭数不一致');
+   seen.add(id);
+   const source=new Map(details.tenInventory.runners.map(x=>[x.number,x]));
+   const counts=Object.fromEntries(keys.map(k=>[k,0]));
+   const numbers=new Set();let all=0;
+   for(const horse of race.horses){
+    const n=horse?.number,from=source.get(n);
+    if(!Number.isInteger(n)||n<1||n>18||numbers.has(n)||
+       !from||!horse.sourceStates||!horse.fieldPresent||
+       !horse.missingEvidence||!horse.grades||!horse.scores||
+       Object.keys(horse.sourceStates).length!==3||
+       Object.keys(horse.fieldPresent).length!==3||
+       Object.keys(horse.missingEvidence).length!==3||
+       Object.keys(horse.grades).length!==3||
+       Object.keys(horse.scores).length!==3||
+       horse.conditionalEffectVerified!==false||
+       horse.outOfTimeValidated!==false||horse.bettingReady!==false)
+     throw Error('残り6点の馬番・評価不一致');
+    numbers.add(n);
+    let presenceWeight=0,complete=0;
+    for(const k of keys){
+     const expected=k==='rotation'?
+      from.sourceStates[k]!=='unknown':
+      from.sourceStates[k]==='complete_fields_observed';
+     if(horse.sourceStates[k]!==from.sourceStates[k]||
+        horse.fieldPresent[k]!==expected||
+        horse.grades[k]!=='未評価'||horse.scores[k]!==null||
+        !Array.isArray(horse.missingEvidence[k])||
+        horse.missingEvidence[k].join(',')!==
+        (expected?codes[k].slice(1):codes[k]).join(','))
+      throw Error('残り6点の資料と根拠の不一致');
+     counts[k]+=Number(expected);
+     complete+=Number(expected);
+     if(expected)presenceWeight+=weights[k];
+    }
+    if(horse.fieldPresenceWeight!==presenceWeight)
+     throw Error('残り6点の資料カバー配点に不正');
+    if(complete===3)all++;
+   }
+   if(numbers.size!==race.runnerCount||
+      all!==race.allThreeFieldCompleteCount||
+      keys.some(k=>race.fieldCompleteCounts[k]!==counts[k]||
+       counts[k]!==details.tenInventory.remainingFieldCoverage[k]))
+    throw Error('残り6点の資料件数が不一致');
+   details.supportSixPreflight=race;
+  }
+  if(seen.size!==historyCoordinates.size)
+   throw Error('残り6点のレース不足');
+ }
  // This is an optional *uncalibrated* 70-weight research comparison
  // from the same fully checked historical response; not a formal score.
  if(h.threeCoreResearch!==undefined){
@@ -3041,6 +3124,31 @@ $('autoHistoryAudit').onclick=async()=>{
      panel.append(dom('p',horse.number+'番｜父・母父 '+state+
       '／同条件の血統実績 未接続／時系列検証 未実施'+
       '／血統8点 未評価（予想には反映しません）','muted'));
+    }
+    card.append(panel);
+   }
+   if(details.rosterVerified&&details.supportSixPreflight){
+    const p=details.supportSixPreflight,panel=dom('details');
+    panel.append(dom('summary','枠斤量・騎手厩舎・ローテ6点の採点準備（正式未評価）'));
+    panel.append(dom('p','枠斤量3・騎手厩舎2・ローテ1。今は資料があるかだけを確認。同条件の有利不利や成績差・休み明け適性の検証は未完成で、資料が全部あっても実得点は0点ではなく未評価です。','muted'));
+    panel.append(dom('p','3項目とも資料がそろう馬 '+
+     p.allThreeFieldCompleteCount+'/'+p.runnerCount+
+     '頭。能力評価を検証できた馬 0/'+p.runnerCount+'頭。','muted'));
+    const explain={
+     complete_fields_observed:'資料あり',
+     partial_fields_observed:'一部不足',
+     no_fields_observed:'資料不足',
+     under14Days:'中13日以内',
+     days14to55:'中14〜55日',
+     days56plus:'中56日以上',
+     unknown:'間隔不明'
+    };
+    for(const h of p.horses){
+     panel.append(dom('p',h.number+'番｜枠斤量 '+explain[h.sourceStates.draw_weight]+
+      '／騎手厩舎 '+explain[h.sourceStates.jockey_stable]+
+      '／ローテ '+explain[h.sourceStates.rotation]+
+      '｜資料カバー配点相当 '+h.fieldPresenceWeight+'/6（実得点ではない）'+
+      '｜正式6点 未評価（3項目とも能力判定なし）','muted'));
     }
     card.append(panel);
    }
