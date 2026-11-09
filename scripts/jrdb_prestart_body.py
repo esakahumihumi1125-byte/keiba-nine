@@ -2,7 +2,8 @@
 
 The beta endpoint includes horse weight, paddock and odds. Odds and provider
 indices are deliberately ignored by this source-presence check, and no
-horse-level values, identities, paid data or timestamps escape the response.
+horse-level weights, names, paid indices or timestamps escape the response.
+Only public-style race/horse numbers and source-presence booleans are returned.
 The source includes potentially unavailable/null rows; 0 kg is not a measured
 body weight. A provider-reported weight is not independently JRA-verified.
 """
@@ -42,6 +43,7 @@ def audit_prestart_body(programme, entries, prestart, racedate):
                 raise CoverageError("Ambiguous entry horse id")
             by_id[pair] = (key, num)
     observed = set()
+    presence_by_entry = {}
     counters = {key: dict(bodyWeight=0, weightChange=0, paddock=0,
                           reportedBodyState=0, reportedWithdrawn=0)
                 for key in by_key}
@@ -80,6 +82,10 @@ def audit_prestart_body(programme, entries, prestart, racedate):
         if flag not in (None, "", "0", "1"):
             raise CoverageError("Invalid provider withdrawal flag")
         c = counters[key]
+        # Presence metadata only; the raw kilograms and delta stay private.
+        weight_seen = weight is not None and weight > 0
+        change_seen = change is not None and weight_seen
+        presence_by_entry[identity] = (weight_seen, change_seen)
         if weight is not None and weight > 0:
             c["bodyWeight"] += 1
         if change is not None and weight is not None and weight > 0:
@@ -101,6 +107,27 @@ def audit_prestart_body(programme, entries, prestart, racedate):
         reported = sum(ident[0] == key for ident in observed)
         if reported > n:
             raise CoverageError("Prestart count exceeds roster")
+        # Every registered horse gets a row, even when /tpd has no data.
+        # No kg, change amount, odds, ids, names or withdrawal signals leave.
+        runners = []
+        for number in sorted(by_key[key], key=int):
+            identity = (key, number)
+            present = presence_by_entry.get(identity)
+            runners.append({
+                "number": int(number),
+                "prestartRowMatched": present is not None,
+                "bodyWeightRecorded": bool(present and present[0]),
+                "weightChangeRecorded": bool(present and present[1]),
+                "jraOfficialWeightVerified": False,
+                "bodyConditionGrade": "未評価",
+                "bodyConditionScore1": None,
+                "bettingReady": False,
+            })
+        if (len(runners) != n or
+                sum(x["prestartRowMatched"] for x in runners) != reported or
+                sum(x["bodyWeightRecorded"] for x in runners) != c["bodyWeight"] or
+                sum(x["weightChangeRecorded"] for x in runners) != c["weightChange"]):
+            raise CoverageError("Prestart per-runner coverage mismatch")
         output.append({
             "track": row["track"], "race": row["race"],
             "registered": n, "prestartRowsMatched": reported,
@@ -110,6 +137,7 @@ def audit_prestart_body(programme, entries, prestart, racedate):
             "paddockRecords": c["paddock"],
             "bodyStateCodeRecords": c["reportedBodyState"],
             "providerWithdrawnReports": c["reportedWithdrawn"],
+            "runners": runners,
             "sourceDataUpdatedAtVerified": False,
             "officialBodyWeightVerified": False,
             "bodyConditionGraded": False,
@@ -132,7 +160,8 @@ def audit_prestart_body(programme, entries, prestart, racedate):
         "note": (
             "当日JRDB直前情報の資料件数のみ。馬体重・前走増減・パドック指数・"
             "馬体コードの有無を登録馬と照合。オッズや指数値は予想に使用しない。"
-            "0kgやnullは測定値として数えない。提供元の情報はJRA公式の馬体重確定を意味しない。"
+            "0kgやnullは測定値として数えない。馬番別には記録有無のみ表示。"
+            "提供元の情報はJRA公式の馬体重確定を意味しない。"
             "S/A/B/C・3連単・投票・実購入記録は作成しません。"
         ),
     }

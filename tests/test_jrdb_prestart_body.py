@@ -57,9 +57,39 @@ class PrestartBodyAuditTests(unittest.TestCase):
         kyoto=next(r for r in report['races'] if r['track']=='京都')
         self.assertEqual(kyoto['prestartRowsMissing'],1)
         self.assertEqual((p,e,rows),saved)
+        # Horse-number presence only; raw weight/delta remain private.
+        self.assertEqual([h['number'] for h in tokyo['runners']], [1, 2])
+        one, two = tokyo['runners']
+        self.assertTrue(one['prestartRowMatched'])
+        self.assertTrue(one['bodyWeightRecorded'])
+        self.assertTrue(one['weightChangeRecorded'])
+        self.assertTrue(two['prestartRowMatched'])
+        self.assertFalse(two['bodyWeightRecorded'])  # zero kg is missing
+        self.assertFalse(two['weightChangeRecorded'])
+        self.assertEqual(len(kyoto['runners']), 1)
+        self.assertFalse(kyoto['runners'][0]['prestartRowMatched'])
+        for race in report['races']:
+            self.assertEqual(len(race['runners']), race['registered'])
+            self.assertEqual(sum(h['bodyWeightRecorded'] for h in race['runners']),
+                             race['bodyWeightRecords'])
+            self.assertEqual(sum(h['weightChangeRecorded'] for h in race['runners']),
+                             race['weightChangeRecords'])
+            self.assertEqual(sum(h['prestartRowMatched'] for h in race['runners']),
+                             race['prestartRowsMatched'])
+            for horse in race['runners']:
+                self.assertEqual(horse['bodyConditionGrade'], '未評価')
+                self.assertIsNone(horse['bodyConditionScore1'])
+                self.assertFalse(horse['jraOfficialWeightVerified'])
+                self.assertFalse(horse['bettingReady'])
+                self.assertEqual(set(horse), {
+                    'number', 'prestartRowMatched', 'bodyWeightRecorded',
+                    'weightChangeRecorded', 'jraOfficialWeightVerified',
+                    'bodyConditionGrade', 'bodyConditionScore1', 'bettingReady',
+                })
         output=repr(report)
         for sensitive in ('2328aaa95a05','horse_id','horse_number',
-                          'NONPUBLIC','SECRET_ODDS','win_odds','9999'):
+                          'NONPUBLIC','SECRET_ODDS','win_odds','9999',
+                          "'horse_weight'", "'weight_cycling'"):
             self.assertNotIn(sensitive,output)
 
     def test_invalid_duplicates_and_cross_day_identity_fail_closed(self):

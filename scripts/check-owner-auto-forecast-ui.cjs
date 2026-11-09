@@ -655,6 +655,12 @@ function prestart(){
    track:'東京',race:1,registered:7,prestartRowsMatched:6,
    prestartRowsMissing:1,bodyWeightRecords:4,weightChangeRecords:3,
    paddockRecords:3,bodyStateCodeRecords:2,providerWithdrawnReports:0,
+   runners:Array.from({length:7},(_,i)=>({
+    number:i+1,prestartRowMatched:i<6,
+    bodyWeightRecorded:i<4,weightChangeRecorded:i<3,
+    jraOfficialWeightVerified:false,bodyConditionGrade:'未評価',
+    bodyConditionScore1:null,bettingReady:false
+   })),
    sourceDataUpdatedAtVerified:false,officialBodyWeightVerified:false,
    bodyConditionGraded:false,realPredictionReady:false,ticketReady:false
   }],
@@ -1002,6 +1008,10 @@ function boot(){
  assert.equal(a.get('autoPrestartRaces').children.length,1);
  assert.match(a.get('autoPrestartStatus').textContent,/馬体重記録 4頭/);
  assert.match(a.get('autoPrestartRaces').children[0].children[1].textContent,/JRA公式未確認/);
+ const bodyPanel=a.get('autoPrestartRaces').children[0].children[2];
+ assert.match(bodyPanel.children[0].textContent,/馬番別の資料を見る/);
+ assert.match(bodyPanel.children[1].textContent,/1番｜馬体重 記録あり／前走比 記録あり/);
+ assert.match(bodyPanel.children[7].textContent,/7番｜馬体重 未取得／前走比 未取得/);
  assert.equal(a.storage.get(STORAGE),beforeBody);
  const wrongBody=prestart();
  wrongBody.races[0].bodyWeightRecords=18;
@@ -1010,6 +1020,22 @@ function boot(){
  assert.equal(a.get('autoPrestartRaces').children.length,0);
  assert.match(a.get('autoPrestartStatus').textContent,/照合できません/);
  assert.equal(a.storage.get(STORAGE),beforeBody);
+ // Reject forged points, official proof and mismatched counts/horse numbers.
+ for(const mutate of [
+  h=>h.races[0].runners[0].bodyConditionScore1=1,
+  h=>h.races[0].runners[0].bodyConditionGrade='S',
+  h=>h.races[0].runners[0].jraOfficialWeightVerified=true,
+  h=>h.races[0].runners[0].weightChangeRecorded=false,
+  h=>h.races[0].runners[1].number=1,
+  h=>h.races[0].runners[6].bodyWeightRecorded=true,
+ ]){
+  const forged=prestart();mutate(forged);
+  a.setPrestart(forged);
+  await a.get('autoPrestartBody').onclick();
+  assert.equal(a.get('autoPrestartRaces').children.length,0);
+  assert.match(a.get('autoPrestartStatus').textContent,/照合できません/);
+  assert.equal(a.storage.get(STORAGE),beforeBody);
+ }
  a.setPrestart(prestart());
  a.get('autoDay').value='2099-01-02';
  const callsBefore=a.requests.length;

@@ -76,7 +76,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 </section>
 <section>
 <h2>当日の馬体重資料（任意）</h2>
-<p class="muted">押したときだけJRDB直前情報から馬体重・前走比の記録件数を照合。原数値・オッズ・パドック指数は画面に出しません。JRA公式の確定値や馬体評価ではありません。</p>
+<p class="muted">押したときだけJRDB直前情報から馬番別の馬体重・前走比の記録有無を照合。原数値・オッズ・パドック指数は画面に出しません。JRA公式の確定値や馬体評価ではありません。</p>
 <button id="autoPrestartBody" type="button">今日の馬体重資料を確認</button>
 <p id="autoPrestartStatus" class="muted" role="status">本人操作時だけ追加API照合。予想・買い目・回収率は変更しません。</p>
 <div id="autoPrestartRaces"></div>
@@ -3249,8 +3249,33 @@ function validatePrestartBody(raw,day){
      row.sourceDataUpdatedAtVerified!==false||
      row.officialBodyWeightVerified!==false||
      row.bodyConditionGraded!==false||
-     row.realPredictionReady!==false||row.ticketReady!==false)
+     row.realPredictionReady!==false||row.ticketReady!==false||
+     !Array.isArray(row.runners)||row.runners.length!==row.registered)
    throw Error('直前馬体資料の頭数不一致');
+  // Only presence booleans can leave the private server. No grades, kg or odds.
+  const numbers=new Set(),counts={matched:0,weight:0,change:0};
+  for(const h of row.runners){
+   if(!h||Object.keys(h).length!==8||
+      !Number.isInteger(h.number)||h.number<1||h.number>18||
+      numbers.has(h.number)||
+      typeof h.prestartRowMatched!=='boolean'||
+      typeof h.bodyWeightRecorded!=='boolean'||
+      typeof h.weightChangeRecorded!=='boolean'||
+      h.jraOfficialWeightVerified!==false||
+      h.bodyConditionGrade!=='未評価'||
+      h.bodyConditionScore1!==null||h.bettingReady!==false||
+      (h.bodyWeightRecorded&&!h.prestartRowMatched)||
+      (h.weightChangeRecorded&&!h.bodyWeightRecorded))
+    throw Error('直前馬体の個別資料に不正');
+   numbers.add(h.number);
+   counts.matched+=Number(h.prestartRowMatched);
+   counts.weight+=Number(h.bodyWeightRecorded);
+   counts.change+=Number(h.weightChangeRecorded);
+  }
+  if(counts.matched!==row.prestartRowsMatched||
+     counts.weight!==row.bodyWeightRecords||
+     counts.change!==row.weightChangeRecords)
+   throw Error('直前馬体の馬番別件数が不一致');
   seen.add(id);
   totals.matchedRows+=row.prestartRowsMatched;
   totals.weightRecords+=row.bodyWeightRecords;
@@ -3289,6 +3314,15 @@ $('autoPrestartBody').onclick=async()=>{
     dom('p','馬体重 '+row.bodyWeightRecords+'/'+row.registered+
      '頭／前走比 '+row.weightChangeRecords+'頭／未照合 '+
      row.prestartRowsMissing+'頭（JRA公式未確認・採点なし）','muted'));
+   const panel=dom('details');
+   panel.append(dom('summary','馬番別の資料を見る（正式馬体重1点は未評価）'));
+   for(const horse of row.runners){
+    panel.append(dom('p',horse.number+'番｜馬体重 '+
+     (horse.bodyWeightRecorded?'記録あり':'未取得')+
+     '／前走比 '+(horse.weightChangeRecorded?'記録あり':'未取得')+
+     '｜JRA公式未確認・馬体1点未評価','muted'));
+   }
+   card.append(panel);
    $('autoPrestartRaces').append(card);
   }
   $('autoPrestartStatus').textContent='直前資料 '+raw.summary.matchedRows+
