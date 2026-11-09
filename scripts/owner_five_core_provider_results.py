@@ -76,8 +76,9 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
                         group["invalid"] = True
                     group["places"][place] = n
 
-    out, winner_count = [], 0
+    out, winner_count, eligible_count = [], 0, 0
     band_counts = {k: {b: 0 for b in BANDS} for k in KEYS}
+    exposure_counts = {k: {b: 0 for b in BANDS} for k in KEYS}
     for key in order:
         original = frozen[key]
         group = by_race.get(key[1:])
@@ -91,6 +92,14 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
         )
         podium = [group["places"][place] for place in (1, 2, 3)] if good else None
         frozen_horses = {h["number"]: h for h in original["horses"]}
+        # Denominator from signed *prestart* runners, not only the winner.
+        # A provisional podium is needed to include a race; unresolved
+        # provider races do not count as failures or as exposures.
+        if good:
+            eligible_count += len(frozen_horses)
+            for horse in frozen_horses.values():
+                for factor in KEYS:
+                    exposure_counts[factor][horse["bands"][factor]] += 1
         winner = frozen_horses.get(podium[0]) if good else None
         if winner is not None:
             winner_count += 1
@@ -119,7 +128,9 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
         "raceCount": len(out), "races": out,
         "observedRaceCount": observed,
         "observedStudiedWinnerCount": winner_count,
+        "observedStudiedRunnerCount": eligible_count,
         "winnerBandCounts": band_counts,
+        "observedResearchBandExposureCounts": exposure_counts,
         "verifiedRaceCount": 0, "confirmedHitCount": None,
         "officialJraVerified": False,
         "jraIndependentConfirmation": False,
@@ -132,7 +143,8 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
         "sourceIncompleteCouldChange": True,
         "researchOnly": True, "privateOwnerOnly": True,
         "note": (
-            "発走前署名済みの未検証85点とJRDB暫定着順を参考比較。"
-            "JRA公式結果と独立照合していないため精度・的中率・回収率へ算入しません。"
+            "発走前署名済み未検証85点とJRDB暫定着順を参考比較。"
+            "S/A/B/Cごとに発走前の研究対象頭数と暫定勝ち馬の頭数を分ける。"
+            "公式照合・時系列検証がないため勝率や精度・回収率には算入しません。"
         ),
     }

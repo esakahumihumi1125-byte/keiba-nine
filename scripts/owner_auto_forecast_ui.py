@@ -3118,6 +3118,8 @@ function verifyCoreProviderReport(result,receipts,day){
 function verifyFiveProviderReport(result,receipts,day){
  const keys=['training','course_distance','pace','ground','recent'],
   bands=['S','A','B','C'],tally=Object.fromEntries(keys.map(k=>[
+   k,Object.fromEntries(bands.map(b=>[b,0]))])),
+  exposure=Object.fromEntries(keys.map(k=>[
    k,Object.fromEntries(bands.map(b=>[b,0]))]));
  if(!result||result.version!=='owner-five-core-provider-observation-1'||
     result.date!==day||
@@ -3128,7 +3130,10 @@ function verifyFiveProviderReport(result,receipts,day){
     !Array.isArray(result.races)||result.races.length!==receipts.length||
     !Number.isInteger(result.observedRaceCount)||
     !Number.isInteger(result.observedStudiedWinnerCount)||
+    !Number.isInteger(result.observedStudiedRunnerCount)||
+    result.observedStudiedRunnerCount<0||
     result.observedStudiedWinnerCount>result.observedRaceCount||
+    result.observedStudiedWinnerCount>result.observedStudiedRunnerCount||
     result.verifiedRaceCount!==0||result.confirmedHitCount!==null||
     result.officialJraVerified!==false||
     result.jraIndependentConfirmation!==false||
@@ -3140,14 +3145,16 @@ function verifyFiveProviderReport(result,receipts,day){
     result.historicalBandsNotCalibrated!==true||
     result.sourceIncompleteCouldChange!==true||
     result.researchOnly!==true||result.privateOwnerOnly!==true||
-    !result.winnerBandCounts||
+    !result.winnerBandCounts||!result.observedResearchBandExposureCounts||
     Object.keys(result.winnerBandCounts).sort().join(',')!==
+     keys.slice().sort().join(',')||
+    Object.keys(result.observedResearchBandExposureCounts).sort().join(',')!==
      keys.slice().sort().join(','))
   throw Error('85点の暫定研究応答が不正');
  const originals=new Map(receipts.map(x=>[
   x.snapshot.track+'|'+x.snapshot.race,x.snapshot
  ])),seen=new Set(),verified=[];
- let observed=0,studied=0;
+ let observed=0,studied=0,eligible=0;
  for(const row of result.races){
   const id=row?.track+'|'+row?.race,p=originals.get(id);
   if(!p||seen.has(id)||row.scoredRunnerCount!==p.horses.length||
@@ -3169,6 +3176,9 @@ function verifyFiveProviderReport(result,receipts,day){
      typeof row.studiedWinnerObserved!=='boolean')
    throw Error('85点の暫定着順が不正');
   observed++;
+  eligible+=p.horses.length;
+  for(const horse of p.horses)
+   for(const k of keys)exposure[k][horse.bands[k]]++;
   const winner=p.horses.find(x=>x.number===row.observedPodiumNumbers[0]);
   if(row.studiedWinnerObserved!==Boolean(winner))
    throw Error('85点の固定馬番と結果が不一致');
@@ -3187,14 +3197,18 @@ function verifyFiveProviderReport(result,receipts,day){
   verified.push(row);
  }
  if(seen.size!==receipts.length||observed!==result.observedRaceCount||
-    studied!==result.observedStudiedWinnerCount)
+    studied!==result.observedStudiedWinnerCount||
+    eligible!==result.observedStudiedRunnerCount)
   throw Error('85点暫定集計が不一致');
  for(const k of keys){
   if(Object.keys(result.winnerBandCounts[k]||{}).sort().join(',')!=='A,B,C,S'||
-     bands.some(b=>result.winnerBandCounts[k][b]!==tally[k][b]))
-   throw Error('85点項目別集計の不一致');
+     Object.keys(result.observedResearchBandExposureCounts[k]||{}).sort().join(',')!=='A,B,C,S'||
+     bands.some(b=>result.winnerBandCounts[k][b]!==tally[k][b]||
+      result.observedResearchBandExposureCounts[k][b]!==exposure[k][b]||
+      tally[k][b]>exposure[k][b]))
+   throw Error('85点項目別研究母数・暫定勝ち馬の集計不一致');
  }
- return verified;
+ return {rows:verified,exposure,tally};
 }
 $('autoFiveProviderCheck').onclick=async()=>{
  const button=$('autoFiveProviderCheck'),day=$('autoDay').value.replaceAll('-','');
@@ -3215,7 +3229,9 @@ $('autoFiveProviderCheck').onclick=async()=>{
   const result=await res.json();
   if(seq!==fiveProviderSeq||day!==$('autoDay').value.replaceAll('-',''))return;
   if(!res.ok)throw Error('jrdb_85_unavailable');
-  const rows=verifyFiveProviderReport(result,receipts,day);
+  const {rows,exposure,tally}=verifyFiveProviderReport(result,receipts,day);
+  const keys=['training','course_distance','pace','ground','recent'],
+   bands=['S','A','B','C'];
   const cards=[];
   for(const item of rows){
    const card=dom('details');
@@ -3240,11 +3256,27 @@ $('autoFiveProviderCheck').onclick=async()=>{
    }
    cards.push(card);
   }
+  if(result.observedRaceCount){
+   const overview=dom('details');
+   overview.append(dom('summary','5項目の発走前研究母数と暫定勝ち馬の帯（正式未検証）'));
+   overview.append(dom('p','暫定着順を観測したレースで発走前研究帯を持っていた'+
+    result.observedStudiedRunnerCount+'頭が母数。勝ち馬だけのS件数で強さは判断できません。','muted'));
+   const labels={training:'調教',recent:'近走',course_distance:'コース距離',
+    pace:'展開',ground:'馬場'};
+   for(const k of keys)
+    overview.append(dom('p',labels[k]+'｜'+
+     bands.map(b=>b+'：研究対象'+exposure[k][b]+'頭／JRDB暫定1着'+
+      tally[k][b]+'頭').join('、')+'。','muted'));
+   overview.append(dom('p','参考母数であり正式な的中率や勝率を意味しません。'+
+    'JRA公式結果と時系列未使用期間での校正は未完成。','muted'));
+   cards.push(overview);
+  }
   $('autoFiveProviderRaces').replaceChildren(...cards);
   $('autoFiveProviderStatus').textContent=
    'JRDB暫定着順を観測 '+result.observedRaceCount+'/'+result.raceCount+
    'R／85点研究が揃っていた1着馬 '+result.observedStudiedWinnerCount+
-   'R。JRA公式結果・精度・勝率・回収率は未確認。保存済み予想や購入記録は変更なし。';
+   'R／同じレースの発走前85点研究対象 '+result.observedStudiedRunnerCount+
+   '頭。JRA公式結果・精度・勝率・回収率は未確認。保存済み予想や購入記録は変更なし。';
  }catch(_){if(seq===fiveProviderSeq){
   $('autoFiveProviderRaces').replaceChildren();
   $('autoFiveProviderStatus').textContent=

@@ -707,7 +707,7 @@ function boot(){
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
   receiptVerificationOk=true,coreVerificationOk=true,
-  coreProviderCorrupt=false,
+  coreProviderCorrupt=false,fiveExposureCorrupt=false,
   archiveReady=false,archiveCorrupt=false,
   autoDraftOk=true,officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
@@ -851,6 +851,9 @@ function boot(){
      k,{S:0,A:0,B:0,C:0}
     ]));
    for(const k of keys)counts[k][first.bands[k]]++;
+   const exposures=Object.fromEntries(keys.map(k=>[k,{S:0,A:0,B:0,C:0}]));
+   for(const h of snap.horses)for(const k of keys)exposures[k][h.bands[k]]++;
+   if(fiveExposureCorrupt)exposures.training.S++;
    return {ok:true,json:async()=>({
     version:'owner-five-core-provider-observation-1',
     date:args.date,sourceKind:'jrdb-tse-unverified-five-core-observation',
@@ -867,7 +870,9 @@ function boot(){
      predictionHitVerified:null
     })),
     observedRaceCount:1,observedStudiedWinnerCount:1,
-    winnerBandCounts:counts,verifiedRaceCount:0,confirmedHitCount:null,
+    observedStudiedRunnerCount:snap.horses.length,
+    winnerBandCounts:counts,observedResearchBandExposureCounts:exposures,
+    verifiedRaceCount:0,confirmedHitCount:null,
     officialJraVerified:false,jraIndependentConfirmation:false,
     officialFeedConnected:false,outcomeCalibrationReady:false,
     modelAccuracyPercent:null,bettingReady:false,actualPurchase:false,
@@ -937,6 +942,7 @@ function boot(){
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
   setCoreVerificationOk:x=>coreVerificationOk=x,
   setCoreProviderCorrupt:x=>coreProviderCorrupt=x,
+  setFiveExposureCorrupt:x=>fiveExposureCorrupt=x,
   setArchiveReady:x=>archiveReady=x,
   setArchiveCorrupt:x=>archiveCorrupt=x,
   setOfficialPdfLinks:x=>officialPdfLinks=x,
@@ -2147,8 +2153,20 @@ function boot(){
  assert.match(coreView.get('autoFiveProviderStatus').textContent,/回収率は未確認/);
  assert.match(coreView.get('autoFiveProviderRaces').children[0]
   .children[2].textContent,/58.00\/85/);
+ assert.equal(coreView.get('autoFiveProviderRaces').children.length,2);
+ const bandsDetail=coreView.get('autoFiveProviderRaces').children[1];
+ assert.match(bandsDetail.children[0].textContent,/研究母数と暫定勝ち馬/);
+ assert.match(bandsDetail.children[1].textContent,/研究帯を持っていた1頭が母数/);
+ assert.match(bandsDetail.children[2].textContent,/調教｜S：研究対象1頭／JRDB暫定1着1頭/);
+ assert.match(coreView.get('autoFiveProviderStatus').textContent,/研究対象 1頭/);
  assert.equal(coreView.storage.get(FIVE_STORAGE),originalFive);
  assert.equal(coreView.storage.get(STORAGE),ticketBeforeProvider);
+ coreView.setFiveExposureCorrupt(true);
+ await coreView.get('autoFiveProviderCheck').onclick();
+ assert.match(coreView.get('autoFiveProviderStatus').textContent,/安全に比較できませんでした/);
+ assert.equal(coreView.get('autoFiveProviderRaces').children.length,0);
+ assert.equal(coreView.storage.get(FIVE_STORAGE),originalFive);
+ coreView.setFiveExposureCorrupt(false);
  coreView.setCoreProviderCorrupt(true);
  await coreView.get('autoFiveProviderCheck').onclick();
  assert.match(coreView.get('autoFiveProviderStatus').textContent,
