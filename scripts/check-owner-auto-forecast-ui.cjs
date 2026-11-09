@@ -1385,11 +1385,6 @@ function boot(){
  assert.match(fiveCorePanel.children[3].textContent,/1番｜調教 S／近走 S／コース 未評価／展開 未評価／馬場/);
  assert.match(fiveCorePanel.children[3].textContent,/研究用未評価/);
 
- // research-6 has a separate, opt-in 79-weight 5-factor comparison.
- // It must never promote, re-sign, mutate or replace the legacy 85 study.
- const existing85=a.storage.get(FIVE_STORAGE),reqBefore79=a.requests.length;
- a.setHistorical(withNewWeightFive(historical()));
- await a.get('autoHistoryAudit').onclick();
  const new79Card=a.get('autoHistoryAuditRaces').children[0];
  const new79Quick=new79Card.children.find(x=>x.tag==='p'&&
   /新配点79点研究比較/.test(x.textContent));
@@ -1474,6 +1469,11 @@ function boot(){
  assert.ok(fiveCalls.every(x=>['/api/jrdb/history','/api/owner-rebound-verify'].includes(x.url)));
  assert.equal(a.storage.get(CORE_STORAGE),coreBeforeFive);
  assert.equal(a.storage.get(STORAGE),oldRecord);
+ // research-6 has a separate, opt-in 79-weight 5-factor comparison.
+ // It must never promote, re-sign, mutate or replace the legacy 85 study.
+ const existing85=a.storage.get(FIVE_STORAGE),reqBefore79=a.requests.length;
+ a.setHistorical(withNewWeightFive(historical()));
+ await a.get('autoHistoryAudit').onclick();
  // Supporting six-weight factors: source fields are not real six points.
  const beforeSix=a.requests.length;
  a.setHistorical(withSupportSix(historical()));
