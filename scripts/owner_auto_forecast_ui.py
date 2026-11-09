@@ -663,7 +663,6 @@ function programmeCoverage(data){
  }
  if(data.raceCount===0)
   return 'JRDB番組：0R。開催なしとは断定できません。JRA公式の開催場・番組は未照合。';
- if(slots.size>3)throw Error('通常の開催場数を超える資料');
  const rows=[...slots].sort((a,b)=>venues.indexOf(a[0])-venues.indexOf(b[0]))
   .map(([venue,seen])=>{
    const absent=Array.from({length:12},(_,i)=>i+1).filter(n=>!seen.has(n));
