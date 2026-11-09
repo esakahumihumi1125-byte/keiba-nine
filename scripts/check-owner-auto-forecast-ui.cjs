@@ -464,7 +464,7 @@ function boot(){
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
   receiptVerificationOk=true,archiveReady=false,archiveCorrupt=false,
-  officialPdfLinks=[{track:'東京',
+  autoDraftOk=true,officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
@@ -591,6 +591,8 @@ function boot(){
     privateOwnerOnly:true
    })};
   }
+  if(url.startsWith('/api/jrdb/owner-auto-draft?')&&!autoDraftOk)
+   return {ok:false,json:async()=>({error:'temporary_provider_unavailable'})};
   return {ok:true,json:async()=>structuredClone(next)};
  };
  class FakeDate extends Date{
@@ -602,6 +604,7 @@ function boot(){
  get('autoDay').value=date;
  return {get,storage,requests,setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
+  setAutoDraftOk:x=>autoDraftOk=x,
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
@@ -1052,7 +1055,9 @@ function boot(){
  assert.match(a.get('autoFixedConsistency').textContent,/再分析結果は未確認/);
  // Do not rerun the original receipt: first-write-wins is intentional.
  // The next test below supplies its own response and preserves this record.
- assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
+ assert.match(a.get('autoSavedStatus').textContent,/再分析に失敗.*固定済み研究記録 1R/);
+ assert.equal(a.get('autoRaces').children.length,0);
+ assert.equal(a.get('autoVenues').children.length,0);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
  assert.match(a.get('autoHistoryStatus').textContent,/固定 1R/);
@@ -1178,6 +1183,7 @@ function boot(){
  assert.match(a.get('autoSavedStatus').textContent,/新規 0R/);
  assert.match(a.get('autoFixedConsistency').textContent,/買い目の不一致 1R/);
  assert.match(a.get('autoFixedConsistency').textContent,/最初の買い目を確認/);
+ assert.equal(a.get('autoVenues').children.some(x=>x.dataset.mode==='drafts'),false);
  const changedCard=a.get('autoRaces').children[0].children[0];
  assert.equal(changedCard.children.some(x=>x.className==='formation'),false);
  assert.match(changedCard.children.at(-1).textContent,/以前の固定買い目と不一致/);
@@ -1187,6 +1193,23 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.match(a.get('autoFixedConsistency').textContent,/今回の暫定案と馬番が一致 1R/);
  assert.equal(a.get('autoRaces').children[0].children[0].children.some(x=>x.className==='formation'),true);
+ assert.equal(a.storage.get(STORAGE),fixedBeforeConflict);
+ // An actual JRDB HTTP failure must show an error instead of stale new
+ // picks while leaving first-write tickets readable for backup/signing.
+ a.setAutoDraftOk(false);
+ const reqBeforeNetworkError=a.requests.length;
+ await a.get('autoRun').onclick();
+ assert.equal(a.requests.length,reqBeforeNetworkError+1);
+ assert.equal(a.get('autoRaces').children.length,0);
+ assert.equal(a.get('autoVenues').children.length,0);
+ assert.match(a.get('autoMorningStatus').textContent,/新しい暫定予想は表示していません/);
+ assert.match(a.get('autoSavedStatus').textContent,/再分析に失敗.*固定済み研究記録 1R/);
+ assert.match(a.get('autoHistoryStatus').textContent,/発走前固定 1R/);
+ assert.equal(a.get('autoHistory').children.length,1);
+ assert.equal(a.storage.get(STORAGE),fixedBeforeConflict);
+ a.setAutoDraftOk(true);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoFixedConsistency').textContent,/今回の暫定案と馬番が一致 1R/);
  assert.equal(a.storage.get(STORAGE),fixedBeforeConflict);
  // Invalid graded/threshold payloads must never be rendered as 10-factor
  // finished predictions or be saved as new signed receipts.
