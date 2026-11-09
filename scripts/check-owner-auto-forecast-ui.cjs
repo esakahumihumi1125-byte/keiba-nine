@@ -1022,7 +1022,7 @@ function boot(){
  const tenPanel=a.get('autoHistoryAuditRaces').children[0].children.find(
   x=>x.tag==='details'&&/10項目の資料状況/.test(x.children[0]?.textContent||''));
  assert.ok(tenPanel);
- assert.equal(tenPanel.children.length,9);
+ assert.equal(tenPanel.children.length,10);
  assert.match(tenPanel.children[2].textContent,/1番｜血統 資料あり/);
  assert.match(tenPanel.children[2].textContent,/当日馬体重未取得/);
  assert.equal(a.storage.get(STORAGE),oldRecord);
@@ -1079,6 +1079,18 @@ function boot(){
  assert.match(fiveCorePanel.children[2].textContent,/残る15点は血統8・枠斤量3/);
  assert.match(fiveCorePanel.children[3].textContent,/1番｜調教 S／近走 S／コース 未評価／展開 未評価／馬場/);
  assert.match(fiveCorePanel.children[3].textContent,/研究用未評価/);
+ // Remaining 15-weight source coverage is NOT a 100-point grade.
+ const remainingPanel=a.get('autoHistoryAuditRaces').children[0].children.find(
+  x=>x.tag==='details'&&/10項目の資料状況/.test(
+   x.children[0]?.textContent||''));
+ assert.ok(remainingPanel);
+ assert.match(remainingPanel.children[1].textContent,/総合点・馬券は未確定/);
+ assert.match(remainingPanel.children[2].textContent,
+  /1番｜血統 資料あり.*資料カバー配点相当 14\/15（実得点ではない）.*不足 当日馬体重/);
+ assert.match(remainingPanel.children.at(-1).textContent,/資料カバーは最大14\/15/);
+ assert.match(remainingPanel.children.at(-1).textContent,
+  /能力点・予想スコア・S\/A\/B\/Cではありません/);
+
  const fiveCalls=a.requests.slice(beforeFive);
  assert.equal(fiveCalls.filter(x=>x.url==='/api/jrdb/history').length,1);
  assert.equal(fiveCalls.filter(x=>x.url.startsWith('/api/jrdb/owner-auto-draft?')).length,0);

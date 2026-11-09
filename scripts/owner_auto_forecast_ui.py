@@ -2941,14 +2941,35 @@ $('autoHistoryAudit').onclick=async()=>{
      days56plus:'中56日以上',unknown:'間隔不明',
      race_day_bodyweight_unavailable:'当日馬体重未取得'
     };
+    const remainingWeights={
+     pedigree:8,draw_weight:3,jockey_stable:2,rotation:1,body_condition:1
+    };
+    const shortNames={
+     pedigree:'血統',draw_weight:'枠斤量',jockey_stable:'騎手厩舎',
+     rotation:'ローテ',body_condition:'当日馬体重'
+    };
+    const isCovered=(key,status)=>key==='rotation'?status!=='unknown':
+     key==='body_condition'?false:status==='complete_fields_observed';
+    let fourSourceReady=0;
     for(const horse of details.tenInventory.runners){
      const v=horse.sourceStates;
+     const covered=Object.keys(remainingWeights).filter(k=>isCovered(k,v[k]));
+     const coveredWeight=covered.reduce((total,k)=>total+remainingWeights[k],0);
+     const missing=Object.keys(remainingWeights).filter(k=>!covered.includes(k));
+     if(covered.length===4)fourSourceReady++;
      ten.append(dom('p',horse.number+'番｜血統 '+names[v.pedigree]+
       '／枠斤量 '+names[v.draw_weight]+
       '／騎手厩舎 '+names[v.jockey_stable]+
       '／ローテ '+names[v.rotation]+
-      '／馬体重 '+names[v.body_condition]+'（評価未実施）','muted'));
+      '／馬体重 '+names[v.body_condition]+
+      '｜資料カバー配点相当 '+coveredWeight+'/15（実得点ではない）'+
+      '｜不足 '+missing.map(k=>shortNames[k]).join('・')+
+      '（正式採点0/10）','muted'));
     }
+    ten.append(dom('p','残り15点の資料準備：前日4分野の資料が全部そろう馬 '+
+     fourSourceReady+'/'+details.tenInventory.runnerCount+
+     '頭。当日馬体重は未取得なので資料カバーは最大14/15。'+
+     '資料カバー配点は能力点・予想スコア・S/A/B/Cではありません。','muted'));
     card.append(ten);
    }
    const pressureLabel={
