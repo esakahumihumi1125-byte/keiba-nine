@@ -459,7 +459,7 @@ function prestart(){
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
- let next=resultWith('a'.repeat(64)),historicalResponse=historical(),
+ let next=resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
@@ -591,6 +591,8 @@ function boot(){
     privateOwnerOnly:true
    })};
   }
+  if(url.startsWith('/api/jrdb/owner-auto-draft?')&&autoDraftFailure)
+   return {ok:false,json:async()=>structuredClone(autoDraftFailure)};
   if(url.startsWith('/api/jrdb/owner-auto-draft?')&&!autoDraftOk)
    return {ok:false,json:async()=>({error:'temporary_provider_unavailable'})};
   return {ok:true,json:async()=>structuredClone(next)};
@@ -605,6 +607,7 @@ function boot(){
  return {get,storage,requests,setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
   setAutoDraftOk:x=>autoDraftOk=x,
+  setAutoDraftFailure:x=>autoDraftFailure=x,
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
@@ -1375,6 +1378,31 @@ function boot(){
  assert.equal(full.get('autoRaces').children[0].children.length,36);
  assert.equal(full.requests.length,paidRequestsBeforePick);
  assert.equal(full.storage.get(STORAGE),archivedBeforePick);
+ // Each 401/403/429 cause is actionable on Saturday without printing
+ // untrusted JRDB response text or mutating first-write research tickets.
+ const failures=boot();
+ await new Promise(r=>setImmediate(r));
+ const originalLocked=failures.storage.get(STORAGE);
+ for(const [kind,visible] of [
+   ['provider_auth','401：APIキー・認証キーを確認'],
+   ['provider_entitlement','403：β版の利用権限を確認'],
+   ['provider_rate_limit','429：間隔を空けて再試行'],
+   ['provider','JRDB API通信・応答'],
+ ]){
+  failures.setAutoDraftFailure({
+   error:'SECRET_UNTRUSTED_PROVIDER_MESSAGE',failureStage:'training',
+   failureKind:kind,failureDetail:null
+  });
+  await failures.get('autoRun').onclick();
+  const shown=failures.get('autoStatus').textContent;
+  assert.ok(shown.includes(visible),'must show safe diagnostic for '+kind);
+  assert.ok(!shown.includes('SECRET_UNTRUSTED'));
+  assert.match(shown,/未完成の買い目は表示しません/);
+  assert.equal(failures.get('autoRaces').children.length,0);
+  assert.equal(failures.get('autoHistory').children.length,1);
+  assert.equal(failures.storage.get(STORAGE),originalLocked);
+  assert.equal(failures.get('autoRun').disabled,false);
+ }
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
