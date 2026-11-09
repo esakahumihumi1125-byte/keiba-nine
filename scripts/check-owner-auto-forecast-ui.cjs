@@ -492,6 +492,48 @@ function withThreeCore(report){
  };
  return report;
 }
+function withFourCore(report){
+ withThreeCore(report);
+ const factors=['training','course_distance','pace','ground'];
+ const weights={training:30,course_distance:20,pace:20,ground:12};
+ const values={S:3,A:2,B:1,C:0};
+ const rows=report.fiveFactorHypotheses.races.map(five=>{
+  const old=report.threeCoreResearch.races.find(
+   r=>r.track===five.track&&r.race===five.race);
+  const prior=new Map(old.horses.map(h=>[h.number,h]));
+  const horses=five.runners.map(row=>{
+   const bands=Object.fromEntries(factors.map(k=>[k,row.bands[k]]));
+   const missing=factors.filter(k=>bands[k]==='未評価');
+   const raw=missing.length?null:factors.reduce(
+    (sum,k)=>sum+weights[k]*values[bands[k]],0);
+   return {
+    number:row.number,bands,missing,
+    observedFactorCount:4-missing.length,rawThirdPoints:raw,
+    evidenceScore82:raw===null?null:Math.round(raw*100/3)/100,
+    scoreIsCalibrated:false,formalScore100:null,
+    formalGrade:'未評価',formalRank:null,bettingReady:false
+   };
+  });
+  const missingByFactor=Object.fromEntries(factors.map(k=>[
+   k,horses.filter(h=>h.missing.includes(k)).length
+  ]));
+  return {track:five.track,race:five.race,runnerCount:horses.length,
+   horses,completeObserved:horses.filter(h=>h.rawThirdPoints!==null).length,
+   missingByFactor,researchOnly:true,formalGradeReady:false,
+   trifectaReady:false};
+ });
+ report.fourCoreResearch={
+  version:'owner-four-core-research-1',policyVersion:'research-5',
+  raceCount:rows.length,races:rows,factorWeights:weights,
+  observedWeightTotal:82,factorGradesVerified:0,
+  overallPredictionReady:false,formalScoreReady:false,
+  officialJraVerified:false,bettingReady:false,autoPurchase:false,
+  changesExistingTickets:false,changesExistingCoreReceipts:false,
+  historicalBandsNotCalibrated:true,goingSuitabilityVerified:false,
+  researchOnly:true,privateOwnerOnly:true
+ };
+ return report;
+}
 function prestart(){
  return {
   version:'private-prestart-body-1',date:day,raceCount:1,
@@ -961,6 +1003,32 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),oldRecord);
  assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/owner-auto-draft?')).length,1);
  assert.equal(a.requests.filter(x=>x.url==='/api/jrdb/history').length,4);
+ // The fourth ground factor uses the same pre-validated going
+ // observation, without writing any first-lock 70-point signed study.
+ const beforeFour=a.requests.length,oldCore=a.storage.get(CORE_STORAGE);
+ a.setHistorical(withFourCore(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const fourPanel=a.get('autoHistoryAuditRaces').children[0].children.find(
+  x=>x.tag==='details'&&/重点4項目の研究用82点/.test(
+   x.children[0]?.textContent||''));
+ assert.ok(fourPanel);
+ assert.equal(fourPanel.children.length,10);
+ assert.match(fourPanel.children[1].textContent,/重・不良への実戦対応能力/);
+ assert.match(fourPanel.children[2].textContent,/根拠の未確認は0点やCではなく未評価/);
+ assert.match(fourPanel.children[3].textContent,/1番｜調教 S／コース 未評価／展開 未評価／馬場/);
+ assert.match(fourPanel.children[3].textContent,/研究用未評価/);
+ assert.equal(a.requests.length,beforeFour+1);
+ assert.equal(a.storage.get(CORE_STORAGE),oldCore);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ // A forged numeric 82-point mark must be rejected before any card.
+ const forgedFour=withFourCore(historical());
+ forgedFour.fourCoreResearch.races[0].horses[0].evidenceScore82=82;
+ a.setHistorical(forgedFour);
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+ assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ assert.equal(a.storage.get(CORE_STORAGE),oldCore);
  // A forged numeric 70/70 despite an unobserved core must fail closed.
  const forgedCore=withThreeCore(historical());
  forgedCore.threeCoreResearch.races[0].horses[0].evidenceScore70=70;
