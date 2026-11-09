@@ -515,6 +515,7 @@ function boot(){
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
   receiptVerificationOk=true,coreVerificationOk=true,
+  coreProviderCorrupt=false,
   archiveReady=false,archiveCorrupt=false,
   autoDraftOk=true,officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
@@ -616,6 +617,40 @@ function boot(){
     autoPurchase:false,actualPurchase:false
    }:{error:'signature_mismatch'}};
   }
+  if(url==='/api/owner-three-core-provider-check'){
+   const args=JSON.parse(options.body);
+   const snap=args.receipts[0].snapshot,first=snap.horses[0];
+   const scores={training:{S:0,A:0,B:0,C:0},
+    course_distance:{S:0,A:0,B:0,C:0},pace:{S:0,A:0,B:0,C:0}};
+   for(const k of Object.keys(scores))scores[k][first.bands[k]]++;
+   return {ok:true,json:async()=>({
+    version:'owner-three-core-provider-observation-1',
+    date:args.date,sourceKind:'jrdb-tse-unverified-podium-observation',
+    providerSourceReadCount:1,raceCount:args.receipts.length,
+    races:args.receipts.map((receipt,i)=>{
+     const p=receipt.snapshot;
+     return {
+      track:p.track,race:p.race,
+      providerStatus:i===0?'podium_observed':'pending',
+      observedPodiumNumbers:i===0?[first.number,2,3]:null,
+      scoredRunnerCount:p.horses.length,
+      winnerStudyScore70:i===0?first.rawThirdPoints/3:null,
+      winnerStudyBands:i===0?structuredClone(first.bands):null,
+      studiedWinnerObserved:i===0?true:null,
+      officialVerified:coreProviderCorrupt?true:false,
+      predictionHitVerified:null
+     };
+    }),
+    observedRaceCount:1,observedStudiedWinnerCount:1,
+    winnerBandCounts:scores,verifiedRaceCount:0,confirmedHitCount:null,
+    officialJraVerified:false,jraIndependentConfirmation:false,
+    officialFeedConnected:false,outcomeCalibrationReady:false,
+    modelAccuracyPercent:null,bettingReady:false,actualPurchase:false,
+    payoutVerified:false,roiPercent:null,
+    historicalBandsNotCalibrated:true,
+    sourceIncompleteCouldChange:true,researchOnly:true,privateOwnerOnly:true
+   })};
+  }
   if(url==='/api/owner-rebound-verify'){
    const args=JSON.parse(options.body);
    return {ok:true,json:async()=>({
@@ -677,6 +712,7 @@ function boot(){
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
   setCoreVerificationOk:x=>coreVerificationOk=x,
+  setCoreProviderCorrupt:x=>coreProviderCorrupt=x,
   setArchiveReady:x=>archiveReady=x,
   setArchiveCorrupt:x=>archiveCorrupt=x,
   setOfficialPdfLinks:x=>officialPdfLinks=x,
@@ -1579,11 +1615,35 @@ function boot(){
  assert.equal(coreView.requests.length,callCount+1);
  assert.match(coreView.get('autoCoreVerifyStatus').textContent,/サーバー署名確認成功：1R/);
  assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
+ // Explicit postrace comparison reads at most one provider query and
+ // must not store outcome as a forecast, graded score or purchased ticket.
+ const requestsBeforeCoreCompare=coreView.requests.length;
+ await coreView.get('autoCoreProviderCheck').onclick();
+ assert.equal(coreView.requests.length,requestsBeforeCoreCompare+1);
+ assert.equal(coreView.requests.at(-1).url,'/api/owner-three-core-provider-check');
+ assert.match(coreView.get('autoCoreProviderStatus').textContent,/暫定1〜3着を観測 1\/1R/);
+ assert.match(coreView.get('autoCoreProviderStatus').textContent,/JRA公式結果・勝率・正式的中・回収率は未照合/);
+ const card=coreView.get('autoCoreProviderRaces').children[0];
+ assert.match(card.children[1].textContent,/JRDB暫定1〜3着：1→2→3/);
+ assert.match(card.children[2].textContent,/発走前研究値：50.00\/70点/);
+ assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
+ assert.equal(coreView.storage.get(STORAGE),undefined);
+ coreView.setCoreProviderCorrupt(true);
+ await coreView.get('autoCoreProviderCheck').onclick();
+ assert.match(coreView.get('autoCoreProviderStatus').textContent,/安全に比較できませんでした/);
+ assert.equal(coreView.get('autoCoreProviderRaces').children.length,0);
+ assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
+ coreView.setCoreProviderCorrupt(false);
  coreView.setCoreVerificationOk(false);
  await coreView.get('autoCoreVerify').onclick();
  assert.match(coreView.get('autoCoreVerifyStatus').textContent,/署名を確認できませんでした/);
  assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
  coreView.setCoreVerificationOk(true);
+ coreView.get('autoDay').value='2099-01-03';
+ coreView.get('autoDay').onchange();
+ assert.equal(coreView.get('autoCoreProviderCheck').disabled,true);
+ assert.equal(coreView.get('autoCoreProviderRaces').children.length,0);
+ assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
