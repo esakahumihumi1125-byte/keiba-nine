@@ -88,8 +88,10 @@ def compare_three_core_provider_results(snapshots, rows, day, *,
         slot = key[1:]
         group = by_slot.get(slot)
         started = now >= _timestamp(snap["scheduledOffAt"])
-        good = (started and group is not None
+        good = (started and snap["raceRunnerCount"] >= 3
+                and group is not None
                 and not group["invalid"] and len(group["keys"]) == 1
+                and 3 <= group["rowCount"] <= snap["raceRunnerCount"]
                 and set(group["places"]) == {1, 2, 3}
                 and len(set(group["places"].values())) == 3)
         podium = [group["places"][i] for i in (1, 2, 3)] if good else None
