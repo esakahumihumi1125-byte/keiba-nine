@@ -87,6 +87,11 @@ class ThreeCoreResearchTests(unittest.TestCase):
         horse = five["races"][0]["runners"][0]
         link = next(h for h in inventory["races"][0]["runners"]
                     if h["number"] == horse["number"])
+        # Explicitly construct a fully observed 3-core baseline,
+        # then remove only pace to check no partial extrapolation.
+        for k in CORE:
+            horse["bands"][k] = "S"
+            link["provisionalBands"][k] = "S"
         horse["bands"]["pace"] = "未評価"
         link["provisionalBands"]["pace"] = "未評価"
         result = three_core_research(five, inventory)
