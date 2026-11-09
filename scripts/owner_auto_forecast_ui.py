@@ -1166,6 +1166,7 @@ const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
+ r6VerifySeq=0,
  officialPdfSeq=0,coreVerifySeq=0,coreProviderSeq=0,fiveProviderSeq=0,
  jraDraftTracks=new Set(),jraPdfTracks=new Set(),jraPdfChecked=false,
  historyDay='',historyCoordinates=new Set(),
@@ -1184,6 +1185,8 @@ function clearHistory(){
  showSavedCore($('autoDay').value.replaceAll('-',''));
  showSavedFive($('autoDay').value.replaceAll('-',''));
  showSavedResearch6Drafts($('autoDay').value.replaceAll('-',''));
+ r6VerifySeq++;
+ $('autoResearch6DraftVerifyStatus').textContent='固定79点下書きの署名は未確認です。';
  officialPdfSeq++;
  $('autoOfficialPdf').disabled=false;
  $('autoOfficialPdfStatus').textContent='公式PDFリンクは未確認。出馬表の内容を自動照合していません。';
@@ -3827,6 +3830,44 @@ $('autoFiveProviderCheck').onclick=async()=>{
    button.disabled=false;
  }
 };
+$('autoResearch6DraftVerify').onclick=async()=>{
+ const button=$('autoResearch6DraftVerify'),day=$('autoDay').value.replaceAll('-','');
+ if(button.disabled)return;
+ const seq=++r6VerifySeq;
+ button.disabled=true;
+ $('autoResearch6DraftVerifyStatus').textContent='固定79点の署名をサーバーで確認中…';
+ try{
+  const {picked}=savedResearch6DraftDay(day);
+  if(!picked.length)throw Error('no_signed_draft');
+  const body=JSON.stringify({date:day,receipts:picked});
+  if(body.length>250000)throw Error('signed_draft_too_large');
+  const res=await fetch('/api/owner-research6-draft-verify',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body
+  });
+  const result=await res.json();
+  if(seq!==r6VerifySeq||day!==$('autoDay').value.replaceAll('-',''))return;
+  if(!res.ok||result.version!=='owner-research6-draft-verify-1'||
+     result.recordCount!==picked.length||result.serverSigned!==true||
+     result.researchOnly!==true||result.privateOwnerOnly!==true||
+     result.officialJraVerified!==false||
+     result.independentJraScheduleVerified!==false||
+     result.formalPredictionReady!==false||result.resultComparisonReady!==false||
+     result.bettingReady!==false||result.autoPurchase!==false||
+     result.actualPurchase!==false)
+   throw Error('signature_verification_failed');
+  $('autoResearch6DraftVerifyStatus').textContent=
+   '新配点79点の発走前署名を確認：'+result.recordCount+
+   'R。固定した研究買い目はそのまま。JRA公式・正式予想・実購入・的中・回収率は未確認。';
+ }catch(_){if(seq===r6VerifySeq){
+  $('autoResearch6DraftVerifyStatus').textContent=
+   '固定79点下書きの署名を確認できません。以前の記録は変更していません。';
+ }}finally{
+  if(seq===r6VerifySeq&&day===$('autoDay').value.replaceAll('-',''))
+   button.disabled=false;
+ }
+};
 $('autoCoreProviderCheck').onclick=async()=>{
  const button=$('autoCoreProviderCheck'),day=$('autoDay').value.replaceAll('-','');
  if(button.disabled)return;
@@ -4009,6 +4050,43 @@ $('autoHistoryAudit').onclick=async()=>{
   }
   showSavedFive(day);
   $('autoFiveSaveStatus').textContent=fiveMessage;
+  // Separate HMAC key domain for new research-6 79-point draft TICKETS.
+  // Verify with this owner's private server before first-write to iPhone.
+  let r6Message='この履歴には新79点3連単の発走前固定記録がありません。';
+  if(raw.research6DraftCapture!==undefined){
+   try{
+    const receipts=validateResearch6DraftCapture(
+     raw.research6DraftCapture,rows,day);
+    if(receipts.length){
+     const body=JSON.stringify({date:day,receipts});
+     if(body.length>250000)throw Error('研究79点下書きの検証サイズ超過');
+     const verify=await fetch('/api/owner-research6-draft-verify',{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+       'Accept':'application/json'},body
+     });
+     const check=await verify.json();
+     if(seq!==historySeq||historyDay!==day)return;
+     if(!verify.ok||!check||
+        check.version!=='owner-research6-draft-verify-1'||
+        check.serverSigned!==true||
+        check.recordCount!==receipts.length||
+        check.researchOnly!==true||check.privateOwnerOnly!==true||
+        check.officialJraVerified!==false||
+        check.independentJraScheduleVerified!==false||
+        check.formalPredictionReady!==false||
+        check.resultComparisonReady!==false||
+        check.bettingReady!==false||check.autoPurchase!==false||
+        check.actualPurchase!==false)
+      throw Error('研究79点下書きの署名検証失敗');
+     r6Message=saveResearch6DraftReceipts(receipts,day);
+    }else r6Message='発走前の新79点3連単は固定対象なし。発走後に追加しません。';
+   }catch(_){
+    r6Message='新79点下書きの署名検証または端末保存に失敗。過去の固定記録は変更していません。';
+   }
+  }
+  showSavedResearch6Drafts(day);
+  $('autoResearch6DraftSaveStatus').textContent=r6Message;
   // The server checks signatures, not just browser-provided timestamps.
   // Never send an outcome or an officialVerified flag from the device.
   let watchSaveStatus='発走前の署名付き候補はまだ固定できていません。';
