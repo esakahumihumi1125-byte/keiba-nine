@@ -939,6 +939,7 @@ function boot(){
  // stateless. The client may not mistake it for persistent server storage,
  // actual purchases, ROI or an independently confirmed race schedule.
  const verifyBtn=a.get('autoReceiptVerify');
+ assert.equal(a.get('autoDay').value,date);
  const requestsBeforeProof=a.requests.length;
  const unchangedBeforeProof=a.storage.get(STORAGE);
  assert.match(a.get('autoReceiptVerifyStatus').textContent,/未確認/);
