@@ -5,6 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
 const STORAGE='keiba-nine-owner-server-receipts-v1';
+const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const day='20990101', date='2099-01-01';
 const pairs=[['S','S',8,'S'],['S','A',7,'A'],['A','A',6,'A'],
  ['A','B',5,'B'],['B','B',4,'B'],['B','C',3,'C'],['C','C',2,'C']];
@@ -513,7 +514,8 @@ function boot(){
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
-  receiptVerificationOk=true,archiveReady=false,archiveCorrupt=false,
+  receiptVerificationOk=true,coreVerificationOk=true,
+  archiveReady=false,archiveCorrupt=false,
   autoDraftOk=true,officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true;
@@ -602,6 +604,18 @@ function boot(){
        race:x.snapshot.race,date:x.snapshot.date}))}
    }:{error:'server_authorization_failure'}};
   }
+  if(url==='/api/owner-three-core-verify'){
+   const args=JSON.parse(options.body);
+   const valid=coreVerificationOk&&Array.isArray(args.receipts)&&
+    args.receipts.every(x=>x.signature==='c'.repeat(64));
+   return {ok:valid,json:async()=>valid?{
+    version:'owner-three-core-verify-1',serverSigned:true,
+    recordCount:args.receipts.length,researchOnly:true,privateOwnerOnly:true,
+    officialJraVerified:false,independentJraScheduleVerified:false,
+    calibrationReady:false,resultComparisonReady:false,bettingReady:false,
+    autoPurchase:false,actualPurchase:false
+   }:{error:'signature_mismatch'}};
+  }
   if(url==='/api/owner-rebound-verify'){
    const args=JSON.parse(options.body);
    return {ok:true,json:async()=>({
@@ -662,6 +676,7 @@ function boot(){
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
+  setCoreVerificationOk:x=>coreVerificationOk=x,
   setArchiveReady:x=>archiveReady=x,
   setArchiveCorrupt:x=>archiveCorrupt=x,
   setOfficialPdfLinks:x=>officialPdfLinks=x,
@@ -1518,6 +1533,57 @@ function boot(){
   assert.equal(failures.storage.get(STORAGE),originalLocked);
   assert.equal(failures.get('autoRun').disabled,false);
  }
+ // The 70-point study is only attested before the provisional off and
+ // persisted once on the iPhone, never blended with ordinary 3連単.
+ const coreView=boot();
+ await new Promise(r=>setImmediate(r));
+ const study=withThreeCore(historical());
+ study.coreCapture={
+  version:'owner-three-core-receipt-1',date:day,serverSigned:true,
+  researchOnly:true,privateOwnerOnly:true,jraScheduleVerified:false,
+  officialResultsVerified:false,calibrationReady:false,bettingReady:false,
+  actualPurchase:false,receiptCount:0,postOffOrMissingTimeRaces:0,
+  receipts:[]
+ };
+ coreView.setHistorical(study);
+ const beforeStudy=coreView.requests.length;
+ await coreView.get('autoHistoryAudit').onclick();
+ assert.equal(coreView.requests.length,beforeStudy+2); // history and rebound
+ assert.match(coreView.get('autoCoreSaveStatus').textContent,/固定対象がありません/);
+ assert.equal(coreView.get('autoCoreSaved').children.length,0);
+ assert.equal(coreView.storage.get(CORE_STORAGE),undefined);
+ assert.equal(coreView.requests.filter(r=>r.url==='/api/owner-three-core-verify').length,0);
+ const snapshot={
+  version:'owner-three-core-receipt-1',date:day,track:'東京',race:1,
+  sourceKind:'prestart-uncalibrated-70-research',
+  capturedAt:'2099-01-01T09:00:00+09:00',
+  scheduledOffAt:'2099-01-01T12:00:00+09:00',
+  raceRunnerCount:7,observedRunnerCount:1,
+  horses:[{number:1,bands:{
+   training:'S',course_distance:'A',pace:'B'
+  },rawThirdPoints:150}],
+  researchOnly:true,officialJraVerified:false,
+  sourceHypothesesUncalibrated:true,actualPurchase:false,
+  predictionReady:false
+ };
+ const sealed={snapshot,signature:'c'.repeat(64)};
+ coreView.storage.set(CORE_STORAGE,JSON.stringify([sealed]));
+ coreView.get('autoDay').value='2099-01-02';
+ coreView.get('autoDay').onchange();
+ coreView.get('autoDay').value='2099-01-01';
+ coreView.get('autoDay').onchange();
+ assert.equal(coreView.get('autoCoreSaved').children.length,1);
+ assert.match(coreView.get('autoCoreSaved').children[0].children[0].textContent,/研究用70点・1頭分/);
+ const lockedCore=coreView.storage.get(CORE_STORAGE),callCount=coreView.requests.length;
+ await coreView.get('autoCoreVerify').onclick();
+ assert.equal(coreView.requests.length,callCount+1);
+ assert.match(coreView.get('autoCoreVerifyStatus').textContent,/サーバー署名確認成功：1R/);
+ assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
+ coreView.setCoreVerificationOk(false);
+ await coreView.get('autoCoreVerify').onclick();
+ assert.match(coreView.get('autoCoreVerifyStatus').textContent,/署名を確認できませんでした/);
+ assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
+ coreView.setCoreVerificationOk(true);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
