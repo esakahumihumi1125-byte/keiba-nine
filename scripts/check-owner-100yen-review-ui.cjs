@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-100yen-review.js','utf8');
-function boot(query){
+function boot(query,reviewFixture=null){
  const elements=new Map(),requests=[],storage=new Map();
  let pending=null;
  function node(tag){
@@ -29,7 +29,7 @@ function boot(query){
     ok:true,json:async()=>({archiveEnabled:false,available:false})
   };
   if(url.startsWith('/api/owner-100yen-review'))return {
-    ok:true,json:async()=>({available:false,review:null})
+    ok:true,json:async()=>({available:!!reviewFixture,review:reviewFixture})
   };
   throw Error('Unexpected backend request');
  };
@@ -67,5 +67,31 @@ function boot(query){
  assert.match(c.get('status').textContent,/選んで確認/);
  assert.equal(c.get('summary').children.length,0);
  assert.equal(c.storage.size,0);
- console.log('Owner 100-yen review: auto open, day handoff, stale fetch, read-only PASS');
+ // Read-only official-result fixture tests the newly added slot-miss
+ // column without connecting a real results feed or altering local tickets.
+ const fake={
+  version:'keiba-100yen-review-1',unitYen:100,actualPurchase:false,
+  races:[
+   {date:'2099-01-02',track:'東京',race:1,status:'verified_result',
+    trifectaPoints:40,trioPoints:0,investedYen:4000,returnedYen:0,
+    trifectaMissReason:'winner_wrong_slot'},
+   {date:'2099-01-02',track:'東京',race:2,status:'pending',
+    trifectaPoints:30,trioPoints:0,investedYen:null,returnedYen:null,
+    trifectaMissReason:null}
+  ],venueBreakdown:[],reviewedRaces:1,pendingRaces:1,
+  totalInvestedYen:4000,totalReturnedYen:0,totalProfitYen:-4000,
+  roiPercent:0,firstCandidateHits:0,firstCandidateEligibleRaces:1,
+  pendingStakeYen:3000,note:'架空の検証'
+ };
+ const d=boot('?date=2099-01-02',fake);
+ await new Promise(r=>setImmediate(r));
+ assert.equal(d.get('races').children.length,1);
+ const t=d.get('races').children[0].children[0];
+ const head=t.children[0].children[0];
+ assert.ok(head.children.some(x=>x.textContent==='3連単の検証'));
+ const body=t.children[1];
+ assert.match(body.children[0].children[4].textContent,/1着馬を2・3着に評価/);
+ assert.equal(body.children[1].children[4].textContent,'結果待ち');
+ assert.equal(d.storage.size,0);
+ console.log('Owner 100-yen review: auto open, day handoff, stale fetch, miss reasons, read-only PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
