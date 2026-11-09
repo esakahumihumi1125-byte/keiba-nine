@@ -254,6 +254,40 @@ class FullTenFactorGateTests(unittest.TestCase):
         with self.assertRaises(CoverageError):
             full_ten_factor_preview(source, now=NOW)
 
+    def test_unresolved_entry_blocks_even_full_100_point_scores(self):
+        """An unverified scratched runner is not a ticket despite 10 grades."""
+        for n in (1, 4, 8):
+            with self.subTest(horse=n):
+                source = fixture()
+                source["horses"][n - 1]["blockingConcerns"] = [{
+                    "reason": "Starter confirmation not checked"
+                }]
+                before = copy.deepcopy(source)
+                result = full_ten_factor_preview(source, now=NOW)
+                self.assertEqual(source, before)
+                self.assertTrue(result["overallReady"])
+                self.assertEqual(result["status"], "unresolved_runner_blocker")
+                self.assertEqual(result["blockedRunnerCount"], 1)
+                self.assertFalse(result["bettingReady"])
+                self.assertFalse(result["publishable"])
+                self.assertEqual(len(result["ranking"]), 8)
+                self.assertEqual(result["trifecta"]["points"], 0)
+                self.assertEqual(result["trifecta"]["tickets"], [])
+                self.assertFalse(result["winnerRecheck"]["changesTrifecta"])
+                self.assertFalse(result["upsetAlternative"]["autoPurchase"])
+
+    def test_prestart_official_flags_cannot_replace_independent_grades(self):
+        # Even all four official checks do not justify turning missing
+        # horse-by-horse evidence into S/A/B/C or a 3連単.
+        source = fixture()
+        for h in source["horses"]:
+            del h["assessments"]["pedigree"]
+        response = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(response["status"], "missing_evidence")
+        self.assertEqual(response["ranking"], [])
+        self.assertEqual(response["trifecta"]["points"], 0)
+        self.assertEqual(len(response["missingByNumber"]), 8)
+
     def test_does_not_reconstruct_winner_review_after_start(self):
         source = fixture()
         source["horses"][3]["assessments"]["training"]["winSupport"] = True
