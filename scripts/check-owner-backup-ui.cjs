@@ -11,8 +11,9 @@ const keys=[
  'keiba-nine-jrdb-preday-runners-v1',
  'keiba-nine-owner-server-receipts-v1',
  'keiba-nine-owner-rebound-watch-receipts-v1',
- 'keiba-nine-owner-three-core-receipts-v1'
-],format='keiba-nine-owner-local-all-v6';
+ 'keiba-nine-owner-three-core-receipts-v1',
+ 'keiba-nine-owner-five-core-receipts-v1'
+],format='keiba-nine-owner-local-all-v7';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -58,11 +59,25 @@ const coreStudy={signature:'c'.repeat(64),snapshot:{
  sourceHypothesesUncalibrated:true,actualPurchase:false,
  predictionReady:false
 }};
+const fiveStudy={signature:'d'.repeat(64),snapshot:{
+ version:'owner-five-core-receipt-1',
+ date:'20990109',track:'東京',race:1,
+ sourceKind:'prestart-uncalibrated-85-research',
+ capturedAt:'2099-01-09T07:15:00+09:00',
+ scheduledOffAt:'2099-01-09T09:55:00+09:00',
+ raceRunnerCount:3,observedRunnerCount:1,
+ horses:[{number:1,bands:{
+  training:'S',course_distance:'A',pace:'B',ground:'A',recent:'C'
+ },rawThirdPoints:174}],
+ researchOnly:true,officialJraVerified:false,
+ sourceHypothesesUncalibrated:true,actualPurchase:false,
+ predictionReady:false
+}};
 const fixture=()=>({
  [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],
  [keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],
  [keys[6]]:[signedReceipt],[keys[7]]:[reboundWatch],
- [keys[8]]:[coreStudy]
+ [keys[8]]:[coreStudy],[keys[9]]:[fiveStudy]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -111,7 +126,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -161,7 +176,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
  assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
- assert.match(e('backupPreview').textContent,/元の9種類の記録へ戻しました/);
+ assert.match(e('backupPreview').textContent,/元の10種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -183,6 +198,25 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
   assert.equal(e('backupRestore').disabled,true,'bad factor note cannot restore');
   assert.deepEqual([...page.storage.entries()],current,'bad factor note has zero writes');
  }
+ // Old nine-section v6 backup must not remove newly fixed 85-point records.
+ const oldNine=fixture();delete oldNine[keys[9]];
+ const legacyNine=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v6',
+  exportedAt:'2099-01-08T23:00:00Z',sections:oldNine}));
+ const current85=boot(fixture()),original85=current85.storage.get(keys[9]);
+ current85.el('backupFile').files=[legacyNine];
+ await current85.el('backupFile').onchange();await flush();
+ assert.equal(current85.el('backupRestore').disabled,false);
+ assert.match(current85.el('backupPreview').textContent,/旧9種類のバックアップ/);
+ current85.el('backupRestore').onclick();
+ assert.equal(current85.storage.get(keys[9]),original85);
+ const fakeFive=boot({...fixture(),[keys[9]]:[
+  {...fiveStudy,snapshot:{...fiveStudy.snapshot,
+   horses:[{...fiveStudy.snapshot.horses[0],rawThirdPoints:255}]}}
+ ]});
+ assert.equal(fakeFive.el('backupDownload').disabled,true,
+  'impossible 85-point arithmetic must block backup export');
+ const duplicated=boot({...fixture(),[keys[9]]:[fiveStudy,fiveStudy]});
+ assert.equal(duplicated.el('backupDownload').disabled,true);
  // Previous (four-part) exports remain importable and preserve existing factor notes.
  page.storage.set(keys[4],JSON.stringify([factor]));
  const fourParts=fixture();for(const k of keys.slice(4))delete fourParts[k];
