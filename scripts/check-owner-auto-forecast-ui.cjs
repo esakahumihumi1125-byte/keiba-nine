@@ -462,7 +462,8 @@ function boot(){
  let next=resultWith('a'.repeat(64)),historicalResponse=historical(),
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
-  configured=true,connectionOK=true,connectionCount=1;
+  configured=true,connectionOK=true,connectionCount=1,
+  receiptVerificationOk=true;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -503,6 +504,21 @@ function boot(){
   if(url.startsWith('/api/jrdb/prestart-body?'))
    return {ok:prestartOk&&url.endsWith('date='+day),
     json:async()=>structuredClone(prestartResponse)};
+  if(url==='/api/owner-100yen-verify-receipts'){
+   const args=JSON.parse(options.body);
+   const signed=args.receipts;
+   const valid=receiptVerificationOk&&Array.isArray(signed)&&signed.length>0&&
+    signed.every(x=>x.signature==='a'.repeat(64));
+   return {ok:valid,json:async()=>valid?{
+    available:true,serverSigned:true,captureAuditVerified:false,
+    officialScheduleVerified:false,officialFeedConnected:false,
+    review:{version:'keiba-100yen-review-1',unitYen:100,actualPurchase:false,
+      reviewedRaces:0,pendingRaces:signed.length,totalInvestedYen:0,
+      totalReturnedYen:0,roiPercent:null,
+      races:signed.map(x=>({status:'pending',track:x.snapshot.track,
+       race:x.snapshot.race,date:x.snapshot.date}))}
+   }:{error:'server_authorization_failure'}};
+  }
   if(url==='/api/owner-rebound-verify'){
    const args=JSON.parse(options.body);
    return {ok:true,json:async()=>({
@@ -556,6 +572,7 @@ function boot(){
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
+  setReceiptVerificationOk:x=>receiptVerificationOk=x,
   setConnectionCount:x=>connectionCount=x,
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
@@ -918,6 +935,51 @@ function boot(){
  assert.match(history.children[5].textContent,/1→2→3/);
  assert.equal(firstSave[0].signature,'a'.repeat(64));
  assert.equal(firstSave[0].snapshot.trifectaTickets.length,40);
+ // Authenticated on-demand verification of frozen receipts is deliberately
+ // stateless. The client may not mistake it for persistent server storage,
+ // actual purchases, ROI or an independently confirmed race schedule.
+ const verifyBtn=a.get('autoReceiptVerify');
+ const requestsBeforeProof=a.requests.length;
+ const unchangedBeforeProof=a.storage.get(STORAGE);
+ assert.match(a.get('autoReceiptVerifyStatus').textContent,/未確認/);
+ await verifyBtn.onclick();
+ const receiptProofs=a.requests.filter(x=>
+  x.url==='/api/owner-100yen-verify-receipts');
+ assert.equal(receiptProofs.length,1);
+ assert.equal(a.requests.length,requestsBeforeProof+1);
+ assert.equal(receiptProofs[0].options.method,'POST');
+ assert.equal(receiptProofs[0].options.credentials,'same-origin');
+ assert.equal(receiptProofs[0].options.headers['X-Keiba-Request'],'private');
+ assert.equal(receiptProofs[0].options.headers['Content-Type'],'application/json');
+ assert.deepEqual(Object.keys(JSON.parse(receiptProofs[0].options.body)).sort(),
+  ['date','receipts']);
+ assert.match(a.get('autoReceiptVerifyStatus').textContent,/照合成功：1R/);
+ assert.match(a.get('autoReceiptVerifyStatus').textContent,/サーバー保存は未検証/);
+ assert.equal(a.storage.get(STORAGE),unchangedBeforeProof);
+ a.setReceiptVerificationOk(false);
+ await verifyBtn.onclick();
+ assert.match(a.get('autoReceiptVerifyStatus').textContent,/確認できませんでした/);
+ assert.equal(a.storage.get(STORAGE),unchangedBeforeProof);
+ a.setReceiptVerificationOk(true);
+ // A locally modified ticket must never be silently accepted by the server.
+ const replacedRecord=JSON.parse(unchangedBeforeProof);
+ replacedRecord[0].signature='f'.repeat(64);
+ a.storage.set(STORAGE,JSON.stringify(replacedRecord));
+ await verifyBtn.onclick();
+ assert.match(a.get('autoReceiptVerifyStatus').textContent,/確認できませんでした/);
+ assert.equal(a.storage.get(STORAGE),JSON.stringify(replacedRecord));
+ a.storage.set(STORAGE,unchangedBeforeProof);
+ // A selected day without receipts never sends any verification request.
+ a.get('autoDay').value='2099-01-02';
+ a.get('autoDay').onchange();
+ const afterDaySwitch=a.requests.length;
+ await verifyBtn.onclick();
+ assert.equal(a.requests.length,afterDaySwitch);
+ assert.match(a.get('autoReceiptVerifyStatus').textContent,/ありません/);
+ a.get('autoDay').value='2099-01-01';
+ a.get('autoDay').onchange();
+ assert.equal(a.storage.get(STORAGE),unchangedBeforeProof);
+
  // A later forecast is NOT allowed to overwrite the earlier frozen receipt.
  a.setServer(resultWith('b'.repeat(64)));
  await a.get('autoRun').onclick();
