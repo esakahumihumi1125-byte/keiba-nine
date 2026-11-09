@@ -1150,7 +1150,7 @@ function boot(){
   assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
   assert.equal(a.storage.get(STORAGE),oldRecord);
  }
- const fiveCalls=a.requests.slice(beforeFive);
+ const fiveCalls=a.requests.slice(beforeFive,pedigreeBefore);
  assert.equal(fiveCalls.filter(x=>x.url==='/api/jrdb/history').length,1);
  assert.equal(fiveCalls.filter(x=>x.url.startsWith('/api/jrdb/owner-auto-draft?')).length,0);
  assert.ok(fiveCalls.every(x=>['/api/jrdb/history','/api/owner-rebound-verify'].includes(x.url)));
