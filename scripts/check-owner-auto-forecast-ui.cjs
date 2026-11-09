@@ -1128,6 +1128,9 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.equal(a.storage.get(STORAGE),before);
  assert.match(a.get('autoSavedStatus').textContent,/ありません/);
+ assert.match(a.get('autoMorningStatus').textContent,/研究用3連単下書き 0R／見送り 1R/);
+ assert.match(a.get('autoMorningStatus').textContent,/買い目を無理に作りません/);
+ assert.equal(a.get('autoVenues').children.filter(x=>x.dataset.mode==='drafts').length,0);
  // A date switch while a slow fetch is in flight must remain operable,
  // and older data must not silently overwrite the selected day's status.
  const b=boot();
@@ -1148,6 +1151,7 @@ function boot(){
  release();
  await stale;
  assert.equal(b.get('autoSummary').textContent,'未取得');
+ assert.match(b.get('autoMorningStatus').textContent,/取得結果を確認中/);
  b.get('autoDay').value='2099-01-01';
  b.get('autoDay').onchange();
  assert.match(b.get('autoSavedStatus').textContent,/固定済み研究記録 1R/);
