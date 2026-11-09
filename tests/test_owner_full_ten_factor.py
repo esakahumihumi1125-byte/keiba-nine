@@ -129,6 +129,80 @@ class FullTenFactorGateTests(unittest.TestCase):
         self.assertEqual(result["ranking"][2]["score100"], 97)
         self.assertEqual(result["ranking"][2]["overallGrade"], "S")
 
+    def test_rank_four_to_six_win_recheck_never_auto_adds_tickets(self):
+        source = fixture()
+        horse4 = source["horses"][3]
+        for factor, origin in (("training", "independent-workout"),
+                               ("course_distance", "independent-course")):
+            item = horse4["assessments"][factor]
+            item["winSupport"] = True
+            item["evidence"][0]["sourceId"] = origin
+        before = copy.deepcopy(source)
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(source, before)
+        recheck = result["winnerRecheck"]
+        self.assertEqual(recheck["version"], "owner-full-ten-winner-recheck-1")
+        self.assertEqual(recheck["lowerRankCandidates"], [{
+            "number": 4, "rank": 4,
+            "supportFactors": ["training", "course_distance"],
+            "overallGrade": "S", "decision": "manual_recheck_only",
+        }])
+        self.assertEqual(recheck["recentLossCandidates"], [])
+        self.assertFalse(recheck["changesTrifecta"])
+        self.assertFalse(recheck["addsFirstPlaceAutomatically"])
+        self.assertEqual(result["trifecta"]["first"], [1, 2])
+        self.assertEqual(result["trifecta"]["points"], 40)
+        self.assertFalse(result["bettingReady"])
+
+    def test_recent_loss_rebound_review_and_independence_gate(self):
+        source = fixture()
+        horse = source["horses"][3]
+        horse["assessments"]["recent"]["grade"] = "C"
+        for factor, origin in (("training", "workout-source"),
+                               ("pace", "pace-source")):
+            item = horse["assessments"][factor]
+            item["winSupport"] = True
+            item["evidence"][0]["sourceId"] = origin
+        result = full_ten_factor_preview(source, now=NOW)
+        r = result["winnerRecheck"]
+        self.assertEqual([h["number"] for h in r["recentLossCandidates"]], [4])
+        self.assertEqual([h["number"] for h in r["lowerRankCandidates"]], [4])
+        # Merely repeating the same upstream observation as two factors
+        # does not meet the independent-source review threshold.
+        source["horses"][3]["assessments"]["pace"]["evidence"][0]["sourceId"] = (
+            "workout-source")
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(result["winnerRecheck"]["recentLossCandidates"], [])
+        self.assertEqual(result["winnerRecheck"]["lowerRankCandidates"], [])
+
+    def test_no_unverified_or_blocked_winner_review(self):
+        source = fixture()
+        horse = source["horses"][3]
+        for factor, origin in (("training", "workout-4"),
+                               ("pace", "pace-4")):
+            horse["assessments"][factor]["winSupport"] = True
+            horse["assessments"][factor]["evidence"][0]["sourceId"] = origin
+        source["assessmentValidated"] = False
+        report = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(report["winnerRecheck"]["lowerRankCandidates"], [])
+        self.assertEqual(report["trifecta"]["points"], 0)
+        source["assessmentValidated"] = True
+        source["horses"][3]["blockingConcerns"] = [
+            {"reason": "Official starter status uncertain"}]
+        report = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(report["winnerRecheck"]["lowerRankCandidates"], [])
+        source["horses"][3]["blockingConcerns"] = "unverified"
+        with self.assertRaises(CoverageError):
+            full_ten_factor_preview(source, now=NOW)
+
+    def test_does_not_reconstruct_winner_review_after_start(self):
+        source = fixture()
+        source["horses"][3]["assessments"]["training"]["winSupport"] = True
+        result = full_ten_factor_preview(source, now=OFF)
+        self.assertEqual(result["winnerRecheck"]["recentLossCandidates"], [])
+        self.assertEqual(result["winnerRecheck"]["lowerRankCandidates"], [])
+        self.assertEqual(result["trifecta"]["points"], 0)
+
     def test_duplicate_numbers_and_unrecognized_factors_are_rejected(self):
         source = fixture()
         source["horses"][1]["number"] = 1
