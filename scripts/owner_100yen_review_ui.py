@@ -116,7 +116,41 @@ function draw(input){
 const LOCKED_STORAGE='keiba-nine-owner-server-receipts-v1';
 
 const PRELIMINARY='owner-prestart-tse-comparison-1';
-function checkedPreliminary(input,day){
+// The original signed races and point counts are the *only* expected review
+// scope. A silently dropped or extra race cannot pass as complete.
+function expectedPreliminaryRaces(receipts,day){
+ if(!Array.isArray(receipts)||receipts.length<1||receipts.length>36)
+  throw Error('比較する固定記録の件数が不正');
+ const expected=new Map();
+ const venues=['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'];
+ for(const entry of receipts){
+  const s=entry?.snapshot;
+  if(!s||typeof entry.signature!=='string'||
+     !/^[0-9a-f]{64}$/.test(entry.signature)||
+     s.date!==day||s.sourceKind!=='prestart-locked'||
+     s.actualPurchase!==false||s.scheduleVerified!==false||
+     s.predictionVerified!==false||!venues.includes(s.track)||
+     !Number.isInteger(s.race)||s.race<1||s.race>12||
+     !Array.isArray(s.trifectaTickets)||s.trifectaTickets.length<1||
+     s.trifectaTickets.length>48||
+     !Array.isArray(s.trioTickets)||s.trioTickets.length!==0)
+   throw Error('発走前固定の署名付き3連単形式が不正');
+  const key=s.track+'|'+s.race;
+  if(expected.has(key))throw Error('比較対象のレースが重複');
+  const combos=new Set();
+  for(const ticket of s.trifectaTickets){
+   if(!Array.isArray(ticket)||ticket.length!==3||
+      ticket.some(n=>!Number.isInteger(n)||n<1||n>18)||
+      new Set(ticket).size!==3)
+    throw Error('固定3連単の形式が不正');
+   combos.add(ticket.join('-'));
+  }
+  if(combos.size!==s.trifectaTickets.length)throw Error('固定3連単が重複');
+  expected.set(key,combos.size);
+ }
+ return expected;
+}
+function checkedPreliminary(input,day,expected){
  if(!input||input.version!==PRELIMINARY||input.date!==day||
     input.researchOnly!==true||input.privateOwnerOnly!==true||
     input.officialJraVerified!==false||input.independentJraVerified!==false||
@@ -126,6 +160,7 @@ function checkedPreliminary(input,day){
     input.changesExistingReceipts!==false||
     ![0,1].includes(input.providerReadCount)||
     !Number.isInteger(input.raceCount)||input.raceCount<1||input.raceCount>36||
+    !(expected instanceof Map)||input.raceCount!==expected.size||
     !Array.isArray(input.races)||input.races.length!==input.raceCount||
     !Number.isInteger(input.observedRaceCount)||
     !Number.isInteger(input.pendingRaceCount)||
@@ -139,6 +174,7 @@ function checkedPreliminary(input,day){
      race.race>12||!['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'].includes(race.track)||
      !Number.isInteger(race.trifectaPoints)||race.trifectaPoints<1||
      race.trifectaPoints>48||race.officialVerified!==false||
+     expected.get(id)!==race.trifectaPoints||
      !['pending','provider_podium_observed'].includes(race.providerStatus))
    throw Error('暫定着順の馬番不一致');
   seen.add(id);
@@ -159,6 +195,7 @@ function checkedPreliminary(input,day){
    first+=Number(race.firstCandidateObserved);
   }else if(race.firstMissType!==null)throw Error('判定保留に矛盾');
  }
+ if(seen.size!==expected.size)throw Error('固定Rの比較対象が欠落');
  if(input.observedRaceCount!==observed||
     input.pendingRaceCount!==input.raceCount-observed||
     input.provisionalExactCombinationCount!==exact||
@@ -176,12 +213,18 @@ async function signedForPreliminary(day){
  if(!r.ok)throw Error('固定記録の確認ができません');
  const record=await r.json();
  if(record?.archiveEnabled===true){
-  if(record.available!==true||!Array.isArray(record.receipts)||
-     record.receipts.length===0)throw Error('サーバーの固定記録なし');
-  return record.receipts;
- }
- if(record?.archiveEnabled!==false||record.available!==false||
-    record.persistentStorageReady!==false)
+  if(record.persistentStorageReady!==true||
+     !Array.isArray(record.receipts)||
+     !Number.isInteger(record.raceCount)||
+     record.raceCount!==record.receipts.length||
+     record.available!==(record.raceCount>0))
+   throw Error('サーバー固定記録の形式が不正');
+  if(record.raceCount>0)
+   return {receipts:record.receipts,source:'サーバー固定'};
+  // When the archive has 0R, older local-only signed records may exist.
+  // Never merge receipts signed with different keys into one request.
+ }else if(record?.archiveEnabled!==false||record.available!==false||
+          record.persistentStorageReady!==false)
   throw Error('固定記録の状態が未確認');
  const raw=localStorage.getItem(LOCKED_STORAGE);
  if(!raw||raw.length>650000)throw Error('この端末に署名付き固定記録なし');
@@ -189,7 +232,7 @@ async function signedForPreliminary(day){
  if(!Array.isArray(all)||all.length>360)throw Error('固定記録形式が不正');
  const chosen=all.filter(x=>x?.snapshot?.date===day);
  if(chosen.length<1||chosen.length>36)throw Error('対象日の固定記録なし');
- return chosen;
+ return {receipts:chosen,source:'この端末の固定'};
 }
 function showPreliminary(data){
  const p=$('provisionalRaces');p.replaceChildren();
@@ -223,18 +266,21 @@ $('provisionalCheck').onclick=async()=>{
  btn.disabled=true;
  $('provisionalStatus').textContent='本人用の固定記録を検証中。JRDB成績は発走後のみ取得します。';
  try{
-  const receipts=await signedForPreliminary(day);
+  const {receipts,source}=await signedForPreliminary(day);
   if(seq!==preliminaryRequest)return;
+  const expected=expectedPreliminaryRaces(receipts,day);
   const res=await fetch('/api/owner-prestart-tse-review',{
    method:'POST',cache:'no-store',credentials:'same-origin',
    headers:{'X-Keiba-Request':'private','Content-Type':'application/json','Accept':'application/json'},
    body:JSON.stringify({date:day,receipts})
   });
   if(!res.ok)throw Error('成績照合失敗');
-  const report=checkedPreliminary(await res.json(),day);
+  const report=checkedPreliminary(await res.json(),day,expected);
   if(seq!==preliminaryRequest)return;
   showPreliminary(report);
-  $('provisionalStatus').textContent='JRDB暫定着順との参考比較のみ完了。'+
+  $('provisionalStatus').textContent=source+'記録 '+expected.size+
+   'Rをすべて対象にJRDB暫定着順との参考比較が完了。'+
+   'この保存元以外の未固定・別保存レースは含みません。'+
    'JRA公式の結果・的中・払戻・回収率に加算していません。';
  }catch(_){
   if(seq===preliminaryRequest)
