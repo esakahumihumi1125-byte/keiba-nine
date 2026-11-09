@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
+const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8').replace('}catch(_){if(seq===fiveProviderSeq){','}catch(_){if(seq===fiveProviderSeq){throw _;');
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
