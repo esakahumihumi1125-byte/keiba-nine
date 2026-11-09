@@ -39,6 +39,17 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
         self.assertEqual(result["raceCount"], 2)
         self.assertEqual(result["observedRaceCount"], 1)
         self.assertEqual(result["observedStudiedWinnerCount"], 1)
+        self.assertEqual(result["observedStudiedRunnerCount"], 2)
+        self.assertEqual(result["observedResearchBandExposureCounts"]["training"],
+                         {"S": 1, "A": 0, "B": 0, "C": 1})
+        self.assertEqual(result["winnerBandCounts"]["training"],
+                         {"S": 1, "A": 0, "B": 0, "C": 0})
+        self.assertEqual(result["observedResearchBandExposureCounts"]["ground"]["A"],2)
+        self.assertEqual(result["winnerBandCounts"]["ground"]["A"],1)
+        for factor, exposures in result["observedResearchBandExposureCounts"].items():
+            self.assertEqual(sum(exposures.values()), 2, factor)
+            for band, count in exposures.items():
+                self.assertLessEqual(result["winnerBandCounts"][factor][band], count)
         first = result["races"][0]
         self.assertEqual(first["observedPodiumNumbers"], [1, 2, 3])
         self.assertEqual(first["winnerStudyScore85"], 58.0)
@@ -66,6 +77,10 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
         self.assertIsNone(first["winnerStudyScore85"])
         self.assertIsNone(first["winnerStudyBands"])
         self.assertEqual(result["observedStudiedWinnerCount"], 0)
+        # A winner without five bands does NOT make the signed runners vanish.
+        self.assertEqual(result["observedStudiedRunnerCount"], 2)
+        self.assertEqual(result["observedResearchBandExposureCounts"]["recent"]["C"], 2)
+        self.assertEqual(result["winnerBandCounts"]["recent"]["C"], 0)
 
     def test_before_off_or_ambiguous_provider_rows_stay_pending(self):
         originals, _ = signed()
@@ -75,6 +90,9 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
         self.assertEqual(result["observedRaceCount"], 0)
         self.assertTrue(all(r["providerStatus"] == "pending"
                             for r in result["races"]))
+        self.assertEqual(result["observedStudiedRunnerCount"], 0)
+        self.assertTrue(all(not any(counts.values())
+                            for counts in result["observedResearchBandExposureCounts"].values()))
         for broken in (
             complete()[:2],
             [row(horse="01", finish="withdrawn")],
@@ -89,6 +107,9 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
                 originals, broken, DAY, now=AFTER)
             self.assertEqual(result["races"][0]["providerStatus"], "pending")
             self.assertIsNone(result["races"][0]["winnerStudyScore85"])
+            self.assertEqual(result["observedStudiedRunnerCount"], 0)
+            self.assertTrue(all(not any(counts.values())
+                                for counts in result["observedResearchBandExposureCounts"].values()))
 
     def test_invalid_identity_and_unsigned_schema_are_rejected(self):
         originals, _ = signed()
@@ -128,7 +149,11 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
                         data={"date": DAY, "receipts": receipts})
             fetched.assert_called_once_with(DAY)
         self.assertEqual(resp["status"], "200 OK")
-        self.assertEqual(json.loads(resp["body"])["observedRaceCount"], 1)
+        body=json.loads(resp["body"])
+        self.assertEqual(body["observedRaceCount"], 1)
+        self.assertEqual(body["observedStudiedRunnerCount"], 2)
+        self.assertFalse(body["outcomeCalibrationReady"])
+        self.assertNotIn("horse_number", repr(body))
         with patch("private_service.fetch_finished_race_results") as fetched:
             early = call(app, "/api/owner-five-core-provider-check", method="POST",
                          data={"date": DAY, "receipts": receipts})
