@@ -10,12 +10,11 @@ import hashlib
 import hmac
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from jrdb_coverage import CoverageError
-from jrdb_owner_auto_draft import _safe_formation_sizes
 from owner_research6_five_drafts import (
-    build_research6_five_drafts, _check_horses, _check_report,
+    build_research6_five_drafts,
     VERSION as DRAFT_VERSION,
 )
 from owner_rebound_receipts import _day, _timestamp
@@ -83,8 +82,7 @@ def _validate(snapshot):
     captured, off = _timestamp(snapshot["capturedAt"]), _timestamp(
         snapshot["scheduledOffAt"])
     if (captured >= off or not 0 < (off-captured).total_seconds() <= MAX_AGE_SECONDS
-            or off.astimezone(__import__("datetime").timezone(
-                __import__("datetime").timedelta(hours=9))).strftime("%Y%m%d") != day):
+            or off.astimezone(timezone(timedelta(hours=9))).strftime("%Y%m%d") != day):
         raise DraftReceiptError("Research-6 draft was not locked before off")
     first, second, third = (snapshot["first"], snapshot["second"],
                             snapshot["third"])
