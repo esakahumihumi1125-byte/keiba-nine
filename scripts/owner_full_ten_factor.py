@@ -13,7 +13,11 @@ from jrdb_owner_auto_draft import _safe_formation_sizes
 from keiba_trifecta_builder import REQUIRED_EVIDENCE, build_trifecta
 
 VERSION = "owner-full-ten-factor-gate-1"
+RECHECK_VERSION = "owner-full-ten-winner-recheck-1"
 UNASSESSED = "未評価"
+# Two different source families, not just two correlated labels, are needed
+# before a lower-ranked horse can be put on the explicit winner review list.
+RECHECK_FACTORS = ("training", "course_distance", "pace")
 OFFICIAL = ("jra_starters_verified", "jra_scratches_verified",
             "jra_going_verified", "jra_posttime_verified")
 assert len(FACTORS) == 10 and sum(FACTORS.values()) == 100
@@ -37,12 +41,31 @@ def _grade(weighted):
     return "C"
 
 
+def _empty_recheck():
+    return {
+        "version": RECHECK_VERSION,
+        "lowerRankCandidates": [], "recentLossCandidates": [],
+        "changesTrifecta": False, "addsFirstPlaceAutomatically": False,
+        "researchOnly": True, "requiresIndependentPrestartSources": True,
+    }
+
+
+def _has_independent_pair(support):
+    """Require 2 factor families backed by non-overlapping source IDs."""
+    keys = tuple(support)
+    return any(
+        support[a].isdisjoint(support[b])
+        for i, a in enumerate(keys) for b in keys[i + 1:]
+    )
+
+
 def _empty(status, *, missing=None, evidence=None):
     return {
         "version": VERSION, "policyVersion": POLICY_VERSION,
         "status": status, "researchOnly": True, "publishable": False,
         "bettingReady": False, "autoPurchase": False, "overallReady": False,
         "ranking": [], "missingByNumber": missing or {},
+        "winnerRecheck": _empty_recheck(),
         "trifecta": build_trifecta([1, 2, 3, 4], evidence=evidence),
     }
 
@@ -71,7 +94,7 @@ def full_ten_factor_preview(snapshot, *, now):
     if not isinstance(official, dict):
         official = {}
     valid_official = {k: official.get(k) is True for k in OFFICIAL}
-    numbers, ranking, missing = set(), [], {}
+    numbers, ranking, missing, support_by_number = set(), [], {}, {}
     for horse in horses:
         if not isinstance(horse, dict):
             raise CoverageError("Invalid runner assessment")
@@ -97,6 +120,26 @@ def full_ten_factor_preview(snapshot, *, now):
             weighted += POINTS[item["grade"]] * weight
         if absent:
             missing[n] = absent
+
+        # These flags do NOT create a win pick. They only make a horse
+        # eligible for a separate, explicitly reviewed lower-rank hypothesis.
+        # Never copy provider references or free-form reasons to the client.
+        concerns = horse.get("blockingConcerns", [])
+        if not isinstance(concerns, list) or len(concerns) > 12:
+            raise CoverageError("Malformed race blocking concerns")
+        source_ids = {}
+        if not concerns:
+            for factor in RECHECK_FACTORS:
+                item = a.get(factor)
+                if (grades[factor] in ("S", "A")
+                        and item is not None
+                        and item.get("winSupport") is True):
+                    source_ids[factor] = frozenset(
+                        e["sourceId"].strip() for e in item["evidence"]
+                    )
+        support_by_number[n] = {
+            "sources": source_ids, "blocked": bool(concerns),
+        }
         ranking.append({
             "number": n, "grades": grades, "weightedPoints": weighted,
         })
@@ -115,6 +158,26 @@ def full_ten_factor_preview(snapshot, *, now):
 
     approval = (snapshot.get("assessmentValidated") is True
                 and snapshot.get("predictionValidated") is True)
+
+    recheck = _empty_recheck()
+    # An unsupported or stale assessment never contributes, because the
+    # full ranking is blocked above when any one factor is unassessed.
+    if snapshot.get("assessmentValidated") is True:
+        for horse in ranking:
+            details = support_by_number[horse["number"]]
+            sources = details["sources"]
+            if details["blocked"] or not _has_independent_pair(sources):
+                continue
+            candidate = {
+                "number": horse["number"], "rank": horse["rank"],
+                "supportFactors": [k for k in RECHECK_FACTORS if k in sources],
+                "overallGrade": horse["overallGrade"],
+                "decision": "manual_recheck_only",
+            }
+            if 4 <= horse["rank"] <= 6:
+                recheck["lowerRankCandidates"].append(candidate)
+            if horse["grades"]["recent"] in ("B", "C"):
+                recheck["recentLossCandidates"].append(candidate.copy())
     evidence = {k: valid_official[k] for k in OFFICIAL}
     evidence.update({
         "ten_factor_assessments_verified": snapshot.get("assessmentValidated") is True,
@@ -128,6 +191,7 @@ def full_ten_factor_preview(snapshot, *, now):
         "publishable": False, "bettingReady": False,
         "autoPurchase": False, "overallReady": True,
         "ranking": ranking, "missingByNumber": {},
+        "winnerRecheck": recheck,
         "independentJraVerified": all(valid_official.values()),
     }
     # Source-based ties cannot be broken by horse number merely to fill slots.
