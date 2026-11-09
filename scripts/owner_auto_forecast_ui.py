@@ -13,6 +13,11 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <section>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
 <button id="autoRun" type="button">全場・全Rを再分析する</button>
+<details><summary>JRDB実接続の確認（任意）</summary>
+<p class="muted">本人が押した時だけ設定を確認し、設定済みなら番組APIへ1回接続。未設定ならJRDBへの追加通信なし。買い目・収支・購入記録は変更しません。</p>
+<button id="autoConnectionCheck" type="button">選択日のJRDB接続を確認</button>
+<p id="autoConnectionStatus" class="muted" role="status">診断は未実行。</p>
+</details>
 <p class="muted">画面を開いたら本人用の当日分を一度だけ自動取得。
 再分析ボタンを押した場合は番組・出走馬・調教・近走を各1回取得し、
 馬場情報の追加取得も最大1回だけ試みます。取得できなくても既存の発走前記録は維持します。
@@ -680,11 +685,14 @@ function saveAutoReceipts(data,day){
 
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
- prestartSeq=0,
+ prestartSeq=0,connectionSeq=0,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
+ connectionSeq++;
+ $('autoConnectionCheck').disabled=false;
+ $('autoConnectionStatus').textContent='診断は未実行。';
  prestartSeq++;
  $('autoPrestartRaces').replaceChildren();
  $('autoPrestartStatus').textContent='本人操作時だけ追加API照合。予想や買い目は変更しません。';
@@ -1410,6 +1418,62 @@ $('autoDay').onchange=()=>{
   $('autoDay').value.replaceAll('-',''));
  showFixedHistory($('autoDay').value.replaceAll('-',''));
  $('autoStatus').textContent='開催日を選んでな。';
+};
+// One explicit, owner-authenticated /tra request. No background probe.
+$('autoConnectionCheck').onclick=async()=>{
+ const button=$('autoConnectionCheck'),selected=$('autoDay').value;
+ if(button.disabled)return;
+ if(!/^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/.test(selected)||
+    Number.isNaN(new Date(selected+'T12:00:00Z').valueOf())||
+    new Date(selected+'T12:00:00Z').toISOString().slice(0,10)!==selected){
+  $('autoConnectionStatus').textContent='開催日を正しく選択してください。';
+  return;
+ }
+ const seq=++connectionSeq,day=selected.replaceAll('-');
+ button.disabled=true;
+ $('autoConnectionStatus').textContent='接続設定を確認中…';
+ try{
+  const res=await fetch('/api/setup',{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  if(seq!==connectionSeq||selected!==$('autoDay').value)return;
+  if(!res.ok)throw Error('setup');
+  const cfg=await res.json();
+  if(seq!==connectionSeq||selected!==$('autoDay').value)return;
+  if(!cfg||typeof cfg.jrdbConfigured!=='boolean'||
+     cfg.liveConnectionVerified!==false||
+     cfg.realPredictionEnabled!==false||
+     typeof cfg.prestartBodyEnabled!=='boolean')
+   throw Error('setup_contract');
+  if(!cfg.jrdbConfigured){
+   $('autoConnectionStatus').textContent=
+    'JRDB接続設定が未完了です。RenderのAPIキー・利用設定を確認。番組APIは呼び出していません。';
+   return;
+  }
+  $('autoConnectionStatus').textContent='JRDB番組APIへ1回接続中…';
+  const test=await fetch('/api/jrdb/connection-test?date='+encodeURIComponent(day),{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  const value=await test.json();
+  if(seq!==connectionSeq||selected!==$('autoDay').value)return;
+  if(!test.ok||!value||value.date!==day||
+     value.connectionVerified!==true||value.predictionReady!==false||
+     value.providerDataStored!==false||
+     !Number.isInteger(value.programmeCount)||value.programmeCount<0||
+     value.programmeCount>120)
+   throw Error('probe');
+  $('autoConnectionStatus').textContent=
+   'JRDB番組APIに接続成功：'+value.programmeCount+'R分。'+
+   (value.programmeCount===0
+    ?'開催レース0件。実際の出走馬データは未確認。'
+    :'番組形式を受信できました。')+
+   ' 10項目の本採点・JRA公式照合は別途必要。';
+ }catch(_){if(seq===connectionSeq){
+  $('autoConnectionStatus').textContent=
+   '接続確認ができません。日付・JRDB利用権限・本人用設定を確認してください。保存済み記録は無変更です。';
+ }}finally{if(seq===connectionSeq)button.disabled=false;}
 };
 $('autoRun').onclick=async()=>{
  const button=$('autoRun');
