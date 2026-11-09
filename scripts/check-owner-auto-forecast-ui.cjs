@@ -1635,12 +1635,12 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),oldRecord);
  for(const mutate of [
   h=>h.research6Uncertainty.factorWeights.jockey_stable=2,
-  h=>h.research6Uncertainty.races[0].horses[0].lowerResearchBound=100,
-  h=>h.research6Uncertainty.races[0].horses[0].upperResearchRawThirdPoints=300,
+  h=>h.research6Uncertainty.races[0].horses[0].lowerResearchBound=-1,
+  h=>h.research6Uncertainty.races[0].horses[0].upperResearchRawThirdPoints=999,
   h=>h.research6Uncertainty.races[0].horses[0].formalScore100=95,
   h=>h.research6Uncertainty.races[0].horses[0].formalGrade='S',
   h=>h.research6Uncertainty.races[0].horses[0].researchPossibleBestRank=0,
-  h=>h.research6Uncertainty.races[0].strictAdvantagePairCount=99,
+  h=>h.research6Uncertainty.races[0].strictAdvantagePairCount=-1,
   h=>h.research6Uncertainty.officialJraVerified=true,
  ]){
   const invalid=withResearch6Uncertainty(historical());mutate(invalid);
