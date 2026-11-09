@@ -115,10 +115,12 @@ class FiveCoreResearchTests(unittest.TestCase):
 
     def test_same_score_ties_are_one_group_not_arbitrary_rank(self):
         five, inventory, _, _ = sources()
-        horses = five["races"][0]["runners"]
+        race_five = next(row for row in five["races"] if row["track"] == "東京")
+        race_inventory = next(row for row in inventory["races"] if row["track"] == "東京")
+        horses = race_five["runners"]
         self.assertGreaterEqual(len(horses), 2)
         for source_horse in horses[:2]:
-            linked = next(x for x in inventory["races"][0]["runners"]
+            linked = next(x for x in race_inventory["runners"]
                           if x["number"] == source_horse["number"])
             for key in CORE:
                 source_horse["bands"][key] = "S"
@@ -126,7 +128,7 @@ class FiveCoreResearchTests(unittest.TestCase):
         three = three_core_research(five, inventory)
         four = four_core_research(five, inventory, three)
         report = five_core_research(five, inventory, three, four)
-        race = report["races"][0]
+        race = next(row for row in report["races"] if row["track"] == "東京")
         tied = sorted(h["number"] for h in horses[:2])
         self.assertEqual(race["comparisonGroups"][0],
                          {"rawThirdPoints": 255, "numbers": tied})
@@ -135,13 +137,13 @@ class FiveCoreResearchTests(unittest.TestCase):
         self.assertFalse(report["overallPredictionReady"])
         second = horses[1]
         second["bands"]["recent"] = "C"
-        linked = next(x for x in inventory["races"][0]["runners"]
+        linked = next(x for x in race_inventory["runners"]
                       if x["number"] == second["number"])
         linked["provisionalBands"]["recent"] = "C"
         three = three_core_research(five, inventory)
         four = four_core_research(five, inventory, three)
         updated = five_core_research(five, inventory, three, four)
-        groups = updated["races"][0]["comparisonGroups"]
+        groups = next(row for row in updated["races"] if row["track"] == "東京")["comparisonGroups"]
         self.assertEqual(groups[0], {
             "rawThirdPoints": 255, "numbers": [horses[0]["number"]]
         })
