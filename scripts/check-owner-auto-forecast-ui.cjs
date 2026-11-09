@@ -804,6 +804,32 @@ function boot(){
  assert.match(a.get('autoSourceSummary').textContent,/当日馬場資料 1R/);
  assert.match(a.get('autoSourceSummary').textContent,/正式採点0\/10/);
  assert.match(a.get('autoSourceSummary').textContent,/買い目は変更しません/);
+ // iPhone selector shows one race without refetching or editing a receipt.
+ const selector=a.get('autoRacePick');
+ assert.equal(selector.disabled,false);
+ assert.equal(selector.children.length,2);
+ assert.equal(selector.children[1].value,'東京|1');
+ const originalRequests=a.requests.length;
+ const frozenBeforeSelection=a.storage.get(STORAGE);
+ selector.value='東京|1';
+ selector.onchange();
+ assert.match(a.get('autoViewingStatus').textContent,/選択中：東京 1R/);
+ assert.equal(a.get('autoRaces').children[0].children.length,1);
+ assert.equal(a.get('autoRaces').children[0].children[0].open,true);
+ assert.equal(a.requests.length,originalRequests);
+ assert.equal(a.storage.get(STORAGE),frozenBeforeSelection);
+ selector.value='不正|19';
+ selector.onchange();
+ assert.equal(selector.value,'');
+ assert.match(a.get('autoViewingStatus').textContent,/全場 1R/);
+ assert.equal(a.requests.length,originalRequests);
+ assert.equal(a.storage.get(STORAGE),frozenBeforeSelection);
+ a.get('autoVenues').children[1].onclick();
+ assert.match(a.get('autoViewingStatus').textContent,/東京 1R/);
+ assert.equal(selector.value,'');
+ a.get('autoVenues').children[0].onclick();
+ assert.match(a.get('autoViewingStatus').textContent,/全場 1R/);
+
  assert.match(a.get('autoRaces').children[0].children[0].children[1].textContent,
   /芝／2000m／左／重（JRDB資料）/);
  assert.match(a.get('autoRaces').children[0].children[0].children[2].textContent,
@@ -825,7 +851,10 @@ function boot(){
  assert.match(sourcePanel.children[1].textContent,/調教の仮評価 7頭/);
  assert.match(sourcePanel.children[2].textContent,/件数は照合保留/);
  assert.match(sourcePanel.children[3].textContent,/当日馬場情報 あり/);
- assert.match(sourcePanel.children[4].textContent,/JRA公式.*未接続/);
+ assert.match(sourcePanel.children[4].textContent,/未評価の8項目/);
+ assert.match(sourcePanel.children[4].textContent,/コース・距離20点/);
+ assert.match(sourcePanel.children[4].textContent,/馬体重1点/);
+ assert.match(sourcePanel.children[5].textContent,/JRA公式.*未接続/);
  const tamperedPassport=resultWith('c'.repeat(64));
  tamperedPassport.sourcePassport.races[0].verifiedFactorCount=10;
  a.setServerRaw(tamperedPassport);
