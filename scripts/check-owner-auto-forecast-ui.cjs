@@ -170,6 +170,22 @@ function full36RaceDraft(){
  data.sourcePassport.raceCount=36;
  return data;
 }
+function full35WithGap(){
+ const data=full36RaceDraft();
+ const except=x=>!(x.track==='福島'&&x.race===6);
+ data.races=data.races.filter(except);
+ data.raceCount=35;data.holdCount=34;
+ data.holdReasons={after_provisional_off:34};
+ data.tenFactorPreview.races=data.tenFactorPreview.races.filter(except);
+ data.tenFactorPreview.raceCount=35;
+ data.raceContext.races=data.raceContext.races.filter(except);
+ data.raceContext.raceCount=35;
+ data.raceContext.courseInfoPresentCount=35;
+ data.raceContext.goingAvailableCount=35;
+ data.sourcePassport.races=data.sourcePassport.races.filter(except);
+ data.sourcePassport.raceCount=35;
+ return data;
+}
 function full36MixedHolds(){
  const data=full36RaceDraft();
  data.races[12].reason='missing_factors'; // 京都 1R
@@ -1481,6 +1497,11 @@ function boot(){
  assert.match(a.get('autoOperationalNext').textContent,/研究用下書きあり/);
  assert.match(a.get('autoOperationalNext').textContent,/全1R中、研究用3連単 1R／見送り 0R/);
  assert.match(a.get('autoOperationalNext').textContent,/JRA公式の出走・取消・馬場・発走時刻は未照合/);
+ assert.match(a.get('autoProgrammeCoverage').textContent,/JRDB番組：1R／1場/);
+ assert.match(a.get('autoProgrammeCoverage').textContent,/東京 1\/12R（1〜12R中未検出候補 2R/);
+ assert.match(a.get('autoProgrammeCoverage').textContent,/未検出は開催中止・取消を意味しません/);
+ assert.match(a.get('autoRecordSafety').textContent,/この端末に 1R（署名は未検証）/);
+ assert.match(a.get('autoRecordSafety').textContent,/サーバー永続保存は未設定/);
  const quickSingle=a.get('autoVenues').children.at(-1);
  assert.equal(quickSingle.dataset.mode,'drafts');
  assert.match(quickSingle.textContent,/下書きのみ 1R/);
@@ -1562,6 +1583,8 @@ function boot(){
  assert.match(a.get('autoSourceSummary').textContent,/取得に失敗しました/);
  assert.match(a.get('autoMorningStatus').textContent,/新しい暫定予想は表示していません/);
  assert.match(a.get('autoOperationalNext').textContent,/取得失敗・新規予想なし/);
+ assert.match(a.get('autoProgrammeCoverage').textContent,/取得失敗：開催場別R数は確認できません/);
+ assert.match(a.get('autoRecordSafety').textContent,/新規記録なし/);
  assert.match(a.get('autoFixedConsistency').textContent,/再分析結果は未確認/);
  // Do not rerun the original receipt: first-write-wins is intentional.
  // The next test below supplies its own response and preserves this record.
@@ -1717,6 +1740,8 @@ function boot(){
  assert.equal(a.get('autoVenues').children.length,0);
  assert.match(a.get('autoMorningStatus').textContent,/新しい暫定予想は表示していません/);
  assert.match(a.get('autoOperationalNext').textContent,/取得失敗・新規予想なし/);
+ assert.match(a.get('autoProgrammeCoverage').textContent,/取得失敗：開催場別R数は確認できません/);
+ assert.match(a.get('autoRecordSafety').textContent,/新規記録なし/);
  assert.match(a.get('autoSavedStatus').textContent,/再分析に失敗.*固定済み研究記録 1R/);
  assert.match(a.get('autoHistoryStatus').textContent,/発走前固定 1R/);
  assert.equal(a.get('autoHistory').children.length,1);
@@ -1750,6 +1775,7 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.equal(a.storage.get(STORAGE),before);
  assert.match(a.get('autoSavedStatus').textContent,/保存はできませんでした/);
+ assert.match(a.get('autoRecordSafety').textContent,/端末への新規固定失敗/);
  assert.equal(a.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // A malformed runner source holds only that race and never saves tickets.
  const bad=research();
@@ -1814,6 +1840,8 @@ function boot(){
  release();
  await stale;
  assert.equal(b.get('autoSummary').textContent,'未取得');
+ assert.match(b.get('autoProgrammeCoverage').textContent,/まだ確認していません/);
+ assert.match(b.get('autoRecordSafety').textContent,/まだ確認していません/);
  assert.match(b.get('autoOperationalNext').textContent,/当日の取得結果を確認中/);
  assert.match(b.get('autoMorningStatus').textContent,/取得結果を確認中/);
  b.get('autoDay').value='2099-01-01';
@@ -1856,6 +1884,11 @@ function boot(){
  assert.match(full.get('autoMorningStatus').textContent,/番組 36R／発走前の研究用3連単下書き 1R／見送り 35R/);
  assert.match(full.get('autoOperationalNext').textContent,/全36R中、研究用3連単 1R／見送り 35R/);
  assert.match(full.get('autoMorningStatus').textContent,/サーバー永続保存は未設定/);
+ assert.match(full.get('autoProgrammeCoverage').textContent,/JRDB番組：36R／3場/);
+ for(const venue of ['東京','京都','福島'])
+  assert.match(full.get('autoProgrammeCoverage').textContent,
+   new RegExp(venue+' 12\\/12R（1〜12Rすべて検出）'));
+ assert.match(full.get('autoRecordSafety').textContent,/この端末に 1R（署名は未検証）/);
  const draftOnly36=full.get('autoVenues').children.at(-1);
  assert.match(draftOnly36.textContent,/下書きのみ 1R/);
  const beforeDraftFilter36=full.requests.length;
@@ -1896,6 +1929,20 @@ function boot(){
  assert.equal(full.storage.get(STORAGE),archivedBeforePick);
  // All 36R are already validated before UI filtering. Mixed holds should
  // be navigable with one tap and must never generate past-off tickets.
+ // A missing JRDB row is an unconfirmed provider gap, NEVER an official
+ // cancelled race. The view cannot create, backfill or alter tickets.
+ const gap=boot();
+ await new Promise(r=>setImmediate(r));
+ const beforeGapStore=gap.storage.get(STORAGE),beforeGapReq=gap.requests.length;
+ gap.setServerRaw(full35WithGap());
+ await gap.get('autoRun').onclick();
+ assert.equal(gap.requests.length,beforeGapReq+1);
+ assert.match(gap.get('autoProgrammeCoverage').textContent,/JRDB番組：35R／3場/);
+ assert.match(gap.get('autoProgrammeCoverage').textContent,
+  /福島 11\/12R（1〜12R中未検出候補 6R）/);
+ assert.match(gap.get('autoProgrammeCoverage').textContent,
+  /JRA公式との全場・全R照合は未完成/);
+ assert.equal(gap.storage.get(STORAGE),beforeGapStore);
  const mixed=boot();
  await new Promise(r=>setImmediate(r));
  mixed.setServerRaw(full36MixedHolds());
@@ -1933,6 +1980,8 @@ function boot(){
  mixed.get('autoDay').value='2099-01-02';
  mixed.get('autoDay').onchange();
  assert.equal(mixed.get('autoHoldReasons').children.length,0);
+ assert.match(mixed.get('autoProgrammeCoverage').textContent,/まだ確認していません/);
+ assert.match(mixed.get('autoRecordSafety').textContent,/まだ確認していません/);
  assert.match(mixed.get('autoOperationalNext').textContent,/当日の取得結果を確認中/);
  assert.match(mixed.get('autoHoldStatus').textContent,/開催日を取得すると/);
  assert.equal(mixed.storage.get(STORAGE),beforeHoldStorage);
