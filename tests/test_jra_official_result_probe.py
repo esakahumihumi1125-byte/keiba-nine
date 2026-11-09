@@ -69,6 +69,11 @@ class PublicResultProbeTests(unittest.TestCase):
             {"ticket": [2, 7, 8], "payoutYen": 2320},
             {"ticket": [5, 7, 8], "payoutYen": 5510}
         ])
+        self.assertTrue(report["podiumChecked"])
+        self.assertTrue(report["payoutMatchesDisplayedPodium"])
+        self.assertEqual(report["podiumShape"], "third_place_dead_heat")
+        self.assertEqual(report["matchingTrifectaCount"], 2)
+        self.assertEqual(report["matchingTrioCount"], 2)
         self.assertFalse(report["officialJraVerified"])
         self.assertFalse(report["sourceAuthenticityAttested"])
         self.assertFalse(report["finalityVerified"])
@@ -97,6 +102,39 @@ class PublicResultProbeTests(unittest.TestCase):
         ]
         for n, html in enumerate(cases):
             with self.subTest(n=n), self.assertRaises(JraPublicProbeError):
+                parse_public_result_candidate(html, URL, DAY, "京都", 8)
+
+    def test_regular_podium_one_third_and_exact_one_payout(self):
+        html = (source()
+                .replace("<tr><td>3</td><td>5</td></tr>", "")
+                .replace("<tr><th>3連複</th><td>5-7-8</td><td>5,510円</td><td>24番人気</td></tr>", "")
+                .replace("<tr><th>3連単</th><td>7-8-5</td><td>48,920円</td><td>158番人気</td></tr>", ""))
+        report = parse_public_result_candidate(html, URL, DAY, "京都", 8)
+        self.assertEqual(report["podiumShape"], "single_third_place")
+        self.assertEqual(report["matchingTrifectaCount"], 1)
+        self.assertEqual(report["matchingTrioCount"], 1)
+        self.assertFalse(report["officialJraVerified"])
+
+    def test_results_and_payouts_must_be_exactly_the_same_horses(self):
+        cases = [
+            source().replace("<tr><td>3</td><td>5</td></tr>",
+                             "<tr><td>4</td><td>5</td></tr>"),
+            source().replace("<tr><td>3</td><td>5</td></tr>",
+                             "<tr><td>3</td><td>2</td></tr>"),
+            source().replace("<tr><td>2</td><td>8</td></tr>",
+                             "<tr><td>1</td><td>8</td></tr>"),
+            source().replace("<tr><td>1</td><td>7</td></tr>",
+                             "<tr><td>1</td><td>9</td></tr>"),
+            source().replace("7-8-5", "7-5-8"),
+            source().replace("5-7-8", "2-5-8"),
+            source().replace("<tr><td>3</td><td>5</td></tr>", ""),
+            source().replace("<tr><th>着順</th><th>馬番</th></tr>", ""),
+            source().replace("<tr><th>着順</th><th>馬番</th></tr>",
+                             "<tr><th>着順</th><th>馬番</th></tr>"
+                             "<tr><th>着順</th><th>馬番</th></tr>"),
+        ]
+        for n, html in enumerate(cases):
+            with self.subTest(case=n), self.assertRaises(JraPublicProbeError):
                 parse_public_result_candidate(html, URL, DAY, "京都", 8)
 
     def test_url_not_trusted_just_because_it_contains_jra_letters(self):
