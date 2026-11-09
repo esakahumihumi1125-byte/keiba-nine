@@ -75,6 +75,10 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <details><summary>発走前に固定した5項目85点の研究記録（正式未評価）</summary>
 <p class="muted">調教30・近走3・コース距離20・展開20・馬場12の未検証の研究値です。履歴の照合時にサーバーが発走前と確認し、署名できた馬だけを初回固定します。正式100点、馬券、勝率、JRA結果ではありません。</p>
 <p id="autoFiveSaveStatus" class="muted" role="status">85点研究の保存状況は未確認です。</p>
+<button id="autoFiveProviderCheck" type="button" disabled>固定85点とレース後のJRDB成績を参考比較</button>
+<p class="muted">本人が押した時のみJRDB暫定成績を最大1回取得。勝ち馬の発走前85点と研究グループを比較。JRA公式確定結果・的中率・回収率には加算しません。</p>
+<p id="autoFiveProviderStatus" class="muted" role="status">研究85点の署名記録がある開催日を選択。</p>
+<div id="autoFiveProviderRaces"></div>
 <div id="autoFiveSaved"></div>
 </details>
 <button id="autoWatchResultCheck" type="button" disabled>固定した巻き返し候補とJRDB成績を参考照合</button>
@@ -1154,12 +1158,15 @@ const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
- officialPdfSeq=0,coreVerifySeq=0,coreProviderSeq=0,
+ officialPdfSeq=0,coreVerifySeq=0,coreProviderSeq=0,fiveProviderSeq=0,
  jraDraftTracks=new Set(),jraPdfTracks=new Set(),jraPdfChecked=false,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
+ fiveProviderSeq++;
+ $('autoFiveProviderRaces').replaceChildren();
+ $('autoFiveProviderStatus').textContent='85点研究の結果比較は未実行。記録は変更していません。';
  coreProviderSeq++;
  $('autoCoreProviderRaces').replaceChildren();
  $('autoCoreProviderStatus').textContent='研究値のレース後比較は未実行。既存記録は変更していません。';
@@ -1415,6 +1422,7 @@ function showSavedFive(day){
  $('autoFiveSaved').replaceChildren();
  try{
   const {picked}=savedFiveDay(day);
+  $('autoFiveProviderCheck').disabled=!picked.length;
   $('autoFiveSaveStatus').textContent=picked.length?
    'この端末に初回固定した研究85点 '+picked.length+
     'R。署名はこの表示では未検証。正式100点・結果・回収率に加算しません。':
@@ -1430,6 +1438,7 @@ function showSavedFive(day){
    $('autoFiveSaved').append(card);
   }
  }catch(_){
+  $('autoFiveProviderCheck').disabled=true;
   $('autoFiveSaveStatus').textContent=
    '保存済み85点研究の確認不可。既存データを消さず、バックアップを確保してください。';
  }
