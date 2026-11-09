@@ -12,8 +12,9 @@ const keys=[
  'keiba-nine-owner-server-receipts-v1',
  'keiba-nine-owner-rebound-watch-receipts-v1',
  'keiba-nine-owner-three-core-receipts-v1',
- 'keiba-nine-owner-five-core-receipts-v1'
-],format='keiba-nine-owner-local-all-v7';
+ 'keiba-nine-owner-five-core-receipts-v1',
+ 'keiba-nine-owner-research6-draft-receipts-v1'
+],format='keiba-nine-owner-local-all-v8';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -73,11 +74,30 @@ const fiveStudy={signature:'d'.repeat(64),snapshot:{
  sourceHypothesesUncalibrated:true,actualPurchase:false,
  predictionReady:false
 }};
+const r6First=[1,2],r6Second=[1,2,3,4,5],
+ r6Third=[1,2,3,4,5,6,7];
+const r6Tickets=[];
+for(const a of r6First)for(const b of r6Second)for(const c of r6Third)
+ if(a!==b&&a!==c&&b!==c)r6Tickets.push([a,b,c]);
+const research6Draft={signature:'e'.repeat(64),snapshot:{
+ version:'owner-research6-draft-receipt-1',
+ date:'20990109',track:'東京',race:1,
+ sourceKind:'prestart-unverified-research6-79-draft',
+ capturedAt:'2099-01-09T07:15:00+09:00',
+ scheduledOffAt:'2099-01-09T09:55:00+09:00',
+ policyVersion:'research-6',researchWeight:79,
+ remainingUnassessedWeight:21,runnerCount:7,
+ first:r6First,second:r6Second,third:r6Third,
+ tickets:r6Tickets,points:40,amountYen:4000,
+ researchOnly:true,officialJraVerified:false,
+ predictionReady:false,actualPurchase:false
+}};
 const fixture=()=>({
  [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],
  [keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],
  [keys[6]]:[signedReceipt],[keys[7]]:[reboundWatch],
- [keys[8]]:[coreStudy],[keys[9]]:[fiveStudy]
+ [keys[8]]:[coreStudy],[keys[9]]:[fiveStudy],
+ [keys[10]]:[research6Draft]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -126,7 +146,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -176,7 +196,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
  assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
- assert.match(e('backupPreview').textContent,/元の10種類の記録へ戻しました/);
+ assert.match(e('backupPreview').textContent,/元の11種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -198,6 +218,35 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
   assert.equal(e('backupRestore').disabled,true,'bad factor note cannot restore');
   assert.deepEqual([...page.storage.entries()],current,'bad factor note has zero writes');
  }
+ // The previous full ten-part v7 format must never clear new 79 picks.
+ const legacy10=fixture();delete legacy10[keys[10]];
+ const old10=fakeFile(JSON.stringify({
+  format:'keiba-nine-owner-local-all-v7',
+  exportedAt:'2099-01-08T23:00:00Z',sections:legacy10
+ }));
+ const v7=boot(fixture()),before79=v7.storage.get(keys[10]);
+ v7.el('backupFile').files=[old10];await v7.el('backupFile').onchange();await flush();
+ assert.equal(v7.el('backupRestore').disabled,false);
+ assert.match(v7.el('backupPreview').textContent,/旧10種類のバックアップ/);
+ v7.el('backupRestore').onclick();
+ assert.equal(v7.storage.get(keys[10]),before79,
+  'legacy backup cannot erase signed research6 first-write tickets');
+ assert.match(boot(fixture()).el('backupSummary').textContent,/79点研究下書き固定1R/);
+ for(const damage of [
+  {...research6Draft,signature:'WRONG'},
+  {...research6Draft,snapshot:{...research6Draft.snapshot,points:39}},
+  {...research6Draft,snapshot:{...research6Draft.snapshot,amountYen:4500}},
+  {...research6Draft,snapshot:{...research6Draft.snapshot,officialJraVerified:true}},
+  {...research6Draft,snapshot:{...research6Draft.snapshot,first:[2,1]}},
+  {...research6Draft,snapshot:{...research6Draft.snapshot,
+   capturedAt:'2099-01-09T10:00:00+09:00'}},
+ ]){
+  const app=boot({...fixture(),[keys[10]]:[damage]});
+  assert.equal(app.el('backupDownload').disabled,true,
+   'malformed 79-point first-write receipt cannot be exported');
+ }
+ assert.equal(boot({...fixture(),[keys[10]]:[
+  research6Draft,research6Draft]}).el('backupDownload').disabled,true);
  // Old nine-section v6 backup must not remove newly fixed 85-point records.
  const oldNine=fixture();delete oldNine[keys[9]];
  const legacyNine=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v6',
@@ -396,6 +445,6 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const double=boot({...fixture(),[keys[7]]:[reboundWatch,reboundWatch]});
  assert.equal(double.el('backupDownload').disabled,true,
   'duplicate sealed race must be rejected');
- assert.ok(!js.includes('fetch('),'all nine sections must remain browser-local');
+ assert.ok(!js.includes('fetch('),'all eleven sections must remain browser-local');
  console.log('Owner local nine-part backup: rebound watch preservation, legacy restore, quota rollback PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
