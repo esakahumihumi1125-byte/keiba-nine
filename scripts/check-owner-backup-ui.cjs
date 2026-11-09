@@ -302,7 +302,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
   'restoring v3 backup must preserve protected rebound watches');
  // Version 4 seven-part backup should preserve the eighth (new) watch
  // collection: older backup files cannot erase predictions captured later.
- const legacySeven=fixture();delete legacySeven[keys[7]];delete legacySeven[keys[8]];
+ const legacySeven=fixture();for(const k of keys.slice(7))delete legacySeven[k];
  const v4=boot(fixture());
  const oldSeven=fakeFile(JSON.stringify({
   format:'keiba-nine-owner-local-all-v4',
@@ -317,7 +317,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
   'v4 restore must preserve existing new rebound capture');
  // A v5 eight-part backup must NOT erase the new signed 70-point
  // research snapshot, just as older v3/v4 never erase newer sections.
- const legacyEight=fixture();delete legacyEight[keys[8]];
+ const legacyEight=fixture();for(const k of keys.slice(8))delete legacyEight[k];
  const v5=boot(fixture());
  const oldEight=fakeFile(JSON.stringify({
   format:'keiba-nine-owner-local-all-v5',
