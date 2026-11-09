@@ -3208,7 +3208,7 @@ function verifyFiveProviderReport(result,receipts,day){
       tally[k][b]>exposure[k][b]))
    throw Error('85点項目別研究母数・暫定勝ち馬の集計不一致');
  }
- return verified;
+ return {rows:verified,exposure,tally};
 }
 $('autoFiveProviderCheck').onclick=async()=>{
  const button=$('autoFiveProviderCheck'),day=$('autoDay').value.replaceAll('-','');
@@ -3229,7 +3229,9 @@ $('autoFiveProviderCheck').onclick=async()=>{
   const result=await res.json();
   if(seq!==fiveProviderSeq||day!==$('autoDay').value.replaceAll('-',''))return;
   if(!res.ok)throw Error('jrdb_85_unavailable');
-  const rows=verifyFiveProviderReport(result,receipts,day);
+  const {rows,exposure,tally}=verifyFiveProviderReport(result,receipts,day);
+  const keys=['training','course_distance','pace','ground','recent'],
+   bands=['S','A','B','C'];
   const cards=[];
   for(const item of rows){
    const card=dom('details');
