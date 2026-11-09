@@ -56,6 +56,10 @@ from owner_three_core_receipts import (
 from owner_five_core_receipts import (
     issue_five_core_receipts, verify_five_core_receipts, FiveCoreReceiptError
 )
+from owner_research6_draft_receipts import (
+    issue_research6_draft_receipts, verify_research6_draft_receipts,
+    DraftReceiptError,
+)
 from jrdb_factor_preflight import audit_assessment_preflight
 from jrdb_training_hypothesis import build_training_hints, summarize_training_hints
 from jrdb_recent_hypothesis import build_recent_hints, summarize_recent_hints
@@ -2488,13 +2492,58 @@ def create_app(settings=None):
                     preview['fiveCoreCapture'] = issue_five_core_receipts(
                         preview, programme, password, date, now=stamp
                     )
+                # New policy tickets use their OWN HMAC domain and do not
+                # mutate the legacy 70/85 study or signed 2-factor drafts.
+                if 'research6FiveDrafts' in preview:
+                    preview['research6DraftCapture'] = issue_research6_draft_receipts(
+                        preview, programme, password, date, now=stamp
+                    )
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     HistoryFetchError, WatchReceiptError, CoreReceiptError,
-                    FiveCoreReceiptError, ValueError,
+                    FiveCoreReceiptError, DraftReceiptError, ValueError,
                     TypeError, KeyError):
                 return response('502 Bad Gateway', {
                     'error': '過去馬場の照合に失敗しました。履歴や実接続を確認してください。'})
             return response('200 OK', preview)
+        if method == 'POST' and path == '/api/owner-research6-draft-verify':
+            # Verify captured research tickets ONLY. No client-supplied signing,
+            # source lookups, official results, purchase or ROI writes.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人専用サービスでのみ利用できます。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE','').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '79点研究下書きの署名形式が不正です。'})
+            try:
+                length = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < length <= 250000:
+                    raise DraftReceiptError('Unexpected verification size')
+                raw = environ['wsgi.input'].read(length)
+                if len(raw) != length:
+                    raise DraftReceiptError('Incomplete verification payload')
+                params = json.loads(raw)
+                if (not isinstance(params, dict)
+                        or set(params) != {'date', 'receipts'}):
+                    raise DraftReceiptError('Untrusted verification fields')
+                records = verify_research6_draft_receipts(
+                    params['receipts'], password, params['date'])
+            except (DraftReceiptError, ValueError, TypeError, KeyError):
+                return response('400 Bad Request', {
+                    'error': '79点研究下書きの署名を確認できませんでした。'})
+            return response('200 OK', {
+                'version': 'owner-research6-draft-verify-1',
+                'serverSigned': True, 'recordCount': len(records),
+                'researchOnly': True, 'privateOwnerOnly': True,
+                'officialJraVerified': False,
+                'independentJraScheduleVerified': False,
+                'formalPredictionReady': False,
+                'resultComparisonReady': False, 'bettingReady': False,
+                'actualPurchase': False, 'autoPurchase': False,
+            })
         if method == 'POST' and path == '/api/owner-five-core-verify':
             # Authenticated private route; NO JRDB fetch, outcome or purchase.
             if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'

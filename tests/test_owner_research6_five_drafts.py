@@ -119,6 +119,25 @@ class OwnerFiveDraftTests(unittest.TestCase):
                      "password", "payout", "signedReceipt"):
             self.assertNotIn(text, repr(out))
 
+    def test_already_normalized_programme_preserves_real_hhmm_and_tickets(self):
+        """History endpoint passes normalizer output, NOT raw /tra clock."""
+        p, study = materials()
+        from jrdb_program_preview import normalize_program_rows
+        normalized = normalize_program_rows(p, DAY)
+        self.assertEqual(normalized[0]["post_time"], "12:00")
+        result = calculate(normalized, study)
+        self.assertEqual(result["draftCount"], 1)
+        self.assertEqual(result["races"][0]["points"], 40)
+        self.assertEqual(result["races"][0]["postTime"], "12:00")
+        malformed = copy.deepcopy(normalized)
+        malformed[0]["racekey"] = "0826ff01"
+        with self.assertRaises(CoverageError):
+            calculate(malformed, study)
+        malformed = copy.deepcopy(normalized)
+        malformed[0]["post_time"] = "99:99"
+        with self.assertRaises(CoverageError):
+            calculate(malformed, study)
+
     def test_old_research_scores_not_treated_as_formal_or_winners(self):
         p, s = materials()
         r = calculate(p, s)["races"][0]
