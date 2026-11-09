@@ -89,6 +89,42 @@ def _official(record):
     return tuple(final), trifecta, trio
 
 
+MISS_REASONS = (
+    "trifecta_hit", "winner_not_selected", "winner_wrong_slot",
+    "second_not_selected", "second_wrong_slot",
+    "third_not_selected", "third_wrong_slot",
+    "combination_missing",
+)
+
+
+def _first_failure(triple, finish):
+    """Diagnose the earliest uncovered trifecta slot, not a causal claim."""
+    if not triple:
+        return None
+    if finish in triple:
+        return "trifecta_hit"
+    slots = tuple({ticket[i] for ticket in triple} for i in range(3))
+    for place, number in enumerate(finish):
+        if number not in slots[place]:
+            if place == 0:
+                return ("winner_wrong_slot"
+                        if number in slots[1] or number in slots[2]
+                        else "winner_not_selected")
+            if place == 1:
+                return ("second_wrong_slot"
+                        if number in slots[0] or number in slots[2]
+                        else "second_not_selected")
+            return ("third_wrong_slot"
+                    if number in slots[0] or number in slots[1]
+                    else "third_not_selected")
+    return "combination_missing"
+
+
+def _count_misses(rows):
+    return {reason: sum(x.get("trifectaMissReason") == reason for x in rows)
+            for reason in MISS_REASONS}
+
+
 def review_100yen(predictions, results):
     """Reconcile only strictly pre-race locked prediction snapshots.
 
@@ -129,6 +165,7 @@ def review_100yen(predictions, results):
                 "trioPoints": len(trio), "investedYen": None,
                 "returnedYen": None, "hitTrifecta": None,
                 "hitTrio": None, "firstCandidateHit": None,
+                "trifectaMissReason": None,
             })
             continue
         finish, trifecta_payout, trio_payout = official
@@ -148,6 +185,7 @@ def review_100yen(predictions, results):
             "hitTrio": trio_hit,
             "firstCandidateHit": finish[0] in {t[0] for t in triple}
                                   if triple else None,
+            "trifectaMissReason": _first_failure(triple, finish),
         })
     done = [x for x in rows if x["status"] == "verified_result"]
     invested = sum(x["investedYen"] for x in done)
@@ -177,6 +215,7 @@ def review_100yen(predictions, results):
                 (x["trifectaPoints"] + x["trioPoints"]) * STAKE
                 for x in races if x["status"] == "pending"),
             "trifectaHits": sum(x["hitTrifecta"] is True for x in verified),
+            "trifectaMissReasons": _count_misses(verified),
             "trioHits": sum(x["hitTrio"] is True for x in verified),
             "firstCandidateHits": sum(
                 x["firstCandidateHit"] is True for x in candidates),
@@ -195,9 +234,12 @@ def review_100yen(predictions, results):
         "firstCandidateHits": sum(x["firstCandidateHit"] is True for x in candidates),
         "firstCandidateEligibleRaces": len(candidates),
         "trifectaHits": sum(x["hitTrifecta"] is True for x in done),
+        "trifectaMissReasons": _count_misses(done),
         "trioHits": sum(x["hitTrio"] is True for x in done),
         "actualPurchase": False,
         "note": ("レース前に固定された買い目を1点100円で仮購入した場合の集計。"
                  "JRA公式結果が未確認のレースは保留して収支に入れない。"
+                 "外れた着順の分類は最初に該当する候補枠だけを示す。"
+                 "原因の断定や過去予想の自動修正はしない。"
                  "実際の購入・払戻・課税記録とは別。"),
     }
