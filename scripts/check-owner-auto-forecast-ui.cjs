@@ -515,7 +515,7 @@ function boot(){
    const rows=JSON.parse(storage.get(STORAGE)||'[]').filter(
     r=>r.snapshot.date===requested);
    const saved=structuredClone(rows);
-   if(archiveCorrupt&&saved.length)saved[0].snapshot.trifectaTickets[0][0]=17;
+   if(archiveCorrupt&&saved.length)saved[0].snapshot.trifectaTickets[0][0]=19;
    return {ok:true,json:async()=>({
     archiveEnabled:true,persistentStorageReady:true,available:saved.length>0,
     raceCount:saved.length,receipts:saved,actualPurchase:false,
