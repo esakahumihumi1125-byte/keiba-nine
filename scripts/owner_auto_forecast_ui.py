@@ -59,6 +59,12 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <button id="autoReceiptVerify" type="button">この日の固定買い目をサーバーで署名確認</button>
 <p id="autoReceiptVerifyStatus" class="muted" role="status">未確認。端末内の署名付き研究記録だけを本人用サーバーで検証します。原データの追加取得や買い目の変更はありません。</p>
 <p class="muted">署名が正しくてもJRA公式の発走時刻・結果・実購入・サーバー保存を証明するものではありません。サーバー保存が未設定なら、別途バックアップが必要です。</p>
+<details><summary>サーバー保存済みの記録を見る（保存設定がある場合のみ）</summary>
+<p class="muted">この操作は保存済みの研究用買い目を読み取るだけです。JRDB有料データの追加取得、発走後の予想生成、iPhone記録の復元・上書き、実購入は行いません。</p>
+<button id="autoArchiveRead" type="button">選択日のサーバー固定記録を確認</button>
+<p id="autoArchiveStatus" class="muted" role="status">未確認。保存用データベースが未設定なら、その旨を表示します。</p>
+<div id="autoArchiveRaces"></div>
+</details>
 <p id="autoHistoryStatus" class="muted" role="status">この端末の固定記録を読み込み中です。</p>
 <div id="autoHistory"></div>
 <p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
@@ -919,11 +925,15 @@ function saveAutoReceipts(data,day){
 
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
- prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,
+ prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
 function clearHistory(){
+ archiveReadSeq++;
+ $('autoArchiveRead').disabled=false;
+ $('autoArchiveStatus').textContent='サーバー保存済みの研究記録は未確認です。';
+ $('autoArchiveRaces').replaceChildren();
  receiptVerifySeq++;
  $('autoReceiptVerify').disabled=false;
  $('autoReceiptVerifyStatus').textContent='署名は未確認。保存済み記録は変更していません。';
@@ -1843,6 +1853,96 @@ $('autoReceiptVerify').onclick=async()=>{
   $('autoReceiptVerifyStatus').textContent=
    '署名を確認できませんでした。保存済みの記録は消さず、バックアップと接続設定を確認してください。';
  }}finally{if(seq===receiptVerifySeq)button.disabled=false;}
+};
+// Read-only archive recovery view. The authenticated server verifies
+// signatures, and this browser NEVER writes the returned tickets to storage.
+$('autoArchiveRead').onclick=async()=>{
+ const button=$('autoArchiveRead'),selected=$('autoDay').value;
+ if(button.disabled)return;
+ const day=selected.replaceAll('-','');
+ const seq=++archiveReadSeq;
+ button.disabled=true;
+ $('autoArchiveRaces').replaceChildren();
+ $('autoArchiveStatus').textContent='サーバー保存の状態を確認中…';
+ try{
+  if(!/^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/.test(selected)||
+     Number.isNaN(new Date(selected+'T12:00:00Z').valueOf())||
+     new Date(selected+'T12:00:00Z').toISOString().slice(0,10)!==selected)
+   throw Error('invalid_day');
+  const response=await fetch('/api/owner-archive-read?date='+encodeURIComponent(selected),{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  const data=await response.json();
+  if(seq!==archiveReadSeq||selected!==$('autoDay').value)return;
+  if(!response.ok||!data||
+     typeof data.archiveEnabled!=='boolean'||
+     typeof data.persistentStorageReady!=='boolean'||
+     typeof data.available!=='boolean'||
+     data.actualPurchase!==false||
+     data.officialScheduleVerified!==false||
+     data.captureAuditVerified!==false||
+     data.officialFeedConnected!==false||
+     !Number.isInteger(data.raceCount)||
+     data.raceCount<0||data.raceCount>36||
+     !Array.isArray(data.receipts)||data.receipts.length!==data.raceCount)
+   throw Error('bad_archive_response');
+  if(!data.archiveEnabled){
+   if(data.persistentStorageReady!==false||data.available!==false||
+      data.raceCount!==0)
+    throw Error('inconsistent_disabled_archive');
+   $('autoArchiveStatus').textContent=
+    'サーバーへの永続保存は未設定です。iPhoneの固定記録は変更せず、バックアップをご利用ください。';
+   return;
+  }
+  if(!data.persistentStorageReady||data.available!==(data.raceCount>0))
+   throw Error('inconsistent_enabled_archive');
+  const ids=new Set(),tracks=new Set(['札幌','函館','福島','新潟','東京',
+   '中山','中京','京都','阪神','小倉']),cards=[];
+  for(const entry of data.receipts){
+   const p=entry?.snapshot;
+   if(!p||Object.keys(entry).sort().join(',')!=='signature,snapshot'||
+      typeof entry.signature!=='string'||!/^[0-9a-f]{64}$/.test(entry.signature)||
+      p.date!==selected||!tracks.has(p.track)||
+      !Number.isInteger(p.race)||p.race<1||p.race>12||
+      ids.has(p.track+'|'+p.race)||
+      p.sourceKind!=='prestart-locked'||p.actualPurchase!==false||
+      p.scheduleVerified!==false||p.predictionVerified!==false||
+      typeof p.lockedAt!=='string'||typeof p.scheduledOffAt!=='string'||
+      !Number.isFinite(Date.parse(p.lockedAt))||
+      !Number.isFinite(Date.parse(p.scheduledOffAt))||
+      Date.parse(p.lockedAt)>=Date.parse(p.scheduledOffAt)||
+      !Array.isArray(p.trifectaTickets)||p.trifectaTickets.length<1||
+      p.trifectaTickets.length>48||
+      !Array.isArray(p.trioTickets)||p.trioTickets.length!==0)
+    throw Error('invalid_archive_receipt');
+   const unique=new Set();
+   for(const ticket of p.trifectaTickets){
+    if(!Array.isArray(ticket)||ticket.length!==3||
+       ticket.some(n=>!Number.isInteger(n)||n<1||n>18)||
+       new Set(ticket).size!==3||unique.has(ticket.join('-')))
+     throw Error('invalid_archive_ticket');
+    unique.add(ticket.join('-'));
+   }
+   ids.add(p.track+'|'+p.race);
+   const card=dom('details'),count=p.trifectaTickets.length;
+   card.append(dom('summary',p.track+' '+p.race+'R｜固定済み3連単 '+count+'点'),
+    dom('p','サーバー保存済みの発走前研究記録。固定日時 '+p.lockedAt+
+     '／暫定発走 '+p.scheduledOffAt,'muted'),
+    dom('p',p.trifectaTickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
+   cards.push(card);
+  }
+  // No partial displays if any row has an invalid identity or timestamp.
+  $('autoArchiveRaces').replaceChildren(...cards);
+  $('autoArchiveStatus').textContent=data.raceCount
+   ?'サーバー保存済みの研究記録 '+data.raceCount+
+    'Rを確認。本人用サーバーの署名チェック済み。JRA公式・実購入・結果・回収率は未確認。iPhoneには書き戻していません。'
+   :'この開催日のサーバー保存済みの研究記録はありません。新しい予想は作りません。';
+ }catch(_){if(seq===archiveReadSeq){
+  $('autoArchiveRaces').replaceChildren();
+  $('autoArchiveStatus').textContent=
+   'サーバー保存済みの記録を安全に確認できません。設定・接続を確認してください。iPhone内の記録は無変更です。';
+ }}finally{if(seq===archiveReadSeq)button.disabled=false;}
 };
 $('autoHistoryAudit').onclick=async()=>{
  const button=$('autoHistoryAudit'),day=historyDay;
