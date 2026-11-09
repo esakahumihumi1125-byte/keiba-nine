@@ -64,6 +64,15 @@ jobs:
             echo 'JRDB owner deploy hook not configured; no deploy requested.'
             exit 0
           fi
+          # Only the known JRDB owner service is allowed. Mistakenly
+          # pasting the preview hook must never deploy the wrong app.
+          case "$RENDER_JRDB_DEPLOY_HOOK_URL" in
+            'https://api.render.com/deploy/srv-dbo1m515efls73cl39s0?key='*) ;;
+            *)
+              echo '### JRDB owner: BLOCKED (wrong hook destination)' >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+          esac
           LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
           if [[ "$LATEST" != "$PASSED_SHA" ]]; then
             echo '### JRDB owner: SKIPPED (superseded commit)' >> "$GITHUB_STEP_SUMMARY"
