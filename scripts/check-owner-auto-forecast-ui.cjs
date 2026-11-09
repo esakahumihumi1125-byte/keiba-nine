@@ -134,6 +134,41 @@ function resultWith(signature){
  }];
  return withSourcePassport(withTenPreview(result));
 }
+function full36RaceDraft(){
+ // Three-venue, 36R fixture: 1 prestart signed draft and 35 later holds.
+ // Never fabricate historical rankings for post-off races.
+ const data=resultWith('a'.repeat(64));
+ const first=data.races[0],ten=data.tenFactorPreview.races[0],
+  context=data.raceContext.races[0],passport=data.sourcePassport.races[0];
+ const coords=['東京','京都','福島'].flatMap(track=>
+  Array.from({length:12},(_,i)=>({track,race:i+1})));
+ data.races=coords.map(({track,race},i)=>i===0?structuredClone(first):{
+  ...structuredClone(first),track,race,status:'hold',
+  reason:'after_provisional_off',runners:[],first:[],second:[],third:[],
+  tickets:[],points:0,amountYen:0
+ });
+ data.raceCount=36;data.draftCount=1;data.holdCount=35;
+ data.holdReasons={after_provisional_off:35};
+ data.tenFactorPreview.races=coords.map(({track,race},i)=>
+  i===0?structuredClone(ten):{
+   ...structuredClone(ten),track,race,runnerCount:0,horses:[],
+   trainingLedRecheckNumbers:[]});
+ data.tenFactorPreview.raceCount=36;
+ data.raceContext.races=coords.map(({track,race})=>({
+  ...structuredClone(context),track,race,
+ }));
+ data.raceContext.raceCount=36;
+ data.raceContext.courseInfoPresentCount=coords.length;
+ data.raceContext.goingAvailableCount=coords.length;
+ data.sourcePassport.races=coords.map(({track,race},i)=>
+  i===0?structuredClone(passport):{
+   ...structuredClone(passport),track,race,draftStatus:'hold',
+   programmeRunnerCount:0,provisionalTrainingCount:0,
+   provisionalRecentCount:0,
+  });
+ data.sourcePassport.raceCount=36;
+ return data;
+}
 function researchBand(samples,hits,complete){
  if(!complete)return ['未評価','incomplete_history'];
  if(samples<3)return ['未評価','sample_below_three'];
@@ -1001,6 +1036,42 @@ function boot(){
  c.resume();
  assert.equal(c.get('autoDay').value,'2099-01-01');
  assert.equal(c.requests.length,2);
+ // A full Sunday: 36 race selectors, no extra JRDB calls or synthetic
+ // post-off grades. Selecting a different track never mutates first-write
+ // receipt, nor can a malformed stale selection choose another race.
+ const full=boot();
+ await new Promise(r=>setImmediate(r));
+ full.setServerRaw(full36RaceDraft());
+ await full.get('autoRun').onclick();
+ assert.match(full.get('autoSummary').textContent,/36R中、研究用自動案 1R／見送り 35R/);
+ const all36=full.get('autoRacePick');
+ assert.equal(all36.disabled,false);
+ assert.equal(all36.children.length,37);
+ assert.match(full.get('autoViewingStatus').textContent,/全場 36R/);
+ const paidRequestsBeforePick=full.requests.length;
+ const archivedBeforePick=full.storage.get(STORAGE);
+ all36.value='京都|12';
+ all36.onchange();
+ assert.equal(full.get('autoRaces').children[0].children.length,1);
+ assert.match(full.get('autoViewingStatus').textContent,/京都 12R/);
+ assert.match(full.get('autoRaces').children[0].children[0].children[0].textContent,/京都 12R 見送り/);
+ const heldPanel=full.get('autoRaces').children[0].children[0].children.find(
+  x=>x.className==='source-passport');
+ assert.ok(heldPanel);
+ assert.match(heldPanel.children[0].textContent,/正式採点0\/10/);
+ const nextHeld=heldPanel.children.find(x=>x.className==='source-next');
+ assert.ok(nextHeld);
+ assert.ok(!nextHeld.children.some(x=>/調教の仮評価不足 0頭/.test(x.textContent||'')));
+ assert.equal(full.requests.length,paidRequestsBeforePick);
+ assert.equal(full.storage.get(STORAGE),archivedBeforePick);
+ full.get('autoVenues').children[1].onclick();
+ assert.equal(all36.value,'');
+ assert.match(full.get('autoViewingStatus').textContent,/東京 12R/);
+ assert.equal(full.get('autoRaces').children[0].children.length,12);
+ full.get('autoVenues').children[0].onclick();
+ assert.equal(full.get('autoRaces').children[0].children.length,36);
+ assert.equal(full.requests.length,paidRequestsBeforePick);
+ assert.equal(full.storage.get(STORAGE),archivedBeforePick);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
