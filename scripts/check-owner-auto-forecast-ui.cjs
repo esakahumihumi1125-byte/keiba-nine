@@ -826,9 +826,8 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.match(a.get('autoTenStatus').textContent,/確認できません/);
  assert.equal(a.storage.get(STORAGE),beforePassportFail);
- // Reset current result to keep all later receipt tests independent.
- a.setServerRaw(resultWith('a'.repeat(64)));
- await a.get('autoRun').onclick();
+ // Do not rerun the original receipt: first-write-wins is intentional.
+ // The next test below supplies its own response and preserves this record.
  assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
