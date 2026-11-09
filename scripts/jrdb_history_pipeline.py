@@ -33,6 +33,7 @@ from jrdb_experimental_pace_scenarios import hypothesize_owner_pace
 from jrdb_experimental_rebound_review import build_rebound_context_review
 from jrdb_five_factor_hypotheses import combine_five_factor_hypotheses
 from jrdb_ten_factor_source_inventory import ten_factor_source_inventory
+from owner_three_core_research import three_core_research
 
 VERSION = "bounded-history-1"
 MAX_LOOKUPS_PER_RUN = 12
@@ -241,6 +242,9 @@ def run_bounded_history_audit(programme, entries, previous,
         ten_source_inventory = ten_factor_source_inventory(
             five_factor_view, personnel_matrix
         )
+        three_core_view = three_core_research(
+            five_factor_view, ten_source_inventory
+        )
         all_factor_materials = combine_ten_factor_observations(
             course_matrix, personnel_matrix
         )
@@ -310,6 +314,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "paceScenarioHypotheses": pace_scenarios,
         "fiveFactorHypotheses": five_factor_view,
         "tenFactorSourceInventory": ten_source_inventory,
+        "threeCoreResearch": three_core_view,
         "reboundContextReview": rebound_review,
         "allTenFactorSources": all_factor_materials,
         "realAssessmentPreflight": readiness_preflight,
