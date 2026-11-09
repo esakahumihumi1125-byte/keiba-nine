@@ -6,6 +6,7 @@ const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
+const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const day='20990101', date='2099-01-01';
 const pairs=[['S','S',8,'S'],['S','A',7,'A'],['A','A',6,'A'],
  ['A','B',5,'B'],['B','B',4,'B'],['B','C',3,'C'],['C','C',2,'C']];
@@ -839,6 +840,38 @@ function boot(){
     modelAccuracyPercent:null,bettingReady:false,actualPurchase:false,
     payoutVerified:false,roiPercent:null,
     historicalBandsNotCalibrated:true,
+    sourceIncompleteCouldChange:true,researchOnly:true,privateOwnerOnly:true
+   })};
+  }
+  if(url==='/api/owner-five-core-provider-check'){
+   const args=JSON.parse(options.body);
+   const snap=args.receipts[0].snapshot,first=snap.horses[0];
+   const keys=['training','course_distance','pace','ground','recent'],
+    counts=Object.fromEntries(keys.map(k=>[
+     k,{S:0,A:0,B:0,C:0}
+    ]));
+   for(const k of keys)counts[k][first.bands[k]]++;
+   return {ok:true,json:async()=>({
+    version:'owner-five-core-provider-observation-1',
+    date:args.date,sourceKind:'jrdb-tse-unverified-five-core-observation',
+    providerSourceReadCount:1,raceCount:args.receipts.length,
+    races:args.receipts.map((receipt,i)=>({
+     track:receipt.snapshot.track,race:receipt.snapshot.race,
+     providerStatus:i===0?'podium_observed':'pending',
+     observedPodiumNumbers:i===0?[first.number,2,3]:null,
+     scoredRunnerCount:receipt.snapshot.horses.length,
+     winnerStudyScore85:i===0?first.rawThirdPoints/3:null,
+     winnerStudyBands:i===0?structuredClone(first.bands):null,
+     studiedWinnerObserved:i===0?true:null,
+     officialVerified:coreProviderCorrupt?true:false,
+     predictionHitVerified:null
+    })),
+    observedRaceCount:1,observedStudiedWinnerCount:1,
+    winnerBandCounts:counts,verifiedRaceCount:0,confirmedHitCount:null,
+    officialJraVerified:false,jraIndependentConfirmation:false,
+    officialFeedConnected:false,outcomeCalibrationReady:false,
+    modelAccuracyPercent:null,bettingReady:false,actualPurchase:false,
+    payoutVerified:false,roiPercent:null,historicalBandsNotCalibrated:true,
     sourceIncompleteCouldChange:true,researchOnly:true,privateOwnerOnly:true
    })};
   }
@@ -2086,6 +2119,46 @@ function boot(){
  assert.equal(coreView.get('autoCoreProviderCheck').disabled,true);
  assert.equal(coreView.get('autoCoreProviderRaces').children.length,0);
  assert.equal(coreView.storage.get(CORE_STORAGE),lockedCore);
+ // Five-factor 85-weight observations are frozen once and outcome review
+ // never changes research, earlier tickets, purchases or 100-yen ROI.
+ const fiveSnapshot={
+  version:'owner-five-core-receipt-1',date:day,track:'東京',race:1,
+  sourceKind:'prestart-uncalibrated-85-research',
+  capturedAt:'2099-01-01T09:00:00+09:00',
+  scheduledOffAt:'2099-01-01T12:00:00+09:00',
+  raceRunnerCount:7,observedRunnerCount:1,
+  horses:[{number:1,bands:{
+   training:'S',course_distance:'A',pace:'B',ground:'A',recent:'C'
+  },rawThirdPoints:174}],
+  researchOnly:true,sourceHypothesesUncalibrated:true,
+  officialJraVerified:false,predictionReady:false,actualPurchase:false
+ };
+ const fiveReceipt={snapshot:fiveSnapshot,signature:'d'.repeat(64)};
+ coreView.storage.set(FIVE_STORAGE,JSON.stringify([fiveReceipt]));
+ coreView.get('autoDay').value='2099-01-02';coreView.get('autoDay').onchange();
+ coreView.get('autoDay').value='2099-01-01';coreView.get('autoDay').onchange();
+ assert.equal(coreView.get('autoFiveProviderCheck').disabled,false);
+ const originalFive=coreView.storage.get(FIVE_STORAGE);
+ const beforeFiveCheck=coreView.requests.length;
+ await coreView.get('autoFiveProviderCheck').onclick();
+ assert.equal(coreView.requests.length,beforeFiveCheck+1);
+ assert.equal(coreView.requests.at(-1).url,'/api/owner-five-core-provider-check');
+ assert.match(coreView.get('autoFiveProviderStatus').textContent,/暫定着順を観測 1\/1R/);
+ assert.match(coreView.get('autoFiveProviderStatus').textContent,/回収率は未確認/);
+ assert.match(coreView.get('autoFiveProviderRaces').children[0]
+  .children[2].textContent,/58.00\/85/);
+ assert.equal(coreView.storage.get(FIVE_STORAGE),originalFive);
+ assert.equal(coreView.storage.get(STORAGE),ticketBeforeProvider);
+ coreView.setCoreProviderCorrupt(true);
+ await coreView.get('autoFiveProviderCheck').onclick();
+ assert.match(coreView.get('autoFiveProviderStatus').textContent,
+              /安全に比較できませんでした/);
+ assert.equal(coreView.get('autoFiveProviderRaces').children.length,0);
+ assert.equal(coreView.storage.get(FIVE_STORAGE),originalFive);
+ coreView.setCoreProviderCorrupt(false);
+ coreView.get('autoDay').value='2099-01-03';coreView.get('autoDay').onchange();
+ assert.equal(coreView.get('autoFiveProviderCheck').disabled,true);
+ assert.equal(coreView.get('autoFiveProviderRaces').children.length,0);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
