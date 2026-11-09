@@ -3816,6 +3816,57 @@ function validatePrestartBody(raw,day){
  }
  if(Object.keys(totals).some(k=>raw.summary[k]!==totals[k]))
   throw Error('直前馬体資料の集計不一致');
+ // The new factor 1 source gate MUST match this exact prestart roster.
+ // Never transform observation availability into a body-condition grade.
+ const pre=raw.bodyOneEvidencePreflight;
+ if(!pre||pre.version!=='owner-body-one-evidence-preflight-1'||
+    pre.date!==day||pre.policyVersion!=='research-5'||
+    pre.factor!=='body_condition'||pre.weight!==1||
+    pre.raceCount!==raw.raceCount||
+    !Array.isArray(pre.races)||pre.races.length!==raw.raceCount||
+    pre.verifiedGradeCount!==0||pre.officialJraVerified!==false||
+    pre.sourceTimestampVerified!==false||
+    pre.conditionEffectValidated!==false||pre.outOfTimeValidated!==false||
+    pre.overallPredictionReady!==false||pre.bettingReady!==false||
+    pre.autoPurchase!==false||pre.researchOnly!==true||
+    pre.privateOwnerOnly!==true||pre.changesExistingTickets!==false||
+    pre.changesExistingReceipts!==false)
+  throw Error('馬体1点の資料根拠が不正');
+ const originals=new Map(raw.races.map(r=>[r.track+'|'+r.race,r]));
+ const seenRaces=new Set();
+ for(const gate of pre.races){
+  const id=gate?.track+'|'+gate?.race,src=originals.get(id);
+  if(!src||seenRaces.has(id)||gate.runnerCount!==src.registered||
+     gate.completeMeasuredPairs!==src.weightChangeRecords||
+     gate.missingMeasuredPairs!==src.registered-src.weightChangeRecords||
+     gate.verifiedGradeCount!==0||gate.scoreReady!==false||
+     !Array.isArray(gate.horses)||gate.horses.length!==src.registered)
+   throw Error('馬体1点の競馬場・頭数が不一致');
+  seenRaces.add(id);
+  const originalNumbers=new Map(src.runners.map(h=>[h.number,h]));
+  const numbers=new Set();
+  for(const h of gate.horses){
+   const p=originalNumbers.get(h?.number);
+   if(!p||numbers.has(h.number)||
+      h.sourcePairPresent!==(p.bodyWeightRecorded&&p.weightChangeRecorded)||
+      h.grade!=='未評価'||h.score1!==null||
+      h.officialVerified!==false||h.effectValidated!==false||
+      h.temporalValidationComplete!==false||h.bettingReady!==false||
+      !Array.isArray(h.missingEvidence))
+    throw Error('馬体1点の馬番・採点が不正');
+   numbers.add(h.number);
+   const gaps=[];
+   if(!p.prestartRowMatched)gaps.push('prestart_runner_row_unavailable');
+   if(!p.bodyWeightRecorded)gaps.push('body_weight_measurement_missing');
+   if(!p.weightChangeRecorded)gaps.push('previous_weight_comparison_missing');
+   gaps.push('independent_jra_weight_not_verified',
+    'body_condition_effect_not_calibrated','temporal_holdout_not_validated');
+   if(JSON.stringify(h.missingEvidence)!==JSON.stringify(gaps))
+    throw Error('馬体1点の不足根拠が矛盾');
+  }
+  if(numbers.size!==src.registered)throw Error('馬体1点の馬番欠落');
+ }
+ if(seenRaces.size!==raw.raceCount)throw Error('馬体1点の対象レース欠落');
  return raw.races;
 }
 $('autoPrestartBody').onclick=async()=>{
@@ -3855,11 +3906,34 @@ $('autoPrestartBody').onclick=async()=>{
      '｜JRA公式未確認・馬体1点未評価','muted'));
    }
    card.append(panel);
+   const evidence=raw.bodyOneEvidencePreflight.races.find(g=>
+    g.track===row.track&&g.race===row.race);
+   const prep=dom('details');
+   prep.append(dom('summary','馬体1点の採点準備：体重＋前走比あり '+
+    evidence.completeMeasuredPairs+'/'+row.registered+'頭（正式未評価）'));
+   prep.append(dom('p','資料の有無だけを確認しています。JRA公式値・発表時刻・'+
+    '体調への効果・時系列検証が未確認なので、記録があっても採点しません。','muted'));
+   const labels={
+    prestart_runner_row_unavailable:'直前情報行なし',
+    body_weight_measurement_missing:'計測体重なし',
+    previous_weight_comparison_missing:'前走比なし',
+    independent_jra_weight_not_verified:'JRA公式未照合',
+    body_condition_effect_not_calibrated:'体調効果未検証',
+    temporal_holdout_not_validated:'時系列未検証'};
+   for(const h of evidence.horses)
+    prep.append(dom('p',h.number+'番｜体重＋前走比 '+
+     (h.sourcePairPresent?'記録あり':'不足')+
+     '／不足根拠 '+h.missingEvidence.map(k=>labels[k]).join('・')+
+     '。馬体1点は未評価。','muted'));
+   card.append(prep);
    $('autoPrestartRaces').append(card);
   }
+  const pairs=raw.bodyOneEvidencePreflight.races.reduce(
+   (total,r)=>total+r.completeMeasuredPairs,0);
   $('autoPrestartStatus').textContent='直前資料 '+raw.summary.matchedRows+
    '頭照合／馬体重記録 '+raw.summary.weightRecords+
-   '頭。総合点・保存済み3連単・仮想収支は変更しません。';
+   '頭／体重＋前走比の資料ペア '+pairs+
+   '頭。馬体1点は未評価。総合点・保存済み3連単・仮想収支は変更しません。';
  }catch(_){if(seq===prestartSeq){
   $('autoPrestartRaces').replaceChildren();
   $('autoPrestartStatus').textContent=
