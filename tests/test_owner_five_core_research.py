@@ -48,6 +48,19 @@ class FiveCoreResearchTests(unittest.TestCase):
             self.assertEqual(race["completeObserved"], sum(
                 horse["evidenceScore85"] is not None
                 for horse in race["horses"]))
+            self.assertFalse(race["comparisonIsFormalRank"])
+            grouped = {}
+            missing_numbers = []
+            for horse in race["horses"]:
+                if horse["rawThirdPoints"] is None:
+                    missing_numbers.append(horse["number"])
+                else:
+                    grouped.setdefault(horse["rawThirdPoints"], []).append(horse["number"])
+            self.assertEqual(race["comparisonGroups"], [
+                {"rawThirdPoints": raw, "numbers": sorted(grouped[raw])}
+                for raw in sorted(grouped, reverse=True)
+            ])
+            self.assertEqual(race["unassessedNumbers"], sorted(missing_numbers))
             for horse in race["horses"]:
                 self.assertFalse(horse["scoreIsCalibrated"])
                 self.assertIsNone(horse["formalScore100"])
@@ -99,6 +112,42 @@ class FiveCoreResearchTests(unittest.TestCase):
         self.assertEqual(first["evidenceScore85"] -
                          worse["races"][0]["horses"][0]["evidenceScore85"], 3.0)
         self.assertFalse(worse["changesExistingCoreReceipts"])
+
+    def test_same_score_ties_are_one_group_not_arbitrary_rank(self):
+        five, inventory, _, _ = sources()
+        horses = five["races"][0]["runners"]
+        self.assertGreaterEqual(len(horses), 2)
+        for source_horse in horses[:2]:
+            linked = next(x for x in inventory["races"][0]["runners"]
+                          if x["number"] == source_horse["number"])
+            for key in CORE:
+                source_horse["bands"][key] = "S"
+                linked["provisionalBands"][key] = "S"
+        three = three_core_research(five, inventory)
+        four = four_core_research(five, inventory, three)
+        report = five_core_research(five, inventory, three, four)
+        race = report["races"][0]
+        tied = sorted(h["number"] for h in horses[:2])
+        self.assertEqual(race["comparisonGroups"][0],
+                         {"rawThirdPoints": 255, "numbers": tied})
+        self.assertFalse(race["comparisonIsFormalRank"])
+        self.assertFalse(race["trifectaReady"])
+        self.assertFalse(report["overallPredictionReady"])
+        second = horses[1]
+        second["bands"]["recent"] = "C"
+        linked = next(x for x in inventory["races"][0]["runners"]
+                      if x["number"] == second["number"])
+        linked["provisionalBands"]["recent"] = "C"
+        three = three_core_research(five, inventory)
+        four = four_core_research(five, inventory, three)
+        updated = five_core_research(five, inventory, three, four)
+        groups = updated["races"][0]["comparisonGroups"]
+        self.assertEqual(groups[0], {
+            "rawThirdPoints": 255, "numbers": [horses[0]["number"]]
+        })
+        self.assertEqual(groups[1], {
+            "rawThirdPoints": 246, "numbers": [horses[1]["number"]]
+        })
 
     def test_missing_recent_never_cast_to_c_or_reweight_other_four(self):
         five, inventory, _, _ = sources()
