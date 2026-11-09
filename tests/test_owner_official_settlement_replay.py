@@ -146,7 +146,6 @@ class MultiWinnerSettlementReplayTests(unittest.TestCase):
             lambda p: p.update(sourceUrl="http://www.jra.go.jp/JRADB/accessS.html"),
             lambda p: p.update(sourceUrl="https://www.jra.go.jp/JRADB/accessS.html?CNAME=pw01sde20990413"),
             lambda p: p.update(sourceVerificationMethod="operator_transcription"),
-            lambda p: p.update(finalizedAt="2099-04-12T09:00:00+09:00"),
             lambda p: p.update(sourceCollectedAt="2099-04-12T10:00:00+09:00"),
             lambda p: p["trifectaPayouts"].append({"ticket": [1, 2, 3], "payoutYen": 40000}),
             lambda p: p["trifectaPayouts"][0].update(payoutYen=99),
@@ -159,6 +158,13 @@ class MultiWinnerSettlementReplayTests(unittest.TestCase):
             change(p)
             with self.subTest(change=repr(change)), self.assertRaises(SettlementReplayError):
                 attest(p)
+        # A result stamped before a race can be sealed syntactically,
+        # but the independent replay must reject it against the locked off-time.
+        pre_off = payload()
+        pre_off["finalizedAt"] = "2099-04-12T09:00:00+09:00"
+        with self.assertRaises(SettlementReplayError):
+            replay_attested_settlements(
+                receipts(), PASS, DAY, [attest(pre_off)], RESULT_SECRET, now=NOW)
         valid = attest(payload())
         with self.assertRaises(SettlementReplayError):
             replay_attested_settlements(
