@@ -797,6 +797,13 @@ function boot(){
   /調教30：近走3での仮順位/);
  assert.match(a.get('autoTenStatus').textContent,/残り8項目は未評価/);
  assert.match(a.get('autoSummary').textContent,/馬場資料の存在 1R/);
+ assert.match(a.get('autoSourceSummary').textContent,/資料進捗：1R中/);
+ assert.match(a.get('autoSourceSummary').textContent,/調教の仮評価がある馬 7頭/);
+ assert.match(a.get('autoSourceSummary').textContent,/近走 7頭/);
+ assert.match(a.get('autoSourceSummary').textContent,/コース条件 1R/);
+ assert.match(a.get('autoSourceSummary').textContent,/当日馬場資料 1R/);
+ assert.match(a.get('autoSourceSummary').textContent,/正式採点0\/10/);
+ assert.match(a.get('autoSourceSummary').textContent,/買い目は変更しません/);
  assert.match(a.get('autoRaces').children[0].children[0].children[1].textContent,
   /芝／2000m／左／重（JRDB資料）/);
  assert.match(a.get('autoRaces').children[0].children[0].children[2].textContent,
@@ -826,6 +833,7 @@ function boot(){
  await a.get('autoRun').onclick();
  assert.match(a.get('autoTenStatus').textContent,/確認できません/);
  assert.equal(a.storage.get(STORAGE),beforePassportFail);
+ assert.match(a.get('autoSourceSummary').textContent,/取得に失敗しました/);
  // Do not rerun the original receipt: first-write-wins is intentional.
  // The next test below supplies its own response and preserves this record.
  assert.match(a.get('autoSavedStatus').textContent,/新規 1R/);
