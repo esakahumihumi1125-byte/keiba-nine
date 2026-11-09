@@ -555,9 +555,22 @@ function withFiveCore(report){
   const missingByFactor=Object.fromEntries(factors.map(k=>[
    k,horses.filter(h=>h.missing.includes(k)).length
   ]));
+  const buckets=new Map();
+  for(const h of horses){
+   if(h.rawThirdPoints!==null){
+    if(!buckets.has(h.rawThirdPoints))buckets.set(h.rawThirdPoints,[]);
+    buckets.get(h.rawThirdPoints).push(h.number);
+   }
+  }
   return {track:five.track,race:five.race,
    runnerCount:horses.length,horses,
    completeObserved:horses.filter(h=>h.rawThirdPoints!==null).length,
+   comparisonGroups:[...buckets.keys()].sort((a,b)=>b-a).map(raw=>({
+    rawThirdPoints:raw,numbers:buckets.get(raw).sort((a,b)=>a-b)
+   })),
+   unassessedNumbers:horses.filter(h=>h.rawThirdPoints===null)
+    .map(h=>h.number).sort((a,b)=>a-b),
+   comparisonIsFormalRank:false,
    missingByFactor,researchOnly:true,
    formalGradeReady:false,trifectaReady:false};
  });
@@ -1203,8 +1216,14 @@ function boot(){
   x=>x.tag==='details'&&/重点5項目の研究用85点/.test(
    x.children[0]?.textContent||''));
  assert.ok(fiveCorePanel);
- assert.equal(fiveCorePanel.children.length,10);
+ assert.equal(fiveCorePanel.children.length,11);
  assert.match(fiveCorePanel.children[1].textContent,/近走の最大影響は3点だけ/);
+ const evidenceOrder=fiveCorePanel.children.at(-1);
+ assert.match(evidenceOrder.children[0].textContent,/研究用85点の比較順/);
+ assert.match(evidenceOrder.children[1].textContent,/同点は並列・未評価は除外/);
+ assert.match(evidenceOrder.children[2].textContent,/比較順は付けられません/);
+ assert.match(evidenceOrder.children[3].textContent,/未評価・比較順から除外/);
+ assert.match(evidenceOrder.children[3].textContent,/1番/);
  assert.match(fiveCorePanel.children[2].textContent,/残る15点は血統8・枠斤量3/);
  assert.match(fiveCorePanel.children[3].textContent,/1番｜調教 S／近走 S／コース 未評価／展開 未評価／馬場/);
  assert.match(fiveCorePanel.children[3].textContent,/研究用未評価/);
@@ -1292,6 +1311,9 @@ function boot(){
   h=>h.fiveCoreResearch.races[0].horses[0].formalScore100=85,
   h=>h.fiveCoreResearch.recentResultRankNotPrediction=false,
   h=>h.fiveCoreResearch.factorWeights.recent=30,
+  h=>h.fiveCoreResearch.races[0].comparisonGroups=[{rawThirdPoints:255,numbers:[1]}],
+  h=>h.fiveCoreResearch.races[0].unassessedNumbers=[],
+  h=>h.fiveCoreResearch.races[0].comparisonIsFormalRank=true,
  ]){
   const invalid=withFiveCore(historical());mutate(invalid);
   a.setHistorical(invalid);

@@ -2287,6 +2287,9 @@ function validateHistory(h){
       race.formalGradeReady!==false||race.trifectaReady!==false||
       race.researchOnly!==true||!Array.isArray(race.horses)||
       race.horses.length!==race.runnerCount||
+      race.comparisonIsFormalRank!==false||
+      !Array.isArray(race.comparisonGroups)||
+      !Array.isArray(race.unassessedNumbers)||
       !race.missingByFactor||Object.keys(race.missingByFactor).length!==5||
       !Number.isInteger(race.completeObserved)||
       race.completeObserved<0||race.completeObserved>race.runnerCount)
@@ -2338,6 +2341,19 @@ function validateHistory(h){
    if(seen.size!==race.runnerCount||complete!==race.completeObserved||
       Object.keys(w).some(k=>missingCount[k]!==race.missingByFactor[k]))
     throw Error('重点5項目の集計が不一致');
+   const buckets=new Map(),unassessed=[];
+   for(const h of race.horses){
+    if(h.rawThirdPoints===null){unassessed.push(h.number);continue;}
+    if(!buckets.has(h.rawThirdPoints))buckets.set(h.rawThirdPoints,[]);
+    buckets.get(h.rawThirdPoints).push(h.number);
+   }
+   const expectedGroups=[...buckets.keys()].sort((a,b)=>b-a).map(raw=>({
+    rawThirdPoints:raw,numbers:buckets.get(raw).sort((a,b)=>a-b)
+   }));
+   if(JSON.stringify(race.comparisonGroups)!==JSON.stringify(expectedGroups)||
+      JSON.stringify(race.unassessedNumbers)!==
+       JSON.stringify(unassessed.sort((a,b)=>a-b)))
+    throw Error('研究用85点の比較順が元データと不一致');
    details.fiveCore=race;
   }
   if(seenRaces.size!==historyCoordinates.size)
@@ -3117,6 +3133,23 @@ $('autoHistoryAudit').onclick=async()=>{
         '未評価':' '+horse.evidenceScore85.toFixed(2)+'/85点')+
        '（正式100点ではありません）','muted'));
     }
+    const order=dom('details');
+    order.append(dom('summary','研究用85点の比較順（同点並列・正式順位ではない）'));
+    order.append(dom('p','5項目の研究値がそろう馬だけ比較。同点は並列・未評価は除外。正式な良い馬順・勝率・馬券とは別です。','muted'));
+    if(core.comparisonGroups.length){
+     for(const group of core.comparisonGroups){
+      order.append(dom('p',group.numbers.map(n=>n+'番').join('・')+
+       '｜研究比較値 '+(group.rawThirdPoints/3).toFixed(2)+'/85点'+
+       (group.numbers.length>1?'（同点・順不同）':'')+
+       '（勝率ではありません）','muted'));
+     }
+    }else order.append(dom('p','全5項目がそろう馬は0頭。比較順は付けられません。','muted'));
+    if(core.unassessedNumbers.length){
+     order.append(dom('p','未評価・比較順から除外：'+
+      core.unassessedNumbers.map(n=>n+'番').join('・')+
+      '（弱い馬・C判定を意味しません）','muted'));
+    }
+    panel.append(order);
     card.append(panel);
    }
    if(details.rosterVerified&&details.tenInventory){
