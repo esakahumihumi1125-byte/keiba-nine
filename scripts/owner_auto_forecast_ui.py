@@ -29,6 +29,8 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
 <p class="muted">本人が押した時だけJRA公式ページから開催場別の出馬表PDFリンクを探します。PDFの内容は自動解析しません。出走馬・取消・馬場・発走時刻を公式情報と自分で照合するための補助です。</p>
 <button id="autoOfficialPdf" type="button">選択日のJRA公式PDFリンクを探す</button>
+<p id="autoJraReleaseGuide" class="muted" role="status">選択日の出馬表公開目安を計算中。</p>
+<p id="autoJraCrosscheck" class="muted" role="status">JRA公式照合：0R（未実施）。</p>
 <p id="autoOfficialPdfStatus" class="muted" role="status">未確認。PDFリンクの存在だけではJRA公式照合済みとは扱いません。</p>
 <div id="autoOfficialPdfLinks"></div>
 <a href="https://www.jra.go.jp/keiba/rpdf/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く</a>
@@ -689,6 +691,7 @@ function fixedComparisonMessage(report){
 }
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
+ jraDraftTracks=new Set(data.races.map(x=>x.track));updateJraCrosscheck();
  const fixed=compareFixedWithDrafts(data,day);
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
  const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
@@ -1075,6 +1078,7 @@ const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
  officialPdfSeq=0,coreVerifySeq=0,coreProviderSeq=0,
+ jraDraftTracks=new Set(),jraPdfTracks=new Set(),jraPdfChecked=false,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
@@ -1090,6 +1094,8 @@ function clearHistory(){
  $('autoOfficialPdf').disabled=false;
  $('autoOfficialPdfStatus').textContent='公式PDFリンクは未確認。出馬表の内容を自動照合していません。';
  $('autoOfficialPdfLinks').replaceChildren();
+ jraDraftTracks=new Set();jraPdfTracks=new Set();jraPdfChecked=false;
+ updateJraReleaseGuide();updateJraCrosscheck();
  archiveReadSeq++;
  $('autoArchiveRead').disabled=false;
  $('autoArchiveStatus').textContent='サーバー保存済みの研究記録は未確認です。';
@@ -2341,7 +2347,49 @@ function validateHistory(h){
  return results;
 }
 function jstToday(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});}
+
+function updateJraReleaseGuide(){
+ const date=$('autoDay').value,now=new Date();
+ if(!/^20\d{2}-\d{2}-\d{2}$/.test(date)||
+    Number.isNaN(new Date(date+'T12:00:00Z').valueOf())||
+    new Date(date+'T12:00:00Z').toISOString().slice(0,10)!==date){
+  $('autoJraReleaseGuide').textContent='開催日が不正です。JRA公開目安は未計算。';return;
+ }
+ const selected=new Date(date+'T12:00:00Z'),weekday=selected.getUTCDay();
+ if(weekday!==0&&weekday!==6){
+  $('autoJraReleaseGuide').textContent='平日・変則開催は土日の通常発表時刻を適用しません。JRA公式で確認（照合0R）。';return;
+ }
+ const prev=n=>new Date(selected.valueOf()-n*86400000).toISOString().slice(0,10);
+ const thursday=prev(weekday===6?2:3),prior=prev(1);
+ // 15 minutes is a UI buffer, not proof that the JRA has published.
+ const unnamed=new Date(thursday+'T16:15:00+09:00').valueOf();
+ const numbered=new Date(prior+'T10:15:00+09:00').valueOf();
+ const stage=now.valueOf()<unnamed?
+  '通常の馬番なし出馬表の発表目安は '+thursday+' 16時すぎ':
+  now.valueOf()<numbered?
+   '馬番なし出馬表の通常目安は経過。馬番付きは '+prior+' 10時すぎが通常目安':
+   '馬番付き出馬表の通常公開目安は経過（実際の掲載は未確認）';
+ $('autoJraReleaseGuide').textContent=stage+
+  '。GⅠ・一部重賞・変則開催は別時刻。公式の馬番・取消・馬場・発走時刻は未照合（0R）。';
+}
+function updateJraCrosscheck(){
+ const tracks=[...jraDraftTracks].sort(),linked=[...jraPdfTracks].sort();
+ const missing=tracks.filter(k=>!jraPdfTracks.has(k));
+ const extras=linked.filter(k=>!jraDraftTracks.has(k));
+ $('autoJraCrosscheck').textContent=
+  'JRA公式との独立照合 0R（未実施）。JRDBの開催場 '+
+  tracks.length+'場'+(tracks.length?'（'+tracks.join('・')+'）':'（未取得）')+'。'+
+  (jraPdfChecked?
+   'JRA公式PDFリンク '+linked.length+'場分。'+
+   (tracks.length?'リンク未検出 '+missing.length+'場'+
+    (missing.length?'（'+missing.join('・')+'）':'')+'。':'')+
+   (extras.length?'PDFだけ検出 '+extras.join('・')+'。':''):
+   'JRA公式PDFリンクは未検索。')+
+  'リンク未検出は開催なしを意味せず、リンク発見も馬番・取消・馬場・発走時刻の一致を証明しません。';
+}
+
 $('autoDay').value=jstToday();
+updateJraReleaseGuide();updateJraCrosscheck();
 function updateReviewLink(){
  const day=$('autoDay').value;
  const valid=/^20\d{2}-\d{2}-\d{2}$/.test(day)&&
@@ -2422,6 +2470,8 @@ $('autoOfficialPdf').onclick=async()=>{
     throw Error('invalid_official_url');
    validated.push(row);
   }
+  jraPdfTracks=new Set(validated.map(x=>x.track));jraPdfChecked=true;
+  updateJraCrosscheck();
   const links=$('autoOfficialPdfLinks');
   for(const item of validated){
    const a=dom('a',date+' '+item.track+'｜JRA公式出馬表PDFを開く');
@@ -2434,6 +2484,7 @@ $('autoOfficialPdf').onclick=async()=>{
    :'PDFリンクはまだ検出できません。未掲載・掲載遅れ・形式変更などの可能性があり、開催なしとは判断しません。';
  }catch(_){if(seq===officialPdfSeq){
   $('autoOfficialPdfLinks').replaceChildren();
+  jraPdfTracks=new Set();jraPdfChecked=false;updateJraCrosscheck();
   $('autoOfficialPdfStatus').textContent=
    'JRA公式PDFリンクを確認できませんでした。JRA公式一覧から手動で確認してください。';
  }}finally{if(seq===officialPdfSeq)button.disabled=false;}
