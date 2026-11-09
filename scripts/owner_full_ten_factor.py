@@ -11,6 +11,7 @@ from evaluation_policy import FACTORS, POINTS, POLICY_VERSION, SCORE_THRESHOLDS,
 from jrdb_coverage import CoverageError
 from jrdb_owner_auto_draft import _safe_formation_sizes
 from keiba_trifecta_builder import REQUIRED_EVIDENCE, build_trifecta
+from owner_upset_alternative import build_upset_alternative, _hold as hold_upset
 
 VERSION = "owner-full-ten-factor-gate-1"
 RECHECK_VERSION = "owner-full-ten-winner-recheck-1"
@@ -66,6 +67,7 @@ def _empty(status, *, missing=None, evidence=None):
         "bettingReady": False, "autoPurchase": False, "overallReady": False,
         "ranking": [], "missingByNumber": missing or {},
         "winnerRecheck": _empty_recheck(),
+        "upsetAlternative": hold_upset("full_ten_not_ready"),
         "trifecta": build_trifecta([1, 2, 3, 4], evidence=evidence),
     }
 
@@ -200,6 +202,7 @@ def full_ten_factor_preview(snapshot, *, now):
     ])
     if sizes is None:
         response["status"] = "ambiguous_score_cutoff"
+        response["upsetAlternative"] = hold_upset("ambiguous_score_cutoff")
         response["trifecta"] = build_trifecta(
             [h["number"] for h in ranking], evidence=None)
         return response
@@ -212,4 +215,10 @@ def full_ten_factor_preview(snapshot, *, now):
     )
     if response["trifecta"]["status"] == "review_only":
         response["status"] = "review_only"
+    # An independently supported lower-ranked winner is an ALTERNATIVE
+    # hypothesis only; never edit/replace the sealed primary formation.
+    # Fail closed if 4 JRA checks, 10 grades or prestart review are absent.
+    response["upsetAlternative"] = build_upset_alternative(
+        ranking, recheck, evidence, response["trifecta"],
+    )
     return response
