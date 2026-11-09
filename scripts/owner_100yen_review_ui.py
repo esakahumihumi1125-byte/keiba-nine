@@ -21,6 +21,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="summary" class="summary"></div><p class="muted" id="coverage"></p></section>
 <section><h2>競馬場別</h2><div id="venue"></div></section>
 <section><h2>各レース</h2><div id="races"></div></section>
+<section><h2>JRDB暫定着順との参考比較（任意）</h2>
+<p class="muted">発走前に固定したサーバー署名付き3連単だけを、JRDBのレース後暫定着順と比較します。押したときだけJRDB成績を最大1回取得。JRA公式の的中判定・払い戻し・100円仮想収支とは完全に別です。同着・取消・不完全資料は判定保留にします。</p>
+<button id="provisionalCheck" type="button">固定3連単とJRDB暫定着順を参考照合</button>
+<p id="provisionalStatus" class="muted" role="status">まだ照合していません。自動で成績APIは呼びません。</p>
+<div id="provisionalRaces"></div></section>
 <p class="muted">表示専用です。予想・購入・記録・JRDBの原資料は変更しません。
 公式結果の自動取り込みが未完成の場合、仮想回収率は未確定のまま表示されます。</p>
 </main><script src="/owner-100yen-review.js" defer></script></body></html>"""
@@ -109,6 +114,136 @@ function draw(input){
  }else $('races').append(el('p','この日の発走前固定済み予想はありません。','empty'));
 }
 const LOCKED_STORAGE='keiba-nine-owner-server-receipts-v1';
+
+const PRELIMINARY='owner-prestart-tse-comparison-1';
+function checkedPreliminary(input,day){
+ if(!input||input.version!==PRELIMINARY||input.date!==day||
+    input.researchOnly!==true||input.privateOwnerOnly!==true||
+    input.officialJraVerified!==false||input.independentJraVerified!==false||
+    input.payoutVerified!==false||input.roiPercent!==null||
+    input.officialHitCount!==null||input.realPredictionReady!==false||
+    input.actualPurchase!==false||input.bettingReady!==false||
+    input.changesExistingReceipts!==false||
+    ![0,1].includes(input.providerReadCount)||
+    !Number.isInteger(input.raceCount)||input.raceCount<1||input.raceCount>36||
+    !Array.isArray(input.races)||input.races.length!==input.raceCount||
+    !Number.isInteger(input.observedRaceCount)||
+    !Number.isInteger(input.pendingRaceCount)||
+    !Number.isInteger(input.provisionalExactCombinationCount)||
+    !Number.isInteger(input.provisionalFirstCandidateCount))
+  throw Error('暫定比較の検証不可');
+ const seen=new Set();let observed=0,exact=0,first=0;
+ for(const race of input.races){
+  const id=race?.track+'|'+race?.race;
+  if(seen.has(id)||!Number.isInteger(race?.race)||race.race<1||
+     race.race>12||!['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'].includes(race.track)||
+     !Number.isInteger(race.trifectaPoints)||race.trifectaPoints<1||
+     race.trifectaPoints>48||race.officialVerified!==false||
+     !['pending','provider_podium_observed'].includes(race.providerStatus))
+   throw Error('暫定着順の馬番不一致');
+  seen.add(id);
+  const yes=race.providerStatus==='provider_podium_observed';
+  for(const k of ['firstCandidateObserved','secondCandidateObserved',
+                   'thirdCandidateObserved','exactCombinationObserved']){
+   if(yes?typeof race[k]!=='boolean':race[k]!==null)
+    throw Error('暫定着順の未確定値不正');
+  }
+  if(yes){
+   if(!['first_candidate','wrong_slot','not_selected'].includes(race.firstMissType)||
+      (race.firstCandidateObserved!==(race.firstMissType==='first_candidate'))||
+      (race.exactCombinationObserved &&
+       !(race.firstCandidateObserved&&race.secondCandidateObserved&&race.thirdCandidateObserved)))
+    throw Error('暫定比較値の矛盾');
+   observed++;
+   exact+=Number(race.exactCombinationObserved);
+   first+=Number(race.firstCandidateObserved);
+  }else if(race.firstMissType!==null)throw Error('判定保留に矛盾');
+ }
+ if(input.observedRaceCount!==observed||
+    input.pendingRaceCount!==input.raceCount-observed||
+    input.provisionalExactCombinationCount!==exact||
+    input.provisionalFirstCandidateCount!==first||
+    (input.providerReadCount===0&&observed!==0))
+  throw Error('暫定着順の件数不一致');
+ return input;
+}
+async function signedForPreliminary(day){
+ // Explicit tap only. Prefer original server archive if it exists.
+ const r=await fetch('/api/owner-archive-read?date='+encodeURIComponent(day),{
+  cache:'no-store',credentials:'same-origin',
+  headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+ });
+ if(!r.ok)throw Error('固定記録の確認ができません');
+ const record=await r.json();
+ if(record?.archiveEnabled===true){
+  if(record.available!==true||!Array.isArray(record.receipts)||
+     record.receipts.length===0)throw Error('サーバーの固定記録なし');
+  return record.receipts;
+ }
+ if(record?.archiveEnabled!==false||record.available!==false||
+    record.persistentStorageReady!==false)
+  throw Error('固定記録の状態が未確認');
+ const raw=localStorage.getItem(LOCKED_STORAGE);
+ if(!raw||raw.length>650000)throw Error('この端末に署名付き固定記録なし');
+ const all=JSON.parse(raw);
+ if(!Array.isArray(all)||all.length>360)throw Error('固定記録形式が不正');
+ const chosen=all.filter(x=>x?.snapshot?.date===day);
+ if(chosen.length<1||chosen.length>36)throw Error('対象日の固定記録なし');
+ return chosen;
+}
+function showPreliminary(data){
+ const p=$('provisionalRaces');p.replaceChildren();
+ p.append(el('p','暫定1〜3着を検出 '+data.observedRaceCount+
+  'R／保留 '+data.pendingRaceCount+'R。固定3連単との参考一致 '+
+  data.provisionalExactCombinationCount+'R／1着候補にいた '+
+  data.provisionalFirstCandidateCount+'R（いずれも未確定・公式的中率ではありません）。','muted'));
+ const reason={first_candidate:'1着候補内',wrong_slot:'勝ち馬を2・3着候補に配置',
+  not_selected:'勝ち馬を候補から除外'};
+ for(const race of data.races){
+  const status=race.providerStatus==='pending'?'暫定着順未成立・保留':
+    '参考一致 '+(race.exactCombinationObserved?'あり':'なし')+'／'+
+    reason[race.firstMissType];
+  p.append(el('p',race.track+race.race+'R｜'+status+
+   '（JRA公式・払戻は未照合）','muted'));
+ }
+}
+let preliminaryRequest=0;
+function clearPreliminary(){
+ preliminaryRequest++;
+ $('provisionalRaces').replaceChildren();
+ $('provisionalStatus').textContent='まだ照合していません。自動で成績APIは呼びません。';
+ $('provisionalCheck').disabled=false;
+}
+$('provisionalCheck').onclick=async()=>{
+ const seq=++preliminaryRequest,day=$('day').value,btn=$('provisionalCheck');
+ $('provisionalRaces').replaceChildren();
+ if(!validDay(day)){
+  $('provisionalStatus').textContent='開催日を選び直してください。';return;
+ }
+ btn.disabled=true;
+ $('provisionalStatus').textContent='本人用の固定記録を検証中。JRDB成績は発走後のみ取得します。';
+ try{
+  const receipts=await signedForPreliminary(day);
+  if(seq!==preliminaryRequest)return;
+  const res=await fetch('/api/owner-prestart-tse-review',{
+   method:'POST',cache:'no-store',credentials:'same-origin',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json','Accept':'application/json'},
+   body:JSON.stringify({date:day,receipts})
+  });
+  if(!res.ok)throw Error('成績照合失敗');
+  const report=checkedPreliminary(await res.json(),day);
+  if(seq!==preliminaryRequest)return;
+  showPreliminary(report);
+  $('provisionalStatus').textContent='JRDB暫定着順との参考比較のみ完了。'+
+   'JRA公式の結果・的中・払戻・回収率に加算していません。';
+ }catch(_){
+  if(seq===preliminaryRequest)
+   $('provisionalStatus').textContent='暫定照合ができませんでした。記録・仮想収支は変更していません。';
+ }finally{
+  if(seq===preliminaryRequest)btn.disabled=false;
+ }
+};
+
 async function readReport(day){
  // A durable private archive wins when configured; if no archived races exist,
  // older local-only signed research receipts remain readable as a fallback.
@@ -164,6 +299,7 @@ $('day').value=fromForecast||
 $('day').onchange=()=>{
  request++;$('load').disabled=false;clear();
  $('status').textContent='開催日を選んで確認してください。';
+ clearPreliminary();
 };
 $('load').onclick=async()=>{
  const seq=++request,day=$('day').value,button=$('load');clear();
