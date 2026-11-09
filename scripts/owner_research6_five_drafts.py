@@ -15,7 +15,8 @@ from evaluation_policy import (
 )
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import _valid_date
-from jrdb_program_preview import normalize_program_rows, ProgrammeFormatError
+from jrdb_program_preview import (normalize_program_rows, ProgrammeFormatError,
+                                  TRACKS, RACE_KEY)
 from jrdb_owner_auto_draft import _safe_formation_sizes
 from owner_new_weight_five_research import (
     VERSION as SOURCE_VERSION, KEYS, WEIGHTS,
@@ -131,6 +132,52 @@ def _check_horses(race):
     ))
 
 
+def _normal_programme(programme, day):
+    """Preserve HH:MM schedule from already-normalized /tra output.
+
+    Service gives normalize_program_rows() output while offline tests and
+    direct provider invocations may give raw 4-digit HHMM /tra fields.
+    Running the original normalizer twice drops HH:MM to None, making every
+    otherwise-valid research race appear to have no post time.
+    """
+    if not isinstance(programme, list) or len(programme) > 120:
+        raise CoverageError("Invalid programme roster")
+    normalized = [isinstance(row, dict) and (
+        row.get("programmeOnly") is True
+        or isinstance(row.get("post_time"), str) and
+        bool(re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", row["post_time"])))
+        for row in programme]
+    if any(normalized):
+        if not all(normalized):
+            raise CoverageError("Mixed raw and normalized JRDB programme")
+        observed, used = [], set()
+        for row in programme:
+            key = row.get("racekey")
+            track, race = row.get("track"), row.get("race")
+            if (not isinstance(key, str) or not RACE_KEY.fullmatch(key)
+                    or key[:2] not in TRACKS
+                    or track != TRACKS[key[:2]]
+                    or type(race) is not int or not 1 <= race <= 12
+                    or key[6:] != f"{race:02d}"
+                    or row.get("racedate") != day
+                    or (track, race) in used
+                    or (row.get("headcount") is not None
+                        and (type(row["headcount"]) is not int
+                             or not 0 <= row["headcount"] <= 18))
+                    or (row.get("post_time") is not None and
+                        (not isinstance(row["post_time"], str)
+                         or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d",
+                                             row["post_time"])))):
+                raise CoverageError("Invalid normalized programme identity")
+            used.add((track, race))
+            observed.append(row)
+        return observed
+    try:
+        return normalize_program_rows(programme, day)
+    except (ProgrammeFormatError, TypeError):
+        raise CoverageError("Invalid raw JRDB programme for research draft") from None
+
+
 def build_research6_five_drafts(programme, study, day, *, now=None):
     """Build up to 40 *unverified* owner-research tickets per future race.
 
@@ -139,10 +186,7 @@ def build_research6_five_drafts(programme, study, day, *, now=None):
     """
     if not _valid_date(day):
         raise CoverageError("Invalid research draft date")
-    try:
-        normalized = normalize_program_rows(programme, day)
-    except (ProgrammeFormatError, TypeError):
-        raise CoverageError("Invalid JRDB programme for research draft") from None
+    normalized = _normal_programme(programme, day)
     by_race = _check_report(study)
     if {(r["track"], r["race"]) for r in normalized} != set(by_race):
         raise CoverageError("Five-factor draft race set differs from schedule")
