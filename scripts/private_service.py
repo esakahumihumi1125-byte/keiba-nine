@@ -46,6 +46,7 @@ from owner_rebound_receipts import (
     compare_watched_winners, WatchReceiptError
 )
 from owner_rebound_provider_results import summarize_provider_watch_results
+from owner_three_core_provider_results import compare_three_core_provider_results
 from owner_three_core_receipts import (
     issue_three_core_receipts, verify_three_core_receipts, CoreReceiptError
 )
@@ -2517,6 +2518,59 @@ def create_app(settings=None):
                 'bettingReady': False, 'autoPurchase': False,
                 'actualPurchase': False,
             })
+        if method == 'POST' and path == '/api/owner-three-core-provider-check':
+            # Postrace JRDB observations are NOT official JRA results and
+            # can never update HMAC study receipts, tickets or ROI.
+            # Exactly one voluntary /tse call, only after a sealed race off.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人専用サービスでのみ利用できます。'})
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or not all(settings.get(k) for k in (
+                        'JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': 'JRDB成績の取得設定を確認できません。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE','').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '研究記録の入力形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < size <= 180000:
+                    raise CoreReceiptError('Invalid core compare size')
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise CoreReceiptError('Incomplete core compare body')
+                args = json.loads(raw)
+                if not isinstance(args, dict) or set(args) != {'date', 'receipts'}:
+                    raise CoreReceiptError('Only sealed research input accepted')
+                day = args['date']
+                originals = verify_three_core_receipts(
+                    args['receipts'], password, day)
+                if not originals:
+                    raise CoreReceiptError('No saved research snapshots')
+                stamp = datetime.fromisoformat(_now_in_jst())
+                from owner_rebound_receipts import _timestamp
+                if not any(stamp >= _timestamp(p['scheduledOffAt'])
+                           for p in originals):
+                    return response('200 OK',
+                        compare_three_core_provider_results(
+                            originals, [], day, now=stamp,
+                            source_read_count=0))
+            except (CoreReceiptError, ValueError, TypeError, KeyError):
+                return response('400 Bad Request', {
+                    'error': '発走前の70点研究記録を検証できませんでした。'})
+            try:
+                rows = fetch_finished_race_results(day)
+                observed = compare_three_core_provider_results(
+                    originals, rows, day, now=stamp)
+            except (JRDBError, CoreReceiptError, ValueError, TypeError, KeyError):
+                return response('502 Bad Gateway', {
+                    'error': 'JRDB暫定成績の取得・照合に失敗しました。固定研究値は変更していません。'})
+            return response('200 OK', observed)
         if method == 'POST' and path == '/api/owner-rebound-provider-check':
             # Explicit owner request: one JRDB /tse call only, after a
             # signed research watch exists. Provider result is NOT independent
