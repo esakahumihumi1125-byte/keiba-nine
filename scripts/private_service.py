@@ -46,6 +46,9 @@ from owner_rebound_receipts import (
     compare_watched_winners, WatchReceiptError
 )
 from owner_rebound_provider_results import summarize_provider_watch_results
+from owner_three_core_receipts import (
+    issue_three_core_receipts, verify_three_core_receipts, CoreReceiptError
+)
 from jrdb_factor_preflight import audit_assessment_preflight
 from jrdb_training_hypothesis import build_training_hints, summarize_training_hints
 from jrdb_recent_hypothesis import build_recent_hints, summarize_recent_hints
@@ -2463,12 +2466,57 @@ def create_app(settings=None):
                 preview['watchCapture'] = issue_rebound_watch_receipts(
                     preview, programme, password, date, now=stamp
                 )
+                # Independently sealed, uncalibrated 70-point research.
+                # Older mock snapshots without the new research module
+                # are kept compatible, and no outcome is ever supplied.
+                if 'threeCoreResearch' in preview:
+                    preview['coreCapture'] = issue_three_core_receipts(
+                        preview, programme, password, date, now=stamp
+                    )
             except (JRDBError, ProgrammeFormatError, CoverageError,
-                    HistoryFetchError, WatchReceiptError, ValueError,
+                    HistoryFetchError, WatchReceiptError, CoreReceiptError, ValueError,
                     TypeError, KeyError):
                 return response('502 Bad Gateway', {
                     'error': '過去馬場の照合に失敗しました。履歴や実接続を確認してください。'})
             return response('200 OK', preview)
+        if method == 'POST' and path == '/api/owner-three-core-verify':
+            # Verify the server-stamped original research, never client
+            # results or official status. Never read JRDB or modify tickets.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人専用サービスでのみ利用できます。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE','').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '研究記録の形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < size <= 180000:
+                    raise CoreReceiptError('Invalid body size')
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise CoreReceiptError('Invalid body length')
+                args = json.loads(raw)
+                if not isinstance(args, dict) or set(args) != {'date', 'receipts'}:
+                    raise CoreReceiptError('Invalid verify args')
+                records = verify_three_core_receipts(
+                    args['receipts'], password, args['date'])
+            except (CoreReceiptError, ValueError, TypeError, KeyError):
+                return response('400 Bad Request', {
+                    'error': '固定済み研究記録の署名を検証できませんでした。'})
+            return response('200 OK', {
+                'version': 'owner-three-core-verify-1',
+                'serverSigned': True, 'recordCount': len(records),
+                'researchOnly': True, 'privateOwnerOnly': True,
+                'officialJraVerified': False,
+                'independentJraScheduleVerified': False,
+                'calibrationReady': False, 'resultComparisonReady': False,
+                'bettingReady': False, 'autoPurchase': False,
+                'actualPurchase': False,
+            })
         if method == 'POST' and path == '/api/owner-rebound-provider-check':
             # Explicit owner request: one JRDB /tse call only, after a
             # signed research watch exists. Provider result is NOT independent
