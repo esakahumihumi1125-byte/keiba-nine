@@ -1385,43 +1385,6 @@ function boot(){
  assert.match(fiveCorePanel.children[3].textContent,/1番｜調教 S／近走 S／コース 未評価／展開 未評価／馬場/);
  assert.match(fiveCorePanel.children[3].textContent,/研究用未評価/);
 
- const new79Card=a.get('autoHistoryAuditRaces').children[0];
- const new79Quick=new79Card.children.find(x=>x.tag==='p'&&
-  /新配点79点研究比較/.test(x.textContent));
- assert.ok(new79Quick);
- assert.match(new79Quick.textContent,/未評価 7頭/);
- assert.match(new79Quick.textContent,/正式100点の総合評価・予想順位・買い目ではありません/);
- const panel79=new79Card.children.find(x=>x.tag==='details'&&
-  /新配点5項目79点の研究比較/.test(x.children[0]?.textContent||''));
- assert.ok(panel79);
- assert.match(panel79.children[1].textContent,/コース距離17／展開脚質17/);
- assert.match(panel79.children[2].textContent,/残り21点分の評価/);
- assert.match(panel79.children[3].textContent,/1番｜調教 S／近走 S／コース 未評価/);
- assert.match(panel79.children[3].textContent,/研究用未評価/);
- assert.equal(a.requests.slice(reqBefore79).filter(x=>
-  x.url==='/api/jrdb/history').length,1);
- assert.equal(a.storage.get(FIVE_STORAGE),existing85);
- assert.equal(a.storage.get(CORE_STORAGE),coreBeforeFive);
- assert.equal(a.storage.get(STORAGE),oldRecord);
- for(const mutate of [
-  h=>h.newWeightFiveResearch.races[0].horses[0].evidenceScore79=79,
-  h=>h.newWeightFiveResearch.factorWeights.pace=20,
-  h=>h.newWeightFiveResearch.races[0].horses[0].formalScore100=79,
-  h=>h.newWeightFiveResearch.races[0].comparisonGroups=[{rawThirdPoints:237,numbers:[1]}],
-  h=>h.newWeightFiveResearch.sourcePolicyVersion='research-6',
-  h=>h.newWeightFiveResearch.officialJraVerified=true,
- ]){
-  const fake=withNewWeightFive(historical());mutate(fake);
-  a.setHistorical(fake);
-  await a.get('autoHistoryAudit').onclick();
-  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
-  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
-  assert.equal(a.storage.get(FIVE_STORAGE),existing85);
-  assert.equal(a.storage.get(STORAGE),oldRecord);
- }
- a.setHistorical(withNewWeightFive(historical()));
- await a.get('autoHistoryAudit').onclick();
-
  // Remaining 15-weight source coverage is NOT a 100-point grade.
  const remainingPanel=a.get('autoHistoryAuditRaces').children[0].children.find(
   x=>x.tag==='details'&&/10項目の資料状況/.test(
@@ -1474,6 +1437,43 @@ function boot(){
  const existing85=a.storage.get(FIVE_STORAGE),reqBefore79=a.requests.length;
  a.setHistorical(withNewWeightFive(historical()));
  await a.get('autoHistoryAudit').onclick();
+ const new79Card=a.get('autoHistoryAuditRaces').children[0];
+ const new79Quick=new79Card.children.find(x=>x.tag==='p'&&
+  /新配点79点研究比較/.test(x.textContent));
+ assert.ok(new79Quick);
+ assert.match(new79Quick.textContent,/未評価 7頭/);
+ assert.match(new79Quick.textContent,/正式100点の総合評価・予想順位・買い目ではありません/);
+ const panel79=new79Card.children.find(x=>x.tag==='details'&&
+  /新配点5項目79点の研究比較/.test(x.children[0]?.textContent||''));
+ assert.ok(panel79);
+ assert.match(panel79.children[1].textContent,/コース距離17／展開脚質17/);
+ assert.match(panel79.children[2].textContent,/残り21点分の評価/);
+ assert.match(panel79.children[3].textContent,/1番｜調教 S／近走 S／コース 未評価/);
+ assert.match(panel79.children[3].textContent,/研究用未評価/);
+ assert.equal(a.requests.slice(reqBefore79).filter(x=>
+  x.url==='/api/jrdb/history').length,1);
+ assert.equal(a.storage.get(FIVE_STORAGE),existing85);
+ assert.equal(a.storage.get(CORE_STORAGE),coreBeforeFive);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ for(const mutate of [
+  h=>h.newWeightFiveResearch.races[0].horses[0].evidenceScore79=79,
+  h=>h.newWeightFiveResearch.factorWeights.pace=20,
+  h=>h.newWeightFiveResearch.races[0].horses[0].formalScore100=79,
+  h=>h.newWeightFiveResearch.races[0].comparisonGroups=[{rawThirdPoints:237,numbers:[1]}],
+  h=>h.newWeightFiveResearch.sourcePolicyVersion='research-6',
+  h=>h.newWeightFiveResearch.officialJraVerified=true,
+ ]){
+  const fake=withNewWeightFive(historical());mutate(fake);
+  a.setHistorical(fake);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+  assert.equal(a.storage.get(FIVE_STORAGE),existing85);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+ }
+ a.setHistorical(withNewWeightFive(historical()));
+ await a.get('autoHistoryAudit').onclick();
+
  // Supporting six-weight factors: source fields are not real six points.
  const beforeSix=a.requests.length;
  a.setHistorical(withSupportSix(historical()));
