@@ -128,6 +128,21 @@ class CoreProviderResultsTests(unittest.TestCase):
             base, [], DAY, now=early, source_read_count=0)
         self.assertEqual(safe["providerSourceReadCount"], 0)
 
+    def test_provisional_three_place_rows_cannot_override_sealed_runner_count(self):
+        # Synthetic 2-runner Kyoto slot cannot legitimately contain a
+        # 1st/2nd/3rd podium. Treat the whole conflicting race as pending.
+        rows = complete() + [
+            row(track="08",race="02",horse="04",finish="1"),
+            row(track="08",race="02",horse="05",finish="2"),
+            row(track="08",race="02",horse="07",finish="3"),
+        ]
+        output = compare_three_core_provider_results(
+            snapshots(), rows, DAY, now=after())
+        self.assertEqual(output["observedRaceCount"], 1)
+        self.assertEqual(output["races"][1]["providerStatus"], "pending")
+        self.assertIsNone(output["races"][1]["observedPodiumNumbers"])
+        self.assertEqual(output["observedStudiedWinnerCount"], 1)
+
     def test_bad_source_identity_rejected_not_assimilated(self):
         for bad in (
             {**row(),"horse_number":"1"},
