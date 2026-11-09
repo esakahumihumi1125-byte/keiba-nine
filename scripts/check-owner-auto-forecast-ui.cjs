@@ -1017,7 +1017,13 @@ function boot(){
  assert.match(fourPanel.children[2].textContent,/根拠の未確認は0点やCではなく未評価/);
  assert.match(fourPanel.children[3].textContent,/1番｜調教 S／コース 未評価／展開 未評価／馬場/);
  assert.match(fourPanel.children[3].textContent,/研究用未評価/);
- assert.equal(a.requests.length,beforeFour+1);
+ const fourRequests=a.requests.slice(beforeFour);
+ assert.equal(fourRequests.filter(r=>r.url==='/api/jrdb/history').length,1);
+ assert.equal(fourRequests.filter(r=>
+  r.url.startsWith('/api/jrdb/owner-auto-draft?')).length,0);
+ assert.ok(fourRequests.every(r=>[
+  '/api/jrdb/history','/api/owner-rebound-verify'
+ ].includes(r.url)),'no new paid reads for ground study');
  assert.equal(a.storage.get(CORE_STORAGE),oldCore);
  assert.equal(a.storage.get(STORAGE),oldRecord);
  // A forged numeric 82-point mark must be rejected before any card.
