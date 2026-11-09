@@ -1903,7 +1903,7 @@ function boot(){
  const reasonButtons=mixed.get('autoHoldReasons').children;
  assert.equal(reasonButtons.length,3);
  assert.equal(reasonButtons[0].dataset.reason,'after_provisional_off');
- assert.match(mixed.get('autoOperationalNext').textContent,/主な見送り：発走済み 33R／調教・近走不足 1R/);
+ assert.match(mixed.get('autoOperationalNext').textContent,/主な見送り：発走済み 33R／候補同点 1R/);
  assert.match(reasonButtons[0].textContent,/発走済み 33R/);
  assert.equal(reasonButtons[1].dataset.reason,'missing_factors');
  assert.match(reasonButtons[1].textContent,/調教・近走不足 1R/);
