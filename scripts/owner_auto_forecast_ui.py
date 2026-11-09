@@ -1818,7 +1818,7 @@ $('autoReceiptVerify').onclick=async()=>{
     'Accept':'application/json'},body:payload
   });
   const result=await resp.json();
-  if(seq!==receiptVerifySeq||day!==$('autoDay').value.replaceAll('-'))return;
+  if(seq!==receiptVerifySeq||day!==$('autoDay').value.replaceAll('-',''))return;
   if(!resp.ok||result?.available!==true||result.serverSigned!==true||
      result.captureAuditVerified!==false||
      result.officialScheduleVerified!==false||
