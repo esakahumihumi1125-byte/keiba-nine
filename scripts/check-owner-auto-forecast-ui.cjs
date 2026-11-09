@@ -708,24 +708,26 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),picksBeforePdf);
  assert.equal(a.requests.filter(r=>
   r.url.startsWith('/api/jrdb/owner-auto-draft?')).length,1);
- // If an iPhone switches dates while the JRA HTML request is slow, the
- // old-day PDF links cannot reappear after the date has been cleared.
+ // Separate iPhone instance: switching dates while an official HTML
+ // index request is slow must not restore an old day's links. Keep the
+ // primary fixture's history state intact for existing research tests.
+ const pdfStale=boot();
+ await new Promise(r=>setImmediate(r));
+ const localBeforeStale=pdfStale.storage.get(STORAGE);
  let releaseJra;
  const pauseJra=new Promise(resolve=>{releaseJra=resolve});
- a.waitNextFetch(pauseJra);
- const lateJra=jraButton.onclick();
- assert.equal(jraButton.disabled,true);
- a.get('autoDay').value='2099-01-02';
- a.get('autoDay').onchange();
- assert.equal(jraButton.disabled,false);
- assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
+ pdfStale.waitNextFetch(pauseJra);
+ const lateJra=pdfStale.get('autoOfficialPdf').onclick();
+ assert.equal(pdfStale.get('autoOfficialPdf').disabled,true);
+ pdfStale.get('autoDay').value='2099-01-02';
+ pdfStale.get('autoDay').onchange();
+ assert.equal(pdfStale.get('autoOfficialPdf').disabled,false);
+ assert.equal(pdfStale.get('autoOfficialPdfLinks').children.length,0);
  releaseJra();
  await lateJra;
- assert.equal(a.get('autoOfficialPdfLinks').children.length,0);
- assert.match(a.get('autoOfficialPdfStatus').textContent,/未確認/);
- assert.equal(a.storage.get(STORAGE),picksBeforePdf);
- a.get('autoDay').value='2099-01-01';
- a.get('autoDay').onchange();
+ assert.equal(pdfStale.get('autoOfficialPdfLinks').children.length,0);
+ assert.match(pdfStale.get('autoOfficialPdfStatus').textContent,/未確認/);
+ assert.equal(pdfStale.storage.get(STORAGE),localBeforeStale);
  // No paid body source read until an explicit owner click.
  assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?')).length,0);
  const beforeBody=a.storage.get(STORAGE);
