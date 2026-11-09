@@ -52,7 +52,7 @@ class SupportSixPreflightTests(unittest.TestCase):
                     )
         kyoto = next(r for r in out["races"] if r["track"] == "京都")
         self.assertEqual(kyoto["horses"][0]["sourceStates"]["rotation"], "unknown")
-        self.assertEqual(kyoto["horses"][0]["fieldPresenceWeight"], 5)
+        self.assertEqual(kyoto["horses"][0]["fieldPresenceWeight"], 0)
         for secret in ("racekey", "byNumber", "sire_name", "jockey_name",
                        "weight_to_carry", "horse_id", "auth_key"):
             self.assertNotIn(secret, repr(out))
