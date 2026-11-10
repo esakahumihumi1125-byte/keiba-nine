@@ -60,8 +60,10 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 これは10項目の正式なS〜C、勝率、1着候補の決定ではありません。</p>
 <button id="autoHistoryAudit" type="button" disabled>過去の同条件を最大8件照合する</button>
 <details><summary>騎手・厩舎10点の過去実データ接続テスト（任意）</summary>
-<label><input id="autoHistoryStaffSample" type="checkbox"> 過去1レースの騎手・厩舎資料を追加照合する（JRDB /dky・/dse、2回の有料API照会）</label>
-<p class="muted">チェックしなければ追加のAPI取得はなし。対象の過去レースはサーバーがすでに検証した候補から1つだけ選び、馬名・馬ID・騎手/厩舎コード・着順原票は表示しません。件数だけの研究確認で、正式10点・JRA公式・買い目や回収率には使いません。</p>
+<label><input id="autoHistoryStaffSample" type="checkbox"> 騎手・厩舎の過去資料を追加照合する（選択時のみ有料API照会）</label>
+<label for="autoHistoryStaffRaceLimit">追加照合の件数</label>
+<select id="autoHistoryStaffRaceLimit"><option value="1" selected>過去1R（追加最大2回）</option><option value="3">過去3R（追加最大6回）</option></select>
+<p class="muted">チェックしなければ追加のAPI取得はなし。過去1R/3Rは既存履歴プランの先頭からのみ選択。3Rであっても予想精度の検証や正式10点の採点には不足です。馬名・馬ID・騎手/厩舎コード・着順原票は表示しません。買い目や回収率にも使いません。</p>
 <p id="autoHistoryStaffStatus" class="muted" role="status">騎手・厩舎の追加照合はOFF。</p>
 </details>
 <p class="muted">発走前に照合した巻き返し候補は署名を検証し、iPhone内に最初の候補を固定します。事後の再分析で候補を上書きしません。これは公式結果や馬券購入の証明ではありません。</p>
@@ -3974,9 +3976,11 @@ $('autoHistoryAudit').onclick=async()=>{
  const button=$('autoHistoryAudit'),day=historyDay;
  if(button.disabled||!day||day!==$('autoDay').value.replaceAll('-',''))return;
  button.disabled=true;const seq=++historySeq;
- const wantStaff=$('autoHistoryStaffSample').checked===true;
+ const wantStaff=$('autoHistoryStaffSample').checked===true,
+  staffBatch=$('autoHistoryStaffRaceLimit').value==='3'?3:1;
  $('autoHistoryStaffStatus').textContent=wantStaff?
-  '過去1Rの騎手・厩舎を追加2回のJRDB照会で確認中…':
+  '過去'+staffBatch+'Rの騎手・厩舎を追加最大'+(2*staffBatch)+
+  '回のJRDB照会で確認中…':
   '今回は追加の騎手・厩舎照会なし。';
  $('autoHistoryAuditStatus').textContent='過去の同条件を照合中…';
  $('autoHistoryAuditRaces').replaceChildren();
@@ -3985,14 +3989,71 @@ $('autoHistoryAudit').onclick=async()=>{
    method:'POST',credentials:'same-origin',cache:'no-store',
    headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
     'Accept':'application/json'},
-   body:JSON.stringify(wantStaff?{date:day,limit:8,staffSample:true}:
+   body:JSON.stringify(wantStaff?
+    (staffBatch===3?{date:day,limit:8,staffSample:true,staffBatchRaces:3}:
+     {date:day,limit:8,staffSample:true}):
     {date:day,limit:8})
   });
   const raw=await res.json();
   if(seq!==historySeq)return;
   if(!res.ok)throw Error('履歴機能は利用不可');
   const rows=validateHistory(raw);
-  if(wantStaff){
+  if(wantStaff&&staffBatch===3){
+   const x=raw?.pastStaffBatch;
+   const ints=['requestedRaceLimit','selectedPastRaceCount','providerReadCount',
+    'providerReadBudget','completedJoinRaceCount','heldOrIncompleteRaceCount',
+    'totalJoinedRunnerObservations','distinctJockeyCount','distinctTrainerCount',
+    'distinctPairCount','pairsSeenInTwoOrMoreRaces','pairRunnerObservations',
+    'observedFirstPlaceCount','observedTopThreeCount'];
+   if(!x||x.version!=='owner-past-staff-batch-1'||
+      ints.some(k=>!Number.isInteger(x[k])||x[k]<0)||
+      x.requestedRaceLimit!==3||x.providerReadBudget!==6||
+      x.selectedPastRaceCount>3||
+      x.providerReadCount>2*x.selectedPastRaceCount||
+      x.completedJoinRaceCount+x.heldOrIncompleteRaceCount!==
+        x.selectedPastRaceCount||
+      x.providerUnavailable!==true&&x.providerUnavailable!==false||
+      (x.providerUnavailable===false&&
+       x.providerReadCount!==2*x.selectedPastRaceCount)||
+      (x.providerUnavailable===true&&
+       (x.providerReadCount<1||x.heldOrIncompleteRaceCount<1))||
+      x.totalJoinedRunnerObservations<3*x.completedJoinRaceCount||
+      x.totalJoinedRunnerObservations>18*x.completedJoinRaceCount||
+      x.pairRunnerObservations!==x.totalJoinedRunnerObservations||
+      x.observedFirstPlaceCount!==x.completedJoinRaceCount||
+      x.observedTopThreeCount!==3*x.completedJoinRaceCount||
+      x.distinctJockeyCount>x.totalJoinedRunnerObservations||
+      x.distinctTrainerCount>x.totalJoinedRunnerObservations||
+      x.distinctPairCount>x.totalJoinedRunnerObservations||
+      x.pairsSeenInTwoOrMoreRaces>x.distinctPairCount||
+      (x.completedJoinRaceCount===0&&
+       (x.distinctJockeyCount||x.distinctTrainerCount||x.distinctPairCount))||
+      x.sourceFamily!=='private_dky_dse_bounded_races'||
+      x.pastResultPublicationVerified!==false||
+      x.independentJraVerified!==false||
+      x.fullTenFactorReady!==false||
+      x.jockeyTrainerPerformanceAssessed!==false||
+      x.holdoutValidated!==false||
+      x.formalTenPointGrade!=='未評価'||x.formalTenPointScore!==null||
+      x.predictionReady!==false||x.bettingReady!==false||
+      x.autoPurchase!==false||x.actualPurchase!==false||
+      x.researchOnly!==true||x.privateOwnerOnly!==true||
+      x.changesExistingReceipts!==false||
+      x.changesExistingTickets!==false||x.changesExistingRoi!==false||
+      x.additionalPaidReadsOnlyOnExplicitOptIn!==true||
+      raw?.pastStaffSample!==undefined)
+    throw Error('過去3R騎手厩舎の比較資料が不正');
+   $('autoHistoryStaffStatus').textContent=
+    '過去'+x.selectedPastRaceCount+'Rのうち資料結合'+
+    x.completedJoinRaceCount+'R・保留'+x.heldOrIncompleteRaceCount+
+    'R。追加照会'+x.providerReadCount+'/6回、出走観測'+
+    x.totalJoinedRunnerObservations+'件、同一騎手×厩舎'+
+    x.distinctPairCount+'組（2R以上に登場：'+
+    x.pairsSeenInTwoOrMoreRaces+
+    '組）。10点採点・公式結果・回収率には未使用。';
+  }else if(wantStaff){
+   if(raw?.pastStaffBatch!==undefined)
+    throw Error('指定していない3R追加結果が混入');
    const x=raw?.pastStaffSample;
    const statuses=['joined_private_sample','incomplete_or_ambiguous_historical_result',
     'provider_unavailable','no_referenced_past_race'];
@@ -4039,7 +4100,8 @@ $('autoHistoryAudit').onclick=async()=>{
      '参照できる過去レースがないため、追加API取得なし。':
      '過去1Rの資料結合は保留（追加'+x.providerReadCount+
      ' API照会を試行）。取消・欠損・同着・API状態等を確認。正式10点には使いません。';
-  }else if(raw?.pastStaffSample!==undefined){
+  }else if(raw?.pastStaffSample!==undefined||
+            raw?.pastStaffBatch!==undefined){
    throw Error('本人が選んでいない追加取得結果が混入');
   }
 
