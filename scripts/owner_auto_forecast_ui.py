@@ -13,8 +13,8 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <section>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
 <div class="day-shortcuts" role="group" aria-label="週末の開催日を選ぶ">
-<button id="autoSaturday" type="button">直近の土曜日</button>
-<button id="autoSunday" type="button">直近の日曜日</button>
+<button id="autoSaturday" type="button">次の土曜日を選ぶ</button>
+<button id="autoSunday" type="button">次の日曜日を選ぶ</button>
 </div>
 <p class="muted">土日ボタンは日付を選ぶだけ。JRDBへの照会は「全場・全Rを再分析する」を押すまで開始しません（初回の当日自動取得は従来どおり）。</p>
 <button id="autoRun" type="button">全場・全Rを再分析する</button>
