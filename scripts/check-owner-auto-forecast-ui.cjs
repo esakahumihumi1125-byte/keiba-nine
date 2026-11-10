@@ -1801,7 +1801,8 @@ function boot(){
 
  // The new course 17 / pace 17 / ground 12 source report is shown
  // only after cross-checking every runner and count against prior history.
- const beforeThreeSource=a.requests.length,oldBeforeThreeSource=a.storage.get(STORAGE);
+ const beforeThreeSource=a.requests.filter(r=>r.url==='/api/jrdb/history').length,
+  oldBeforeThreeSource=a.storage.get(STORAGE);
  a.setHistorical(withThreeFactorSourceGaps(historical()));
  await a.get('autoHistoryAudit').onclick();
  const threeSourceCard=a.get('autoHistoryAuditRaces').children[0];
