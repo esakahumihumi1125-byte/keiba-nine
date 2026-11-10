@@ -431,7 +431,7 @@ function validateSourcePassport(data){
  if(a.reason!=='unvalidated_source_observations_only'||
     a.raceCount!==data.raceCount||a.races.length!==data.raceCount||
     a.observedMaterialRaces!==
-     (data.sourceMaterials.status==='observed'?data.raceCount:0))
+     data.sourceMaterials.races.length)
   throw Error('資料進捗のレース数不一致');
  const draft=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
  const provisional=new Map(data.tenFactorPreview.races.map(r=>[r.track+'|'+r.race,r]));
@@ -466,8 +466,8 @@ function validateSourcePassport(data){
   if(row.provisionalTrainingCount!==count('training')||
      row.provisionalRecentCount!==count('recent'))
    throw Error('仮評価頭数の不整合');
-  if(data.sourceMaterials.status==='observed'){
-   if(!src||row.sourceMaterialsObserved!==true||
+  if(src){
+   if(row.sourceMaterialsObserved!==true||
       row.programmeRunnerCount!==src.runnerCount||
       !row.additionalFieldCounts||
       Object.keys(row.additionalFieldCounts).length!==observed.length||
@@ -494,7 +494,7 @@ function validate(data,day){
   (data.archiveConflictCount>0&&!data.archiveEnabled)||
   !data.sourceMaterials||
   data.sourceMaterials.version!=='owner-draft-material-coverage-1'||
-  !['observed','unavailable'].includes(data.sourceMaterials.status)||
+  !['observed','partial','unavailable'].includes(data.sourceMaterials.status)||
   data.sourceMaterials.officialJraVerified!==false||
   data.sourceMaterials.gradedNewFactors!==0||
   !Array.isArray(data.sourceMaterials.races)||
@@ -504,6 +504,10 @@ function validate(data,day){
   (data.sourceMaterials.status==='observed'&&
    (data.sourceMaterials.observedFactorSlots!==8||
     data.sourceMaterials.races.length!==data.raceCount))||
+  (data.sourceMaterials.status==='partial'&&
+   (data.sourceMaterials.observedFactorSlots!==8||
+    data.sourceMaterials.races.length<1||
+    data.sourceMaterials.races.length>data.raceCount))||
   data.sourceReadCount!==4||data.unitYen!==100||
   data.weightedResearchOrder!=='training30_recent3'||
   data.weightedResearchMax!==99||data.weightedResearchPolicy!=='research-5'||
@@ -939,9 +943,9 @@ function render(input,day){
     detail.append(renderTenHorse(ten));
    }
   }
-  if(data.sourceMaterials.status==='observed'){
-   const item=data.sourceMaterials.races.find(x=>
-     x.track===race.track&&x.race===race.race);
+  const item=data.sourceMaterials.races.find(x=>
+    x.track===race.track&&x.race===race.race);
+  if(item){
    const evidence=Object.entries(MATERIAL_LABELS)
     .map(([key,label])=>label+' '+item.counts[key]+'/'+item.runnerCount)
     .join('／');
@@ -1068,7 +1072,12 @@ function render(input,day){
   (breakdown?'内訳：'+breakdown+'。':'')+
   'JRDBの2項目だけを買い目に使用。コース条件の存在 '+ctx.courseInfoPresentCount+
   'R／馬場資料の存在 '+ctx.goingAvailableCount+'R（適性は未評価）。追加資料：'+
-  (data.sourceMaterials.status==='observed'?'血統・枠などの材料を確認（採点なし）':'照合保留')+
+  (data.sourceMaterials.status==='observed'
+    ?'血統・枠などの材料を確認（採点なし）'
+    :data.sourceMaterials.status==='partial'
+     ?'血統・枠などの資料 '+data.sourceMaterials.races.length+
+      '/'+data.raceCount+'Rを確認（他のRは照合保留・採点なし）'
+     :'照合保留')+
   '。JRA公式照合や正式な投票は未実施。';
 }
 function localReceiptStatus(day){
