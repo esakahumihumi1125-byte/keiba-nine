@@ -419,6 +419,66 @@ function historical(){
   }
  }))));
 }
+function withThreeFactorSourceGaps(report){
+ const keys=['course_distance','pace','ground'];
+ const source=report.ownerRunnerHistory.races;
+ const pmap=new Map(report.paceScenarioHypotheses.races.map(
+  r=>[r.track+'|'+r.race,r]));
+ const races=source.map(r=>{
+  const pace=pmap.get(r.track+'|'+r.race);
+  const pByNum=new Map(pace.runners.map(x=>[x.number,x]));
+  const observed={
+   courseComparableObserved:0,courseHistoryComplete:0,
+   currentGoingRecorded:0,sameGoingObserved:0,
+   pacePositionObserved:0,paceScenarioObserved:0,
+   allThreeSourcesObserved:0
+  };
+  const gaps={
+   noCourseComparableRuns:0,courseHistoryIncomplete:0,
+   currentGoingUnknown:0,noSameGoingRuns:0,paceScenarioUnassessed:0
+  };
+  const horses=r.runners.map(h=>{
+   const p=pByNum.get(h.number),course=h.comparableRuns>0,
+    hist=h.historyLookupComplete,ground=h.currentGoingRecorded,
+    matched=ground&&h.matchingCurrentGoingRuns>0,
+    position=p.pastFourthCorner!=='insufficient',
+    scenario=pace.coverageAdequate&&p.scenarioFitBand!=='未評価',
+    present={course_distance:course&&hist,pace:scenario,ground:matched&&hist},
+    missing=keys.filter(k=>!present[k]);
+   observed.courseComparableObserved+=Number(course);
+   observed.courseHistoryComplete+=Number(hist);
+   observed.currentGoingRecorded+=Number(ground);
+   observed.sameGoingObserved+=Number(matched);
+   observed.pacePositionObserved+=Number(position);
+   observed.paceScenarioObserved+=Number(scenario);
+   observed.allThreeSourcesObserved+=Number(course&&hist&&matched&&scenario);
+   gaps.noCourseComparableRuns+=Number(!course);
+   gaps.courseHistoryIncomplete+=Number(!hist);
+   gaps.currentGoingUnknown+=Number(!ground);
+   gaps.noSameGoingRuns+=Number(ground&&!matched);
+   gaps.paceScenarioUnassessed+=Number(!scenario);
+   return {number:h.number,sourcePresent:present,missingSourceFactors:missing,
+    allThreeSourcesPresent:missing.length===0,formalGradesVerified:0,
+    formalGradeReady:false,officialJraVerified:false,holdoutValidated:false};
+  });
+  return {track:r.track,race:r.race,runnerCount:r.runnerCount,
+   observed,gaps,runners:horses,allThreeAreResearchOnly:true,
+   formalGradesVerified:0,bettingReady:false};
+ });
+ report.research6ThreeFactorSourceGaps={
+  version:'owner-research6-three-factor-source-gaps-1',
+  policyVersion:'research-6',
+  factorWeights:{course_distance:17,pace:17,ground:12},weightTotal:46,
+  raceCount:races.length,races,extraProviderCalls:0,
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  courseSuitabilityAssessed:false,paceForecastReady:false,
+  goingSuitabilityAssessed:false,formalGradesVerified:0,
+  independentTimeCutVerified:false,
+  conditionMatchedHoldoutValidated:false,factorRubricsCalibrated:false,
+  overallPredictionReady:false,bettingReady:false,changesExistingTickets:false
+ };
+ return report;
+}
 function withFiveFactor(report){
  const original=report.historicalEvidenceBands.races[0].runners;
  const pace=report.paceScenarioHypotheses.races[0].runners;
@@ -1739,6 +1799,38 @@ function boot(){
  a.setHistorical(withNewWeightFive(historical()));
  await a.get('autoHistoryAudit').onclick();
 
+ // The new course 17 / pace 17 / ground 12 source report is shown
+ // only after cross-checking every runner and count against prior history.
+ const beforeThreeSource=a.requests.length,oldBeforeThreeSource=a.storage.get(STORAGE);
+ a.setHistorical(withThreeFactorSourceGaps(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const threeCard=a.get('autoHistoryAuditRaces').children[0];
+ const threePanel=threeCard.children.find(x=>x.tag==='details'&&
+  /コース17・展開17・馬場12/.test(x.children[0]?.textContent||''));
+ assert.ok(threePanel,'show 46-point source gap panel on verified owner races');
+ assert.match(threePanel.textContent,/正式/);
+ assert.match(threePanel.textContent,/資料/);
+ assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,
+  beforeThreeSource+1,'only the explicit existing history lookup');
+ assert.equal(a.storage.get(STORAGE),oldBeforeThreeSource);
+ for(const mutate of [
+  h=>h.research6ThreeFactorSourceGaps.races[0].runners[0]
+   .sourcePresent.course_distance=true,
+  h=>h.research6ThreeFactorSourceGaps.races[0].observed.sameGoingObserved+=1,
+  h=>h.research6ThreeFactorSourceGaps.factorWeights.pace=20,
+  h=>h.research6ThreeFactorSourceGaps.factorRubricsCalibrated=true,
+  h=>h.research6ThreeFactorSourceGaps.races[0].runners[0]
+   .formalGradeReady=true
+ ]){
+  const invalid=withThreeFactorSourceGaps(historical());
+  mutate(invalid);
+  a.setHistorical(invalid);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.equal(a.storage.get(STORAGE),oldBeforeThreeSource);
+ }
+ a.setHistorical(withNewWeightFive(historical()));
+ await a.get('autoHistoryAudit').onclick();
  // Remaining research-6 21 is only presence, never a 100-point score.
  const beforeGap=a.requests.length,old85=a.storage.get(FIVE_STORAGE);
  a.setHistorical(withRemaining21(historical()));
