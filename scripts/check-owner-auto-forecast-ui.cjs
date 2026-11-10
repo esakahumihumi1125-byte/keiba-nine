@@ -1804,11 +1804,11 @@ function boot(){
  const beforeThreeSource=a.requests.length,oldBeforeThreeSource=a.storage.get(STORAGE);
  a.setHistorical(withThreeFactorSourceGaps(historical()));
  await a.get('autoHistoryAudit').onclick();
- const threeCard=a.get('autoHistoryAuditRaces').children[0];
- const threePanel=threeCard.children.find(x=>x.tag==='details'&&
+ const threeSourceCard=a.get('autoHistoryAuditRaces').children[0];
+ const threeSourcePanel=threeSourceCard.children.find(x=>x.tag==='details'&&
   /コース17・展開17・馬場12/.test(x.children[0]?.textContent||''));
- assert.ok(threePanel,'show 46-point source gap panel on verified owner races');
- const threeText=threePanel.children.map(x=>x.textContent).join(' ');
+ assert.ok(threeSourcePanel,'show 46-point source gap panel on verified owner races');
+ const threeText=threeSourcePanel.children.map(x=>x.textContent).join(' ');
  assert.match(threeText,/正式/);
  assert.match(threeText,/資料/);
  assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,
