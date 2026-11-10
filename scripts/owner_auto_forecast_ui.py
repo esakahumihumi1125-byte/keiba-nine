@@ -236,7 +236,8 @@ const FAILURE_STAGE={
  programme:'番組取得・形式確認',entries:'出走馬取得',training:'調教取得',
  recent:'近走取得',day_research:'全レース資料照合',
  draft_generation:'研究用買い目生成',receipt_signing:'発走前記録の署名',
- receipt_archiving:'サーバー記録の固定保存'
+ receipt_archiving:'サーバー記録の固定保存',
+ final_prestart_gate:'発走前時刻の最終確認'
 };
 const FAILURE_KIND={
  provider:'JRDB API通信・応答',
