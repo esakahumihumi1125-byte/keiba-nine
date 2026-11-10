@@ -13,6 +13,7 @@ from datetime import datetime, timezone, timedelta
 import re
 
 from owner_factor_diagnostics import TRAINING, RECENT
+from jrdb_owner_day_research import REVIEW_STAGES
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import _valid_date
 from jrdb_program_preview import TRACKS
@@ -309,11 +310,23 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
             raise CoverageError("Programme and research slots differ")
         seen.add(key)
         item = by_coordinate[key]
-        if item["status"] == "needs_review" and item.get("research") is not None:
-            raise CoverageError("Unverified research must be null")
+        if item["status"] == "needs_review":
+            if item.get("research") is not None:
+                raise CoverageError("Unverified research must be null")
+            # Older research snapshots can lack the optional fixed code.
+            stage = item.get("reviewStage")
+            if stage is not None and stage not in REVIEW_STAGES:
+                raise CoverageError("Invalid research review stage")
+        elif "reviewStage" in item:
+            raise CoverageError("Unexpected stage for complete research")
         output = _draft_for_race(
             row, item.get("research") if item["status"] == "research_only" else None,
             day, now)
+        # Never disclose a post-off research stage, or turn a hold into a
+        # ticket. This is a diagnostic label for a PRESTART held race only.
+        if (output["reason"] == "missing_research"
+                and item.get("reviewStage") in REVIEW_STAGES):
+            output["reviewStage"] = item["reviewStage"]
         out.append(output)
     reasons = {}
     for race in out:
