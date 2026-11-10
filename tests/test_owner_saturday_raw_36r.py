@@ -163,6 +163,37 @@ class SaturdayRawDayTests(unittest.TestCase):
             self.assertNotIn(forbidden, events[0])
         self.assertNotIn("KEIBA_AUTO_DRAFT_FAILURE", " ".join(captured.output))
 
+    def test_provider_withdrawal_only_holds_one_of_thirty_six(self):
+        programme, entries, training, previous = raw_day()
+        for row in entries:
+            # Explicitly clear all provider flags for this synthetic case.
+            row["withdrawn_flag"] = "0"
+        scratch = next(row for row in entries
+                       if row["racekey"]=="0599aa02"
+                       and row["horse_number"]=="03")
+        scratch["withdrawn_flag"] = "1"
+        response = run_request((programme,entries,training,previous))
+        self.assertEqual(response["status"],"200 OK",response["body"][:350])
+        report=json.loads(response["body"])
+        self.assertEqual((report["raceCount"],report["draftCount"],
+                          report["holdCount"]),(36,35,1))
+        self.assertEqual(report["holdReasons"],{"provider_withdrawal":1})
+        held=[x for x in report["races"] if x["status"]=="hold"]
+        self.assertEqual([(x["track"],x["race"]) for x in held],[("東京",2)])
+        self.assertEqual(held[0]["reason"],"provider_withdrawal")
+        self.assertFalse(held[0]["tickets"])
+        self.assertFalse(held[0]["runners"])
+        self.assertEqual(report["researchReceiptCount"],35)
+        self.assertEqual(len(verify_preview_receipts(
+            report["researchReceipts"],SECRET,"2099-01-01")),35)
+        self.assertFalse(report["officialJraVerified"])
+        self.assertFalse(report["bettingReady"])
+        # No horse identity or JRDB raw flag is disclosed.
+        redacted=response["body"].decode()
+        for private in ("withdrawn_flag","horse_name","horse_id",
+                        "PRIVATE-TEST-HORSE","racekey"):
+            self.assertNotIn(private,redacted)
+
     def test_single_missing_workout_holds_only_one_race(self):
         programme, entries, training, previous = raw_day()
         # A missing /tcy row is NOT a C grade or zero ability. The other
