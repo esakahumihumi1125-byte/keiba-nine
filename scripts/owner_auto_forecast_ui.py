@@ -1176,6 +1176,10 @@ function saveAutoReceipts(data,day){
   data.researchReceiptCount!==data.researchReceipts.length)
   throw Error('署名付き研究記録の形式を確認できません');
  const signed=data.researchReceipts,expectedDay=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+ // Every newly offered draft must have its own server-issued prestart
+ // receipt. Otherwise, never display a formation that cannot be locked.
+ if(signed.length!==data.draftCount)
+  throw Error('研究用下書きと署名付き記録の件数が不一致です');
  const available=new Map(data.races.filter(r=>r.status==='provisional_draft')
   .map(r=>[r.track+'|'+r.race,r]));
  const seen=new Set();
@@ -3591,7 +3595,9 @@ $('autoRun').onclick=async()=>{
    ?'研究記録の端末保存はできませんでした。以前の固定記録は変更していません。'
    :'再分析に失敗。'+localReceiptStatus(day);
   showFixedHistory(day);
-  $('autoFixedConsistency').textContent='今回の再分析結果は未確認です。以前の固定済み研究記録は変更していません。';
+  $('autoFixedConsistency').textContent=storageFailure
+   ?'【保存記録の確認が必要】端末への新規固定に失敗したため、新しい買い目は表示していません。以前の固定済み研究記録は変更していません。'
+   :'今回の再分析結果は未確認です。以前の固定済み研究記録は変更していません。';
   $('autoMorningStatus').textContent=storageFailure
    ?'JRDBの暫定案を取得しましたが、端末への新規固定保存に失敗。新しい3連単は非表示。以前の固定記録は変更していません。'
    :'JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
