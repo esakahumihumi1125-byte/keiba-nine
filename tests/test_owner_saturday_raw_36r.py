@@ -303,7 +303,17 @@ class SaturdayRawDayTests(unittest.TestCase):
         self.assertEqual(held[0]["points"],0)
         self.assertEqual(len(verify_preview_receipts(
             data["researchReceipts"],SECRET,"2099-01-01")),35)
-        self.assertEqual(data["sourceMaterials"]["status"],"unavailable")
+        self.assertEqual(data["sourceMaterials"]["status"],"partial")
+        self.assertEqual(len(data["sourceMaterials"]["races"]),35)
+        self.assertEqual(data["sourcePassport"]["observedMaterialRaces"],35)
+        missing=next(x for x in data["sourcePassport"]["races"]
+                     if x["track"]=="東京" and x["race"]==2)
+        self.assertFalse(missing["sourceMaterialsObserved"])
+        self.assertIsNone(missing["additionalFieldCounts"])
+        healthy=next(x for x in data["sourcePassport"]["races"]
+                     if x["track"]=="東京" and x["race"]==3)
+        self.assertTrue(healthy["sourceMaterialsObserved"])
+        self.assertEqual(healthy["additionalFieldCounts"]["pedigree"],0)
         self.assertFalse(data["officialJraVerified"])
         self.assertFalse(data["bettingReady"])
         self.assertNotIn("PRIVATE-TEST-HORSE",reply["body"].decode())
@@ -343,8 +353,14 @@ class SaturdayRawDayTests(unittest.TestCase):
         self.assertEqual(result["holdReasons"], {
             "after_provisional_off": 1, "missing_research": 1
         })
-        self.assertEqual(result["sourceMaterials"]["status"], "unavailable")
+        self.assertEqual(result["sourceMaterials"]["status"], "partial")
+        self.assertEqual(len(result["sourceMaterials"]["races"]),35)
         self.assertTrue(result["sourcePassport"]["sourceAuditAvailable"])
+        self.assertEqual(result["sourcePassport"]["observedMaterialRaces"],35)
+        unobserved=next(x for x in result["sourcePassport"]["races"]
+                        if x["track"]=="東京" and x["race"]==2)
+        self.assertFalse(unobserved["sourceMaterialsObserved"])
+        self.assertIsNone(unobserved["additionalFieldCounts"])
         held = [r for r in result["races"] if r["status"] == "hold"]
         self.assertEqual({(r["track"], r["race"]) for r in held},
                          {("東京", 1), ("東京", 2)})
