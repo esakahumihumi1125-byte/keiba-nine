@@ -755,6 +755,21 @@ function programmeCoverage(data){
 }
 // Show structural local receipt counts only, never claim HMAC verification,
 // durable server storage, actual bets, or results.
+function sourceReadProof(data){
+ // This reports *provider reads*, not actual verified runner records,
+ // official JRA information, calibrated grades or purchase readiness.
+ if(data.raceCount===0)
+  return '【番組0R・予想未作成】JRDB照会 '+data.sourceReadCount+
+   '回。'+(data.sourceReadCount===1?
+    '番組だけ取得。出走馬・調教・近走・馬場は照会していません。':
+    '以前の方式で番組以外の資料も照会（実際の出走馬は未確認）。')+
+   '開催なしとは断定できません。新規3連単・署名0件。';
+ return '【番組あり・資料照会完了】JRDBの番組／出走馬／調教／近走を '+
+  data.sourceReadCount+'回照会。番組 '+data.raceCount+
+  'R／2項目の研究用3連単 '+data.draftCount+'R／見送り '+data.holdCount+
+  'R／今回受け取った署名 '+data.researchReceiptCount+
+  '件。資料の充足・正式10項目採点・JRA公式照合は別。';
+}
 function recordRetentionStatus(data,day){
  let count;
  try{count=selectedReceiptsForVerification(day).length;}
@@ -891,6 +906,7 @@ function render(input,day){
  const fixed=compareFixedWithDrafts(data,day);
  $('autoOperationalNext').textContent=operationalNextStep(data,fixed);
  $('autoProgrammeCoverage').textContent=programmeCoverage(data);
+ $('autoReadProof').textContent=sourceReadProof(data);
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
  const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
  const passport=data.sourcePassport?.sourceAuditAvailable?
@@ -3445,6 +3461,7 @@ $('autoDay').onchange=()=>{
  clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
+ $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
  $('autoOperationalNext').textContent='土曜日の次の操作：当日の取得結果を確認中。';
  $('autoProgrammeCoverage').textContent='開催場別の取得R数：まだ確認していません。';
@@ -3457,6 +3474,26 @@ $('autoDay').onchange=()=>{
  showFixedHistory($('autoDay').value.replaceAll('-',''));
  $('autoStatus').textContent='開催日を選んでな。';
 };
+// Weekend shortcuts only change the date. They do not read paid data.
+function nearestJstWeekday(target){
+ const today=jstToday();
+ const date=new Date(today+'T12:00:00Z');
+ if(!Number.isFinite(date.valueOf()))throw Error('Invalid JST date');
+ const add=(target-date.getUTCDay()+7)%7;
+ date.setUTCDate(date.getUTCDate()+add);
+ return date.toISOString().slice(0,10);
+}
+function chooseUpcomingJstDay(weekday){
+ const selected=nearestJstWeekday(weekday),input=$('autoDay');
+ if(input.value!==selected){
+  input.value=selected;
+  input.onchange();
+ }else followingToday=false;
+ $('autoStatus').textContent=selected+
+  'を選択しました。JRDBの追加照会はまだ行っていません。全場・全Rを再分析するボタンで取得できます。';
+}
+$('autoSaturday').onclick=()=>chooseUpcomingJstDay(6);
+$('autoSunday').onclick=()=>chooseUpcomingJstDay(0);
 // Optional, JRA-only HTML index lookup. Never use the PDF URL as evidence
 // of specific runners, scratches, going, off times, finalized picks or ROI.
 $('autoOfficialPdf').onclick=async()=>{
@@ -3587,6 +3624,7 @@ $('autoRun').onclick=async()=>{
  }
  button.disabled=true;$('autoStatus').textContent='JRDB資料を一括照合し、自動暫定案を作成中…';
  $('autoOperationalNext').textContent='JRDB取得・資料検証中。新しい研究用下書きの確認は完了していません。';
+ $('autoReadProof').textContent='JRDB資料を照会中。番組R数・4ソース完了・署名はまだ未確認。';
  clearHistory();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
@@ -3682,6 +3720,7 @@ $('autoRun').onclick=async()=>{
    ?'【端末保存失敗・新規下書きなし】既存の固定履歴を先に確認して、同じiPhoneのバックアップを安全に保管してください。保存できる状態になってから発走前に再取得してください。'
    :'【取得失敗・新規予想なし】上の停止工程と401/403/429等の原因表示を確認。日付・接続設定・利用権限を見直し、既存の固定履歴を先に確認してください。JRA公式照合と正式100点予想は未完了です。';
   $('autoProgrammeCoverage').textContent='取得失敗：開催場別R数は確認できません。';
+  $('autoReadProof').textContent='【照会失敗】番組・出走馬・調教・近走の取得完了は未確認。新規予想・署名を確認できません。';
   $('autoRecordSafety').textContent=storageFailure
    ?'【端末への新規固定失敗】新しい買い目は非表示。既存の固定記録は削除・上書きしていません。バックアップ・署名確認を優先してください。'
    :'新規記録なし。以前の固定記録は下の履歴で確認してください（署名は別操作）。';
@@ -5198,6 +5237,7 @@ function resumeOwnerDay(){
  clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
+ $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
  $('autoOperationalNext').textContent='土曜日の次の操作：当日の取得結果を確認中。';
  $('autoProgrammeCoverage').textContent='開催場別の取得R数：まだ確認していません。';
