@@ -48,6 +48,23 @@ class ThreeFactorSourceGapTests(unittest.TestCase):
         self.assertEqual(tokyo["observed"]["sameGoingObserved"], 1)
         self.assertEqual(tokyo["gaps"]["noCourseComparableRuns"], 1)
         self.assertEqual(tokyo["formalGradesVerified"], 0)
+        self.assertEqual(len(tokyo["runners"]), tokyo["runnerCount"])
+        self.assertEqual([h["number"] for h in tokyo["runners"]], [1, 2])
+        self.assertEqual(tokyo["observed"]["allThreeSourcesObserved"],
+                         sum(h["allThreeSourcesPresent"] for h in tokyo["runners"]))
+        self.assertTrue(all(h["formalGradesVerified"] == 0
+                            and h["formalGradeReady"] is False
+                            and h["officialJraVerified"] is False
+                            and h["holdoutValidated"] is False
+                            for h in tokyo["runners"]))
+        for h in tokyo["runners"]:
+            expected = [k for k in ("course_distance", "pace", "ground")
+                        if not h["sourcePresent"][k]]
+            self.assertEqual(h["missingSourceFactors"], expected)
+            self.assertEqual(h["allThreeSourcesPresent"], not bool(expected))
+        self.assertFalse(result["independentTimeCutVerified"])
+        self.assertFalse(result["conditionMatchedHoldoutValidated"])
+        self.assertFalse(result["factorRubricsCalibrated"])
         for private in ("racekey", "horse_id", "horse_number", "PAID-SECRET"):
             self.assertNotIn(private, repr(result))
 
