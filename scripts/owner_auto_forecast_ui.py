@@ -1161,7 +1161,7 @@ function saveAutoReceipts(data,day){
   '中山','中京','京都','阪神','小倉']);
  for(const old of existing){
   const p=old?.snapshot,id=p&&p.date+'|'+p.track+'|'+p.race;
-  if(!p||typeof p.date!=='string'||!/^20\\d{2}-\\d{2}-\\d{2}$/.test(p.date)||
+  if(!p||typeof p.date!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(p.date)||
      !Number.isFinite(Date.parse(p.date+'T12:00:00Z'))||
      new Date(p.date+'T12:00:00Z').toISOString().slice(0,10)!==p.date||
      !tracks.has(p.track)||!Number.isInteger(p.race)||p.race<1||p.race>12||
@@ -1170,8 +1170,8 @@ function saveAutoReceipts(data,day){
      p.sourceKind!=='prestart-locked'||p.actualPurchase!==false||
      p.scheduleVerified!==false||p.predictionVerified!==false||
      typeof p.lockedAt!=='string'||typeof p.scheduledOffAt!=='string'||
-     !/(?:Z|[+-]\\d\\d:\\d\\d)$/.test(p.lockedAt)||
-     !/(?:Z|[+-]\\d\\d:\\d\\d)$/.test(p.scheduledOffAt)||
+     !/(?:Z|[+-]\d\d:\d\d)$/.test(p.lockedAt)||
+     !/(?:Z|[+-]\d\d:\d\d)$/.test(p.scheduledOffAt)||
      !Number.isFinite(Date.parse(p.lockedAt))||
      !Number.isFinite(Date.parse(p.scheduledOffAt))||
      Date.parse(p.lockedAt)>=Date.parse(p.scheduledOffAt)||
