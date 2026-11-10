@@ -154,7 +154,8 @@ class SaturdayRawDayTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertIn("status=complete", events[0])
         for field in ("programme=present", "drafts=36", "holds=0",
-                      "receipts=36", "jra=unverified", "formal=ungraded"):
+                      "receipts=36", "hold_causes=none",
+                      "jra=unverified", "formal=ungraded"):
             self.assertIn(field, events[0])
         for forbidden in (
                 DAY, "PRIVATE-", "racekey", "horse_id", "horse_name",
@@ -162,6 +163,28 @@ class SaturdayRawDayTests(unittest.TestCase):
                 "tickets", "trifecta", "0526", "TRAINING", "JRDB_API"):
             self.assertNotIn(forbidden, events[0])
         self.assertNotIn("KEIBA_AUTO_DRAFT_FAILURE", " ".join(captured.output))
+
+    def test_one_source_withdrawal_logs_fixed_hold_cause_no_horse_data(self):
+        programme, entries, training, previous = raw_day()
+        for row in entries:
+            row["withdrawn_flag"] = "0"
+        entries[0]["withdrawn_flag"] = "1"
+        with self.assertLogs(level="WARNING") as captured:
+            response=run_request((programme,entries,training,previous))
+        self.assertEqual(response["status"],"200 OK",response["body"][:250])
+        logs=[line for line in captured.output
+              if "KEIBA_AUTO_DRAFT_PIPELINE" in line]
+        self.assertEqual(len(logs),1)
+        self.assertIn("drafts=35 holds=1 receipts=35",logs[0])
+        self.assertIn("hold_causes=provider_withdrawal:1",logs[0])
+        for secret in ("horse_id","horse_name","racekey","PRIVATE",
+                       "raw-synthetic","x-user-key",DAY,
+                       "2099-01-01","withdrawn_flag","01","02"):
+            # Only check source-bearing strings, not ordinary digits
+            # already present in aggregate counts.
+            if secret in ("01","02"):
+                continue
+            self.assertNotIn(secret,logs[0])
 
     def test_provider_withdrawal_only_holds_one_of_thirty_six(self):
         programme, entries, training, previous = raw_day()
