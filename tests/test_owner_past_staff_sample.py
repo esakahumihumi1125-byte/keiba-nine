@@ -148,12 +148,21 @@ class OwnerPastStaffTrialTests(unittest.TestCase):
                      data={"date":"20261101","limit":8})
             self.assertEqual(raw["status"],"200 OK")
             self.assertNotIn("pastStaffSample",json.loads(raw["body"]))
+            self.assertNotIn("pastResultUpdateAudit",json.loads(raw["body"]))
             staff.assert_not_called()
             results.assert_not_called()
             check=call(app,"/api/jrdb/history","POST",
                       data={"date":"20261101","limit":8,"staffSample":True})
             self.assertEqual(check["status"],"200 OK")
-            report=json.loads(check["body"])["pastStaffSample"]
+            returned=json.loads(check["body"])
+            report=returned["pastStaffSample"]
+            diagnostic=returned["pastResultUpdateAudit"]
+            self.assertEqual(diagnostic["observedResponseCount"], 1)
+            self.assertEqual(diagnostic["observedResultRowCount"], 7)
+            self.assertEqual(diagnostic["missingUpdateCount"], 7)
+            self.assertFalse(diagnostic["initialPublicationTimeVerified"])
+            self.assertFalse(diagnostic["historicalResultPublicationTimesVerified"])
+            self.assertEqual(diagnostic["extraProviderCalls"], 0)
             self.assertEqual(report["status"],"joined_private_sample")
             self.assertEqual(report["distinctPairCount"],2)
             staff.assert_called_once_with(key)
