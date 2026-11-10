@@ -35,6 +35,7 @@ from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
 from jrdb_owner_auto_draft import (build_owner_auto_drafts, DAY_DRAFT_ISSUES,
                                    compact_hold_diagnostics)
+from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_ten_factor_contract import ten_factor_contract
 from owner_day_source_passport import safe_owner_day_source_passport
 from jrdb_owner_draft_materials import observe_owner_draft_materials, unavailable as unavailable_draft_materials
@@ -2265,9 +2266,18 @@ def create_app(settings=None):
                             TypeError, KeyError):
                         # Fixed label only; never log source data.
                         logging.warning('KEIBA_AUTO_DRAFT_CONTEXT=unavailable')
-                # Same snapshot, no additional provider reads. Optional
-                # read-only diagnostic must never mutate signed forecast
-                # receipts or create extra betting-ready grades.
+                # Optional /tka and source analysis can outlast a provisional
+                # start time. Re-check the SERVER clock immediately before
+                # return; suppress any newly late formation/receipt in this
+                # response without touching an earlier archived HMAC record.
+                # Never reuse browser time or create post-off betting evidence.
+                stage = 'final_prestart_gate'
+                expired_before_delivery = expire_undelivered_drafts(
+                    report, datetime.fromisoformat(_now_in_jst()))
+                if expired_before_delivery:
+                    report['tenFactorPreview'] = ten_factor_contract(report)
+                # Re-audit the FINAL response, which may now hold newly
+                # started races. No additional provider reads and no grades.
                 report['sourcePassport'] = safe_owner_day_source_passport(report)
                 # Operator-only one-line proof of completing the genuine
                 # four-source pipeline, before sending the owner response.
@@ -2277,7 +2287,7 @@ def create_app(settings=None):
                 logging.warning(
                     'KEIBA_AUTO_DRAFT_PIPELINE status=complete '
                     'programme=%s drafts=%s holds=%s receipts=%s '
-                    'material=%s course=%s hold_causes=%s '
+                    'material=%s course=%s hold_causes=%s expired_on_return=%s '
                     'jra=unverified formal=ungraded',
                     'present' if report['raceCount'] else 'empty',
                     report['draftCount'], report['holdCount'],
@@ -2285,6 +2295,7 @@ def create_app(settings=None):
                     report['sourceMaterials']['status'],
                     report['raceContext']['conditionProviderFetchStatus'],
                     compact_hold_diagnostics(report),
+                    expired_before_delivery,
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError) as exc:
