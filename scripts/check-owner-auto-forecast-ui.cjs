@@ -993,6 +993,7 @@ function prestart(){
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
+ let storageWritable=true;
  let next=resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
@@ -1022,7 +1023,8 @@ function boot(){
  };
  const localStorage={
   getItem:k=>storage.get(k)||null,
-  setItem(k,v){storage.set(k,v)},
+  setItem(k,v){if(!storageWritable)throw Error('synthetic_quota_exceeded');
+   storage.set(k,v)},
  };
  const fetch=async(url,options)=>{
   requests.push({url,options});
@@ -1249,7 +1251,8 @@ function boot(){
   String,Array,Error,Promise,Object};
  vm.runInNewContext(js,context);
  get('autoDay').value=date;
- return {get,storage,requests,setServer:x=>next=withTenPreview(x),
+ return {get,storage,requests,setStorageWritable:x=>storageWritable=x,
+  setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
   setAutoDraftOk:x=>autoDraftOk=x,
   setAutoDraftFailure:x=>autoDraftFailure=x,
