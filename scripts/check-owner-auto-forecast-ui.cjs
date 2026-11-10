@@ -2137,6 +2137,39 @@ function boot(){
  assert.match(a.get('autoSourceSummary').textContent,/当日馬場資料 1R/);
  assert.match(a.get('autoSourceSummary').textContent,/正式採点0\/10/);
  assert.match(a.get('autoSourceSummary').textContent,/買い目は変更しません/);
+ assert.match(a.get('autoSourceSummary').textContent,/元資料が照合保留/);
+ // All 36 source passports are already validated from the same source
+ // fetch, so the owner gets a one-glance missing-R breakdown for ten-factor
+ // development without another charged lookup or any formal grade.
+ const sourceDay=boot();
+ await new Promise(r=>setImmediate(r));
+ const sourceReport=full36EligibleDrafts();
+ sourceReport.sourceMaterials={
+  version:'owner-draft-material-coverage-1',status:'observed',
+  observedFactorSlots:8,gradedNewFactors:0,officialJraVerified:false,
+  races:sourceReport.races.map((race,i)=>({
+   track:race.track,race:race.race,runnerCount:7,
+   counts:{pedigree:i===0?6:7,drawWeight:7,
+    rotation:i%2===0?7:6,personnel:i<6?0:7,
+    body:0,pastCorner:6}
+  }))
+ };
+ withSourcePassport(sourceReport);
+ sourceDay.setServerRaw(sourceReport);
+ const callsBeforeSource=sourceDay.requests.length;
+ await sourceDay.get('autoRun').onclick();
+ assert.equal(sourceDay.requests.length,callsBeforeSource+1);
+ assert.match(sourceDay.get('autoSourceSummary').textContent,/照合済み36Rのみ/);
+ assert.match(sourceDay.get('autoSourceSummary').textContent,/騎手・厩舎 6R/);
+ assert.match(sourceDay.get('autoSourceSummary').textContent,/父・母父 1R/);
+ assert.match(sourceDay.get('autoSourceSummary').textContent,/枠・斤量 0R/);
+ assert.match(sourceDay.get('autoSourceSummary').textContent,/ローテ 18R/);
+ assert.match(sourceDay.get('autoSourceSummary').textContent,/過去4角の記録 36R/);
+ assert.match(sourceDay.get('autoSourceSummary').textContent,/当日馬体重は別の直前情報が必要/);
+ assert.match(sourceDay.get('autoSourceSummary').textContent,/正式得点ではありません/);
+ assert.equal(JSON.parse(sourceDay.storage.get(STORAGE)).length,36);
+ assert.equal(sourceDay.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+
  assert.match(a.get('autoMorningStatus').textContent,/2099-01-01：番組 1R/);
  assert.match(a.get('autoMorningStatus').textContent,/研究用3連単下書き 1R／見送り 0R/);
  assert.match(a.get('autoMorningStatus').textContent,/10項目本採点.*未完了/);
