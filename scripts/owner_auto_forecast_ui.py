@@ -1708,7 +1708,7 @@ function validateStaffStudyEntry(entry){
   'predictionReady','bettingReady','autoPurchase','actualPurchase',
   'changesExistingReceipts','changesExistingTickets','changesExistingRoi'];
  if(!x||typeof x!=='object'||Array.isArray(x)||
-    Object.keys(x).length!==counts.length+falseKeys.length+9||
+    Object.keys(x).length!==counts.length+falseKeys.length+8||
     counts.some(k=>!Number.isInteger(x[k])||x[k]<0)||
     falseKeys.some(k=>x[k]!==false)||
     x.researchOnly!==true||x.privateOwnerOnly!==true||
@@ -3951,6 +3951,46 @@ $('autoFiveProviderCheck').onclick=async()=>{
    button.disabled=false;
  }
 };
+$('autoHistoryStaffArchiveVerify').onclick=async()=>{
+ const btn=$('autoHistoryStaffArchiveVerify');
+ if(btn.disabled)return;
+ const seq=++staffArchiveVerifySeq;
+ btn.disabled=true;
+ $('autoHistoryStaffArchiveVerifyStatus').textContent=
+  '開催日別の騎手厩舎研究の署名を再確認中…';
+ try{
+  const records=savedStaffStudySessions();
+  if(!records.length)throw Error('empty_staff_study');
+  const body=JSON.stringify({receipts:records});
+  if(body.length>250000)throw Error('staff_study_too_large');
+  const response=await fetch('/api/owner-staff-study-verify',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body
+  });
+  const checked=await response.json();
+  if(seq!==staffArchiveVerifySeq)return;
+  if(!response.ok||checked.version!=='owner-staff-study-verify-1'||
+     checked.serverSigned!==true||
+     checked.verifiedDateCount!==records.length||
+     checked.researchOnly!==true||checked.privateOwnerOnly!==true||
+     checked.independentHistoricRaceDedupVerified!==false||
+     checked.officialJraVerified!==false||
+     checked.formalTenPointReady!==false||checked.bettingReady!==false||
+     checked.actualPurchase!==false||checked.sourceProviderReadCount!==0)
+   throw Error('Signature mismatch');
+  $('autoHistoryStaffArchiveVerifyStatus').textContent=
+   '開催日別の研究記録 '+checked.verifiedDateCount+
+   '日分の署名を検証。過去R重複の排除・実力10点・JRA結果・回収率の確認ではありません。';
+ }catch(_){
+  if(seq===staffArchiveVerifySeq)
+   $('autoHistoryStaffArchiveVerifyStatus').textContent=
+    '研究記録の署名を確認できません。保存済みデータは変更していません。';
+ }finally{
+  if(seq===staffArchiveVerifySeq)
+   btn.disabled=false;
+ }
+};
 $('autoResearch6DraftVerify').onclick=async()=>{
  const button=$('autoResearch6DraftVerify'),day=$('autoDay').value.replaceAll('-','');
  if(button.disabled)return;
@@ -4216,6 +4256,43 @@ $('autoHistoryAudit').onclick=async()=>{
   }else if(raw?.pastStaffSample!==undefined||
             raw?.pastStaffBatch!==undefined){
    throw Error('本人が選んでいない追加取得結果が混入');
+  }
+
+  // A three-race aggregate may be sealed by the private server. Only after
+  // a fresh, read-only signature verification will this iPhone first-write.
+  // We do NOT merge historical IDs across days or grade any rider.
+  if(wantStaff&&staffBatch===3&&raw?.pastStaffBatch?.providerReadCount>0){
+   try{
+    const entry=raw.staffStudyCapture,p=validateStaffStudyEntry(entry);
+    const source={...raw.pastStaffBatch};
+    delete source.note;
+    if(p.date!==day||JSON.stringify(p.summary)!==JSON.stringify(source))
+     throw Error('Study receipt does not match the paid sample');
+    const response=await fetch('/api/owner-staff-study-verify',{
+     method:'POST',credentials:'same-origin',cache:'no-store',
+     headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+      'Accept':'application/json'},
+     body:JSON.stringify({receipts:[entry]})
+    });
+    const checked=await response.json();
+    if(seq!==historySeq||historyDay!==day)return;
+    if(!response.ok||checked.version!=='owner-staff-study-verify-1'||
+       checked.serverSigned!==true||checked.verifiedDateCount!==1||
+       checked.researchOnly!==true||checked.privateOwnerOnly!==true||
+       checked.independentHistoricRaceDedupVerified!==false||
+       checked.officialJraVerified!==false||
+       checked.formalTenPointReady!==false||checked.bettingReady!==false||
+       checked.actualPurchase!==false||checked.sourceProviderReadCount!==0)
+     throw Error('Study signature not verified');
+    $('autoHistoryStaffArchiveStatus').textContent=
+     firstWriteStaffStudyEntry(entry);
+    showSavedStaffStudySessions();
+   }catch(_){
+    $('autoHistoryStaffArchiveStatus').textContent=
+     '3Rの研究記録は署名確認・保存できませんでした。以前の初回記録は変更しません。';
+   }
+  }else if(raw?.staffStudyCapture!==undefined){
+   throw Error('Unrequested staff study receipt in history');
   }
 
   // Core research capture is optional in legacy saved history responses;
