@@ -83,6 +83,12 @@ def plan_bounded_history(programme, entries, previous, requested_date,
                       and (current, hid) in by_id)
         if not (matched_number or matched_id):
             continue  # Anonymous source rows are not a basis for paid lookups.
+        # The numbered back-runs are newest first for EACH runner. Check
+        # their date sequence and identity before any chargeable lookup.
+        # Equal dates are tolerated here because source rows may be partial;
+        # repeated keyed races for the SAME runner are never tolerated.
+        previous_day = requested_date
+        runner_past_keys = set()
         for i in range(1, 6):
             prefix = f"race_back_{i}_"
             date, racekey = row.get(prefix + "racedate"), row.get(prefix + "racekey")
@@ -90,15 +96,22 @@ def plan_bounded_history(programme, entries, previous, requested_date,
                 continue
             if not _valid_date(date) or date >= requested_date:
                 raise CoverageError("Previous race date invalid")
+            if date > previous_day:
+                raise CoverageError("Previous race sequence invalid")
+            previous_day = date
             if racekey is None or racekey == "":
                 unkeyed += 1
                 continue  # Historical key unavailable; do not guess.
             if (not isinstance(racekey, str) or not KEY.fullmatch(racekey)
                     or racekey[:2] not in TRACKS
+                    or racekey[2:4] != date[2:4]
                     or not racekey[6:].isdigit()
                     or not 1 <= int(racekey[6:]) <= 12
                     or racekey in current_keys):
                 raise CoverageError("Invalid historical racekey")
+            if racekey in runner_past_keys:
+                raise CoverageError("Duplicate past race for runner")
+            runner_past_keys.add(racekey)
             if racekey in referenced and referenced[racekey] != date:
                 raise CoverageError("Conflicting dates for historical racekey")
             referenced[racekey] = date
