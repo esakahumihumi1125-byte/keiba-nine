@@ -1214,7 +1214,20 @@ function saveAutoReceipts(data,day){
   identities.add(id);combined.push(receipt);added++;
  }
  if(combined.length>360)throw Error('保存数の上限です');
- if(added)localStorage.setItem(RECEIPTS_KEY,JSON.stringify(combined));
+ // Prevalidate both the old and incoming snapshots. A syntactically
+ // well-formed server signature is NOT a cryptographic verification,
+ // but malformed ticket/timestamps must not poison the local ledger.
+ validateStoredResearchLedger(combined);
+ if(added){
+  const payload=JSON.stringify(combined);
+  if(payload.length>650000)throw Error('端末保存領域の推奨上限を超えます');
+  localStorage.setItem(RECEIPTS_KEY,payload);
+  // iOS WebKit may be interrupted or the storage layer may fail. A write
+  // call returning is not evidence that the immutable record can be read.
+  // Never render a new formation if the same bytes cannot be read back.
+  if(localStorage.getItem(RECEIPTS_KEY)!==payload)
+   throw Error('端末の保存結果を再読込できません');
+ }
  return '署名付き研究記録：新規 '+added+'R／既存の固定記録は上書きせず維持。'+
   '保存先はこのiPhone内のみ（Safariとホーム画面で別の場合あり）。';
 }
