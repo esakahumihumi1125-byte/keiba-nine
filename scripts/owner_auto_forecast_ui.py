@@ -902,6 +902,9 @@ function fixedComparisonMessage(report){
 }
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
+ const deviceExpired=new Set(data.races.filter(x=>
+   x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)
+ ).map(x=>x.track+'|'+x.race));
  jraDraftTracks=new Set(data.races.map(x=>x.track));updateJraCrosscheck();
  const fixed=compareFixedWithDrafts(data,day);
  $('autoOperationalNext').textContent=operationalNextStep(data,fixed);
@@ -925,11 +928,13 @@ function render(input,day){
  $('autoSourceSummary').textContent=summarizeDaySourcePassport(
   data.sourcePassport,data.raceCount);
  for(const race of data.races){
-  const changedLock=fixed.blocked.has(race.track+'|'+race.race);
+  const key=race.track+'|'+race.race,
+   changedLock=fixed.blocked.has(key),elapsed=deviceExpired.has(key);
   const detail=dom('details'),title=dom('summary',
    race.track+' '+race.race+'R '+
    (race.status==='provisional_draft'
-    ?changedLock?'固定済みとの不一致・再分析案非表示':
+    ?elapsed?'端末受信後に発走時刻経過・新案非表示':
+      changedLock?'固定済みとの不一致・再分析案非表示':
       '研究用自動案 '+race.points+'点':'見送り'));
   detail.append(title);
   const course=courseRows.get(race.track+'|'+race.race);
@@ -1012,7 +1017,11 @@ function render(input,day){
    detail.append(panel);
   }
   if(race.status==='provisional_draft'){
-   if(fixed.blocked.has(race.track+'|'+race.race))
+   if(elapsed)
+    detail.append(dom('p','【発走時刻経過】JRDB暫定発走時刻を端末で再確認し、'+
+     '新しい買い目を非表示にしました。保存済みの発走前研究記録は変更しません。'+
+     'JRA公式発走時刻は別途確認してください。','hold'));
+   else if(fixed.blocked.has(race.track+'|'+race.race))
     detail.append(dom('p',fixed.unavailable
      ?'端末固定記録の確認に失敗。新しい3連単案は非表示。保存済み記録を確認してな。'
      :'【以前の固定買い目と不一致】新しい下書きの3連単を非表示にしました。下の発走前固定履歴を確認してな。',
@@ -1021,11 +1030,12 @@ function render(input,day){
   }
   const raceKey=race.track+'|'+race.race;
   nodes.push({key:raceKey,track:race.track,
-   draft:race.status==='provisional_draft'&&!changedLock,
+   draft:race.status==='provisional_draft'&&!changedLock&&!elapsed,
    holdReason:race.status==='hold'?race.reason:null,node:detail});
   const option=dom('option',race.track+' '+race.race+'R｜'+
    (race.status==='provisional_draft'
-    ?changedLock?'固定済みと不一致・新案非表示':
+    ?elapsed?'発走時刻経過・新案非表示':
+      changedLock?'固定済みと不一致・新案非表示':
       '研究用下書き '+race.points+'点':'見送り'));
   option.value=raceKey;select.append(option);
   groups.set(race.track,(groups.get(race.track)||0)+1);
@@ -1095,8 +1105,9 @@ function render(input,day){
  show('');
  const breakdown=Object.entries(data.holdReasons).sort((a,b)=>b[1]-a[1])
   .map(([reason,count])=>SHORT_HOLDS[reason]+' '+count+'R').join('／');
- $('autoSummary').textContent=data.raceCount+'R中、研究用自動案 '+data.draftCount+
-  'R／見送り '+data.holdCount+'R。'+
+ $('autoSummary').textContent=data.raceCount+'R中、表示可能な研究用自動案 '+
+  safeDraftCount+'R／端末受信後に発走時刻経過 '+deviceExpired.size+
+  'R／サーバー見送り '+data.holdCount+'R。'+
   (breakdown?'内訳：'+breakdown+'。':'')+
   'JRDBの2項目だけを買い目に使用。コース条件の存在 '+ctx.courseInfoPresentCount+
   'R／馬場資料の存在 '+ctx.goingAvailableCount+'R（適性は未評価）。追加資料：'+
@@ -1247,6 +1258,19 @@ function showFixedHistory(day){
   label.textContent='固定記録の形式が不正です。既存記録は変更せず、バックアップを確認してください。';
  }
 }
+function draftExpiredOnDevice(day,postTime){
+ // A second CLIENT-SIDE fail-closed check after the server response arrives.
+ // The device clock is NOT independently verified, nor is JRDB's off-time
+ // an official JRA schedule. Treat either an invalid value or an elapsed
+ // provisional off-time as a reason to HIDE an unpurchased new draft.
+ if(!/^20[0-9]{6}$/.test(day)||
+    typeof postTime!=='string'||
+    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(postTime))return true;
+ const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8)+
+  'T'+postTime+':00+09:00';
+ const off=Date.parse(iso),deviceNow=new Date().getTime();
+ return !Number.isFinite(off)||!Number.isFinite(deviceNow)||deviceNow>=off;
+}
 function saveAutoReceipts(data,day){
  if(data.serverStamped!==true||data.captureAuditVerified!==false||
   !Array.isArray(data.researchReceipts)||data.researchReceipts.length>36||
@@ -1286,18 +1310,36 @@ function saveAutoReceipts(data,day){
  const existing=JSON.parse(raw||'[]');
  if(!Array.isArray(existing)||existing.length>360)throw Error('保存済みの記録形式を確認できません');
  const identities=validateStoredResearchLedger(existing);
- let added=0;
+ let added=0,expiredSkipped=0;
  const combined=existing.slice();
+ const incoming=[];
  for(const receipt of signed){
   const s=receipt.snapshot,id=s.date+'|'+s.track+'|'+s.race;
   if(identities.has(id))continue; // The first research receipt wins.
-  identities.add(id);combined.push(receipt);added++;
+  const matching=available.get(s.track+'|'+s.race);
+  if(draftExpiredOnDevice(day,matching.postTime)){
+   expiredSkipped++;continue; // Never first-write a late HTTP response.
+  }
+  identities.add(id);incoming.push(receipt);combined.push(receipt);added++;
  }
  if(combined.length>360)throw Error('保存数の上限です');
  // Prevalidate both the old and incoming snapshots. A syntactically
  // well-formed server signature is NOT a cryptographic verification,
  // but malformed ticket/timestamps must not poison the local ledger.
  validateStoredResearchLedger(combined);
+ if(added){
+  // Recheck close to the storage write; a race may expire while the
+  // 36R response is being inspected. If this happens, keep other races.
+  const fresh=incoming.filter(receipt=>
+   !draftExpiredOnDevice(day,
+    available.get(receipt.snapshot.track+'|'+receipt.snapshot.race).postTime));
+  if(fresh.length!==incoming.length){
+   expiredSkipped+=incoming.length-fresh.length;
+   added=fresh.length;
+   combined.splice(existing.length,combined.length-existing.length,...fresh);
+   validateStoredResearchLedger(combined);
+  }
+ }
  if(added){
   const payload=JSON.stringify(combined);
   if(payload.length>650000)throw Error('端末保存領域の推奨上限を超えます');
@@ -1308,7 +1350,8 @@ function saveAutoReceipts(data,day){
   if(localStorage.getItem(RECEIPTS_KEY)!==payload)
    throw Error('端末の保存結果を再読込できません');
  }
- return '署名付き研究記録：新規 '+added+'R／既存の固定記録は上書きせず維持。'+
+ return '署名付き研究記録：新規 '+added+'R／受信後に発走時刻経過で新規保存しなかった'+
+  expiredSkipped+'R／既存の固定記録は上書きせず維持。'+
   '保存先はこのiPhone内のみ（Safariとホーム画面で別の場合あり）。';
 }
 
@@ -1317,7 +1360,8 @@ const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
-let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
+let request=0,followingToday=true,latestDisplayedDay='',latestDisplayedReport=null,
+ latestExpiredDraftCount=0,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
  r6VerifySeq=0,staffArchiveVerifySeq=0,
  officialPdfSeq=0,coreVerifySeq=0,coreProviderSeq=0,fiveProviderSeq=0,
