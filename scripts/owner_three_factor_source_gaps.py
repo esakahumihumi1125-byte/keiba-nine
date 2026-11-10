@@ -9,7 +9,8 @@ from evaluation_policy import OWNER_FORMAL_FACTORS
 from jrdb_coverage import CoverageError
 from jrdb_experimental_pace_scenarios import VERSION as PACE_VERSION
 
-VERSION = "owner-research6-three-factor-source-gaps-1"
+VERSION = "owner-research6-three-factor-source-gaps-2"
+MIN_COMPARABLE_RUNS = 3
 WEIGHTS = {k: OWNER_FORMAL_FACTORS[k]
            for k in ("course_distance", "pace", "ground")}
 assert WEIGHTS == {"course_distance": 17, "pace": 17, "ground": 12}
@@ -151,6 +152,12 @@ def three_factor_source_gaps(course_history, pace_scenarios):
             "paceScenarioUnassessed": 0,
         }
         runners = []
+        minimum_samples = {
+            "courseDistanceAtLeastThree": 0,
+            "sameGoingAtLeastThree": 0,
+            "paceScenarioObserved": 0,
+            "allThreeMinimumStudySamples": 0,
+        }
         for n, c in hrows.items():
             s = prows[n]
             course = c["comparableRuns"] > 0
@@ -183,10 +190,44 @@ def three_factor_source_gaps(course_history, pace_scenarios):
                 "ground": bool(same_going and c["historyLookupComplete"]),
             }
             missing = [k for k in WEIGHTS if not source_present[k]]
+            # Three comparable examples is only a minimum RESEARCH sample
+            # size: never promote this to a proven course/going aptitude.
+            sample_gates = {
+                "course_distance": bool(c["historyLookupComplete"] and
+                                        c["comparableRuns"] >= MIN_COMPARABLE_RUNS),
+                "pace": bool(pace_observed),
+                "ground": bool(c["historyLookupComplete"] and
+                               c["currentGoingRecorded"] and
+                               c["matchingCurrentGoingRuns"] >= MIN_COMPARABLE_RUNS),
+            }
+            for key, count_key in (
+                ("course_distance", "courseDistanceAtLeastThree"),
+                ("pace", "paceScenarioObserved"),
+                ("ground", "sameGoingAtLeastThree"),
+            ):
+                minimum_samples[count_key] += int(sample_gates[key])
+            minimum_samples["allThreeMinimumStudySamples"] += int(
+                all(sample_gates.values()))
+            blockers = []
+            if not c["historyLookupComplete"]:
+                blockers.append("course_history_incomplete")
+            if c["comparableRuns"] < MIN_COMPARABLE_RUNS:
+                blockers.append("course_sample_below_three")
+            if not c["currentGoingRecorded"]:
+                blockers.append("current_going_not_recorded")
+            if c["matchingCurrentGoingRuns"] < MIN_COMPARABLE_RUNS:
+                blockers.append("same_going_sample_below_three")
+            if not pace_observed:
+                blockers.append("pace_scenario_unobserved")
+            # Source material might be present but its availability *as of*
+            # the target off time is unproven without publication timestamps.
             runners.append({
                 "number": n, "sourcePresent": source_present,
                 "missingSourceFactors": missing,
                 "allThreeSourcesPresent": not missing,
+                "minimumStudySamples": sample_gates,
+                "allThreeStudySamplesMet": all(sample_gates.values()),
+                "sampleGaps": blockers,
                 "formalGradesVerified": 0, "formalGradeReady": False,
                 "officialJraVerified": False,
                 "holdoutValidated": False,
@@ -194,7 +235,8 @@ def three_factor_source_gaps(course_history, pace_scenarios):
         result.append({
             "track": coord[0], "race": coord[1],
             "runnerCount": len(hrows), "observed": totals,
-            "gaps": gaps, "runners": sorted(runners, key=lambda x: x["number"]),
+            "gaps": gaps, "minimumSampleCoverage": minimum_samples,
+            "runners": sorted(runners, key=lambda x: x["number"]),
             "allThreeAreResearchOnly": True,
             "formalGradesVerified": 0, "bettingReady": False,
         })
@@ -202,6 +244,7 @@ def three_factor_source_gaps(course_history, pace_scenarios):
         "version": VERSION,
         "policyVersion": "research-6",
         "factorWeights": WEIGHTS, "weightTotal": sum(WEIGHTS.values()),
+        "minimumComparableRuns": MIN_COMPARABLE_RUNS,
         "raceCount": len(result), "races": result,
         "extraProviderCalls": 0, "researchOnly": True,
         "privateOwnerOnly": True, "officialJraVerified": False,
@@ -210,7 +253,9 @@ def three_factor_source_gaps(course_history, pace_scenarios):
         "independentTimeCutVerified": False,
         "conditionMatchedHoldoutValidated": False,
         "factorRubricsCalibrated": False,
+        "historicalResultPublicationTimesVerified": False,
+        "independentSourceFamiliesVerified": False,
         "overallPredictionReady": False, "bettingReady": False,
         "changesExistingTickets": False,
-        "note": "コース17・展開17・馬場12点の元資料不足のみ照合。正式採点と公式JRA確認は未実施。",
+        "note": "コース17・展開17・馬場12点の元資料数と最低3走を照合。正式採点と結果公表時刻・JRA公式は未検証。",
     }

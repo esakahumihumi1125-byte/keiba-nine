@@ -36,6 +36,9 @@ class ThreeFactorSourceGapTests(unittest.TestCase):
             "course_distance": 17, "pace": 17, "ground": 12
         })
         self.assertEqual(result["weightTotal"], 46)
+        self.assertEqual(result["minimumComparableRuns"], 3)
+        self.assertFalse(result["historicalResultPublicationTimesVerified"])
+        self.assertFalse(result["independentSourceFamiliesVerified"])
         self.assertEqual(result["raceCount"], 2)
         self.assertEqual(result["extraProviderCalls"], 0)
         self.assertFalse(result["overallPredictionReady"])
@@ -48,6 +51,12 @@ class ThreeFactorSourceGapTests(unittest.TestCase):
         self.assertEqual(tokyo["observed"]["sameGoingObserved"], 1)
         self.assertEqual(tokyo["gaps"]["noCourseComparableRuns"], 1)
         self.assertEqual(tokyo["formalGradesVerified"], 0)
+        self.assertEqual(tokyo["minimumSampleCoverage"], {
+            "courseDistanceAtLeastThree": 0,
+            "sameGoingAtLeastThree": 0,
+            "paceScenarioObserved": 0,
+            "allThreeMinimumStudySamples": 0,
+        })
         self.assertEqual(len(tokyo["runners"]), tokyo["runnerCount"])
         self.assertEqual([h["number"] for h in tokyo["runners"]], [1, 2])
         self.assertEqual(tokyo["observed"]["allThreeSourcesObserved"],
@@ -62,11 +71,41 @@ class ThreeFactorSourceGapTests(unittest.TestCase):
                         if not h["sourcePresent"][k]]
             self.assertEqual(h["missingSourceFactors"], expected)
             self.assertEqual(h["allThreeSourcesPresent"], not bool(expected))
+            self.assertFalse(h["allThreeStudySamplesMet"])
+            self.assertFalse(h["formalGradeReady"])
+            self.assertIn("course_sample_below_three", h["sampleGaps"])
         self.assertFalse(result["independentTimeCutVerified"])
         self.assertFalse(result["conditionMatchedHoldoutValidated"])
         self.assertFalse(result["factorRubricsCalibrated"])
         for private in ("racekey", "horse_id", "horse_number", "PAID-SECRET"):
             self.assertNotIn(private, repr(result))
+
+    def test_three_course_and_going_runs_are_research_samples_not_grades(self):
+        history, pace = sample()
+        horse = history["races"][0]["runners"][0]
+        # Fake a bounded three-run private OBSERVATION, never a future
+        # result publication proof or official JRA suitability grade.
+        horse["comparableRuns"] = 3
+        horse["knownGoingRuns"] = 3
+        horse["matchingCurrentGoingRuns"] = 3
+        horse["historyLookupComplete"] = True
+        result = three_factor_source_gaps(history, pace)
+        tokyo = next(x for x in result["races"] if x["track"] == "東京")
+        first = next(x for x in tokyo["runners"] if x["number"] == 1)
+        self.assertTrue(first["minimumStudySamples"]["course_distance"])
+        self.assertTrue(first["minimumStudySamples"]["ground"])
+        self.assertFalse(first["minimumStudySamples"]["pace"])
+        self.assertFalse(first["allThreeStudySamplesMet"])
+        self.assertEqual(first["sampleGaps"], ["pace_scenario_unobserved"])
+        self.assertEqual(tokyo["minimumSampleCoverage"], {
+            "courseDistanceAtLeastThree": 1,
+            "sameGoingAtLeastThree": 1,
+            "paceScenarioObserved": 0,
+            "allThreeMinimumStudySamples": 0,
+        })
+        self.assertEqual(first["formalGradesVerified"], 0)
+        self.assertFalse(result["historicalResultPublicationTimesVerified"])
+        self.assertFalse(result["overallPredictionReady"])
 
     def test_missing_current_going_is_not_graded_or_bad_ability(self):
         history, pace = sample()
