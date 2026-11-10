@@ -33,7 +33,8 @@ from owner_body_one_evidence_preflight import body_one_evidence_preflight
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
-from jrdb_owner_auto_draft import build_owner_auto_drafts, DAY_DRAFT_ISSUES
+from jrdb_owner_auto_draft import (build_owner_auto_drafts, DAY_DRAFT_ISSUES,
+                                   compact_hold_diagnostics)
 from owner_ten_factor_contract import ten_factor_contract
 from owner_day_source_passport import safe_owner_day_source_passport
 from jrdb_owner_draft_materials import observe_owner_draft_materials, unavailable as unavailable_draft_materials
@@ -2276,12 +2277,14 @@ def create_app(settings=None):
                 logging.warning(
                     'KEIBA_AUTO_DRAFT_PIPELINE status=complete '
                     'programme=%s drafts=%s holds=%s receipts=%s '
-                    'material=%s course=%s jra=unverified formal=ungraded',
+                    'material=%s course=%s hold_causes=%s '
+                    'jra=unverified formal=ungraded',
                     'present' if report['raceCount'] else 'empty',
                     report['draftCount'], report['holdCount'],
                     report['researchReceiptCount'],
                     report['sourceMaterials']['status'],
                     report['raceContext']['conditionProviderFetchStatus'],
+                    compact_hold_diagnostics(report),
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError) as exc:
