@@ -3531,6 +3531,16 @@ $('autoRun').onclick=async()=>{
      :'JRDB接続・出走資料・認証状態を確認してください。');
   }
   if(seq!==request)return;
+  // Validate the whole source snapshot BEFORE writing any signed record.
+  // A new formation must never become visible before the browser has
+  // accepted its immutable prestart receipt (or safely returned no drafts).
+  validate(body,day);
+  let localStatus;
+  try{
+   localStatus=saveAutoReceipts(body,day);
+  }catch(_){
+   throw Error('receipt_storage_failed');
+  }
   render(body,day);
   historyDay=day;
   historyCoordinates=new Set(body.races.map(r=>r.track+'|'+r.race));
@@ -3552,26 +3562,21 @@ $('autoRun').onclick=async()=>{
   $('autoHistoryAudit').disabled=historyCoordinates.size===0;
   $('autoHistoryAuditStatus').textContent=historyCoordinates.size
    ?'必要なときに過去の同条件資料を確認できます。':'この開催日のレースはありません。';
-  try{
-   const localStatus=saveAutoReceipts(body,day);
-   $('autoMorningStatus').textContent=morningStatus(body,day,localReceiptStatus(day));
-   $('autoSavedStatus').textContent=body.archiveEnabled
-    ?'サーバー固定済み '+body.archiveRecordCount+'R／前の買い目を優先したレース '+
-      body.archiveConflictCount+'R。'+localStatus
-    :'サーバー保存は未設定。'+localStatus;
-   showFixedHistory(day);
-   $('autoRecordSafety').textContent=recordRetentionStatus(body,day);
-  }catch(_){
-   $('autoMorningStatus').textContent=morningStatus(body,day,
-    '端末への新規保存に失敗。元の記録は変更していません。');
-   $('autoSavedStatus').textContent='研究記録の端末保存はできませんでした。結果表示と実購入記録には影響しません。';
-   $('autoRecordSafety').textContent='【端末への新規固定失敗】既存の研究記録は上書きしません。バックアップ・署名確認が必要です。';
-  }
+  $('autoMorningStatus').textContent=morningStatus(body,day,localReceiptStatus(day));
+  $('autoSavedStatus').textContent=body.archiveEnabled
+   ?'サーバー固定済み '+body.archiveRecordCount+'R／前の買い目を優先したレース '+
+     body.archiveConflictCount+'R。'+localStatus
+   :'サーバー保存は未設定。'+localStatus;
+  showFixedHistory(day);
+  $('autoRecordSafety').textContent=recordRetentionStatus(body,day);
   $('autoStatus').textContent='暫定評価を自動生成しました。作成できないレースは無理に選定していません。';
  }catch(error){if(seq===request){
+  const storageFailure=error?.message==='receipt_storage_failed';
   const detail=error&&typeof error.message==='string'&&
    error.message.startsWith('停止した工程：')?error.message:null;
-  $('autoStatus').textContent=detail||
+  $('autoStatus').textContent=storageFailure
+   ?'【端末保存失敗】新しい3連単は表示していません。既存の固定履歴を確認し、端末の空き容量・バックアップを確認してください。'
+   :detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
@@ -3580,14 +3585,23 @@ $('autoRun').onclick=async()=>{
   $('autoRacePick').replaceChildren();
   $('autoRacePick').value='';
   $('autoViewingStatus').textContent='この日の新しい下書きは確認できません。固定履歴は下で確認できます。';
-  $('autoSummary').textContent='予想は未作成';
-  $('autoSavedStatus').textContent='再分析に失敗。'+localReceiptStatus(day);
+  $('autoSummary').textContent=storageFailure
+   ?'新しい下書きは保存できなかったため非表示':'予想は未作成';
+  $('autoSavedStatus').textContent=storageFailure
+   ?'研究記録の端末保存はできませんでした。以前の固定記録は変更していません。'
+   :'再分析に失敗。'+localReceiptStatus(day);
   showFixedHistory(day);
   $('autoFixedConsistency').textContent='今回の再分析結果は未確認です。以前の固定済み研究記録は変更していません。';
-  $('autoMorningStatus').textContent='JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
-  $('autoOperationalNext').textContent='【取得失敗・新規予想なし】上の停止工程と401/403/429等の原因表示を確認。日付・接続設定・利用権限を見直し、既存の固定履歴を先に確認してください。JRA公式照合と正式100点予想は未完了です。';
+  $('autoMorningStatus').textContent=storageFailure
+   ?'JRDBの暫定案を取得しましたが、端末への新規固定保存に失敗。新しい3連単は非表示。以前の固定記録は変更していません。'
+   :'JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
+  $('autoOperationalNext').textContent=storageFailure
+   ?'【端末保存失敗・新規下書きなし】既存の固定履歴を先に確認して、同じiPhoneのバックアップを安全に保管してください。保存できる状態になってから発走前に再取得してください。'
+   :'【取得失敗・新規予想なし】上の停止工程と401/403/429等の原因表示を確認。日付・接続設定・利用権限を見直し、既存の固定履歴を先に確認してください。JRA公式照合と正式100点予想は未完了です。';
   $('autoProgrammeCoverage').textContent='取得失敗：開催場別R数は確認できません。';
-  $('autoRecordSafety').textContent='新規記録なし。以前の固定記録は下の履歴で確認してください（署名は別操作）。';
+  $('autoRecordSafety').textContent=storageFailure
+   ?'【端末への新規固定失敗】新しい買い目は非表示。既存の固定記録は削除・上書きしていません。バックアップ・署名確認を優先してください。'
+   :'新規記録なし。以前の固定記録は下の履歴で確認してください（署名は別操作）。';
   $('autoSourceSummary').textContent='資料進捗の取得に失敗しました。以前の集計は表示しません。';
   $('autoTenWeights').replaceChildren();
   $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
