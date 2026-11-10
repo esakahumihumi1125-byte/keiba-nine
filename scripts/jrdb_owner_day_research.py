@@ -21,7 +21,7 @@ MAX_SOURCE_ROWS = 50000
 REVIEW_STAGES = frozenset(("entries", "training", "recent", "runner_join"))
 
 
-def owner_day_research(programme, entries, training, previous, date):
+def owner_day_research(programme, entries, training, previous, date, *, source_read_count=4):
     if not _valid_date(date):
         raise CoverageError("Invalid day research date")
     if (not isinstance(programme, list) or not 0 <= len(programme) <= MAX_RACES
@@ -32,6 +32,12 @@ def owner_day_research(programme, entries, training, previous, date):
         if (not isinstance(collection, list) or len(collection) > MAX_SOURCE_ROWS
                 or not all(isinstance(row, dict) for row in collection)):
             raise CoverageError("Invalid all-day " + name + " collection")
+    # A valid empty /tra programme is only one provider read, not four.
+    # Never pretend /tky /tcy /tze were fetched when the caller skips them.
+    if (type(source_read_count) is not int or source_read_count not in (1, 4)
+            or (source_read_count == 1 and
+                (programme or entries or training or previous))):
+        raise CoverageError("Invalid research source read count")
     ids, names = set(), set()
     for row in programme:
         key, track, race = (row.get("racekey"), row.get("track"), row.get("race"))
@@ -111,7 +117,7 @@ def owner_day_research(programme, entries, training, previous, date):
         "overallRankReady": False,
         "predictionReady": False,
         "bettingReady": False,
-        "sourceReadCount": 4,
+        "sourceReadCount": source_read_count,
         "note": ("本人の操作時に開催日分の番組・出走馬・調教・近走を各1回だけ読み、"
                  "馬番別の未検証2項目を研究用に表示する。"
                  "レースごとに別々に整合性を確認し、不一致は要確認。"
