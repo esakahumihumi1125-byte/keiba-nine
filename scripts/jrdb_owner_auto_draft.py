@@ -318,15 +318,22 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
             if stage is not None and (
                     not isinstance(stage, str) or stage not in REVIEW_STAGES):
                 raise CoverageError("Invalid research review stage")
-        elif "reviewStage" in item:
-            raise CoverageError("Unexpected stage for complete research")
+            kind = item.get("reviewKind")
+            if kind is not None and (
+                    kind != "provider_withdrawal" or stage != "entries"):
+                raise CoverageError("Invalid provider withdrawal review")
+        elif "reviewStage" in item or "reviewKind" in item:
+            raise CoverageError("Unexpected review flags for complete research")
         output = _draft_for_race(
             row, item.get("research") if item["status"] == "research_only" else None,
             day, now)
         # Never disclose a post-off research stage, or turn a hold into a
         # ticket. This is a diagnostic label for a PRESTART held race only.
         if (output["reason"] == "missing_research"
-                and item.get("reviewStage") in REVIEW_STAGES):
+                and item.get("reviewKind") == "provider_withdrawal"):
+            output["reason"] = "provider_withdrawal"
+        elif (output["reason"] == "missing_research"
+              and item.get("reviewStage") in REVIEW_STAGES):
             output["reviewStage"] = item["reviewStage"]
         out.append(output)
     reasons = {}
