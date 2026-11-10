@@ -29,7 +29,7 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
 <p id="autoRecordSafety" class="muted" role="status">固定記録の保管状態：まだ確認していません。</p>
 <a href="#autoVenues">開催日のレース一覧に進む</a>
-<p class="muted"><a href="#autoHistoryAudit">研究用85点の比較順へ進む</a>（下の過去データ照合ボタンを押すと表示。追加API取得は本人の操作時のみ）</p>
+<p class="muted"><a href="#autoHistoryAudit">過去の同条件照合へ進む</a>（旧85点の比較と新配点79点の研究用下書きを確認。追加の有料API取得は本人がボタンを押した時のみ）</p>
 <details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
 <p class="muted">本人が押した時だけJRA公式ページから開催場別の出馬表PDFリンクを探します。PDFの内容は自動解析しません。出走馬・取消・馬場・発走時刻を公式情報と自分で照合するための補助です。</p>
 <button id="autoOfficialPdf" type="button">選択日のJRA公式PDFリンクを探す</button>
@@ -42,12 +42,12 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <details><summary>土曜朝の使い方（3ステップ）</summary>
 <p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
 <p class="muted">② 下の「下書きのみ」を選ぶか、競馬場・レースを選択して1着／2着／3着の3連単と重複除外した点数を確認する。これは調教・近走だけの研究用下書きで、10項目の本予想や投票推奨ではない。</p>
-<p class="muted">③ 発走前の固定記録を確認し、必要に応じて「10種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
+<p class="muted">③ 発走前の固定記録を確認し、必要に応じて「12種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
 </details>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
 <p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p>
 <p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
-<a href="/owner-backup">固定済み買い目など11種類の端末記録をバックアップする</a>。
+<a href="/owner-backup">固定済み買い目など12種類の端末記録をバックアップする</a>。
 既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
 <a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
@@ -129,7 +129,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <div id="autoHistory"></div>
 <p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
 署名はこの画面では検証していません。後付け予想ではありません。</p>
-<a href="/owner-backup">10種類の記録をバックアップ・復元する</a>
+<a href="/owner-backup">12種類の記録をバックアップ・復元する</a>
 </section>
 <section><h2>10項目の配点と評価状況</h2>
 <p id="autoTenStatus" class="muted" role="status">予想資料の取得後に表示します。</p>
