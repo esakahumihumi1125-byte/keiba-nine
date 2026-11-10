@@ -51,6 +51,12 @@ class HistoryTimecutGuardTests(unittest.TestCase):
             row["race_back_2_racekey"] = row["race_back_1_racekey"]
         self._reject_before_reads(duplicate)
 
+    def test_two_different_races_on_same_day_for_one_horse_are_invalid(self):
+        def same_day(row):
+            row["race_back_2_racedate"] = row["race_back_1_racedate"]
+            row["race_back_2_racekey"] = "05264a03"
+        self._reject_before_reads(same_day)
+
     def test_older_numbered_back_slot_cannot_be_more_recent(self):
         def reverse(row):
             row["race_back_2_racedate"] = "20261020"
