@@ -173,6 +173,31 @@ function full36RaceDraft(){
  data.sourcePassport.raceCount=36;
  return data;
 }
+function full36EligibleDrafts(){
+ // All 36 slots show a mechanically generated prestart draft, using a
+ // synthetic private response only; never imply actual JRA confirmation.
+ const data=full36RaceDraft();
+ const template=structuredClone(data.races[0]);
+ const ten=structuredClone(data.tenFactorPreview.races[0]);
+ const passport=structuredClone(data.sourcePassport.races[0]);
+ const receipt=structuredClone(data.researchReceipts[0]);
+ data.races=data.races.map(row=>({
+  ...structuredClone(template),track:row.track,race:row.race,
+ }));
+ data.tenFactorPreview.races=data.races.map(row=>({
+  ...structuredClone(ten),track:row.track,race:row.race,
+ }));
+ data.sourcePassport.races=data.races.map(row=>({
+  ...structuredClone(passport),track:row.track,race:row.race,
+ }));
+ data.researchReceipts=data.races.map(row=>({
+  signature:receipt.signature,
+  snapshot:{...structuredClone(receipt.snapshot),track:row.track,race:row.race}
+ }));
+ data.researchReceiptCount=36;
+ data.draftCount=36;data.holdCount=0;data.holdReasons={};
+ return data;
+}
 function full35WithGap(){
  const data=full36RaceDraft();
  const except=x=>!(x.track==='福島'&&x.race===6);
@@ -2584,6 +2609,44 @@ function boot(){
  assert.equal(full.get('autoRaces').children[0].children.length,36);
  assert.equal(full.requests.length,paidRequestsBeforePick);
  assert.equal(full.storage.get(STORAGE),archivedBeforePick);
+ // Simulate the largest prestart page payload from the private HTTP
+ // service: 36 separate 40-point receipts. After a refresh, none may grow,
+ // turn into an actual purchase, or be hidden by a duplicated receipt.
+ const allDrafts=boot();
+ await new Promise(r=>setImmediate(r));
+ allDrafts.setServerRaw(full36EligibleDrafts());
+ const priorAll=allDrafts.storage.get(STORAGE);
+ const requestsBefore36=allDrafts.requests.length;
+ await allDrafts.get('autoRun').onclick();
+ assert.equal(allDrafts.requests.length,requestsBefore36+1);
+ assert.match(allDrafts.get('autoSummary').textContent,/36R中、研究用自動案 36R／見送り 0R/);
+ assert.match(allDrafts.get('autoOperationalNext').textContent,/研究用下書きあり/);
+ assert.match(allDrafts.get('autoProgrammeCoverage').textContent,/36R／3場/);
+ assert.equal(allDrafts.get('autoRacePick').children.length,37);
+ assert.equal(allDrafts.get('autoVenues').children.find(x=>
+  x.dataset.mode==='drafts')?.textContent,'下書きのみ 36R');
+ const frozen36=allDrafts.storage.get(STORAGE);
+ const saved36=JSON.parse(frozen36);
+ assert.equal(saved36.length,36);
+ assert.equal(new Set(saved36.map(x=>x.snapshot.date+'|'+
+  x.snapshot.track+'|'+x.snapshot.race)).size,36);
+ assert.ok(saved36.every(x=>x.snapshot.trifectaTickets.length===40&&
+  x.snapshot.actualPurchase===false));
+ assert.equal(allDrafts.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.match(allDrafts.get('autoSavedStatus').textContent,/新規 35R/);
+ assert.match(allDrafts.get('autoFixedConsistency').textContent,/一致 1R/);
+ allDrafts.get('autoRacePick').value='福島|12';
+ allDrafts.get('autoRacePick').onchange();
+ assert.match(allDrafts.get('autoViewingStatus').textContent,/福島 12R/);
+ const selectedCard=allDrafts.get('autoRaces').children[0].children[0];
+ assert.ok(selectedCard.children.some(x=>x.className==='formation'));
+ assert.equal(allDrafts.storage.get(STORAGE),frozen36);
+ await allDrafts.get('autoRun').onclick();
+ assert.equal(allDrafts.storage.get(STORAGE),frozen36);
+ assert.match(allDrafts.get('autoSavedStatus').textContent,/新規 0R/);
+ assert.equal(JSON.parse(allDrafts.storage.get(STORAGE)).length,36);
+ assert.match(allDrafts.get('autoFixedConsistency').textContent,/一致 36R/);
+ assert.equal(allDrafts.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // All 36R are already validated before UI filtering. Mixed holds should
  // be navigable with one tap and must never generate past-off tickets.
  // A missing JRDB row is an unconfirmed provider gap, NEVER an official
