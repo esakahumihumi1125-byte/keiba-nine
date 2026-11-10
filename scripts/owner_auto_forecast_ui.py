@@ -1043,6 +1043,16 @@ function render(input,day){
  // Selection uses an already verified day snapshot. No extra JRDB calls,
  // no prediction reconstruction, no receipt or purchase write.
  function show(track,key='',draftsOnly=false,holdReason=''){
+  // A tab or race-selection tap may happen long after the first render.
+  // Re-evaluate the local clock before exposing any on-screen formation.
+  const expiredNow=data.races.filter(x=>x.status==='provisional_draft'&&
+   draftExpiredOnDevice(day,x.postTime)).length;
+  if(expiredNow>deviceExpired.size){
+   latestExpiredDraftCount=expiredNow;
+   render(data,day); // Display-only, no network or receipt writes.
+   $('autoStatus').textContent='受信後に発走時刻を過ぎた下書きを非表示に更新しました。';
+   return;
+  }
   const frag=document.createDocumentFragment();
   let visible=0;
   for(const item of nodes){
@@ -3794,6 +3804,7 @@ $('autoRun').onclick=async()=>{
  const button=$('autoRun');
  if(button.disabled)return;
  const seq=++request,day=$('autoDay').value.replaceAll('-','');
+ latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
  if(!/^20[0-9]{6}$/.test(day)){
   $('autoStatus').textContent='開催日を選択してください。';return;
  }
@@ -3836,6 +3847,9 @@ $('autoRun').onclick=async()=>{
    throw Error('receipt_storage_failed');
   }
   render(body,day);
+  latestDisplayedReport=body;latestDisplayedDay=day;
+  latestExpiredDraftCount=body.races.filter(x=>
+   x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)).length;
   historyDay=day;
   historyCoordinates=new Set(body.races.map(r=>r.track+'|'+r.race));
   historyRosters=new Map(body.races.map(r=>[
@@ -3865,6 +3879,7 @@ $('autoRun').onclick=async()=>{
   $('autoRecordSafety').textContent=recordRetentionStatus(body,day);
   $('autoStatus').textContent='暫定評価を自動生成しました。作成できないレースは無理に選定していません。';
  }catch(error){if(seq===request){
+  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
   const storageFailure=error?.message==='receipt_storage_failed';
   const detail=error&&typeof error.message==='string'&&
    error.message.startsWith('停止した工程：')?error.message:null;
@@ -5475,7 +5490,21 @@ updateReviewLink();
 function resumeOwnerDay(){
  if(document.visibilityState==='hidden'||!followingToday)return;
  const today=jstToday();
- if(today===$('autoDay').value)return;
+ if(today===$('autoDay').value){
+  const day=today.replaceAll('-','');
+  if(latestDisplayedReport&&latestDisplayedDay===day){
+   const expired=latestDisplayedReport.races.filter(x=>
+    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)).length;
+   if(expired>latestExpiredDraftCount){
+    latestExpiredDraftCount=expired;
+    render(latestDisplayedReport,day); // Only local display; no JRDB read.
+    $('autoStatus').textContent='発走時刻を過ぎた下書きを非表示に更新。'+
+     '以前の発走前固定履歴は変更していません。';
+   }
+  }
+  return;
+ }
+ latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
  request++;$('autoRun').disabled=false;
  $('autoDay').value=today;
  updateReviewLink();
