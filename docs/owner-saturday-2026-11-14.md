@@ -84,6 +84,14 @@
 - `tests/test_jrdb_owner_day_research.py`、`tests/test_jrdb_owner_auto_draft.py`、`tests/test_owner_saturday_raw_36r.py`、`scripts/check-owner-auto-forecast-ui.cjs` で、**合成36Rのうち取消報告1Rのみ見送り・35Rは署名**、不正フラグの拒否、署名付き旧記録の不変、JRA公式未検証の維持を確認。追加の有料JRDB照会は発生しない。
 - **公式JRA取消・除外・発走馬名の照合機能そのものは未完成**。この安全機能は実際の11/14の予想完成を保証するものではない。
 
+## 1.11. 予想処理が完了したのに見送りが多い日の診断（2026-11-10）
+
+- 本人用の `/api/jrdb/owner-auto-draft` が実データの分析・署名処理を完走した際に、従来の秘匿ログ `KEIBA_AUTO_DRAFT_PIPELINE` に **`hold_causes=...`** を追加。出力は定義済みの理由コード別件数のみ（例：`provider_withdrawal:1,missing_factors:2`）。見送り0Rは `none`。
+- 原因コードは**発走済み、JRDB取消報告、調教・近走不足、資料不整合、同点境界、頭数不一致、少頭数、発走時刻未確認、過去の固定買い目優先**等を固定リストから選ぶ。未知の文字列は `other` にまとめ、馬名・馬ID・レースキー・開催日・生エラー・認証情報・買い目は記録しない。
+- ログは**本人専用Render側の運用確認用**。一般公開アプリやSafariの画面へ有料ソースを流す機能ではない。追加のJRDB照会／再試行／自動購入は行わず、既存の署名済み買い目・収支も変更しない。
+- `tests/test_jrdb_owner_auto_draft.py` で既知・未知・不正な原因コードを検査し、`tests/test_owner_saturday_raw_36r.py` で合成36Rの完走 `hold_causes=none` と取消報告1R・下書き35R・署名35件の完走ログを確認。実際の11月14日のデータ取得を保証するものではない。
+- 運用時、`KEIBA_AUTO_DRAFT_PIPELINE` がまだ0件なら**予想生成の実データ完走は未確認**。11月9日のJRDB番組接続成功だけで実戦予想完成と判断しない。翌開催日は事前の番組公開状況とJRA公式を確認する。
+
 ## 2. 今できることとできないこと
 
 | 機能 | 土曜の扱い |
