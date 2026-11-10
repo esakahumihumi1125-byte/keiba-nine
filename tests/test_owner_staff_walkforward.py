@@ -52,15 +52,19 @@ class StaffPairWalkforwardTests(unittest.TestCase):
 
     def test_no_exact_pair_never_borrows_individual_rider_and_trainer(self):
         rows = history()
-        for race in rows:
+        # Train riders and trainers have plenty of *individual* starts,
+        # but only with the opposite partner. Holdout uses new pairs.
+        for race in rows[:17]:
             for h in race["runners"]:
                 h["trainerRef"] = ("STABLE002" if h["number"] <= 3
                                    else "STABLE001")
         result = staff_pair_walkforward_preflight(TARGET, rows)
-        self.assertEqual(result["holdoutPairComparisonRunners"], 48)
-        self.assertTrue(result["descriptiveComparisonCoverageMet"])
-        # Matching pairs are historical, not necessarily the target's pairs:
-        # the diagnostic measures available past pairs, not target ratings.
+        self.assertEqual(result["trainingRaceCount"], 17)
+        self.assertEqual(result["holdoutRaceCount"], 8)
+        self.assertEqual(result["holdoutPairComparisonRunners"], 0)
+        self.assertEqual(result["holdoutWithoutQualifiedPairRunners"], 48)
+        self.assertFalse(result["descriptiveComparisonCoverageMet"])
+        self.assertIsNone(result["pairTopThreeBrier"])
         self.assertIsNone(result["formalTenPointScore"])
 
     def test_missing_mismatched_and_future_rows_not_counted_as_training(self):
