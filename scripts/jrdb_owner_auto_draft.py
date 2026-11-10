@@ -54,6 +54,40 @@ DAY_DRAFT_ISSUES = {
     "Unexpected auto formation size": "formation_size",
 }
 
+# Fixed-only operator buckets. The server log may report aggregate *counts*,
+# never a race ID, horse ID, provider value, credential or source exception.
+# Other/future internal hold codes are collapsed to "other".
+HOLD_LOG_CODES = (
+    "after_provisional_off", "provider_withdrawal", "missing_research",
+    "missing_factors", "invalid_two_factor",
+    "ambiguous_equal_grade_boundary", "runner_count_mismatch",
+    "too_few_runners", "missing_post_time", "archived_earlier_draft",
+)
+
+
+def compact_hold_diagnostics(report):
+    """Private log-safe aggregate for already-produced owner draft reports.
+
+    Never accept or log arbitrary source text as a reason. A malformed
+    report yields a fixed placeholder rather than breaking a signed forecast.
+    """
+    if not isinstance(report, dict):
+        return "invalid"
+    reasons, total = report.get("holdReasons"), report.get("holdCount")
+    if (not isinstance(reasons, dict) or type(total) is not int
+            or not 0 <= total <= MAX_RACES
+            or any(type(count) is not int or count < 0 or count > MAX_RACES
+                   for count in reasons.values())
+            or sum(reasons.values()) != total):
+        return "invalid"
+    known = [(key, reasons.get(key, 0)) for key in HOLD_LOG_CODES
+             if reasons.get(key, 0)]
+    other = total - sum(count for _, count in known)
+    if other:
+        known.append(("other", other))
+    return ",".join(f"{key}:{count}" for key, count in known) if known else "none"
+
+
 RUNNER_ISSUES = {
     "Bad two-factor research contract": "contract",
     "Invalid research runner": "runner_shape",
