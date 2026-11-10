@@ -993,7 +993,7 @@ function prestart(){
 }
 function boot(){
  const storage=new Map(),elements=new Map(),requests=[];
- let storageWritable=true;
+ let storageWritable=true,writeMode='normal';
  let next=resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
@@ -1023,8 +1023,11 @@ function boot(){
  };
  const localStorage={
   getItem:k=>storage.get(k)||null,
-  setItem(k,v){if(!storageWritable)throw Error('synthetic_quota_exceeded');
-   storage.set(k,v)},
+  setItem(k,v){
+   if(!storageWritable)throw Error('synthetic_quota_exceeded');
+   if(writeMode==='silent-drop')return;
+   storage.set(k,writeMode==='truncate'?v.slice(0,-1):v);
+  },
  };
  const fetch=async(url,options)=>{
   requests.push({url,options});
@@ -1252,6 +1255,7 @@ function boot(){
  vm.runInNewContext(js,context);
  get('autoDay').value=date;
  return {get,storage,requests,setStorageWritable:x=>storageWritable=x,
+  setStorageWriteMode:x=>writeMode=x,
   setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
   setAutoDraftOk:x=>autoDraftOk=x,
@@ -2261,6 +2265,37 @@ function boot(){
  assert.ok(quota.get('autoRaces').children[0].children[0].children.some(
   x=>x.className==='formation'));
  assert.match(quota.get('autoSavedStatus').textContent,/新規 1R/);
+ // Some WebKit storage failures may not throw. The exact new JSON
+ // must round-trip before a betting-style research formation is visible.
+ for(const mode of ['silent-drop','truncate']){
+  const roundTrip=boot();
+  await new Promise(resolve=>setImmediate(resolve));
+  roundTrip.storage.delete(STORAGE);
+  roundTrip.setStorageWriteMode(mode);
+  await roundTrip.get('autoRun').onclick();
+  assert.equal(roundTrip.get('autoRaces').children.length,0);
+  assert.equal(roundTrip.get('autoRacePick').disabled,true);
+  assert.match(roundTrip.get('autoStatus').textContent,/端末保存失敗/);
+  assert.match(roundTrip.get('autoSavedStatus').textContent,/保存はできませんでした/);
+  assert.equal(roundTrip.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+  if(mode==='silent-drop'){
+   assert.equal(roundTrip.storage.has(STORAGE),false);
+   roundTrip.setStorageWriteMode('normal');
+   await roundTrip.get('autoRun').onclick();
+   assert.equal(JSON.parse(roundTrip.storage.get(STORAGE)).length,1);
+   assert.ok(roundTrip.get('autoRaces').children[0].children[0].children.some(
+    x=>x.className==='formation'));
+  }else{
+   assert.throws(()=>JSON.parse(roundTrip.storage.get(STORAGE)));
+   // Do not automatically overwrite a corrupted receipt: backup/recovery
+   // requires an explicit owner decision and no new postoff ticket.
+   roundTrip.setStorageWriteMode('normal');
+   const corrupted=roundTrip.storage.get(STORAGE);
+   await roundTrip.get('autoRun').onclick();
+   assert.equal(roundTrip.storage.get(STORAGE),corrupted);
+   assert.equal(roundTrip.get('autoRaces').children.length,0);
+  }
+ }
  // A provisional draft without its server signature cannot be shown.
  const unsigned=boot();
  await new Promise(resolve=>setImmediate(resolve));
