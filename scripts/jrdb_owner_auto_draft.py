@@ -331,7 +331,8 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
             or research_report.get("privateOwnerOnly") is not True
             or any(research_report.get(k) is not False for k in (
                 "officialJraVerified", "overallRankReady", "predictionReady", "bettingReady"))
-            or research_report.get("sourceReadCount") != 4
+            or research_report.get("sourceReadCount") not in (1, 4)
+            or (research_report.get("sourceReadCount") == 1 and programme)
             or not isinstance(research_report.get("races"), list)
             or len(research_report["races"]) != len(programme)):
         raise CoverageError("Research snapshot mismatch")
@@ -389,7 +390,8 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
         "draftCount": sum(x["status"] == "provisional_draft" for x in out),
         "holdCount": sum(x["status"] == "hold" for x in out),
         "holdReasons": reasons,
-        "races": out, "sourceReadCount": 4, "unitYen": STAKE,
+        "races": out, "sourceReadCount": research_report["sourceReadCount"],
+        "unitYen": STAKE,
         "weightedResearchOrder": "training30_recent3",
         "weightedResearchMax": PROVISIONAL_WEIGHTED_MAX,
         "weightedResearchPolicy": POLICY_VERSION,
