@@ -1115,9 +1115,10 @@ function render(input,day){
  show('');
  const breakdown=Object.entries(data.holdReasons).sort((a,b)=>b[1]-a[1])
   .map(([reason,count])=>SHORT_HOLDS[reason]+' '+count+'R').join('／');
- $('autoSummary').textContent=data.raceCount+'R中、表示可能な研究用自動案 '+
-  safeDraftCount+'R／端末受信後に発走時刻経過 '+deviceExpired.size+
-  'R／サーバー見送り '+data.holdCount+'R。'+
+ $('autoSummary').textContent=data.raceCount+'R中、研究用自動案 '+
+  safeDraftCount+'R／見送り '+data.holdCount+'R。'+
+  (deviceExpired.size?'端末受信後に発走時刻経過で新案非表示 '+
+   deviceExpired.size+'R。':'')+
   (breakdown?'内訳：'+breakdown+'。':'')+
   'JRDBの2項目だけを買い目に使用。コース条件の存在 '+ctx.courseInfoPresentCount+
   'R／馬場資料の存在 '+ctx.goingAvailableCount+'R（適性は未評価）。追加資料：'+
