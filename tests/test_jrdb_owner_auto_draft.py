@@ -648,7 +648,8 @@ class AutoDraftHTTPTests(unittest.TestCase):
                     side_effect=[first_report,changed]),
               patch("private_service.save_first_and_read", side_effect=fake_save),
               patch("private_service._now_in_jst", side_effect=[
-                  "2099-01-01T09:00:00+09:00", "2099-01-01T09:30:00+09:00"])):
+                  "2099-01-01T09:00:00+09:00", "2099-01-01T09:00:00+09:00",
+                  "2099-01-01T09:30:00+09:00", "2099-01-01T09:30:00+09:00"])):
             early = call(app, "/api/jrdb/owner-auto-draft", QUERY_STRING="date="+DAY)
             later = call(app, "/api/jrdb/owner-auto-draft", QUERY_STRING="date="+DAY)
         self.assertEqual(early["status"], "200 OK")
@@ -695,7 +696,8 @@ class AutoDraftHTTPTests(unittest.TestCase):
               patch("private_service.build_owner_auto_drafts", side_effect=[first,changed]),
               patch("private_service.save_first_and_read", side_effect=fake_save),
               patch("private_service._now_in_jst", side_effect=[
-                  "2099-01-01T09:00:00+09:00", "2099-01-01T09:10:00+09:00"])):
+                  "2099-01-01T09:00:00+09:00", "2099-01-01T09:00:00+09:00",
+                  "2099-01-01T09:10:00+09:00", "2099-01-01T09:10:00+09:00"])):
             a = call(app, "/api/jrdb/owner-auto-draft", QUERY_STRING="date="+DAY)
             b = call(app, "/api/jrdb/owner-auto-draft", QUERY_STRING="date="+DAY)
         self.assertEqual(a["status"], "200 OK")
