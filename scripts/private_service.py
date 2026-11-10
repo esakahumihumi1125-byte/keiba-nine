@@ -63,6 +63,10 @@ from owner_research6_draft_receipts import (
     issue_research6_draft_receipts, verify_research6_draft_receipts,
     DraftReceiptError,
 )
+from owner_staff_study_receipts import (
+    issue_staff_study_receipt, verify_staff_study_receipts,
+    StaffStudyReceiptError,
+)
 from jrdb_factor_preflight import audit_assessment_preflight
 from jrdb_training_hypothesis import build_training_hints, summarize_training_hints
 from jrdb_recent_hypothesis import build_recent_hints, summarize_recent_hints
@@ -2529,13 +2533,57 @@ def create_app(settings=None):
                         fetch_dse=fetch_historical_finished_runners,
                         limit=limit,
                     )
+                    if staff_batch == 3 and preview[staff_key]['providerReadCount']>0:
+                        # Unidentified aggregate only; no charged data or
+                        # racekeys persist. Signing is server initiated.
+                        preview['staffStudyCapture'] = issue_staff_study_receipt(
+                            preview[staff_key], password, date, now=stamp
+                        )
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     HistoryFetchError, WatchReceiptError, CoreReceiptError,
-                    FiveCoreReceiptError, DraftReceiptError, ValueError,
+                    FiveCoreReceiptError, DraftReceiptError,
+                    StaffStudyReceiptError, ValueError,
                     TypeError, KeyError):
                 return response('502 Bad Gateway', {
                     'error': '過去馬場の照合に失敗しました。履歴や実接続を確認してください。'})
             return response('200 OK', preview)
+        if method == 'POST' and path == '/api/owner-staff-study-verify':
+            # Verify only already-issued private aggregate signatures.
+            # NO paid provider fetch, new signatures or receipt writes.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人専用でのみ集計記録の署名を確認できます。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '集計記録の確認形式が不正です。'})
+            try:
+                length = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < length <= 250000:
+                    raise StaffStudyReceiptError('Invalid request size')
+                raw = environ['wsgi.input'].read(length)
+                if len(raw) != length:
+                    raise StaffStudyReceiptError('Invalid request body')
+                args = json.loads(raw)
+                if not isinstance(args, dict) or set(args) != {'receipts'}:
+                    raise StaffStudyReceiptError('Invalid study confirmation fields')
+                verified = verify_staff_study_receipts(
+                    args['receipts'], password)
+            except (StaffStudyReceiptError, ValueError, TypeError, KeyError):
+                return response('400 Bad Request', {
+                    'error': '過去の騎手・厩舎研究記録を検証できませんでした。'})
+            return response('200 OK', {
+                'version': 'owner-staff-study-verify-1',
+                'serverSigned': True, 'verifiedDateCount': len(verified),
+                'researchOnly': True, 'privateOwnerOnly': True,
+                'independentHistoricRaceDedupVerified': False,
+                'officialJraVerified': False, 'formalTenPointReady': False,
+                'bettingReady': False, 'actualPurchase': False,
+                'sourceProviderReadCount': 0,
+            })
         if method == 'POST' and path == '/api/owner-research6-draft-verify':
             # Verify captured research tickets ONLY. No client-supplied signing,
             # source lookups, official results, purchase or ROI writes.
