@@ -81,7 +81,7 @@ def owner_day_source_passport(report):
             or ten.get("officialJraVerified") is not False
             or not isinstance(material, dict)
             or material.get("version") != MATERIAL_VERSION
-            or material.get("status") not in ("observed", "unavailable")
+            or material.get("status") not in ("observed", "partial", "unavailable")
             or material.get("gradedNewFactors") != 0
             or material.get("officialJraVerified") is not False
             or not isinstance(context, dict)
@@ -99,6 +99,8 @@ def owner_day_source_passport(report):
             or ten.get("raceCount") != len(grades)
             or context.get("raceCount") != len(course)
             or (material["status"] == "observed" and set(draft) != set(materials))
+            or (material["status"] == "partial" and
+                (not materials or not set(materials).issubset(draft)))
             or (material["status"] == "unavailable" and materials)):
         raise CoverageError("Source passport race sets disagree")
 
@@ -123,7 +125,7 @@ def owner_day_source_passport(report):
 
         counts = None
         registered = len(horses)
-        if material["status"] == "observed":
+        if key in materials:
             source = materials[key]
             registered = source.get("runnerCount")
             if (type(registered) is not int or not 0 <= registered <= 18
