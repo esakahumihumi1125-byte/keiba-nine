@@ -901,7 +901,8 @@ function withDseUpdateAudit(report, batches=1){
   initialPublicationTimeVerified:false,
   sourceTimestampAuthenticityVerified:false,
   historicalResultPublicationTimesVerified:false,
-  independentJraVerified:false,formalTenFactorsReady:false,bettingReady:false,
+  independentJraVerified:false,officialJraVerified:false,
+  formalTenFactorsReady:false,bettingReady:false,
   researchOnly:true,privateOwnerOnly:true,extraProviderCalls:0,
   changesExistingTickets:false,changesExistingReceipts:false,
   changesExistingRoi:false
