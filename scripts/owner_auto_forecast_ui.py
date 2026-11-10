@@ -47,7 +47,7 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
 <p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p>
 <p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
-<a href="/owner-backup">固定済み買い目など10種類の端末記録をバックアップする</a>。
+<a href="/owner-backup">固定済み買い目など11種類の端末記録をバックアップする</a>。
 既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
 <a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
@@ -59,6 +59,11 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 さらに過去4角の位置取りから、先行候補の競合状況と研究用の展開仮説を表示します。
 これは10項目の正式なS〜C、勝率、1着候補の決定ではありません。</p>
 <button id="autoHistoryAudit" type="button" disabled>過去の同条件を最大8件照合する</button>
+<details><summary>騎手・厩舎10点の過去実データ接続テスト（任意）</summary>
+<label><input id="autoHistoryStaffSample" type="checkbox"> 過去1レースの騎手・厩舎資料を追加照合する（JRDB /dky・/dse、2回の有料API照会）</label>
+<p class="muted">チェックしなければ追加のAPI取得はなし。対象の過去レースはサーバーがすでに検証した候補から1つだけ選び、馬名・馬ID・騎手/厩舎コード・着順原票は表示しません。件数だけの研究確認で、正式10点・JRA公式・買い目や回収率には使いません。</p>
+<p id="autoHistoryStaffStatus" class="muted" role="status">騎手・厩舎の追加照合はOFF。</p>
+</details>
 <p class="muted">発走前に照合した巻き返し候補は署名を検証し、iPhone内に最初の候補を固定します。事後の再分析で候補を上書きしません。これは公式結果や馬券購入の証明ではありません。</p>
 <p id="autoHistoryWatchSave" class="muted" role="status">発走前の候補記録は未確認。</p>
 <details><summary>発走前に固定した重点3項目70点の研究記録</summary>
@@ -1213,6 +1218,7 @@ function clearHistory(){
  $('autoHistoryAudit').disabled=true;
  $('autoHistoryAuditRaces').replaceChildren();
  $('autoHistoryAuditStatus').textContent='暫定予想の取得後に利用できます。';
+ $('autoHistoryStaffStatus').textContent='過去1Rの騎手・厩舎追加照合はまだ未実行。';
  $('autoHistoryWatchSave').textContent='発走前の候補記録は未確認。';
  watchResultSeq++;
  $('autoWatchResultRaces').replaceChildren();
@@ -3968,6 +3974,10 @@ $('autoHistoryAudit').onclick=async()=>{
  const button=$('autoHistoryAudit'),day=historyDay;
  if(button.disabled||!day||day!==$('autoDay').value.replaceAll('-',''))return;
  button.disabled=true;const seq=++historySeq;
+ const wantStaff=$('autoHistoryStaffSample').checked===true;
+ $('autoHistoryStaffStatus').textContent=wantStaff?
+  '過去1Rの騎手・厩舎を追加2回のJRDB照会で確認中…':
+  '今回は追加の騎手・厩舎照会なし。';
  $('autoHistoryAuditStatus').textContent='過去の同条件を照合中…';
  $('autoHistoryAuditRaces').replaceChildren();
  try{
@@ -3975,12 +3985,64 @@ $('autoHistoryAudit').onclick=async()=>{
    method:'POST',credentials:'same-origin',cache:'no-store',
    headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
     'Accept':'application/json'},
-   body:JSON.stringify({date:day,limit:8})
+   body:JSON.stringify(wantStaff?{date:day,limit:8,staffSample:true}:
+    {date:day,limit:8})
   });
   const raw=await res.json();
   if(seq!==historySeq)return;
   if(!res.ok)throw Error('履歴機能は利用不可');
   const rows=validateHistory(raw);
+  if(wantStaff){
+   const x=raw?.pastStaffSample;
+   const statuses=['joined_private_sample','incomplete_or_ambiguous_historical_result',
+    'provider_unavailable','no_referenced_past_race'];
+   if(!x||x.version!=='owner-past-staff-sample-1'||
+      !statuses.includes(x.status)||
+      x.sourceFamily!=='private_dky_dse_past_race'||
+      x.pastResultPublicationVerified!==false||
+      x.independentJraVerified!==false||
+      x.jockeyTrainerPerformanceAssessed!==false||
+      x.holdoutValidated!==false||
+      x.formalTenPointGrade!=='未評価'||x.formalTenPointScore!==null||
+      x.predictionReady!==false||x.bettingReady!==false||
+      x.autoPurchase!==false||x.actualPurchase!==false||
+      x.researchOnly!==true||x.privateOwnerOnly!==true||
+      x.changesExistingReceipts!==false||
+      x.changesExistingTickets!==false||x.changesExistingRoi!==false||
+      !Number.isInteger(x.providerReadCount)||
+      ![0,1,2].includes(x.providerReadCount)||
+      x.pastRacesSelected!==Number(x.providerReadCount>0)||
+      !['runnerCount','distinctJockeyCount','distinctTrainerCount',
+        'distinctPairCount','observedFirstPlaceCount','observedTop3Count']
+        .every(k=>Number.isInteger(x[k])&&x[k]>=0&&x[k]<=18)||
+      (x.status==='joined_private_sample'&&(
+        x.providerReadCount!==2||x.runnerCount<3||
+        x.distinctPairCount<1||x.distinctPairCount>x.runnerCount||
+        x.distinctJockeyCount<1||x.distinctTrainerCount<1||
+        x.observedFirstPlaceCount!==1||
+        x.observedTop3Count!==Math.min(3,x.runnerCount)))||
+      (x.status!=='joined_private_sample'&&(
+        x.runnerCount!==0||x.distinctPairCount!==0))||
+      (x.status==='no_referenced_past_race'&&x.providerReadCount!==0)||
+      (x.status==='incomplete_or_ambiguous_historical_result'&&
+       x.providerReadCount!==2)||
+      (x.status==='provider_unavailable'&&
+       ![1,2].includes(x.providerReadCount)))
+    throw Error('追加騎手・厩舎資料の形式が不正');
+   $('autoHistoryStaffStatus').textContent=
+    x.status==='joined_private_sample'?
+     '過去1Rを資料結合：'+x.runnerCount+'頭、騎手'+
+     x.distinctJockeyCount+'種、厩舎'+x.distinctTrainerCount+
+     '種、同一ペア'+x.distinctPairCount+
+     '組（追加2 API照会）。正式10点の採点・JRA公式照合は未完了。':
+    x.status==='no_referenced_past_race'?
+     '参照できる過去レースがないため、追加API取得なし。':
+     '過去1Rの資料結合は保留（追加'+x.providerReadCount+
+     ' API照会を試行）。取消・欠損・同着・API状態等を確認。正式10点には使いません。';
+  }else if(raw?.pastStaffSample!==undefined){
+   throw Error('本人が選んでいない追加取得結果が混入');
+  }
+
   // Core research capture is optional in legacy saved history responses;
   // new private /history calls send it signed before the provisional off.
   // Never ingest user-provided outcomes or update existing 3連単 tickets.
@@ -4472,6 +4534,8 @@ $('autoHistoryAudit').onclick=async()=>{
    ' 予想・購入・保存済みの買い目は変更しません。';
  }catch(_){if(seq===historySeq){
   $('autoHistoryAuditRaces').replaceChildren();
+  $('autoHistoryStaffStatus').textContent=
+   '騎手・厩舎の資料確認に失敗。既存の買い目や成績は変更していません。';
   $('autoHistoryAuditStatus').textContent=
    '過去資料の照合ができません。履歴機能の設定・資料形式を確認してください。'+
    '予想と固定済みの買い目は変更していません。';

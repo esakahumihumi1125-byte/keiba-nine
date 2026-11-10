@@ -49,7 +49,7 @@ def _fetch_endpoint(endpoint, parameters):
     Historical requests must specify exactly one existing race key, never a
     date range or an unconstrained search.
     """
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'dra', 'dka'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'dra', 'dka', 'dky', 'dse'):
         raise JRDBError('Unsupported JRDB endpoint')
     if os.environ.get("JRDB_PRIVATE_ENABLED") != "1":
         raise JRDBError("Private JRDB integration is disabled")
@@ -57,10 +57,15 @@ def _fetch_endpoint(endpoint, parameters):
         raise JRDBError("JRDB retrieval is disabled in GitHub Actions")
     if not isinstance(parameters, dict):
         raise JRDBError("Invalid JRDB request parameters")
-    if endpoint in ('dra', 'dka'):
+    if endpoint in ('dra', 'dka', 'dky', 'dse'):
         racekey = parameters.get("racekey")
         if (set(parameters) != {"racekey"} or not isinstance(racekey, str)
-                or len(racekey) != 8 or any(ch not in "0123456789abcdef" for ch in racekey)):
+                or len(racekey) != 8
+                or any(ch not in "0123456789abcdef" for ch in racekey)
+                or racekey[:2] not in {f"{n:02d}" for n in range(1, 11)}
+                or not racekey[2:4].isdigit()
+                or not racekey[6:8].isdigit()
+                or not 1 <= int(racekey[6:8]) <= 12):
             raise JRDBError("Expected one lowercase eight-character JRDB race key")
     else:
         racedate = parameters.get("racedate")
@@ -150,6 +155,20 @@ def fetch_historical_race_program(racekey):
 def fetch_historical_venue_conditions(racekey):
     """One private historical /dka venue snapshot by exact racekey, no range."""
     return _fetch_endpoint('dka', {'racekey': racekey})
+
+
+def fetch_historical_runner_staff(racekey):
+    """Exactly one historic /dky race's runner and staff source (private)."""
+    return _fetch_endpoint('dky', {'racekey': racekey})
+
+
+def fetch_historical_finished_runners(racekey):
+    """Exactly one historic /dse race's finished horses (NOT JRA verified).
+
+    Use only with an explicit owner request; charged results must not be
+    fetched automatically on app load or guessed by date range.
+    """
+    return _fetch_endpoint('dse', {'racekey': racekey})
 
 
 def fetch_race_program(racedate):
