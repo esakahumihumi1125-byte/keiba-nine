@@ -76,6 +76,7 @@ def audit_dse_update_fields(fetched_batches, *, captured_at):
         "sourceTimestampAuthenticityVerified": False,
         "historicalResultPublicationTimesVerified": False,
         "independentJraVerified": False,
+        "officialJraVerified": False,
         "formalTenFactorsReady": False,
         "bettingReady": False,
         "researchOnly": True,
