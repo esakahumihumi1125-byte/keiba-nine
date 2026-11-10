@@ -65,11 +65,10 @@ function withSourcePassport(r){
  const source=new Map(r.sourceMaterials.races.map(x=>[x.track+'|'+x.race,x]));
  const course=new Map(r.raceContext.races.map(x=>[x.track+'|'+x.race,x]));
  const drafts=new Map(r.races.map(x=>[x.track+'|'+x.race,x]));
- const materialAvailable=r.sourceMaterials.status==='observed';
  r.sourcePassport={
   version:'owner-day-source-passport-1',policyVersion:'research-6',
   raceCount:r.races.length,sourceAuditAvailable:true,
-  observedMaterialRaces:materialAvailable?r.races.length:0,
+  observedMaterialRaces:r.sourceMaterials.races.length,
   gradedFactors:0,verifiedPredictions:0,
   independentJraVerified:false,purchaseReady:false,newProviderRequests:0,
   reason:'unvalidated_source_observations_only',
@@ -78,11 +77,11 @@ function withSourcePassport(r){
    const original=drafts.get(id);
    return {
     track:ten.track,race:ten.race,draftStatus:original.status,
-    programmeRunnerCount:materialAvailable?material.runnerCount:ten.runnerCount,
+    programmeRunnerCount:material?material.runnerCount:ten.runnerCount,
     provisionalTrainingCount:ten.horses.filter(h=>h.grades.training!=='未評価').length,
     provisionalRecentCount:ten.horses.filter(h=>h.grades.recent!=='未評価').length,
-    sourceMaterialsObserved:materialAvailable,
-    additionalFieldCounts:materialAvailable?structuredClone(material.counts):null,
+    sourceMaterialsObserved:!!material,
+    additionalFieldCounts:material?structuredClone(material.counts):null,
     courseContextPresent:context.courseInfoPresent,
     goingContextPresent:context.goingAvailable,
     raceDayBodyweightVerifiedCount:0,officialJraVerified:false,
@@ -2319,6 +2318,33 @@ function boot(){
  assert.match(rosterText,/JRDB番組の登録頭数が未確認/);
  assert.equal(noRoster.storage.get(STORAGE),oldRosterReceipt);
  assert.equal(noRoster.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Partial /tra,/tky,/tcy,/tze coverage: one race's source fields
+ // survive even if 35 others have no safe optional material observation.
+ // No source count may masquerade as a verified 10-factor grade.
+ const partialView=boot();
+ await new Promise(r=>setImmediate(r));
+ const partialDay=full36RaceDraft();
+ const counts={pedigree:3,drawWeight:6,rotation:5,
+  personnel:6,body:4,pastCorner:6};
+ partialDay.sourceMaterials={
+  version:'owner-draft-material-coverage-1',status:'partial',
+  observedFactorSlots:8,gradedNewFactors:0,officialJraVerified:false,
+  races:[{track:'東京',race:1,runnerCount:7,counts}]
+ };
+ withSourcePassport(partialDay);
+ partialView.setServerRaw(partialDay);
+ const earlierPartial=partialView.storage.get(STORAGE);
+ await partialView.get('autoRun').onclick();
+ assert.match(partialView.get('autoSummary').textContent,/1\/36Rを確認/);
+ const firstPartial=partialView.get('autoRaces').children[0].children[0];
+ const secondPartial=partialView.get('autoRaces').children[0].children[1];
+ assert.match(firstPartial.children.map(x=>x.textContent||'').join(' '),
+  /資料の有無（採点ではない）/);
+ assert.match(secondPartial.children.map(x=>x.textContent||'').join(' '),
+  /追加8項目の資料確認は未完了/);
+ assert.match(partialView.get('autoTenStatus').textContent,/残り8項目は未評価/);
+ assert.equal(partialView.storage.get(STORAGE),earlierPartial);
+ assert.equal(partialView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const tamperedPassport=resultWith('c'.repeat(64));
  tamperedPassport.sourcePassport.races[0].verifiedFactorCount=10;
  a.setServerRaw(tamperedPassport);
