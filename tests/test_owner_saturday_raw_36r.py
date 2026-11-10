@@ -141,6 +141,28 @@ class SaturdayRawDayTests(unittest.TestCase):
                        "race_back_1_idm"):
             self.assertNotIn(secret, text)
 
+    def test_completed_real_pipeline_writes_only_redacted_operator_status(self):
+        # The old /tra connection probe is not proof of prestart HMAC sealing.
+        # One new log line proves this complete authenticated HTTP path ran,
+        # while disclosing no requested date, horse identity, source fields,
+        # endpoints, API keys or generated ticket combinations.
+        with self.assertLogs(level="WARNING") as captured:
+            reply = run_request(raw_day())
+        self.assertEqual(reply["status"], "200 OK")
+        events = [line for line in captured.output
+                  if "KEIBA_AUTO_DRAFT_PIPELINE" in line]
+        self.assertEqual(len(events), 1)
+        self.assertIn("status=complete", events[0])
+        for field in ("programme=present", "drafts=36", "holds=0",
+                      "receipts=36", "jra=unverified", "formal=ungraded"):
+            self.assertIn(field, events[0])
+        for forbidden in (
+                DAY, "PRIVATE-", "racekey", "horse_id", "horse_name",
+                "2099-01-01", "raw-synthetic", "api_key", "x-user-key",
+                "tickets", "trifecta", "0526", "TRAINING", "JRDB_API"):
+            self.assertNotIn(forbidden, events[0])
+        self.assertNotIn("KEIBA_AUTO_DRAFT_FAILURE", " ".join(captured.output))
+
     def test_single_missing_workout_holds_only_one_race(self):
         programme, entries, training, previous = raw_day()
         # A missing /tcy row is NOT a C grade or zero ability. The other
