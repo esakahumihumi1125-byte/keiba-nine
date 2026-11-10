@@ -12,6 +12,11 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 資料が不足したレースは見送り。実際の投票・購入・正式収支への記録は行わず、発走前の研究用記録のみ端末に固定します。</p>
 <section>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
+<div class="day-shortcuts" role="group" aria-label="週末の開催日を選ぶ">
+<button id="autoSaturday" type="button">直近の土曜日</button>
+<button id="autoSunday" type="button">直近の日曜日</button>
+</div>
+<p class="muted">土日ボタンは日付を選ぶだけ。JRDBへの照会は「全場・全Rを再分析する」を押すまで開始しません（初回の当日自動取得は従来どおり）。</p>
 <button id="autoRun" type="button">全場・全Rを再分析する</button>
 <details><summary>JRDB実接続の確認（任意）</summary>
 <p class="muted">本人が押した時だけ設定を確認し、設定済みなら番組APIへ1回接続。未設定ならJRDBへの追加通信なし。買い目・収支・購入記録は変更しません。</p>
@@ -27,6 +32,7 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoOperationalNext" class="muted" role="status">土曜日の次の操作：当日の取得結果を確認中。</p>
 <p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
+<p id="autoReadProof" class="muted" role="status">JRDB資料の照会状況は未確認です。番組0Rと全資料取得は別です。</p>
 <p id="autoRecordSafety" class="muted" role="status">固定記録の保管状態：まだ確認していません。</p>
 <a href="#autoVenues">開催日のレース一覧に進む</a>
 <p class="muted"><a href="#autoHistoryAudit">過去の同条件照合へ進む</a>（旧85点の比較と新配点79点の研究用下書きを確認。追加の有料API取得は本人がボタンを押した時のみ）</p>
@@ -176,6 +182,9 @@ input,button,select{font:inherit;min-height:45px;padding:11px;border-radius:10px
 input,select{background:#0c2135;color:white;border:1px solid #90a6b9}
 button{background:#e8c774;color:#182b41;border:0;font-weight:800}
 button:disabled,select:disabled{opacity:.55}
+.day-shortcuts{display:flex;gap:8px}
+.day-shortcuts button{flex:1;min-width:0;background:#2b425b;color:#eaf3ff;
+ font-size:13px;padding:8px}
 .venue-tabs{display:flex;flex-wrap:wrap;gap:7px}
 .venue-tabs button{flex:1 1 100px;width:auto;background:#2b425b;color:#eaf3ff}
 .venue-tabs button[aria-pressed=true]{background:#e8c774;color:#152a3d}
