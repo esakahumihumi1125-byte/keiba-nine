@@ -141,6 +141,22 @@ class OwnerDayResearchTests(unittest.TestCase):
         self.assertEqual(result["races"], [])
         self.assertFalse(result["bettingReady"])
 
+    def test_single_programme_read_only_permitted_for_empty_day(self):
+        report=owner_day_research([],[],[],[],"20261102",source_read_count=1)
+        self.assertEqual(report["raceCount"],0)
+        self.assertEqual(report["sourceReadCount"],1)
+        self.assertEqual(report["races"],[])
+        self.assertFalse(report["predictionReady"])
+        for invalid in (0, 2, True, "1"):
+            with self.subTest(invalid=repr(invalid)), self.assertRaises(CoverageError):
+                owner_day_research([],[],[],[],"20261102",
+                                   source_read_count=invalid)
+        p,e,t,z,day=sample()
+        with self.assertRaises(CoverageError):
+            owner_day_research(p,e,t,z,day,source_read_count=1)
+        with self.assertRaises(CoverageError):
+            owner_day_research([],e,[],[],day,source_read_count=1)
+
     def test_bad_date_and_ambiguous_programme_rejected(self):
         for bad_date in ("20260230", "2026-11-01", "20261100"):
             with self.subTest(bad_date=bad_date), self.assertRaises(CoverageError):
