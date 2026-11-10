@@ -141,6 +141,31 @@ class SaturdayRawDayTests(unittest.TestCase):
                        "race_back_1_idm"):
             self.assertNotIn(secret, text)
 
+    def test_single_missing_workout_holds_only_one_race(self):
+        programme, entries, training, previous = raw_day()
+        # A missing /tcy row is NOT a C grade or zero ability. The other
+        # 35 original races must still be converted and sealed.
+        training = [t for t in training
+                    if not (t["racekey"] == "0599aa02"
+                            and t["horse_number"] == "07")]
+        reply = run_request((programme, entries, training, previous))
+        self.assertEqual(reply["status"], "200 OK", reply["body"][:300])
+        report = json.loads(reply["body"])
+        self.assertEqual((report["raceCount"], report["draftCount"],
+                          report["holdCount"]), (36, 35, 1))
+        self.assertEqual(report["holdReasons"], {"missing_factors": 1})
+        self.assertEqual(report["researchReceiptCount"], 35)
+        held = [x for x in report["races"] if x["status"] == "hold"]
+        self.assertEqual([(x["track"], x["race"]) for x in held],
+                         [("東京", 2)])
+        self.assertEqual(held[0]["points"], 0)
+        self.assertTrue(all(len(x["tickets"]) == 40
+                            for x in report["races"] if x["status"] == "provisional_draft"))
+        self.assertEqual(len(verify_preview_receipts(
+            report["researchReceipts"], SECRET, "2099-01-01")), 35)
+        self.assertFalse(report["officialJraVerified"])
+        self.assertFalse(report["bettingReady"])
+
     def test_one_off_and_one_bad_raw_workout_keep_other_34(self):
         reply = run_request(raw_day(mixed=True))
         self.assertEqual(reply["status"], "200 OK", reply["body"][:300])
