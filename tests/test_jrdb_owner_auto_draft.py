@@ -9,7 +9,7 @@ from unittest.mock import patch, call as mock_call
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_coverage import CoverageError
-from jrdb_owner_auto_draft import build_owner_auto_drafts, VERSION
+from jrdb_owner_auto_draft import build_owner_auto_drafts, compact_hold_diagnostics, VERSION
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_prestart_receipt import verify_preview_receipts, ReceiptError
 from keiba_100yen_review import review_100yen
@@ -340,6 +340,31 @@ class AutoDraftTests(unittest.TestCase):
             now=datetime(2099,1,1,9,0,tzinfo=JST))
         self.assertEqual(len(signed), 1)
         self.assertEqual(signed[0]["snapshot"]["track"], "東京")
+
+    def test_redacted_operator_hold_summary_counts_only_fixed_categories(self):
+        base=generate()
+        self.assertEqual(compact_hold_diagnostics(base),"none")
+        after=generate(now=datetime(2099,1,1,12,30,tzinfo=JST))
+        self.assertEqual(compact_hold_diagnostics(after),
+                         "after_provisional_off:1")
+        reported=copy.deepcopy(base)
+        reported["holdCount"]=4
+        reported["holdReasons"]={
+            "provider_withdrawal":1,
+            "missing_factors":2,
+            "UNTRUSTED_PAID_HORSE_ID":1,
+        }
+        self.assertEqual(compact_hold_diagnostics(reported),
+                         "provider_withdrawal:1,missing_factors:2,other:1")
+        self.assertNotIn("UNTRUSTED",compact_hold_diagnostics(reported))
+        invalid=copy.deepcopy(reported)
+        invalid["holdReasons"]["missing_factors"]="PRIVATE_LICENSED_TEXT"
+        self.assertEqual(compact_hold_diagnostics(invalid),"invalid")
+        invalid["holdReasons"]={"provider_withdrawal":4}
+        invalid["holdCount"]=1
+        self.assertEqual(compact_hold_diagnostics(invalid),"invalid")
+        self.assertEqual(compact_hold_diagnostics({"holdReasons":{}}),
+                         "invalid")
 
     def test_needs_review_only_holds(self):
         r=research()
