@@ -617,6 +617,27 @@ function formation(r){
   dom('p',r.tickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
  return block;
 }
+function dayMaterialGaps(a){
+ // A count of incomplete raw *fields*, not 10-factor grades. Do not
+ // label unreceived source material as zero or invent JRA verification.
+ const observed=a.races.filter(row=>row.sourceMaterialsObserved);
+ if(!observed.length)
+  return '追加資料の項目別不足は未集計（元資料が照合保留）。';
+ const keys=[
+  ['personnel','騎手・厩舎'],['pedigree','父・母父'],
+  ['drawWeight','枠・斤量'],['rotation','ローテ'],
+  ['pastCorner','過去4角の記録']
+ ];
+ const summary=keys.map(([key,label])=>{
+  const misses=observed.filter(row=>row.programmeRunnerCount>0&&
+   row.additionalFieldCounts[key]<row.programmeRunnerCount).length;
+  return label+' '+misses+'R';
+ }).join('／');
+ return '元資料が全頭分そろわないR数（照合済み'+observed.length+'Rのみ）：'+
+  summary+'。'+(observed.length===a.races.length?'':'残り'+
+   (a.races.length-observed.length)+'Rの元資料は未確認。')+
+  '当日馬体重は別の直前情報が必要。資料が揃っても能力評価・正式得点ではありません。';
+}
 function summarizeDaySourcePassport(a, expectedCount){
  // Read only the validated, same-request count passport. Never infer
  // verified grades or JRA matching from material presence.
@@ -632,7 +653,8 @@ function summarizeDaySourcePassport(a, expectedCount){
   aggregate('provisionalTrainingCount')+'頭／近走 '+aggregate('provisionalRecentCount')+
   '頭。コース条件 '+course+'R／当日馬場資料 '+going+
   'R／追加資料の件数照合 '+observed+
-  'R。正式採点0/10・JRA公式独立照合なし。買い目は変更しません。';
+  'R。正式採点0/10・JRA公式独立照合なし。買い目は変更しません。'+
+  ' '+dayMaterialGaps(a);
 }
 function sourceNextChecks(row){
  // Data-presence triage, not a factor score, medical-style "risk" score,
