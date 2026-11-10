@@ -7,7 +7,7 @@ owner browser; no raw paid metrics or identities leave the server.
 No JRA confirmation, overall ranks, bets, automatic purchases or background
 provider polling occur.
 """
-from jrdb_coverage import CoverageError
+from jrdb_coverage import CoverageError, audit_race_coverage
 from jrdb_evidence_readiness import _valid_date
 from jrdb_training_hypothesis import build_training_hints
 from jrdb_recent_hypothesis import build_recent_hints
@@ -17,6 +17,8 @@ from jrdb_program_preview import TRACKS
 VERSION = "jrdb-owner-day-research-1"
 MAX_RACES = 120
 MAX_SOURCE_ROWS = 50000
+# Fixed stage codes only: no raw JRDB values, exceptions or horse identities.
+REVIEW_STAGES = frozenset(("entries", "training", "recent", "runner_join"))
 
 
 def owner_day_research(programme, entries, training, previous, date):
@@ -48,12 +50,19 @@ def owner_day_research(programme, entries, training, previous, date):
     for programme_row in programme:
         key = programme_row["racekey"]
         track, number = programme_row["track"], programme_row["race"]
+        stage = "entries"
         try:
             one_entry = [r for r in entries if r.get("racekey") == key]
             one_training = [r for r in training if r.get("racekey") == key]
             one_recent = [r for r in previous if r.get("racekey") == key]
+            # Separate the entry-roster gate from the training/recent
+            # gates without asking the licensed provider for more data.
+            audit_race_coverage([programme_row], one_entry, date)
+            stage = "training"
             t = build_training_hints([programme_row], one_entry, one_training, date)
+            stage = "recent"
             p = build_recent_hints([programme_row], one_entry, one_recent, date)
+            stage = "runner_join"
             result = owner_runner_research(t, p, track, number)
             status = "research_only"
             item = {
@@ -68,6 +77,7 @@ def owner_day_research(programme, entries, training, previous, date):
                 "track": track, "race": number,
                 "status": "needs_review",
                 "research": None,
+                "reviewStage": stage,
             }
         rows.append(item)
     return {
