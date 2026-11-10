@@ -1280,6 +1280,9 @@ function boot(){
  // Visiting the owner-only page triggers the first read automatically.
  await new Promise(r=>setImmediate(r));
  assert.equal(a.requests.length,1);
+ assert.match(a.get('autoReadProof').textContent,
+  /番組あり・資料照会完了.*4回照会/);
+ assert.match(a.get('autoReadProof').textContent,/研究用3連単 1R/);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
  assert.match(a.get('autoJraCrosscheck').textContent,/独立照合 0R（未実施）/);
@@ -1304,6 +1307,24 @@ function boot(){
  guide.get('autoDay').value='2099-01-32';
  guide.get('autoDay').onchange();
  assert.match(guide.get('autoJraReleaseGuide').textContent,/開催日が不正/);
+ // Date shortcuts are local UI only, never an extra paid query.
+ const weekend=boot();
+ await new Promise(r=>setImmediate(r));
+ const beforeWeekendCalls=weekend.requests.length;
+ const preservedWeekend=weekend.storage.get(STORAGE);
+ weekend.get('autoSaturday').onclick();
+ assert.equal(weekend.get('autoDay').value,'2099-01-03');
+ assert.equal(weekend.requests.length,beforeWeekendCalls);
+ assert.match(weekend.get('autoStatus').textContent,
+  /2099-01-03を選択しました.*追加照会はまだ/);
+ assert.match(weekend.get('autoReadProof').textContent,/まだ照会していません/);
+ assert.match(weekend.get('autoJraReleaseGuide').textContent,/2099-01-01 16時すぎ/);
+ weekend.get('autoSunday').onclick();
+ assert.equal(weekend.get('autoDay').value,'2099-01-04');
+ assert.equal(weekend.requests.length,beforeWeekendCalls);
+ assert.equal(weekend.storage.get(STORAGE),preservedWeekend);
+ assert.equal(weekend.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.match(weekend.get('autoJraCrosscheck').textContent,/JRDBの開催場 0場/);
  // JRDB connection probe is a deliberate, independently limited action.
  assert.equal(a.requests.filter(r=>r.url==='/api/setup').length,0);
  assert.equal(a.requests.filter(r=>
@@ -2373,6 +2394,10 @@ function boot(){
   /開催なしとは断定できません/);
  assert.match(emptyFeed.get('autoSummary').textContent,
   /0R中、研究用自動案 0R／見送り 0R/);
+ assert.match(emptyFeed.get('autoReadProof').textContent,
+  /番組0R・予想未作成.*照会 1回/);
+ assert.match(emptyFeed.get('autoReadProof').textContent,
+  /出走馬・調教・近走・馬場は照会していません/);
  assert.equal(emptyFeed.storage.get(STORAGE),beforeEmpty);
  assert.equal(emptyFeed.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const tamperedPassport=resultWith('c'.repeat(64));
