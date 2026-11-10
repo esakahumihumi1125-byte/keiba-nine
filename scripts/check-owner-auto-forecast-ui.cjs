@@ -2672,7 +2672,7 @@ function boot(){
   x.snapshot.actualPurchase===false));
  assert.equal(allDrafts.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.match(allDrafts.get('autoSavedStatus').textContent,/新規 35R/);
- assert.match(allDrafts.get('autoFixedConsistency').textContent,/一致 1R/);
+ assert.match(allDrafts.get('autoFixedConsistency').textContent,/一致 36R/);
  allDrafts.get('autoRacePick').value='福島|12';
  allDrafts.get('autoRacePick').onchange();
  assert.match(allDrafts.get('autoViewingStatus').textContent,/福島 12R/);
