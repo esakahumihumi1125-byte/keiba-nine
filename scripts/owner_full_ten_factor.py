@@ -54,11 +54,17 @@ def _empty_recheck():
 
 
 def _has_independent_pair(support):
-    """Require 2 factor families backed by non-overlapping source IDs."""
-    keys = tuple(support)
+    """Corroboration needs separate source rows AND separate provider families.
+
+    A different row ID from the same provider is not independent evidence.
+    Missing provenance cannot justify a higher-ranked winner-review claim.
+    """
+    records = tuple(support.values())
     return any(
-        support[a].isdisjoint(support[b])
-        for i, a in enumerate(keys) for b in keys[i + 1:]
+        left["ids"].isdisjoint(right["ids"])
+        and left["families"].isdisjoint(right["families"])
+        for i, left in enumerate(records)
+        for right in records[i + 1:]
     )
 
 
@@ -150,9 +156,20 @@ def full_ten_factor_preview(snapshot, *, now):
                 if (grades[factor] in ("S", "A")
                         and item is not None
                         and item.get("winSupport") is True):
-                    source_ids[factor] = frozenset(
-                        e["sourceId"].strip() for e in item["evidence"]
-                    )
+                    evidence_rows = item["evidence"]
+                    families = [e.get("sourceFamily") for e in evidence_rows]
+                    # sourceFamily is private, provenance-verified metadata
+                    # supplied by the upstream assessment process, never
+                    # inferred from an arbitrary sourceId or client input.
+                    if all(isinstance(f, str) and f.strip() for f in families):
+                        source_ids[factor] = {
+                            "ids": frozenset(
+                                e["sourceId"].strip() for e in evidence_rows
+                            ),
+                            "families": frozenset(
+                                f.strip().casefold() for f in families
+                            ),
+                        }
         support_by_number[n] = {
             "sources": source_ids, "blocked": bool(concerns),
         }
