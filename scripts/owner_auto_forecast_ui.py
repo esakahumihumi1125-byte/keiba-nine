@@ -283,6 +283,13 @@ const RUNNER_ISSUES={
  incomplete_rank:'未評価馬の順位',missing_reasons:'未評価の理由',
  summary_count:'評価済み頭数'
 };
+// Only predetermined private diagnostics, never provider values or raw errors.
+const REVIEW_STAGES={
+ entries:'出走馬・登録頭数',
+ training:'調教資料の整合性',
+ recent:'近走資料の整合性',
+ runner_join:'調教と近走の馬番照合'
+};
 const MATERIAL_LABELS={
  pedigree:'父・母父',drawWeight:'枠・斤量',rotation:'前走日付',
  personnel:'騎手・厩舎',body:'馬体形状',pastCorner:'過去4角'
@@ -553,6 +560,9 @@ function validate(data,day){
   if(r.status==='hold'){
    if(!Object.hasOwn(REASONS,r.reason)||r.points!==0||
       r.first.length||r.second.length||r.third.length||
+      (Object.hasOwn(r,'reviewStage')&&
+       (r.reason!=='missing_research'||
+        !Object.hasOwn(REVIEW_STAGES,r.reviewStage)))||
       (r.reason==='invalid_two_factor'&&
        (!Object.hasOwn(RUNNER_ISSUES,r.validationIssue)||r.runners.length!==0)))
     throw Error('見送り理由が不正です');
@@ -902,7 +912,10 @@ function render(input,day){
   if(race.status==='hold'){
    const extra=race.reason==='invalid_two_factor'&&
      Object.hasOwn(RUNNER_ISSUES,race.validationIssue)
-     ?'（'+RUNNER_ISSUES[race.validationIssue]+'）':'';
+     ?'（'+RUNNER_ISSUES[race.validationIssue]+'）'
+     :race.reason==='missing_research'&&
+       Object.hasOwn(REVIEW_STAGES,race.reviewStage)
+      ?'（要確認：'+REVIEW_STAGES[race.reviewStage]+'）':'';
    detail.append(dom('p',REASONS[race.reason]+extra,'hold'));
   }
   const tenRace=tenRows.get(race.track+'|'+race.race);
