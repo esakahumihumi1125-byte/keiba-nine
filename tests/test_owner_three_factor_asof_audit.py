@@ -157,6 +157,10 @@ class ThreeFactorAsOfAuditTests(unittest.TestCase):
             lambda r: r.update(fourthCorner=True),
             lambda r: r.update(horseRef="UNKNOWN_HORSE"),
             lambda r: r.update(privateKey="secret"),
+            lambda r: r.update(track=[]),
+            lambda r: r.update(surface={}),
+            lambda r: r.update(going=["重"]),
+            lambda r: r.update(distanceM=True),
         ):
             row = past("2026-10-10")
             mutation(row)
