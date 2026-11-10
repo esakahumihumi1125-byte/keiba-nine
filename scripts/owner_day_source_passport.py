@@ -66,7 +66,9 @@ def owner_day_source_passport(report):
             or report.get("overallPredictionReady") is not False
             or report.get("bettingReady") is not False
             or report.get("autoPurchase") is not False
-            or report.get("sourceReadCount") != 4
+            or report.get("sourceReadCount") not in (1, 4)
+            or (report.get("sourceReadCount") == 1 and
+                report.get("raceCount") != 0)
             or type(report.get("raceCount")) is not int
             or not 0 <= report["raceCount"] <= 120):
         raise CoverageError("Invalid source passport input")
