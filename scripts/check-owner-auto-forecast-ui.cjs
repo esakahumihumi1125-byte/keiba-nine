@@ -2212,6 +2212,40 @@ function boot(){
  assert.equal(a.get('autoHoldReasons').children.length,0);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
+ // A malformed or repeated receipt from ANOTHER DATE must stop any new
+ // appends without deleting the existing archive or touching purchases.
+ const crossDay=boot();
+ await new Promise(r=>setImmediate(r));
+ const base=JSON.parse(crossDay.storage.get(STORAGE));
+ const foreign=structuredClone(base[0]);
+ foreign.snapshot.date='2099-01-02';
+ foreign.snapshot.lockedAt='2099-01-02T09:00:00+09:00';
+ foreign.snapshot.scheduledOffAt='2099-01-02T12:00:00+09:00';
+ const validCrossDay=JSON.stringify([...base,foreign]);
+ crossDay.storage.set(STORAGE,validCrossDay);
+ await crossDay.get('autoRun').onclick();
+ assert.equal(crossDay.storage.get(STORAGE),validCrossDay);
+ assert.match(crossDay.get('autoSavedStatus').textContent,/新規 0R/);
+ for(const mutated of [
+  [...base,foreign,structuredClone(foreign)],
+  [...base,{...foreign,signature:'invalid-signature'}],
+  [...base,{...foreign,snapshot:{
+   ...foreign.snapshot,trifectaTickets:[[1,2,3],[1,2,3]]
+  }}],
+  [...base,{...foreign,snapshot:{
+   ...foreign.snapshot,lockedAt:'2099-01-02T13:00:00+09:00'
+  }}],
+ ]){
+  const saved=JSON.stringify(mutated);
+  crossDay.storage.set(STORAGE,saved);
+  await crossDay.get('autoRun').onclick();
+  assert.equal(crossDay.storage.get(STORAGE),saved,
+   'invalid past ledger must remain untouched for owner recovery');
+  assert.match(crossDay.get('autoSavedStatus').textContent,/保存はできませんでした/);
+  assert.match(crossDay.get('autoRecordSafety').textContent,/新規固定失敗/);
+  assert.equal(crossDay.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ }
+ crossDay.storage.set(STORAGE,validCrossDay);
  assert.match(a.get('autoHistoryStatus').textContent,/固定 1R/);
  assert.equal(a.get('autoHistory').children.length,1);
  const history=a.get('autoHistory').children[0];
