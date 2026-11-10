@@ -75,6 +75,33 @@ class OwnerDaySourcePassportTests(unittest.TestCase):
         self.assertEqual(out["gradedFactors"], 0)
         self.assertFalse(row["goingContextPresent"])
 
+    def test_partial_optional_materials_have_unknown_not_zero_per_race(self):
+        report=synthetic_report()
+        # One actual material observation for the only race stays available
+        # even when the batch-level source audit had a broken/orphan row.
+        report["sourceMaterials"]={
+            "version":"owner-draft-material-coverage-1",
+            "status":"partial","observedFactorSlots":8,
+            "gradedNewFactors":0,"officialJraVerified":False,
+            "races":[{
+                "track":"東京","race":1,"runnerCount":7,
+                "counts":{key:7 for key in (
+                    "pedigree","drawWeight","rotation",
+                    "personnel","body","pastCorner")}
+            }],
+        }
+        result=owner_day_source_passport(report)
+        self.assertEqual(result["observedMaterialRaces"],1)
+        self.assertTrue(result["races"][0]["sourceMaterialsObserved"])
+        self.assertEqual(result["races"][0]["additionalFieldCounts"]["pedigree"],7)
+        self.assertEqual(result["gradedFactors"],0)
+        self.assertFalse(result["independentJraVerified"])
+        bad=copy.deepcopy(report)
+        bad["sourceMaterials"]["races"][0]["race"]=4
+        with self.assertRaises(CoverageError):
+            owner_day_source_passport(bad)
+        self.assertFalse(safe_owner_day_source_passport(bad)["sourceAuditAvailable"])
+
     def test_duplicate_or_wrong_roster_fails_closed(self):
         report = synthetic_report()
         report["sourceMaterials"] = {
