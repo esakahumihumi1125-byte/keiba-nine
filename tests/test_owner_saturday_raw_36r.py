@@ -212,6 +212,26 @@ class SaturdayRawDayTests(unittest.TestCase):
         self.assertFalse(report["overallPredictionReady"])
         self.assertNotIn("PRIVATE-", response["body"].decode())
 
+    def test_invalid_final_clock_never_returns_new_signed_tickets(self):
+        with self.assertLogs(level="WARNING") as captured:
+            response=run_request(
+                raw_day(),clocks=[
+                    "2099-01-01T09:00:00+09:00",
+                    "2099-01-01T09:00:00",  # Naive, no timezone.
+                ])
+        self.assertEqual(response["status"],"502 Bad Gateway")
+        body=json.loads(response["body"])
+        self.assertEqual(body["failureStage"],"final_prestart_gate")
+        self.assertEqual(body["failureKind"],"source_validation")
+        self.assertNotIn("researchReceipts",body)
+        self.assertNotIn("tickets",body)
+        self.assertTrue(any(
+            "stage=final_prestart_gate" in line
+            for line in captured.output))
+        self.assertFalse(any(
+            "KEIBA_AUTO_DRAFT_PIPELINE status=complete" in line
+            for line in captured.output))
+
     def test_one_source_withdrawal_logs_fixed_hold_cause_no_horse_data(self):
         programme, entries, training, previous = raw_day()
         for row in entries:
