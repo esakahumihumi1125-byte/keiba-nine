@@ -11,6 +11,7 @@ from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs, fetch_venue_conditions,
                           fetch_prestart_body,fetch_finished_race_results,
                           fetch_historical_race_program, fetch_historical_venue_conditions,
+                          fetch_historical_runner_staff, fetch_historical_finished_runners,
                           JRDBError, _NoRedirect)
 
 
@@ -130,6 +131,30 @@ class PrivateClientTests(unittest.TestCase):
         self.assertEqual(json.loads(req.data), {'racekey': '05264b01'})
         self.assertNotIn('start_racedate', req.data.decode())
         self.assertNotIn('end_racedate', req.data.decode())
+
+    def test_historical_staff_and_result_only_accept_one_exact_racekey(self):
+        for fn, endpoint in (
+            (fetch_historical_runner_staff, "dky"),
+            (fetch_historical_finished_runners, "dse"),
+        ):
+            with self.subTest(endpoint=endpoint):
+                self.assertEqual(fn("05264b11"), [{"racekey": "synthetic"}])
+                req = self.mock.return_value.open.call_args.args[0]
+                self.assertEqual(req.method, "POST")
+                self.assertIn("/v1/" + endpoint + "?", req.full_url)
+                self.assertEqual(json.loads(req.data), {"racekey": "05264b11"})
+        self.mock.reset_mock()
+        for bad in ("20261026", "05264B11", "05264b1Z",
+                    {"start_racedate": "20260101"}, None, 5264):
+            for fn in (fetch_historical_runner_staff, fetch_historical_finished_runners):
+                with self.subTest(bad=bad), self.assertRaises(JRDBError):
+                    fn(bad)
+        self.mock.assert_not_called()
+        os.environ["GITHUB_ACTIONS"] = "true"
+        for fn in (fetch_historical_runner_staff, fetch_historical_finished_runners):
+            with self.assertRaises(JRDBError):
+                fn("05264b11")
+        self.mock.assert_not_called()
 
     def test_historical_lookup_invalid_key_never_contacts_provider(self):
         for bad in ('', '05264B01', 'garbage', '05264a01;DROP',
