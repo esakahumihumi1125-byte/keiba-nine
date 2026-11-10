@@ -95,6 +95,45 @@ class OwnerDayResearchTests(unittest.TestCase):
                 self.assertNotIn("racekey", repr(report))
                 self.assertNotIn("horse_id", repr(report))
 
+    def test_provider_reported_withdrawal_blocks_its_race_early(self):
+        p, e, t, z, day = sample()
+        original = copy.deepcopy((p,e,t,z))
+        e[0]["withdrawn_flag"] = "1"
+        frozen = copy.deepcopy((p,e,t,z))
+        report = owner_day_research(p,e,t,z,day)
+        self.assertEqual((p,e,t,z),frozen)
+        self.assertEqual((report["researchAvailableCount"],
+                          report["needsReviewCount"]),(1,1))
+        held = report["races"][0]
+        self.assertEqual((held["track"],held["race"]),("東京",1))
+        self.assertEqual(held["reviewStage"],"entries")
+        self.assertEqual(held["reviewKind"],"provider_withdrawal")
+        self.assertIsNone(held["research"])
+        self.assertEqual(report["races"][1]["status"],"research_only")
+        self.assertNotIn("horse_id",repr(report))
+        self.assertNotIn("withdrawn_flag",repr(report))
+        self.assertFalse(report["bettingReady"])
+
+    def test_unknown_withdrawal_flag_does_not_imply_final_clearance(self):
+        p,e,t,z,day = sample()
+        e[0]["withdrawn_flag"] = ""
+        e[1]["withdrawn_flag"] = None
+        report = owner_day_research(p,e,t,z,day)
+        self.assertEqual(report["needsReviewCount"],0)
+        self.assertFalse(report["officialJraVerified"])
+        self.assertFalse(report["bettingReady"])
+        for bad in ("2","01",True,False,1,0," 0"):
+            with self.subTest(flag=repr(bad)):
+                a,b,c,d,day = sample()
+                b[0]["withdrawn_flag"] = bad
+                report = owner_day_research(a,b,c,d,day)
+                held = report["races"][0]
+                self.assertEqual(held["status"],"needs_review")
+                self.assertEqual(held["reviewStage"],"entries")
+                self.assertNotIn("reviewKind",held)
+                self.assertIsNone(held["research"])
+                self.assertEqual(report["races"][1]["status"],"research_only")
+
     def test_empty_non_racing_date_is_not_misidentified_as_failure(self):
         result = owner_day_research([], [], [], [], "20261102")
         self.assertEqual(result["raceCount"], 0)
