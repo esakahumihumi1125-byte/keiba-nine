@@ -2302,6 +2302,23 @@ function boot(){
  assert.match(scratchText,/以前の固定買い目があっても有効とは限りません/);
  assert.equal(scratched.storage.get(STORAGE),originalHmac);
  assert.equal(scratched.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // A missing /tra headcount cannot be silently inferred from /tky
+ // observed horses. The held race stays at 0 points, and a previously
+ // sealed research receipt for another race must not be overwritten.
+ const noRoster=boot();
+ await new Promise(r=>setImmediate(r));
+ const rosterDay=full36RaceDraft();
+ rosterDay.races[1].reason='unconfirmed_runner_count';
+ rosterDay.races[1].horseCount=null;
+ rosterDay.holdReasons={after_provisional_off:34,unconfirmed_runner_count:1};
+ noRoster.setServerRaw(rosterDay);
+ const oldRosterReceipt=noRoster.storage.get(STORAGE);
+ await noRoster.get('autoRun').onclick();
+ const rosterDetail=noRoster.get('autoRaces').children[0].children[1];
+ const rosterText=rosterDetail.children.map(x=>x.textContent||'').join(' ');
+ assert.match(rosterText,/JRDB番組の登録頭数が未確認/);
+ assert.equal(noRoster.storage.get(STORAGE),oldRosterReceipt);
+ assert.equal(noRoster.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const tamperedPassport=resultWith('c'.repeat(64));
  tamperedPassport.sourcePassport.races[0].verifiedFactorCount=10;
  a.setServerRaw(tamperedPassport);
