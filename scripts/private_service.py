@@ -2131,8 +2131,10 @@ def create_app(settings=None):
                     'error': '開催日の資料に不整合があります。予想や買い目は作成しません。'})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/owner-auto-draft':
-            # Four owner-triggered calls only; no background polling, purchase,
-            # licensed row storage, or claims of independent JRA confirmation.
+            # At most four core owner-triggered reads. Empty /tra means
+            # no /tky, /tcy or /tze reads for this request; an empty
+            # programme is NOT evidence that JRA has no races scheduled.
+            # No background polling, purchase or paid row persistence.
             if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
                     or settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
                     or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
@@ -2152,14 +2154,23 @@ def create_app(settings=None):
             stage = 'programme'
             try:
                 programme = normalize_program_rows(fetch_race_program(day), day)
-                stage = 'entries'
-                entries = fetch_horse_entries(day)
-                stage = 'training'
-                training = fetch_training_analysis(day)
-                stage = 'recent'
-                recent = fetch_recent_runs(day)
+                # Do not make three more possibly billable JRDB reads when
+                # /tra returns zero races. This is a provisional EMPTY
+                # programme, never a JRA-certified no-racing-day result.
+                entries, training, recent = [], [], []
+                source_reads = 1
+                if programme:
+                    stage = 'entries'
+                    entries = fetch_horse_entries(day)
+                    stage = 'training'
+                    training = fetch_training_analysis(day)
+                    stage = 'recent'
+                    recent = fetch_recent_runs(day)
+                    source_reads = 4
                 stage = 'day_research'
-                research = owner_day_research(programme, entries, training, recent, day)
+                research = owner_day_research(
+                    programme, entries, training, recent, day,
+                    source_read_count=source_reads)
                 # _now_in_jst() intentionally returns an ISO string for
                 # other owner endpoints; draft and receipt signing require
                 # the same timezone-aware datetime object instead.
@@ -2238,15 +2249,16 @@ def create_app(settings=None):
                 # the agreed weights/grade thresholds; it MUST NOT
                 # manufacture a ten-factor score or change sealed tickets.
                 report['tenFactorPreview'] = ten_factor_contract(report)
-                # Extra source evidence can fail independently. Never fail
-                # an otherwise valid research receipt because an optional
-                # ungraded source field is unavailable or malformed.
-                try:
-                    report['sourceMaterials'] = observe_owner_draft_materials_isolated(
-                        programme, entries, training, recent, day)
-                except (CoverageError, ValueError, TypeError, KeyError):
-                    logging.warning('KEIBA_AUTO_DRAFT_MATERIALS=unavailable')
-                    report['sourceMaterials'] = unavailable_draft_materials()
+                # Optional source evidence requires all four underlying
+                # reads. A one-read empty /tra programme has no material
+                # coverage to evaluate (and NOT zero graded horses).
+                report['sourceMaterials'] = unavailable_draft_materials()
+                if programme:
+                    try:
+                        report['sourceMaterials'] = observe_owner_draft_materials_isolated(
+                            programme, entries, training, recent, day)
+                    except (CoverageError, ValueError, TypeError, KeyError):
+                        logging.warning('KEIBA_AUTO_DRAFT_MATERIALS=unavailable')
                 # Fifth, optional owner-private source read: current /tka
                 # ground condition context. Never derive a horse aptitude
                 # grade from a venue condition. A missing/invalid response
@@ -2288,10 +2300,11 @@ def create_app(settings=None):
                 # A live connection probe alone is not evidence of this step.
                 logging.warning(
                     'KEIBA_AUTO_DRAFT_PIPELINE status=complete '
-                    'programme=%s drafts=%s holds=%s receipts=%s '
+                    'programme=%s source_reads=%s drafts=%s holds=%s receipts=%s '
                     'material=%s course=%s hold_causes=%s expired_on_return=%s '
                     'jra=unverified formal=ungraded',
                     'present' if report['raceCount'] else 'empty',
+                    report['sourceReadCount'],
                     report['draftCount'], report['holdCount'],
                     report['researchReceiptCount'],
                     report['sourceMaterials']['status'],
