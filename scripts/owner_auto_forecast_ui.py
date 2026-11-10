@@ -4010,8 +4010,8 @@ $('autoHistoryAudit').onclick=async()=>{
       x.changesExistingReceipts!==false||
       x.changesExistingTickets!==false||x.changesExistingRoi!==false||
       !Number.isInteger(x.providerReadCount)||
-      ![0,2].includes(x.providerReadCount)||
-      x.pastRacesSelected!==Number(x.providerReadCount===2)||
+      ![0,1,2].includes(x.providerReadCount)||
+      x.pastRacesSelected!==Number(x.providerReadCount>0)||
       !['runnerCount','distinctJockeyCount','distinctTrainerCount',
         'distinctPairCount','observedFirstPlaceCount','observedTop3Count']
         .every(k=>Number.isInteger(x[k])&&x[k]>=0&&x[k]<=18)||
@@ -4024,7 +4024,10 @@ $('autoHistoryAudit').onclick=async()=>{
       (x.status!=='joined_private_sample'&&(
         x.runnerCount!==0||x.distinctPairCount!==0))||
       (x.status==='no_referenced_past_race'&&x.providerReadCount!==0)||
-      (x.status!=='no_referenced_past_race'&&x.providerReadCount!==2))
+      (x.status==='incomplete_or_ambiguous_historical_result'&&
+       x.providerReadCount!==2)||
+      (x.status==='provider_unavailable'&&
+       ![1,2].includes(x.providerReadCount)))
     throw Error('追加騎手・厩舎資料の形式が不正');
    $('autoHistoryStaffStatus').textContent=
     x.status==='joined_private_sample'?
@@ -4034,7 +4037,8 @@ $('autoHistoryAudit').onclick=async()=>{
      '組（追加2 API照会）。正式10点の採点・JRA公式照合は未完了。':
     x.status==='no_referenced_past_race'?
      '参照できる過去レースがないため、追加API取得なし。':
-     '過去1Rの資料結合は保留（追加2 API照会）。取消・欠損・同着・API状態等を確認。正式10点には使いません。';
+     '過去1Rの資料結合は保留（追加'+x.providerReadCount+
+     ' API照会を試行）。取消・欠損・同着・API状態等を確認。正式10点には使いません。';
   }else if(raw?.pastStaffSample!==undefined){
    throw Error('本人が選んでいない追加取得結果が混入');
   }
