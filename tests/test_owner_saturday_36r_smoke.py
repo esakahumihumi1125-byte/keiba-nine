@@ -16,6 +16,8 @@ from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_prestart_receipt import verify_preview_receipts
 from test_jrdb_owner_auto_draft import programme, research
 from test_private_service import SETTINGS
+from owner_auto_forecast_ui import HTML as AUTO_HTML
+from owner_backup import HTML as BACKUP_HTML
 
 DAY = "20990101"
 SECRET = SETTINGS["KEIBA_OWNER_PASSWORD"]
@@ -51,6 +53,14 @@ def synthetic_day(*, mixed=False):
 
 
 class Saturday36RSmokeTests(unittest.TestCase):
+    def test_saturday_iphone_copy_refers_to_current_backup_and_scores(self):
+        self.assertIn("12種類の記録をバックアップ", AUTO_HTML)
+        self.assertNotIn("10種類の記録をバックアップ", AUTO_HTML)
+        self.assertNotIn("11種類の端末記録", AUTO_HTML)
+        self.assertIn("新配点79点", AUTO_HTML)
+        self.assertIn("旧85点", AUTO_HTML)
+        self.assertIn("12種類の記録を1つのJSON", BACKUP_HTML)
+
     def test_full_day_generates_36_valid_bounded_receipts_before_off(self):
         p, study = synthetic_day()
         before = copy.deepcopy((p, study))
