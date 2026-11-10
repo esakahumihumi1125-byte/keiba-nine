@@ -213,6 +213,33 @@ class SaturdayRawDayTests(unittest.TestCase):
                         "PRIVATE-TEST-HORSE","racekey"):
             self.assertNotIn(private,redacted)
 
+    def test_one_undisclosed_programme_headcount_holds_only_that_race(self):
+        programme,entries,training,previous=raw_day()
+        # Actual normalization converts a missing /tra count to None.
+        # Seven observed /tky entries are not proof of the declared field.
+        target=next(row for row in programme if row["racekey"]=="0599aa02")
+        target.pop("headcount")
+        reply=run_request((programme,entries,training,previous))
+        self.assertEqual(reply["status"],"200 OK",reply["body"][:300])
+        data=json.loads(reply["body"])
+        self.assertEqual((data["raceCount"],data["draftCount"],data["holdCount"]),
+                         (36,35,1))
+        self.assertEqual(data["holdReasons"],{"unconfirmed_runner_count":1})
+        self.assertEqual(data["researchReceiptCount"],35)
+        held=[row for row in data["races"] if row["status"]=="hold"]
+        self.assertEqual([(row["track"],row["race"]) for row in held],
+                         [("東京",2)])
+        self.assertEqual(held[0]["reason"],"unconfirmed_runner_count")
+        self.assertEqual(held[0]["tickets"],[])
+        self.assertEqual(held[0]["runners"],[])
+        self.assertEqual(held[0]["points"],0)
+        self.assertEqual(len(verify_preview_receipts(
+            data["researchReceipts"],SECRET,"2099-01-01")),35)
+        self.assertEqual(data["sourceMaterials"]["status"],"unavailable")
+        self.assertFalse(data["officialJraVerified"])
+        self.assertFalse(data["bettingReady"])
+        self.assertNotIn("PRIVATE-TEST-HORSE",reply["body"].decode())
+
     def test_single_missing_workout_holds_only_one_race(self):
         programme, entries, training, previous = raw_day()
         # A missing /tcy row is NOT a C grade or zero ability. The other
