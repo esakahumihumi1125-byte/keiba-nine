@@ -2296,8 +2296,10 @@ function boot(){
  scratched.setServerRaw(scratchDay);
  const originalHmac=scratched.storage.get(STORAGE);
  await scratched.get('autoRun').onclick();
- assert.match(scratched.get('autoRaces').textContent,/出走取消の報告あり/);
- assert.match(scratched.get('autoRaces').textContent,/以前の固定買い目があっても有効とは限りません/);
+ const scratchDetail=scratched.get('autoRaces').children[0].children[1];
+ const scratchText=scratchDetail.children.map(x=>x.textContent||'').join(' ');
+ assert.match(scratchText,/出走取消の報告あり/);
+ assert.match(scratchText,/以前の固定買い目があっても有効とは限りません/);
  assert.equal(scratched.storage.get(STORAGE),originalHmac);
  assert.equal(scratched.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const tamperedPassport=resultWith('c'.repeat(64));
