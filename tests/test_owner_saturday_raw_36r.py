@@ -179,11 +179,7 @@ class SaturdayRawDayTests(unittest.TestCase):
         self.assertIn("hold_causes=provider_withdrawal:1",logs[0])
         for secret in ("horse_id","horse_name","racekey","PRIVATE",
                        "raw-synthetic","x-user-key",DAY,
-                       "2099-01-01","withdrawn_flag","01","02"):
-            # Only check source-bearing strings, not ordinary digits
-            # already present in aggregate counts.
-            if secret in ("01","02"):
-                continue
+                       "2099-01-01","withdrawn_flag"):
             self.assertNotIn(secret,logs[0])
 
     def test_provider_withdrawal_only_holds_one_of_thirty_six(self):
