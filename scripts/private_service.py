@@ -2293,8 +2293,9 @@ def create_app(settings=None):
                 # Re-audit the FINAL response, which may now hold newly
                 # started races. No additional provider reads and no grades.
                 report['sourcePassport'] = safe_owner_day_source_passport(report)
-                # Operator-only one-line proof of completing the genuine
-                # four-source pipeline, before sending the owner response.
+                # Operator-only one-line evidence of finishing a private
+                # request: one /tra read for empty days or four core reads
+                # plus optional /tka for a populated programme.
                 # Fixed, aggregate values only: NO date, horse, race key,
                 # paid source row, credentials, host URL, or ticket contents.
                 # A live connection probe alone is not evidence of this step.
