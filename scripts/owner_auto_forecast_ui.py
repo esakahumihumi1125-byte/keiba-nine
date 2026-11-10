@@ -740,6 +740,46 @@ function operationalNextStep(data,fixed){
   (data.sourceMaterials.status==='unavailable'?
    '追加8項目の資料件数は照合保留。':'')+warning;
 }
+function validateStoredResearchLedger(existing){
+ if(!Array.isArray(existing)||existing.length>360)
+  throw Error('保存済みの記録形式を確認できません');
+ // Reject corrupt or repeated records on ANY date before appending to the
+ // shared ledger. A different-day duplicate must not silently survive while
+ // the current day's new predictions are marked "saved".
+ const identities=new Set(),tracks=new Set(['札幌','函館','福島','新潟','東京',
+  '中山','中京','京都','阪神','小倉']);
+ for(const old of existing){
+  const p=old?.snapshot,id=p&&p.date+'|'+p.track+'|'+p.race;
+  if(!p||typeof p.date!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(p.date)||
+     !Number.isFinite(Date.parse(p.date+'T12:00:00Z'))||
+     new Date(p.date+'T12:00:00Z').toISOString().slice(0,10)!==p.date||
+     !tracks.has(p.track)||!Number.isInteger(p.race)||p.race<1||p.race>12||
+     identities.has(id)||typeof old.signature!=='string'||
+     !/^[a-f0-9]{64}$/.test(old.signature)||
+     p.sourceKind!=='prestart-locked'||p.actualPurchase!==false||
+     p.scheduleVerified!==false||p.predictionVerified!==false||
+     typeof p.lockedAt!=='string'||typeof p.scheduledOffAt!=='string'||
+     !/(?:Z|[+-]\d\d:\d\d)$/.test(p.lockedAt)||
+     !/(?:Z|[+-]\d\d:\d\d)$/.test(p.scheduledOffAt)||
+     !Number.isFinite(Date.parse(p.lockedAt))||
+     !Number.isFinite(Date.parse(p.scheduledOffAt))||
+     Date.parse(p.lockedAt)>=Date.parse(p.scheduledOffAt)||
+     !Array.isArray(p.trifectaTickets)||p.trifectaTickets.length<1||
+     p.trifectaTickets.length>48||!Array.isArray(p.trioTickets)||
+     p.trioTickets.length!==0)
+   throw Error('古い記録に不整合があります');
+  const tickets=new Set();
+  for(const ticket of p.trifectaTickets){
+   if(!Array.isArray(ticket)||ticket.length!==3||
+      ticket.some(n=>!Number.isInteger(n)||n<1||n>18)||
+      new Set(ticket).size!==3||tickets.has(ticket.join('-')))
+    throw Error('古い買い目に不整合があります');
+   tickets.add(ticket.join('-'));
+  }
+  identities.add(id);
+ }
+ return identities;
+}
 function sameTicketSet(first,second){
  const canon=items=>items.map(t=>t.join('-')).sort().join('|');
  return canon(first)===canon(second);
@@ -749,6 +789,13 @@ function compareFixedWithDrafts(data,day){
  // assume a syntactically valid HMAC string has been verified by server.
  // Ambiguous saved data blocks the newly generated formation display.
  try{
+  // A bad record on another day also blocks displaying a newly generated
+  // formation: the first-write ledger cannot be trusted until recovered.
+  const raw=localStorage.getItem(RECEIPTS_KEY);
+  if(raw){
+   if(raw.length>650000)throw Error('oversized_store');
+   validateStoredResearchLedger(JSON.parse(raw));
+  }
   const receipts=selectedReceiptsForVerification(day);
   const byRace=new Map(receipts.map(row=>[
    row.snapshot.track+'|'+row.snapshot.race,row.snapshot]));
@@ -1154,41 +1201,7 @@ function saveAutoReceipts(data,day){
  if(raw&&raw.length>650000)throw Error('端末内の固定記録が上限を超えました');
  const existing=JSON.parse(raw||'[]');
  if(!Array.isArray(existing)||existing.length>360)throw Error('保存済みの記録形式を確認できません');
- // Reject corrupt or repeated records on ANY date before appending to the
- // shared ledger. A different-day duplicate must not silently survive while
- // the current day's new predictions are marked "saved".
- const identities=new Set(),tracks=new Set(['札幌','函館','福島','新潟','東京',
-  '中山','中京','京都','阪神','小倉']);
- for(const old of existing){
-  const p=old?.snapshot,id=p&&p.date+'|'+p.track+'|'+p.race;
-  if(!p||typeof p.date!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(p.date)||
-     !Number.isFinite(Date.parse(p.date+'T12:00:00Z'))||
-     new Date(p.date+'T12:00:00Z').toISOString().slice(0,10)!==p.date||
-     !tracks.has(p.track)||!Number.isInteger(p.race)||p.race<1||p.race>12||
-     identities.has(id)||typeof old.signature!=='string'||
-     !/^[a-f0-9]{64}$/.test(old.signature)||
-     p.sourceKind!=='prestart-locked'||p.actualPurchase!==false||
-     p.scheduleVerified!==false||p.predictionVerified!==false||
-     typeof p.lockedAt!=='string'||typeof p.scheduledOffAt!=='string'||
-     !/(?:Z|[+-]\d\d:\d\d)$/.test(p.lockedAt)||
-     !/(?:Z|[+-]\d\d:\d\d)$/.test(p.scheduledOffAt)||
-     !Number.isFinite(Date.parse(p.lockedAt))||
-     !Number.isFinite(Date.parse(p.scheduledOffAt))||
-     Date.parse(p.lockedAt)>=Date.parse(p.scheduledOffAt)||
-     !Array.isArray(p.trifectaTickets)||p.trifectaTickets.length<1||
-     p.trifectaTickets.length>48||!Array.isArray(p.trioTickets)||
-     p.trioTickets.length!==0)
-   throw Error('古い記録に不整合があります');
-  const tickets=new Set();
-  for(const ticket of p.trifectaTickets){
-   if(!Array.isArray(ticket)||ticket.length!==3||
-      ticket.some(n=>!Number.isInteger(n)||n<1||n>18)||
-      new Set(ticket).size!==3||tickets.has(ticket.join('-')))
-    throw Error('古い買い目に不整合があります');
-   tickets.add(ticket.join('-'));
-  }
-  identities.add(id);
- }
+ const identities=validateStoredResearchLedger(existing);
  let added=0;
  const combined=existing.slice();
  for(const receipt of signed){
