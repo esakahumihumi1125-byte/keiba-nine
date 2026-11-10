@@ -182,6 +182,9 @@ class SaturdayRawDayTests(unittest.TestCase):
         self.assertEqual({(r["track"], r["race"]) for r in held},
                          {("東京", 1), ("東京", 2)})
         self.assertTrue(all(not r["tickets"] and not r["runners"] for r in held))
+        by_race = {(r["track"], r["race"]): r for r in held}
+        self.assertNotIn("reviewStage", by_race[("東京", 1)])
+        self.assertEqual(by_race[("東京", 2)]["reviewStage"], "training")
         self.assertEqual(len(verify_preview_receipts(
             result["researchReceipts"], SECRET, "2099-01-01")), 34)
         self.assertNotIn("PRIVATE-WORKOUT", reply["body"].decode())
