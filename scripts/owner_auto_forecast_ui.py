@@ -265,6 +265,7 @@ const REASONS={
  too_few_runners:'4頭未満で候補を作成できない',
  missing_factors:'一部の馬の調教または近走が未評価',
  missing_post_time:'暫定発走時刻を安全に確認できない',
+ unconfirmed_runner_count:'JRDB番組の登録頭数が未確認のため出走馬の件数を照合できません。研究用3連単は作りません',
  after_provisional_off:'暫定発走時刻を過ぎたため後付け買い目なし',
  ambiguous_equal_grade_boundary:'同評価の馬が候補の境界にいるため選定保留',
  invalid_two_factor:'このレースの調教・近走の資料検証に不一致があり、安全のため見送り',
@@ -276,6 +277,7 @@ const SHORT_HOLDS={
  ambiguous_equal_grade_boundary:'候補同点',missing_research:'資料確認',
  invalid_two_factor:'2項目不整合',runner_count_mismatch:'頭数不一致',
  too_few_runners:'少頭数',missing_post_time:'発走時刻未確認',
+ unconfirmed_runner_count:'番組頭数未確認',
  archived_earlier_draft:'既存の固定買い目を優先',
  provider_withdrawal:'提供元の取消報告'
 };
