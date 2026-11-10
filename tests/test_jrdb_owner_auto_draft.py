@@ -440,6 +440,57 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertNotIn("keiba-nine-owner-real-purchases-v1",js)
         self.assertNotIn("JRDB_API_KEY",js)
 
+    def test_empty_programme_uses_only_one_provider_read_no_false_prediction(self):
+        # An empty /tra beta response is NOT proof the JRA has no racing.
+        # Avoid three possibly chargeable /tky, /tcy, /tze calls, or /tka.
+        with (patch("private_service.fetch_race_program",return_value=[]) as tra,
+              patch("private_service.fetch_horse_entries",return_value=[]) as tky,
+              patch("private_service.fetch_training_analysis",return_value=[]) as tcy,
+              patch("private_service.fetch_recent_runs",return_value=[]) as tze):
+            with self.assertLogs(level="WARNING") as logs:
+                response=call(self.app,"/api/jrdb/owner-auto-draft",
+                              QUERY_STRING="date="+DAY)
+        self.assertEqual(response["status"],"200 OK",response["body"][:250])
+        tra.assert_called_once_with(DAY)
+        for adapter in (tky,tcy,tze,self.mock_venue):
+            adapter.assert_not_called()
+        data=json.loads(response["body"])
+        self.assertEqual(data["sourceReadCount"],1)
+        self.assertEqual(data["raceCount"],0)
+        self.assertEqual(data["draftCount"],0)
+        self.assertEqual(data["holdCount"],0)
+        self.assertEqual(data["races"],[])
+        self.assertEqual(data["holdReasons"],{})
+        self.assertEqual(data["researchReceipts"],[])
+        self.assertEqual(data["researchReceiptCount"],0)
+        self.assertEqual(data["sourceMaterials"]["status"],"unavailable")
+        self.assertEqual(data["sourceMaterials"]["observedFactorSlots"],0)
+        self.assertEqual(data["sourcePassport"]["observedMaterialRaces"],0)
+        self.assertEqual(data["sourcePassport"]["newProviderRequests"],0)
+        self.assertEqual(data["tenFactorPreview"]["fullPredictionRaceCount"],0)
+        self.assertFalse(data["officialJraVerified"])
+        self.assertFalse(data["overallPredictionReady"])
+        self.assertFalse(data["bettingReady"])
+        self.assertFalse(data["autoPurchase"])
+        msg=" ".join(logs.output)
+        self.assertIn("programme=empty source_reads=1 drafts=0",msg)
+        self.assertNotIn("KEIBA_AUTO_DRAFT_FAILURE",msg)
+        for secret in ("horse_id","racekey","oikirisisu","api_key"):
+            self.assertNotIn(secret,response["body"].decode())
+
+    def test_single_read_does_not_authorize_nonempty_draft_or_signature(self):
+        r=research()
+        r["sourceReadCount"]=1
+        with self.assertRaises(CoverageError):
+            build_owner_auto_drafts(programme(),r,DAY,
+                now=datetime(2099,1,1,9,tzinfo=JST))
+        draft=generate()
+        draft["sourceReadCount"]=1
+        with self.assertRaises(ReceiptError):
+            seal_auto_research_drafts(
+                draft,SETTINGS["KEIBA_OWNER_PASSWORD"],
+                now=datetime(2099,1,1,9,tzinfo=JST))
+
     def test_four_reads_and_generated_tickets_with_mocked_derived_research(self):
         p=programme()
         with (patch("private_service.fetch_race_program",return_value=[{"unused":"synthetic"}]) as a,
