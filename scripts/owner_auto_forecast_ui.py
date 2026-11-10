@@ -4569,6 +4569,44 @@ $('autoHistoryAudit').onclick=async()=>{
    throw Error('本人が選んでいない追加取得結果が混入');
   }
 
+  // /dse updated_at is a last-modified marker, never an initial result
+  // publication timestamp or independent JRA verification. This data comes
+  // ONLY from the explicitly selected staff history read; do not persist it.
+  if(raw?.pastResultUpdateAudit!==undefined){
+   const x=raw.pastResultUpdateAudit,
+    keys=['missingUpdateCount','dateOnlyCount','ambiguousUpdateCount',
+     'timestampBeforeCaptureCount','timestampAtOrAfterCaptureCount'],
+    staff=staffBatch===3?raw.pastStaffBatch:raw.pastStaffSample,
+    validCount=(n,max)=>Number.isInteger(n)&&n>=0&&n<=max;
+   if(!wantStaff||!staff||!x||
+      x.version!=='owner-dse-update-diagnostic-1'||
+      x.source!=='already_fetched_private_dse_updated_at'||
+      !validCount(x.observedResponseCount,3)||
+      !validCount(x.invalidResponseCount,3)||
+      x.invalidResponseCount>x.observedResponseCount||
+      !validCount(x.observedResultRowCount,54)||
+      keys.some(k=>!validCount(x[k],54))||
+      keys.reduce((sum,k)=>sum+x[k],0)!==x.observedResultRowCount||
+      x.observedResultRowCount>
+       (x.observedResponseCount-x.invalidResponseCount)*18||
+      x.observedResponseCount>Math.floor(staff.providerReadCount/2)||
+      x.timestampOrderingChecked!==true||
+      x.initialPublicationTimeVerified!==false||
+      x.sourceTimestampAuthenticityVerified!==false||
+      x.historicalResultPublicationTimesVerified!==false||
+      x.independentJraVerified!==false||
+      x.formalTenFactorsReady!==false||x.bettingReady!==false||
+      x.researchOnly!==true||x.privateOwnerOnly!==true||
+      x.extraProviderCalls!==0||x.changesExistingTickets!==false||
+      x.changesExistingReceipts!==false||x.changesExistingRoi!==false)
+    throw Error('過去結果の更新日時の安全な集計に不一致');
+   $('autoHistoryStaffStatus').textContent+=
+    ' 過去結果の更新日時：時刻付き'+
+    (x.timestampBeforeCaptureCount+x.timestampAtOrAfterCaptureCount)+
+    '件／日付のみ'+x.dateOnlyCount+
+    '件／不明・不正'+(x.missingUpdateCount+x.ambiguousUpdateCount)+
+    '件。更新日時は初回公表日時ではなく、正式採点には使いません。';
+  }
   // A three-race aggregate may be sealed by the private server. Only after
   // a fresh, read-only signature verification will this iPhone first-write.
   // We do NOT merge historical IDs across days or grade any rider.
