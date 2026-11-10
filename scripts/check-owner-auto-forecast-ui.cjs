@@ -782,6 +782,23 @@ function withResearch6FiveDrafts(report){
  };
  return report;
 }
+function withPastStaffSample(report){
+ report.pastStaffSample={
+  version:'owner-past-staff-sample-1',status:'joined_private_sample',
+  pastRacesSelected:1,providerReadCount:2,
+  runnerCount:7,distinctJockeyCount:2,distinctTrainerCount:2,
+  distinctPairCount:2,observedFirstPlaceCount:1,observedTop3Count:3,
+  sourceFamily:'private_dky_dse_past_race',
+  pastResultPublicationVerified:false,independentJraVerified:false,
+  jockeyTrainerPerformanceAssessed:false,holdoutValidated:false,
+  formalTenPointGrade:'未評価',formalTenPointScore:null,
+  predictionReady:false,bettingReady:false,autoPurchase:false,
+  actualPurchase:false,researchOnly:true,privateOwnerOnly:true,
+  changesExistingReceipts:false,changesExistingTickets:false,
+  changesExistingRoi:false
+ };
+ return report;
+}
 function withPedigreePreflight(report){
  withFiveCore(report);
  const inv=report.tenFactorSourceInventory;
@@ -1726,6 +1743,45 @@ function boot(){
   assert.equal(a.storage.get(FIVE_STORAGE),oldFiveDraft);
   assert.equal(a.storage.get(STORAGE),oldRecord);
  }
+ // Extra historical staff analysis is OPT-IN only, +2 private JRDB reads,
+ // never used for true 10-point grades, purchase or old immutable tickets.
+ const beforeExtra=a.requests.length,oldFixed85=a.storage.get(FIVE_STORAGE);
+ a.get('autoHistoryStaffSample').checked=true;
+ a.setHistorical(withPastStaffSample(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const extraReq=a.requests.slice(beforeExtra).find(x=>x.url==='/api/jrdb/history');
+ assert.ok(extraReq);
+ assert.equal(JSON.parse(extraReq.options.body).staffSample,true);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/過去1Rを資料結合：7頭/);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/同一ペア2組/);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/正式10点の採点・JRA公式照合は未完了/);
+ assert.equal(a.storage.get(FIVE_STORAGE),oldFixed85);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ for(const change of [
+  h=>h.pastStaffSample.formalTenPointScore=10,
+  h=>h.pastStaffSample.formalTenPointGrade='S',
+  h=>h.pastStaffSample.independentJraVerified=true,
+  h=>h.pastStaffSample.distinctPairCount=19,
+  h=>h.pastStaffSample.providerReadCount=3,
+  h=>h.pastStaffSample.status='verified_10pt',
+ ]){
+  const forged=withPastStaffSample(historical());change(forged);
+  a.setHistorical(forged);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+  assert.equal(a.storage.get(FIVE_STORAGE),oldFixed85);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+ }
+ // Default remains zero staff queries; the request has no staffSample field.
+ a.get('autoHistoryStaffSample').checked=false;
+ const afterExtra=a.requests.length;
+ a.setHistorical(historical());
+ await a.get('autoHistoryAudit').onclick();
+ const ordinary=a.requests.slice(afterExtra).find(x=>x.url==='/api/jrdb/history');
+ assert.ok(ordinary);
+ assert.equal(JSON.parse(ordinary.options.body).staffSample,undefined);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/追加の騎手・厩舎照会なし/);
  // Supporting six-weight factors: source fields are not real six points.
  const beforeSix=a.requests.length;
  a.setHistorical(withSupportSix(historical()));
