@@ -14,6 +14,7 @@ def add_independent_support(source, index, factors=("training", "course_distance
         item = source["horses"][index]["assessments"][factor]
         item["winSupport"] = True
         item["evidence"][0]["sourceId"] = f"private-{factor}-{index}"
+        item["evidence"][0]["sourceFamily"] = f"independent_{factor}"
         item["reason"] = f"Independent source for {factor}"
 
 
