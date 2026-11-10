@@ -155,10 +155,11 @@ def issue_staff_study_receipt(summary, secret, day, *, now=None):
         raise StaffStudyReceiptError("Cannot sign private staff study") from None
 
 
-def verify_staff_study_receipts(records, secret, day):
+def verify_staff_study_receipts(records, secret, day=None):
     """Read-only authentication of up to 120 dated, first-write aggregates."""
     try:
-        _day(day)
+        if day is not None:
+            _day(day)
         if (not isinstance(records, list) or len(records) > MAX_DAYS):
             raise StaffStudyReceiptError("Invalid study receipt count")
         seen, verified = set(), []
@@ -169,10 +170,11 @@ def verify_staff_study_receipts(records, secret, day):
                     or not re.fullmatch(r"[a-f0-9]{64}", record["signature"])):
                 raise StaffStudyReceiptError("Invalid study receipt structure")
             snap = record["snapshot"]
-            if (_validate_snapshot(snap) != day or
+            if ((day is not None and _validate_snapshot(snap) != day) or
                     not hmac.compare_digest(
                         record["signature"], _sign(snap, secret))):
                 raise StaffStudyReceiptError("Private study signature mismatch")
+            _validate_snapshot(snap)
             if snap["date"] in seen:
                 raise StaffStudyReceiptError("Repeated study date")
             seen.add(snap["date"])
