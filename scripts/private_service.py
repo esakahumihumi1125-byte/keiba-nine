@@ -38,7 +38,9 @@ from jrdb_owner_auto_draft import (build_owner_auto_drafts, DAY_DRAFT_ISSUES,
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_ten_factor_contract import ten_factor_contract
 from owner_day_source_passport import safe_owner_day_source_passport
-from jrdb_owner_draft_materials import observe_owner_draft_materials, unavailable as unavailable_draft_materials
+from jrdb_owner_draft_materials import (
+    observe_owner_draft_materials_isolated, unavailable as unavailable_draft_materials
+)
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
                                     JS as AUTO_FORECAST_JS,
@@ -2240,7 +2242,7 @@ def create_app(settings=None):
                 # an otherwise valid research receipt because an optional
                 # ungraded source field is unavailable or malformed.
                 try:
-                    report['sourceMaterials'] = observe_owner_draft_materials(
+                    report['sourceMaterials'] = observe_owner_draft_materials_isolated(
                         programme, entries, training, recent, day)
                 except (CoverageError, ValueError, TypeError, KeyError):
                     logging.warning('KEIBA_AUTO_DRAFT_MATERIALS=unavailable')
