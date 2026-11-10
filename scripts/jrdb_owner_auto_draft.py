@@ -61,7 +61,8 @@ HOLD_LOG_CODES = (
     "after_provisional_off", "provider_withdrawal", "missing_research",
     "missing_factors", "invalid_two_factor",
     "ambiguous_equal_grade_boundary", "runner_count_mismatch",
-    "too_few_runners", "missing_post_time", "archived_earlier_draft",
+    "too_few_runners", "missing_post_time", "unconfirmed_runner_count",
+    "archived_earlier_draft",
 )
 
 
@@ -257,6 +258,14 @@ def _draft_for_race(row, research, day, now):
         output["reason"] = "after_provisional_off"
         return output
     if research is None:
+        return output
+    # The provider's declared roster must be present to cross-check /tky.
+    # Never turn an absent or zero /tra count into an implicit all-starter
+    # confirmation simply because some /tky horse numbers were observed.
+    # Other independent races can continue without new paid source reads.
+    if (type(row.get("headcount")) is not int
+            or not 1 <= row["headcount"] <= 18):
+        output["reason"] = "unconfirmed_runner_count"
         return output
     if (not isinstance(research, dict)
             or research.get("track") != track
