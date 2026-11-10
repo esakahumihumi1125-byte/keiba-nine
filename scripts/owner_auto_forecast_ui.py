@@ -1195,6 +1195,9 @@ function saveAutoReceipts(data,day){
    !s.trifectaTickets.every(t=>Array.isArray(t)&&t.length===3)||
    JSON.stringify(entry.tickets.map(t=>t.join('-')).sort())!==
    JSON.stringify(s.trifectaTickets.map(t=>t.join('-')).sort())||
+   typeof entry.postTime!=='string'||
+   !/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(entry.postTime)||
+   s.scheduledOffAt!==expectedDay+'T'+entry.postTime+':00+09:00'||
    typeof s.lockedAt!=='string'||typeof s.scheduledOffAt!=='string')
     throw Error('固定用の研究記録を照合できません');
   seen.add(id);
