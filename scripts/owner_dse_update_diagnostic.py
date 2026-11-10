@@ -15,7 +15,7 @@ from datetime import datetime
 VERSION = "owner-dse-update-diagnostic-1"
 MAX_BATCHES = 3
 MAX_ROWS_PER_BATCH = 18
-DATE_ONLY = re.compile(r"(?:20[0-9]{6}|20[0-9]{2}-[0-9]{2}-[0-9]{2})\\Z")
+DATE_ONLY = re.compile(r"(?:20[0-9]{6}|20[0-9]{2}-[0-9]{2}-[0-9]{2})\Z")
 
 
 def _classification(raw, capture):
