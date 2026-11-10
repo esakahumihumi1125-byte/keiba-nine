@@ -2285,6 +2285,21 @@ function boot(){
   assert.equal(flagged.get('autoRaces').children.length,0);
   assert.match(flagged.get('autoSavedStatus').textContent,/再分析に失敗/);
  }
+ // An explicit JRDB withdrawal is NOT an official JRA result and
+ // must be a whole-race hold, not a newly-generated trifecta. Preserve the
+ // previous fixed HMAC receipt; do not silently declare it safe to wager.
+ const scratched=boot();
+ await new Promise(r=>setImmediate(r));
+ const scratchDay=full36RaceDraft();
+ scratchDay.races[1].reason='provider_withdrawal';
+ scratchDay.holdReasons={after_provisional_off:34,provider_withdrawal:1};
+ scratched.setServerRaw(scratchDay);
+ const originalHmac=scratched.storage.get(STORAGE);
+ await scratched.get('autoRun').onclick();
+ assert.match(scratched.get('autoRaces').textContent,/出走取消の報告あり/);
+ assert.match(scratched.get('autoRaces').textContent,/以前の固定買い目があっても有効とは限りません/);
+ assert.equal(scratched.storage.get(STORAGE),originalHmac);
+ assert.equal(scratched.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const tamperedPassport=resultWith('c'.repeat(64));
  tamperedPassport.sourcePassport.races[0].verifiedFactorCount=10;
  a.setServerRaw(tamperedPassport);
