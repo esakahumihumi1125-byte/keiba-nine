@@ -49,6 +49,7 @@ from jrdb_owner_day_ui import HTML as OWNER_DAY_HTML, JS as OWNER_DAY_JS, CSS as
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
 from owner_past_staff_sample import inspect_one_past_staff_sample
 from owner_past_staff_batch import inspect_three_past_staff_samples
+from owner_dse_update_diagnostic import audit_dse_update_fields
 from owner_rebound_receipts import (
     issue_rebound_watch_receipts, verify_rebound_watch_receipts,
     compare_watched_winners, WatchReceiptError
@@ -2573,11 +2574,24 @@ def create_app(settings=None):
                                 staff_batch == 3 else inspect_one_past_staff_sample)
                     staff_key = ('pastStaffBatch' if staff_batch == 3
                                  else 'pastStaffSample')
+                    # Reuse exactly the /dse responses already fetched by the
+                    # explicit 1R/3R staff study; never make a provenance
+                    # query or expose raw licensed records to the browser.
+                    fetched_dse_rows = []
+
+                    def observe_existing_dse(racekey):
+                        rows = fetch_historical_finished_runners(racekey)
+                        fetched_dse_rows.append(rows)
+                        return rows
+
                     preview[staff_key] = staff_fn(
                         programme, entries, previous, date,
                         fetch_dky=fetch_historical_runner_staff,
-                        fetch_dse=fetch_historical_finished_runners,
+                        fetch_dse=observe_existing_dse,
                         limit=limit,
+                    )
+                    preview['pastResultUpdateAudit'] = audit_dse_update_fields(
+                        fetched_dse_rows, captured_at=stamp
                     )
                     if staff_batch == 3 and preview[staff_key]['providerReadCount']>0:
                         # Unidentified aggregate only; no charged data or
