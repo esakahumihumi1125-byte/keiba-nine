@@ -74,6 +74,19 @@ class PedigreeWalkforwardTests(unittest.TestCase):
         self.assertIsNone(out["pedigreeTopThreeBrier"])
         self.assertIsNone(out["naiveTopThreeBrier"])
 
+    def test_damsire_is_used_only_when_sire_group_is_unqualified(self):
+        past = history()
+        for race in past[21:]:
+            for horse in race["runners"]:
+                horse["sireRef"] = "NOVELSIRE"
+        out = pedigree_walkforward_preflight(TARGET, past)
+        self.assertEqual(out["comparedBySire"], 0)
+        self.assertEqual(out["comparedByDamsire"], 54)
+        self.assertEqual(out["holdoutComparisonRunners"], 54)
+        self.assertLess(out["pedigreeTopThreeBrier"], out["naiveTopThreeBrier"])
+        self.assertFalse(out["independentJraVerified"])
+        self.assertIsNone(out["formalPedigreeScore6"])
+
     def test_repeated_horse_identity_not_used_for_own_validation(self):
         past = history()
         past[21]["runners"][0]["horseRef"] = past[0]["runners"][0]["horseRef"]
