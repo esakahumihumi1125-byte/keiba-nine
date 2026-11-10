@@ -173,6 +173,35 @@ class AutoDraftTests(unittest.TestCase):
         self.assertEqual(no_time["reason"],"missing_post_time")
         self.assertEqual(no_time["points"],0)
 
+    def test_missing_or_zero_programme_runner_count_cannot_create_tickets(self):
+        for missing in (None, 0, True, "7", -1, 19):
+            with self.subTest(headcount=repr(missing)):
+                p=programme()
+                p[0]["headcount"]=missing
+                result=generate(p=p)
+                self.assertEqual((result["draftCount"],result["holdCount"]),(0,1))
+                self.assertEqual(result["holdReasons"],
+                                 {"unconfirmed_runner_count":1})
+                held=result["races"][0]
+                self.assertEqual(held["reason"],"unconfirmed_runner_count")
+                self.assertEqual(held["runners"],[])
+                self.assertEqual(held["tickets"],[])
+                self.assertEqual(held["points"],0)
+                self.assertEqual(held["amountYen"],0)
+                self.assertEqual(seal_auto_research_drafts(
+                    result,SETTINGS["KEIBA_OWNER_PASSWORD"],
+                    now=datetime(2099,1,1,9,tzinfo=JST)),[])
+        # A source-reported lower nonzero count remains a specific mismatch
+        # rather than being silently assumed to be the actual full field.
+        mismatched=generate(p=programme(headcount=6))
+        self.assertEqual(mismatched["races"][0]["reason"],
+                         "runner_count_mismatch")
+        # Post-off cannot reconstruct grades and tickets, independent of
+        # whether the source headcount was known before the start.
+        p=programme(headcount=None)
+        closed=generate(p=p,now=datetime(2099,1,1,12,30,tzinfo=JST))
+        self.assertEqual(closed["races"][0]["reason"],"after_provisional_off")
+
     def test_already_started_or_historical_race_does_not_create_bets(self):
         for now in (datetime(2099,1,1,12,0,tzinfo=JST),
                     datetime(2099,1,2,8,0,tzinfo=JST)):
