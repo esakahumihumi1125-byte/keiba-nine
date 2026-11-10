@@ -279,7 +279,9 @@ class BoundedHistoryTests(unittest.TestCase):
                 "horse_id": runner["horse_id"],
             }
             for past_no in range(1, 6):
-                row[f"race_back_{past_no}_racedate"] = "20261004"
+                # Each runner's five starts must be on distinct, strictly
+                # descending days; dates are not interchangeable duplicates.
+                row[f"race_back_{past_no}_racedate"] = f"202610{12 - past_no:02d}"
                 row[f"race_back_{past_no}_racekey"] = prefix + f"{start + past_no - 1:02d}"
             z.append(row)
         plan = plan_bounded_history(p, e, z, "20261101", limit=12)
