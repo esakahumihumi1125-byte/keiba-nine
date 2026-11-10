@@ -3106,6 +3106,106 @@ function validateHistory(h){
   if(seenRaces.size!==historyCoordinates.size)
    throw Error('新配点79点のレース欠落');
  }
+ // Research-6 course 17 / pace 17 / going 12: source readiness only.
+ // Cross-check the summary and every runner against independently checked
+ // ownerRunnerHistory and paceScenarioHypotheses before displaying.
+ if(h.research6ThreeFactorSourceGaps!==undefined){
+  const v=h.research6ThreeFactorSourceGaps,weights={
+   course_distance:17,pace:17,ground:12},keys=Object.keys(weights),
+   observedKeys=['courseComparableObserved','courseHistoryComplete',
+    'currentGoingRecorded','sameGoingObserved','pacePositionObserved',
+    'paceScenarioObserved','allThreeSourcesObserved'],
+   gapKeys=['noCourseComparableRuns','courseHistoryIncomplete',
+    'currentGoingUnknown','noSameGoingRuns','paceScenarioUnassessed'];
+  if(!v||v.version!=='owner-research6-three-factor-source-gaps-1'||
+     v.policyVersion!=='research-6'||v.weightTotal!==46||
+     !v.factorWeights||Object.keys(v.factorWeights).length!==3||
+     keys.some(k=>v.factorWeights[k]!==weights[k])||
+     v.extraProviderCalls!==0||v.researchOnly!==true||
+     v.privateOwnerOnly!==true||v.officialJraVerified!==false||
+     v.courseSuitabilityAssessed!==false||v.paceForecastReady!==false||
+     v.goingSuitabilityAssessed!==false||v.formalGradesVerified!==0||
+     v.independentTimeCutVerified!==false||
+     v.conditionMatchedHoldoutValidated!==false||
+     v.factorRubricsCalibrated!==false||
+     v.overallPredictionReady!==false||v.bettingReady!==false||
+     v.changesExistingTickets!==false||
+     !Array.isArray(v.races)||v.raceCount!==historyCoordinates.size||
+     v.races.length!==historyCoordinates.size)
+   throw Error('3項目46点の資料判定形式が不正');
+  const sourceRaces=new Map(h.ownerRunnerHistory.races.map(
+   r=>[r.track+'|'+r.race,r]));
+  const seen=new Set();
+  const int=(n,max)=>Number.isInteger(n)&&n>=0&&n<=max;
+  for(const race of v.races){
+   const id=race?.track+'|'+race?.race,detail=perRace.get(id),
+    raw=sourceRaces.get(id),pace=detail?.paceScenario;
+   if(!detail||!raw||!pace||seen.has(id)||
+      race.runnerCount!==detail.runnerCount||
+      !Array.isArray(race.runners)||race.runners.length!==race.runnerCount||
+      !race.observed||!race.gaps||
+      Object.keys(race.observed).length!==observedKeys.length||
+      Object.keys(race.gaps).length!==gapKeys.length||
+      observedKeys.some(k=>!int(race.observed[k],race.runnerCount))||
+      gapKeys.some(k=>!int(race.gaps[k],race.runnerCount))||
+      race.allThreeAreResearchOnly!==true||
+      race.formalGradesVerified!==0||race.bettingReady!==false)
+    throw Error('3項目46点の対象レース・未評価状態が不一致');
+   seen.add(id);
+   const historical=new Map(raw.runners.map(x=>[x.number,x])),
+    paceByNumber=detail.paceByNumber,sourceSeen=new Set(),
+    stats=Object.fromEntries([...observedKeys,...gapKeys].map(k=>[k,0]));
+   if(historical.size!==race.runnerCount||
+      paceByNumber.size!==race.runnerCount)
+    throw Error('3項目46点の馬番集合が不一致');
+   for(const runner of race.runners){
+    const n=runner?.number,c0=historical.get(n),s=paceByNumber.get(n);
+    if(!int(n,18)||n<1||sourceSeen.has(n)||!c0||!s||
+       !runner.sourcePresent||
+       Object.keys(runner.sourcePresent).length!==3||
+       !Array.isArray(runner.missingSourceFactors)||
+       runner.formalGradesVerified!==0||
+       runner.formalGradeReady!==false||
+       runner.officialJraVerified!==false||
+       runner.holdoutValidated!==false)
+     throw Error('3項目46点の馬番または資料フラグが不正');
+    sourceSeen.add(n);
+    const course=c0.comparableRuns>0,
+     historyComplete=c0.historyLookupComplete,
+     currentGoing=c0.currentGoingRecorded,
+     sameGoing=currentGoing&&c0.matchingCurrentGoingRuns>0,
+     position=s.pastFourthCorner!=='insufficient',
+     paceObserved=pace.coverageAdequate&&s.scenarioFitBand!=='未評価',
+     expected={course_distance:course&&historyComplete,
+      pace:paceObserved,ground:sameGoing&&historyComplete},
+     missing=keys.filter(k=>!expected[k]);
+    if(keys.some(k=>runner.sourcePresent[k]!==expected[k])||
+       runner.missingSourceFactors.join('|')!==missing.join('|')||
+       runner.allThreeSourcesPresent!==(missing.length===0))
+     throw Error('3項目46点の馬別資料判定が矛盾');
+    stats.courseComparableObserved+=Number(course);
+    stats.courseHistoryComplete+=Number(historyComplete);
+    stats.currentGoingRecorded+=Number(currentGoing);
+    stats.sameGoingObserved+=Number(sameGoing);
+    stats.pacePositionObserved+=Number(position);
+    stats.paceScenarioObserved+=Number(paceObserved);
+    stats.allThreeSourcesObserved+=Number(
+     course&&historyComplete&&sameGoing&&paceObserved);
+    stats.noCourseComparableRuns+=Number(!course);
+    stats.courseHistoryIncomplete+=Number(!historyComplete);
+    stats.currentGoingUnknown+=Number(!currentGoing);
+    stats.noSameGoingRuns+=Number(currentGoing&&!sameGoing);
+    stats.paceScenarioUnassessed+=Number(!paceObserved);
+   }
+   if(sourceSeen.size!==race.runnerCount||
+      observedKeys.some(k=>race.observed[k]!==stats[k])||
+      gapKeys.some(k=>race.gaps[k]!==stats[k]))
+    throw Error('3項目46点の資料件数が原履歴と一致しません');
+   detail.threeFactorSourceGaps=race;
+  }
+  if(seen.size!==historyCoordinates.size)
+   throw Error('3項目46点のレースが不足');
+ }
  // Research-6 remaining 21-weight presence: never a scored factor.
  if(h.remaining21SourceGaps!==undefined){
   const v=h.remaining21SourceGaps,
@@ -4740,6 +4840,30 @@ $('autoHistoryAudit').onclick=async()=>{
       '（正式得点ではありません）','muted'));
     }
     card.append(panel);
+   }
+   if(details.rosterVerified&&details.threeFactorSourceGaps){
+    const s=details.threeFactorSourceGaps,p=dom('details'),
+     labels={course_distance:'コース・距離',pace:'展開・脚質',ground:'馬場'};
+    p.append(dom('summary','コース17・展開17・馬場12：採点前の資料不足を確認'));
+    p.append(dom('p','46点分の過去資料を照合。ただし資料があるだけでは'+
+     '能力点にはなりません。JRA公式照合、発走前時刻の確認、'+
+     '時系列の未使用期間テスト、採点基準の校正が未完成です。','muted'));
+    p.append(dom('p','3項目の資料がそろった馬 '+
+     s.observed.allThreeSourcesObserved+'/'+s.runnerCount+
+     '頭／コース履歴 '+s.observed.courseComparableObserved+
+     '頭／馬場一致履歴 '+s.observed.sameGoingObserved+
+     '頭／展開仮説 '+s.observed.paceScenarioObserved+
+     '頭（正式採点0/3）','muted'));
+    for(const h0 of s.runners){
+     const missing=h0.missingSourceFactors.length?
+      h0.missingSourceFactors.map(k=>labels[k]).join('・'):'対象資料は確認済み';
+     p.append(dom('p',h0.number+'番｜コース・距離 '+
+      (h0.sourcePresent.course_distance?'資料あり':'不足')+
+      '／展開・脚質 '+(h0.sourcePresent.pace?'資料あり':'不足')+
+      '／馬場 '+(h0.sourcePresent.ground?'資料あり':'不足')+
+      '｜不足：'+missing+'｜正式46点：未評価','muted'));
+    }
+    card.append(p);
    }
    if(details.rosterVerified&&details.remaining21){
     const r=details.remaining21,panel=dom('details');

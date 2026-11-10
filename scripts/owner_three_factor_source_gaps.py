@@ -150,6 +150,7 @@ def three_factor_source_gaps(course_history, pace_scenarios):
             "noSameGoingRuns": 0,
             "paceScenarioUnassessed": 0,
         }
+        runners = []
         for n, c in hrows.items():
             s = prows[n]
             course = c["comparableRuns"] > 0
@@ -173,10 +174,27 @@ def three_factor_source_gaps(course_history, pace_scenarios):
                 c["currentGoingRecorded"] and not same_going
             )
             gaps["paceScenarioUnassessed"] += int(not pace_observed)
+            # These are *source-presence* gates, not scores. Even three
+            # observed slots still need independent JRA, a fixed historical
+            # time cut, held-out performance checks and calibrated rubrics.
+            source_present = {
+                "course_distance": bool(course and c["historyLookupComplete"]),
+                "pace": bool(pace_observed),
+                "ground": bool(same_going and c["historyLookupComplete"]),
+            }
+            missing = [k for k in WEIGHTS if not source_present[k]]
+            runners.append({
+                "number": n, "sourcePresent": source_present,
+                "missingSourceFactors": missing,
+                "allThreeSourcesPresent": not missing,
+                "formalGradesVerified": 0, "formalGradeReady": False,
+                "officialJraVerified": False,
+                "holdoutValidated": False,
+            })
         result.append({
             "track": coord[0], "race": coord[1],
             "runnerCount": len(hrows), "observed": totals,
-            "gaps": gaps,
+            "gaps": gaps, "runners": sorted(runners, key=lambda x: x["number"]),
             "allThreeAreResearchOnly": True,
             "formalGradesVerified": 0, "bettingReady": False,
         })
@@ -189,6 +207,9 @@ def three_factor_source_gaps(course_history, pace_scenarios):
         "privateOwnerOnly": True, "officialJraVerified": False,
         "courseSuitabilityAssessed": False, "paceForecastReady": False,
         "goingSuitabilityAssessed": False, "formalGradesVerified": 0,
+        "independentTimeCutVerified": False,
+        "conditionMatchedHoldoutValidated": False,
+        "factorRubricsCalibrated": False,
         "overallPredictionReady": False, "bettingReady": False,
         "changesExistingTickets": False,
         "note": "コース17・展開17・馬場12点の元資料不足のみ照合。正式採点と公式JRA確認は未実施。",
