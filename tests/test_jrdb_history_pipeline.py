@@ -63,6 +63,16 @@ class BoundedHistoryTests(unittest.TestCase):
         self.assertFalse(report["predictionReady"])
         self.assertFalse(report["goingSuitabilityAssessed"])
         per_horse = report["ownerRunnerHistory"]
+        three_source = report["research6ThreeFactorSourceGaps"]
+        self.assertEqual(three_source["raceCount"], per_horse["raceCount"])
+        self.assertEqual(three_source["factorWeights"], {
+            "course_distance": 17, "pace": 17, "ground": 12
+        })
+        self.assertEqual(three_source["weightTotal"], 46)
+        self.assertEqual(three_source["formalGradesVerified"], 0)
+        self.assertFalse(three_source["overallPredictionReady"])
+        self.assertFalse(three_source["bettingReady"])
+        self.assertEqual(three_source["extraProviderCalls"], 0)
         self.assertEqual(per_horse["version"],"owner-runner-course-going-observation-2")
         self.assertTrue(per_horse["privateOwnerOnly"])
         self.assertFalse(per_horse["predictionReady"])
