@@ -2256,6 +2256,35 @@ function boot(){
  assert.match(nextSteps.children[3].textContent,/根拠に基づく採点/);
  assert.match(nextSteps.children[4].textContent,/JRA公式.*独立照合/);
  assert.match(sourcePanel.children[6].textContent,/JRA公式.*未接続/);
+ // Owner sees only a fixed reason label for each held race, never
+ // licensed source values. One malformed stage must fail closed and preserve
+ // the original signed ticket without touching actual purchase records.
+ for(const [stage,label] of [
+  ['entries','出走馬・登録頭数'],['training','調教資料の整合性'],
+  ['recent','近走資料の整合性'],['runner_join','調教と近走の馬番照合']
+ ]){
+  const flagged=boot();
+  await new Promise(r=>setImmediate(r));
+  const d=full36RaceDraft();
+  d.races[1].reason='missing_research';
+  d.races[1].reviewStage=stage;
+  d.holdReasons={after_provisional_off:34,missing_research:1};
+  flagged.setServerRaw(d);
+  const signedBefore=flagged.storage.get(STORAGE);
+  await flagged.get('autoRun').onclick();
+  const tokyoGroup=flagged.get('autoRaces').children[0];
+  const heldSecond=tokyoGroup.children[1];
+  assert.match(heldSecond.children.map(x=>x.textContent||'').join(' '),
+   new RegExp('要確認：'+label));
+  assert.equal(flagged.storage.get(STORAGE),signedBefore);
+  assert.equal(flagged.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+  d.races[1].reviewStage='PRIVATE-RAW-WORKOUT-ERROR';
+  flagged.setServerRaw(d);
+  await flagged.get('autoRun').onclick();
+  assert.equal(flagged.storage.get(STORAGE),signedBefore);
+  assert.equal(flagged.get('autoRaces').children.length,0);
+  assert.match(flagged.get('autoSavedStatus').textContent,/再分析に失敗/);
+ }
  const tamperedPassport=resultWith('c'.repeat(64));
  tamperedPassport.sourcePassport.races[0].verifiedFactorCount=10;
  a.setServerRaw(tamperedPassport);
