@@ -21,7 +21,8 @@ from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs,
                           fetch_venue_conditions, fetch_prestart_body, fetch_finished_race_results,
                           fetch_historical_race_program,
-                          fetch_historical_venue_conditions, JRDBError, approved_api_base)
+                          fetch_historical_venue_conditions, fetch_historical_runner_staff,
+                          fetch_historical_finished_runners, JRDBError, approved_api_base)
 from jrdb_evidence_readiness import audit_evidence_coverage, _valid_date
 from jrdb_day_pipeline import inspect_day
 from jrdb_day_review_gate import build_day_review_queue
@@ -42,6 +43,7 @@ from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
                                     CSS as AUTO_FORECAST_CSS)
 from jrdb_owner_day_ui import HTML as OWNER_DAY_HTML, JS as OWNER_DAY_JS, CSS as OWNER_DAY_CSS
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
+from owner_past_staff_sample import inspect_one_past_staff_sample
 from owner_rebound_receipts import (
     issue_rebound_watch_receipts, verify_rebound_watch_receipts,
     compare_watched_winners, WatchReceiptError
@@ -2453,13 +2455,23 @@ def create_app(settings=None):
                 if len(raw) != size:
                     raise ValueError()
                 args = json.loads(raw)
-                if not isinstance(args, dict) or set(args) - {'date', 'limit'}:
+                if not isinstance(args, dict) or set(args) - {'date', 'limit', 'staffSample'}:
                     raise ValueError()
                 date, limit = args.get('date'), args.get('limit', 8)
-                if not _valid_date(date) or type(limit) is not int or not 1 <= limit <= 8:
+                staff_sample = args.get('staffSample', False)
+                if (not _valid_date(date) or type(limit) is not int
+                        or not 1 <= limit <= 8 or type(staff_sample) is not bool):
                     raise ValueError()
             except (ValueError, TypeError, UnicodeError, KeyError):
                 return response('400 Bad Request', {'error': '開催日または取得上限が不正です。'})
+            # Two extra paid historical requests must be an explicit click
+            # in the private owner service, never a background/default read.
+            if staff_sample and (
+                settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+            ):
+                return response('403 Forbidden', {
+                    'error': '過去の騎手厩舎追加照合は本人サービス専用です。'})
             try:
                 programme = normalize_program_rows(fetch_race_program(date), date)
                 entries = fetch_horse_entries(date)
@@ -2497,6 +2509,17 @@ def create_app(settings=None):
                 if 'research6FiveDrafts' in preview:
                     preview['research6DraftCapture'] = issue_research6_draft_receipts(
                         preview, programme, password, date, now=stamp
+                    )
+                if staff_sample:
+                    # Exactly the first already-validated past race: /dky and
+                    # /dse once each. Only the aggregates leave this service.
+                    # Fail-closed source problems HOLD the optional evidence;
+                    # signed picks, old scores and ROI remain untouched.
+                    preview['pastStaffSample'] = inspect_one_past_staff_sample(
+                        programme, entries, previous, date,
+                        fetch_dky=fetch_historical_runner_staff,
+                        fetch_dse=fetch_historical_finished_runners,
+                        limit=limit,
                     )
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     HistoryFetchError, WatchReceiptError, CoreReceiptError,
