@@ -691,7 +691,8 @@ class AutoDraftHTTPTests(unittest.TestCase):
                               QUERY_STRING="date="+DAY,**env)
                 self.assertIn(response["status"].split()[0],("401","403"))
                 call_source.assert_not_called()
-        for cfg in (SETTINGS,{**self.config,"JRDB_PRIVATE_ENABLED":"0"}):
+        for cfg in (SETTINGS, {**self.config,"JRDB_PRIVATE_ENABLED":"0"},
+                    {**self.config,"JRDB_API_BASE_URL":"https://malicious.invalid/v1"}):
             with patch("private_service.fetch_race_program") as source:
                 response=call(create_app(cfg),"/api/jrdb/owner-auto-draft",
                               QUERY_STRING="date="+DAY)
