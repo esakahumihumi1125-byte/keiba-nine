@@ -65,11 +65,14 @@ def inspect_one_past_staff_sample(programme, entries, previous, day, *,
     key, past_date = pairs[0]
     # Fetch exactly two endpoints. No automatic retry, fallback date range,
     # or second race when records are missing or disqualified.
+    reads = 0
     try:
+        reads += 1
         dky = fetch_dky(key)
+        reads += 1
         dse = fetch_dse(key)
     except Exception:
-        return _report("provider_unavailable", queried=2)
+        return _report("provider_unavailable", queried=reads)
     try:
         merged = join_jrdb_past_jockey_trainer(
             dky, dse, racekey=key, racedate=past_date)
