@@ -217,6 +217,9 @@ class FullTenFactorGateTests(unittest.TestCase):
             item = horse4["assessments"][factor]
             item["winSupport"] = True
             item["evidence"][0]["sourceId"] = origin
+            item["evidence"][0]["sourceFamily"] = (
+                "independent_training" if factor == "training" else "independent_" + factor
+            )
         before = copy.deepcopy(source)
         result = full_ten_factor_preview(source, now=NOW)
         self.assertEqual(source, before)
@@ -243,6 +246,9 @@ class FullTenFactorGateTests(unittest.TestCase):
             item = horse["assessments"][factor]
             item["winSupport"] = True
             item["evidence"][0]["sourceId"] = origin
+            item["evidence"][0]["sourceFamily"] = (
+                "independent_training" if factor == "training" else "independent_" + factor
+            )
         result = full_ten_factor_preview(source, now=NOW)
         r = result["winnerRecheck"]
         self.assertEqual([h["number"] for h in r["recentLossCandidates"]], [4])
@@ -255,6 +261,40 @@ class FullTenFactorGateTests(unittest.TestCase):
         self.assertEqual(result["winnerRecheck"]["recentLossCandidates"], [])
         self.assertEqual(result["winnerRecheck"]["lowerRankCandidates"], [])
 
+    def test_distinct_source_ids_from_same_family_never_count_twice(self):
+        """Separate JRDB rows do not make two independent win arguments."""
+        source = fixture()
+        runner = source["horses"][3]
+        for factor, source_id in (
+            ("training", "jrdb-workout-row"),
+            ("pace", "jrdb-pace-row"),
+        ):
+            item = runner["assessments"][factor]
+            item["winSupport"] = True
+            item["evidence"][0]["sourceId"] = source_id
+            item["evidence"][0]["sourceFamily"] = " JRDB "
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(result["winnerRecheck"]["lowerRankCandidates"], [])
+        self.assertEqual(result["winnerRecheck"]["recentLossCandidates"], [])
+        self.assertNotIn("jrdb-workout-row", repr(result))
+        self.assertNotIn("jrdb-pace-row", repr(result))
+
+        # Two *different verified* provider families enable manual review,
+        # but never modify or add a primary 3連単 ticket automatically.
+        runner["assessments"]["pace"]["evidence"][0]["sourceFamily"] = "independent_pace"
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(
+            [item["number"] for item in result["winnerRecheck"]["lowerRankCandidates"]],
+            [4],
+        )
+        self.assertEqual(result["trifecta"]["points"], 40)
+        self.assertFalse(result["winnerRecheck"]["changesTrifecta"])
+
+        # Unknown provenance cannot pass merely because sourceId differs.
+        del runner["assessments"]["pace"]["evidence"][0]["sourceFamily"]
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(result["winnerRecheck"]["lowerRankCandidates"], [])
+
     def test_no_unverified_or_blocked_winner_review(self):
         source = fixture()
         horse = source["horses"][3]
@@ -262,6 +302,9 @@ class FullTenFactorGateTests(unittest.TestCase):
                                ("pace", "pace-4")):
             horse["assessments"][factor]["winSupport"] = True
             horse["assessments"][factor]["evidence"][0]["sourceId"] = origin
+            horse["assessments"][factor]["evidence"][0]["sourceFamily"] = (
+                "independent_training" if factor == "training" else "independent_" + factor
+            )
         source["assessmentValidated"] = False
         report = full_ten_factor_preview(source, now=NOW)
         self.assertEqual(report["winnerRecheck"]["lowerRankCandidates"], [])
