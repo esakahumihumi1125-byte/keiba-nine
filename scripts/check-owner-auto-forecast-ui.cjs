@@ -889,6 +889,25 @@ function withResearch6FiveDrafts(report){
  };
  return report;
 }
+function withDseUpdateAudit(report, batches=1){
+ report.pastResultUpdateAudit={
+  version:'owner-dse-update-diagnostic-1',
+  source:'already_fetched_private_dse_updated_at',
+  observedResponseCount:batches,invalidResponseCount:0,
+  observedResultRowCount:batches*7,
+  missingUpdateCount:0,dateOnlyCount:batches*7,
+  ambiguousUpdateCount:0,timestampBeforeCaptureCount:0,
+  timestampAtOrAfterCaptureCount:0,timestampOrderingChecked:true,
+  initialPublicationTimeVerified:false,
+  sourceTimestampAuthenticityVerified:false,
+  historicalResultPublicationTimesVerified:false,
+  independentJraVerified:false,formalTenFactorsReady:false,bettingReady:false,
+  researchOnly:true,privateOwnerOnly:true,extraProviderCalls:0,
+  changesExistingTickets:false,changesExistingReceipts:false,
+  changesExistingRoi:false
+ };
+ return report;
+}
 function withPastStaffSample(report){
  report.pastStaffSample={
   version:'owner-past-staff-sample-1',status:'joined_private_sample',
@@ -2000,6 +2019,34 @@ function boot(){
   assert.equal(a.storage.get(FIVE_STORAGE),oldFixed85);
   assert.equal(a.storage.get(STORAGE),oldRecord);
  }
+ // Live /dse diagnostic is a sibling to staff results, never a signed
+ // performance score or an extra provider fetch.
+ const beforeDseReads=a.requests.filter(x=>x.url==='/api/jrdb/history').length;
+ a.setHistorical(withDseUpdateAudit(withPastStaffSample(historical())));
+ await a.get('autoHistoryAudit').onclick();
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/更新日時：時刻付き0件/);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/日付のみ7件/);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/初回公表日時ではなく/);
+ assert.equal(a.requests.filter(x=>x.url==='/api/jrdb/history').length,
+  beforeDseReads+1);
+ assert.equal(a.storage.get(FIVE_STORAGE),oldFixed85);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ for(const mutate of [
+  x=>x.pastResultUpdateAudit.initialPublicationTimeVerified=true,
+  x=>x.pastResultUpdateAudit.extraProviderCalls=1,
+  x=>x.pastResultUpdateAudit.dateOnlyCount=18,
+  x=>x.pastResultUpdateAudit.observedResponseCount=2,
+  x=>x.pastResultUpdateAudit.timestampBeforeCaptureCount=3,
+ ]){
+  const invalid=withDseUpdateAudit(withPastStaffSample(historical()));
+  mutate(invalid);
+  a.setHistorical(invalid);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+ }
+ a.setHistorical(withPastStaffSample(historical()));
+ await a.get('autoHistoryAudit').onclick();
  // Three-race mode is still a separately selected, explicitly paid opt-in.
  a.get('autoHistoryStaffSample').checked=true;
  a.get('autoHistoryStaffRaceLimit').value='3';
