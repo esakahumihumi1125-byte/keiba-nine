@@ -65,6 +65,10 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <select id="autoHistoryStaffRaceLimit"><option value="1" selected>過去1R（追加最大2回）</option><option value="3">過去3R（追加最大6回）</option></select>
 <p class="muted">チェックしなければ追加のAPI取得はなし。過去1R/3Rは既存履歴プランの先頭からのみ選択。3Rであっても予想精度の検証や正式10点の採点には不足です。馬名・馬ID・騎手/厩舎コード・着順原票は表示しません。買い目や回収率にも使いません。</p>
 <p id="autoHistoryStaffStatus" class="muted" role="status">騎手・厩舎の追加照合はOFF。</p>
+<p id="autoHistoryStaffArchiveStatus" class="muted" role="status">3R研究の開催日別保存は未確認。</p>
+<button id="autoHistoryStaffArchiveVerify" type="button" disabled>保存した研究記録の署名を再確認</button>
+<p id="autoHistoryStaffArchiveVerifyStatus" class="muted">研究記録は購入・正式採点に使いません。</p>
+<div id="autoHistoryStaffArchiveList"></div>
 </details>
 <p class="muted">発走前に照合した巻き返し候補は署名を検証し、iPhone内に最初の候補を固定します。事後の再分析で候補を上書きしません。これは公式結果や馬券購入の証明ではありません。</p>
 <p id="autoHistoryWatchSave" class="muted" role="status">発走前の候補記録は未確認。</p>
@@ -1171,9 +1175,10 @@ const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
+const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
 let request=0,followingToday=true,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
- r6VerifySeq=0,
+ r6VerifySeq=0,staffArchiveVerifySeq=0,
  officialPdfSeq=0,coreVerifySeq=0,coreProviderSeq=0,fiveProviderSeq=0,
  jraDraftTracks=new Set(),jraPdfTracks=new Set(),jraPdfChecked=false,
  historyDay='',historyCoordinates=new Set(),
@@ -1192,6 +1197,9 @@ function clearHistory(){
  showSavedCore($('autoDay').value.replaceAll('-',''));
  showSavedFive($('autoDay').value.replaceAll('-',''));
  showSavedResearch6Drafts($('autoDay').value.replaceAll('-',''));
+ showSavedStaffStudySessions();
+ staffArchiveVerifySeq++;
+ $('autoHistoryStaffArchiveVerifyStatus').textContent='研究記録の署名はこの選択では未検証。';
  r6VerifySeq++;
  $('autoResearch6DraftVerifyStatus').textContent='固定79点下書きの署名は未確認です。';
  officialPdfSeq++;
@@ -1671,6 +1679,111 @@ function saveResearch6DraftReceipts(receipts,day){
    'R／既存 '+retained+'R（絶対に上書きしません）。';
 }
 
+function validateStaffStudyEntry(entry){
+ if(!entry||typeof entry!=='object'||Array.isArray(entry)||
+    Object.keys(entry).sort().join(',')!=='signature,snapshot'||
+    typeof entry.signature!=='string'||!/^[a-f0-9]{64}$/.test(entry.signature))
+  throw Error('騎手厩舎研究記録の署名形式が不正');
+ const p=entry.snapshot;
+ if(!p||typeof p!=='object'||Array.isArray(p)||
+    Object.keys(p).sort().join(',')!==
+     'actualPurchase,capturedAt,date,formalTenPointReady,independentHistoricRaceDedupVerified,officialJraVerified,researchOnly,sourceKind,summary,version'||
+    p.version!=='owner-staff-study-receipt-1'||
+    p.sourceKind!=='private-server-three-race-aggregate-unverified'||
+    p.researchOnly!==true||p.officialJraVerified!==false||
+    p.actualPurchase!==false||p.formalTenPointReady!==false||
+    p.independentHistoricRaceDedupVerified!==false||
+    typeof p.date!=='string'||!/^20\d{6}$/.test(p.date)||
+    typeof p.capturedAt!=='string'||!/(?:Z|[+-]\d\d:\d\d)$/.test(p.capturedAt)||
+    !Number.isFinite(new Date(p.capturedAt).valueOf()))
+  throw Error('開催日別の騎手厩舎研究記録が不正');
+ const x=p.summary,counts=['requestedRaceLimit','selectedPastRaceCount',
+  'providerReadCount','providerReadBudget','completedJoinRaceCount',
+  'heldOrIncompleteRaceCount','totalJoinedRunnerObservations',
+  'distinctJockeyCount','distinctTrainerCount','distinctPairCount',
+  'pairsSeenInTwoOrMoreRaces','pairRunnerObservations',
+  'observedFirstPlaceCount','observedTopThreeCount'];
+ const falseKeys=['pastResultPublicationVerified','independentJraVerified',
+  'fullTenFactorReady','jockeyTrainerPerformanceAssessed','holdoutValidated',
+  'predictionReady','bettingReady','autoPurchase','actualPurchase',
+  'changesExistingReceipts','changesExistingTickets','changesExistingRoi'];
+ if(!x||typeof x!=='object'||Array.isArray(x)||
+    Object.keys(x).length!==counts.length+falseKeys.length+8||
+    counts.some(k=>!Number.isInteger(x[k])||x[k]<0)||
+    falseKeys.some(k=>x[k]!==false)||
+    x.researchOnly!==true||x.privateOwnerOnly!==true||
+    x.additionalPaidReadsOnlyOnExplicitOptIn!==true||
+    typeof x.providerUnavailable!=='boolean'||
+    x.version!=='owner-past-staff-batch-1'||
+    x.sourceFamily!=='private_dky_dse_bounded_races'||
+    x.formalTenPointGrade!=='未評価'||x.formalTenPointScore!==null||
+    x.requestedRaceLimit!==3||x.providerReadBudget!==6||
+    x.selectedPastRaceCount<1||x.selectedPastRaceCount>3||
+    x.providerReadCount<1||
+    x.providerReadCount>2*x.selectedPastRaceCount||
+    x.completedJoinRaceCount+x.heldOrIncompleteRaceCount!==
+      x.selectedPastRaceCount||
+    x.totalJoinedRunnerObservations<x.completedJoinRaceCount*3||
+    x.totalJoinedRunnerObservations>x.completedJoinRaceCount*18||
+    x.pairRunnerObservations!==x.totalJoinedRunnerObservations||
+    x.observedFirstPlaceCount!==x.completedJoinRaceCount||
+    x.observedTopThreeCount!==3*x.completedJoinRaceCount||
+    x.distinctPairCount>x.totalJoinedRunnerObservations||
+    x.pairsSeenInTwoOrMoreRaces>x.distinctPairCount||
+    (!x.providerUnavailable&&x.providerReadCount!==2*x.selectedPastRaceCount))
+  throw Error('騎手厩舎研究記録の件数・未評価状態が不正');
+ return p;
+}
+function savedStaffStudySessions(){
+ const raw=localStorage.getItem(STAFF_STUDY_STORAGE);
+ if(raw&&raw.length>150000)throw Error('騎手厩舎研究記録の保存上限');
+ const saved=JSON.parse(raw||'[]');
+ if(!Array.isArray(saved)||saved.length>120)
+  throw Error('騎手厩舎研究記録の保存件数が不正');
+ const dates=new Set();
+ for(const row of saved){
+  const p=validateStaffStudyEntry(row);
+  if(dates.has(p.date))throw Error('開催日別の研究記録が重複');
+  dates.add(p.date);
+ }
+ return saved;
+}
+function showSavedStaffStudySessions(){
+ $('autoHistoryStaffArchiveList').replaceChildren();
+ try{
+  const saved=savedStaffStudySessions();
+  $('autoHistoryStaffArchiveVerify').disabled=!saved.length;
+  $('autoHistoryStaffArchiveStatus').textContent=saved.length?
+   '開催日別に初回固定した3R研究 '+saved.length+
+   '日分。別の日に同じ過去Rを参照する可能性があり、独立母数・騎手能力として合算しません。':
+   '過去3R研究の初回固定はまだありません（iPhone端末内保存）。';
+  for(const row of saved.slice().sort((a,b)=>b.snapshot.date.localeCompare(a.snapshot.date))){
+   const p=row.snapshot,x=p.summary,card=dom('details');
+   card.append(dom('summary',p.date.slice(0,4)+'/'+p.date.slice(4,6)+'/'+
+    p.date.slice(6)+'｜照合'+x.completedJoinRaceCount+
+    'R・保留'+x.heldOrIncompleteRaceCount+'R'));
+   card.append(dom('p','追加API照会'+x.providerReadCount+
+    '回／出走観測'+x.totalJoinedRunnerObservations+
+    '件／同一ペア'+x.distinctPairCount+
+    '組｜形式未検証のまま能力に加点しません。','muted'));
+   $('autoHistoryStaffArchiveList').append(card);
+  }
+ }catch(_){
+  $('autoHistoryStaffArchiveVerify').disabled=true;
+  $('autoHistoryStaffArchiveStatus').textContent=
+   '保存済みの騎手厩舎研究記録が不正。元の内容を変更せずバックアップを確認してください。';
+ }
+}
+function firstWriteStaffStudyEntry(entry){
+ const snap=validateStaffStudyEntry(entry),all=savedStaffStudySessions();
+ if(all.some(row=>row.snapshot.date===snap.date))
+  return '開催日'+snap.date+'の初回研究記録を保持。再照合による上書きはしません。';
+ const combined=[...all,entry];
+ if(combined.length>120||JSON.stringify(combined).length>150000)
+  throw Error('開催日別の騎手厩舎研究保存上限');
+ localStorage.setItem(STAFF_STUDY_STORAGE,JSON.stringify(combined));
+ return '騎手厩舎3R研究の初回記録を'+snap.date+'で固定（端末内、署名付き）。';
+}
 function storedWatchDay(day){
  const raw=localStorage.getItem(WATCH_STORAGE);
  if(raw&&raw.length>700000)throw Error('保存した候補記録が大きすぎます');
@@ -3838,6 +3951,46 @@ $('autoFiveProviderCheck').onclick=async()=>{
    button.disabled=false;
  }
 };
+$('autoHistoryStaffArchiveVerify').onclick=async()=>{
+ const btn=$('autoHistoryStaffArchiveVerify');
+ if(btn.disabled)return;
+ const seq=++staffArchiveVerifySeq;
+ btn.disabled=true;
+ $('autoHistoryStaffArchiveVerifyStatus').textContent=
+  '開催日別の騎手厩舎研究の署名を再確認中…';
+ try{
+  const records=savedStaffStudySessions();
+  if(!records.length)throw Error('empty_staff_study');
+  const body=JSON.stringify({receipts:records});
+  if(body.length>250000)throw Error('staff_study_too_large');
+  const response=await fetch('/api/owner-staff-study-verify',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body
+  });
+  const checked=await response.json();
+  if(seq!==staffArchiveVerifySeq)return;
+  if(!response.ok||checked.version!=='owner-staff-study-verify-1'||
+     checked.serverSigned!==true||
+     checked.verifiedDateCount!==records.length||
+     checked.researchOnly!==true||checked.privateOwnerOnly!==true||
+     checked.independentHistoricRaceDedupVerified!==false||
+     checked.officialJraVerified!==false||
+     checked.formalTenPointReady!==false||checked.bettingReady!==false||
+     checked.actualPurchase!==false||checked.sourceProviderReadCount!==0)
+   throw Error('Signature mismatch');
+  $('autoHistoryStaffArchiveVerifyStatus').textContent=
+   '開催日別の研究記録 '+checked.verifiedDateCount+
+   '日分の署名を検証。過去R重複の排除・実力10点・JRA結果・回収率の確認ではありません。';
+ }catch(_){
+  if(seq===staffArchiveVerifySeq)
+   $('autoHistoryStaffArchiveVerifyStatus').textContent=
+    '研究記録の署名を確認できません。保存済みデータは変更していません。';
+ }finally{
+  if(seq===staffArchiveVerifySeq)
+   btn.disabled=false;
+ }
+};
 $('autoResearch6DraftVerify').onclick=async()=>{
  const button=$('autoResearch6DraftVerify'),day=$('autoDay').value.replaceAll('-','');
  if(button.disabled)return;
@@ -4103,6 +4256,43 @@ $('autoHistoryAudit').onclick=async()=>{
   }else if(raw?.pastStaffSample!==undefined||
             raw?.pastStaffBatch!==undefined){
    throw Error('本人が選んでいない追加取得結果が混入');
+  }
+
+  // A three-race aggregate may be sealed by the private server. Only after
+  // a fresh, read-only signature verification will this iPhone first-write.
+  // We do NOT merge historical IDs across days or grade any rider.
+  if(wantStaff&&staffBatch===3&&raw?.pastStaffBatch?.providerReadCount>0){
+   try{
+    const entry=raw.staffStudyCapture,p=validateStaffStudyEntry(entry);
+    const source={...raw.pastStaffBatch};
+    delete source.note;
+    if(p.date!==day||JSON.stringify(p.summary)!==JSON.stringify(source))
+     throw Error('Study receipt does not match the paid sample');
+    const response=await fetch('/api/owner-staff-study-verify',{
+     method:'POST',credentials:'same-origin',cache:'no-store',
+     headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+      'Accept':'application/json'},
+     body:JSON.stringify({receipts:[entry]})
+    });
+    const checked=await response.json();
+    if(seq!==historySeq||historyDay!==day)return;
+    if(!response.ok||checked.version!=='owner-staff-study-verify-1'||
+       checked.serverSigned!==true||checked.verifiedDateCount!==1||
+       checked.researchOnly!==true||checked.privateOwnerOnly!==true||
+       checked.independentHistoricRaceDedupVerified!==false||
+       checked.officialJraVerified!==false||
+       checked.formalTenPointReady!==false||checked.bettingReady!==false||
+       checked.actualPurchase!==false||checked.sourceProviderReadCount!==0)
+     throw Error('Study signature not verified');
+    $('autoHistoryStaffArchiveStatus').textContent=
+     firstWriteStaffStudyEntry(entry);
+    showSavedStaffStudySessions();
+   }catch(_){
+    $('autoHistoryStaffArchiveStatus').textContent=
+     '3Rの研究記録は署名確認・保存できませんでした。以前の初回記録は変更しません。';
+   }
+  }else if(raw?.staffStudyCapture!==undefined){
+   throw Error('Unrequested staff study receipt in history');
   }
 
   // Core research capture is optional in legacy saved history responses;

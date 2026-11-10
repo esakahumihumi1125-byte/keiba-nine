@@ -7,6 +7,7 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
+const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
 const R6_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 const day='20990101', date='2099-01-01';
 const pairs=[['S','S',8,'S'],['S','A',7,'A'],['A','A',6,'A'],
@@ -819,6 +820,22 @@ function withPastStaffBatch(report){
  };
  return report;
 }
+function withSignedStaffStudy(report){
+ withPastStaffBatch(report);
+ const {note,...summary}=report.pastStaffBatch;
+ report.staffStudyCapture={
+  signature:'f'.repeat(64),
+  snapshot:{
+   version:'owner-staff-study-receipt-1',
+   date:day,capturedAt:'2026-11-10T11:00:00+09:00',
+   sourceKind:'private-server-three-race-aggregate-unverified',
+   summary,researchOnly:true,officialJraVerified:false,
+   actualPurchase:false,formalTenPointReady:false,
+   independentHistoricRaceDedupVerified:false
+  }
+ };
+ return report;
+}
 function withPedigreePreflight(report){
  withFiveCore(report);
  const inv=report.tenFactorSourceInventory;
@@ -1045,6 +1062,19 @@ function boot(){
       races:signed.map(x=>({status:'pending',track:x.snapshot.track,
        race:x.snapshot.race,date:x.snapshot.date}))}
    }:{error:'server_authorization_failure'}};
+  }
+  if(url==='/api/owner-staff-study-verify'){
+   const req=JSON.parse(options.body||'{}');
+   const ok=Array.isArray(req.receipts)&&req.receipts.length>0&&
+    req.receipts.every(x=>x.signature==='f'.repeat(64));
+   return {ok,json:async()=>ok?{
+    version:'owner-staff-study-verify-1',
+    serverSigned:true,verifiedDateCount:req.receipts.length,
+    researchOnly:true,privateOwnerOnly:true,
+    independentHistoricRaceDedupVerified:false,
+    officialJraVerified:false,formalTenPointReady:false,
+    bettingReady:false,actualPurchase:false,sourceProviderReadCount:0
+   }:{error:'invalid signature'}};
   }
   if(url==='/api/owner-research6-draft-verify'){
    const args=JSON.parse(options.body);
@@ -1836,6 +1866,43 @@ function boot(){
  const oneReq=a.requests.slice(oldRequest).find(x=>x.url==='/api/jrdb/history');
  assert.equal(JSON.parse(oneReq.options.body).staffBatchRaces,undefined);
  assert.match(a.get('autoHistoryStaffStatus').textContent,/過去1Rを資料結合：7頭/);
+ // A signed redacted 3R study is verified first, then first-write by
+ // target date. Rechecking the SAME day cannot replace its initial summary.
+ a.get('autoHistoryStaffSample').checked=true;
+ a.get('autoHistoryStaffRaceLimit').value='3';
+ a.setHistorical(withSignedStaffStudy(historical()));
+ const old85BeforeStaff=a.storage.get(FIVE_STORAGE);
+ await a.get('autoHistoryAudit').onclick();
+ const storedStaff=a.storage.get(STAFF_STUDY_STORAGE);
+ assert.ok(storedStaff);
+ assert.equal(JSON.parse(storedStaff).length,1);
+ assert.equal(JSON.parse(storedStaff)[0].snapshot.summary.providerReadCount,6);
+ assert.match(a.get('autoHistoryStaffArchiveStatus').textContent,/開催日別に初回固定/);
+ assert.equal(a.get('autoHistoryStaffArchiveList').children.length,1);
+ assert.equal(a.get('autoHistoryStaffArchiveVerify').disabled,false);
+ await a.get('autoHistoryStaffArchiveVerify').onclick();
+ assert.match(a.get('autoHistoryStaffArchiveVerifyStatus').textContent,/1日分の署名を検証/);
+ assert.equal(a.storage.get(STAFF_STUDY_STORAGE),storedStaff);
+ assert.equal(a.storage.get(FIVE_STORAGE),old85BeforeStaff);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ a.setHistorical(withSignedStaffStudy(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ assert.equal(a.storage.get(STAFF_STUDY_STORAGE),storedStaff,
+  'repeat history cannot overwrite signed aggregate for same date');
+ for(const mutate of [
+  x=>x.staffStudyCapture.snapshot.summary.providerReadCount=7,
+  x=>x.staffStudyCapture.snapshot.summary.formalTenPointScore=10,
+  x=>x.staffStudyCapture.snapshot.summary.independentJraVerified=true,
+  x=>x.staffStudyCapture.snapshot.summary.pairsSeenInTwoOrMoreRaces=99,
+  x=>x.staffStudyCapture.snapshot.date='20261102',
+  x=>x.staffStudyCapture.snapshot.formalTenPointReady=true,
+ ]){
+  const bad=withSignedStaffStudy(historical());mutate(bad);
+  a.setHistorical(bad);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.storage.get(STAFF_STUDY_STORAGE),storedStaff);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+ }
  // Default remains zero staff queries; the request has no staffSample field.
  a.get('autoHistoryStaffSample').checked=false;
  const afterExtra=a.requests.length;

@@ -13,8 +13,9 @@ const keys=[
  'keiba-nine-owner-rebound-watch-receipts-v1',
  'keiba-nine-owner-three-core-receipts-v1',
  'keiba-nine-owner-five-core-receipts-v1',
- 'keiba-nine-owner-research6-draft-receipts-v1'
-],format='keiba-nine-owner-local-all-v8';
+ 'keiba-nine-owner-research6-draft-receipts-v1',
+ 'keiba-nine-owner-staff-study-sessions-v1'
+],format='keiba-nine-owner-local-all-v9';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -92,12 +93,39 @@ const research6Draft={signature:'e'.repeat(64),snapshot:{
  researchOnly:true,officialJraVerified:false,
  predictionReady:false,actualPurchase:false
 }};
+const staffStudy={signature:'f'.repeat(64),snapshot:{
+ version:'owner-staff-study-receipt-1',date:'20990109',
+ capturedAt:'2099-01-09T10:20:00+09:00',
+ sourceKind:'private-server-three-race-aggregate-unverified',
+ researchOnly:true,officialJraVerified:false,
+ actualPurchase:false,formalTenPointReady:false,
+ independentHistoricRaceDedupVerified:false,
+ summary:{
+  version:'owner-past-staff-batch-1',
+  requestedRaceLimit:3,selectedPastRaceCount:3,
+  providerReadCount:6,providerReadBudget:6,
+  completedJoinRaceCount:3,heldOrIncompleteRaceCount:0,
+  providerUnavailable:false,totalJoinedRunnerObservations:21,
+  distinctJockeyCount:2,distinctTrainerCount:2,distinctPairCount:2,
+  pairsSeenInTwoOrMoreRaces:2,pairRunnerObservations:21,
+  observedFirstPlaceCount:3,observedTopThreeCount:9,
+  sourceFamily:'private_dky_dse_bounded_races',
+  pastResultPublicationVerified:false,independentJraVerified:false,
+  fullTenFactorReady:false,jockeyTrainerPerformanceAssessed:false,
+  holdoutValidated:false,formalTenPointGrade:'未評価',
+  formalTenPointScore:null,predictionReady:false,
+  bettingReady:false,autoPurchase:false,actualPurchase:false,
+  researchOnly:true,privateOwnerOnly:true,
+  changesExistingReceipts:false,changesExistingTickets:false,
+  changesExistingRoi:false,additionalPaidReadsOnlyOnExplicitOptIn:true
+ }
+}};
 const fixture=()=>({
  [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],
  [keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],
  [keys[6]]:[signedReceipt],[keys[7]]:[reboundWatch],
  [keys[8]]:[coreStudy],[keys[9]]:[fiveStudy],
- [keys[10]]:[research6Draft]
+ [keys[10]]:[research6Draft],[keys[11]]:[staffStudy]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -146,7 +174,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[],[keys[11]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -219,7 +247,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
   assert.deepEqual([...page.storage.entries()],current,'bad factor note has zero writes');
  }
  // The previous full ten-part v7 format must never clear new 79 picks.
- const legacy10=fixture();delete legacy10[keys[10]];
+ const legacy10=fixture();for(const k of keys.slice(10))delete legacy10[k];
  const old10=fakeFile(JSON.stringify({
   format:'keiba-nine-owner-local-all-v7',
   exportedAt:'2099-01-08T23:00:00Z',sections:legacy10
@@ -247,6 +275,38 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  }
  assert.equal(boot({...fixture(),[keys[10]]:[
   research6Draft,research6Draft]}).el('backupDownload').disabled,true);
+ // v9 backups carry per-day signed aggregates, never identities.
+ assert.match(boot(fixture()).el('backupSummary').textContent,/騎手厩舎研究固定1日/);
+ const sInvalid=[
+  {...staffStudy,signature:'X'},
+  {...staffStudy,snapshot:{...staffStudy.snapshot,officialJraVerified:true}},
+  {...staffStudy,snapshot:{...staffStudy.snapshot,
+   independentHistoricRaceDedupVerified:true}},
+  {...staffStudy,snapshot:{...staffStudy.snapshot,
+   summary:{...staffStudy.snapshot.summary,formalTenPointScore:10}}},
+  {...staffStudy,snapshot:{...staffStudy.snapshot,
+   summary:{...staffStudy.snapshot.summary,providerReadCount:7}}},
+  {...staffStudy,snapshot:{...staffStudy.snapshot,
+   summary:{...staffStudy.snapshot.summary,distinctPairCount:25}}},
+ ];
+ for(const x of sInvalid){
+  assert.equal(boot({...fixture(),[keys[11]]:[x]})
+   .el('backupDownload').disabled,true);
+ }
+ assert.equal(boot({...fixture(),[keys[11]]:[staffStudy,staffStudy]})
+  .el('backupDownload').disabled,true,'duplicate signed day should be blocked');
+ // v8 (11 sections) restores without deleting new staff evidence.
+ const legacy11=fixture();delete legacy11[keys[11]];
+ const old11=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v8',
+  exportedAt:'2099-01-08T23:00:00Z',sections:legacy11}));
+ const currentStudy=boot(fixture()),originalStudy=currentStudy.storage.get(keys[11]);
+ currentStudy.el('backupFile').files=[old11];
+ await currentStudy.el('backupFile').onchange();await flush();
+ assert.equal(currentStudy.el('backupRestore').disabled,false);
+ assert.match(currentStudy.el('backupPreview').textContent,/旧11種類のバックアップ/);
+ currentStudy.el('backupRestore').onclick();
+ assert.equal(currentStudy.storage.get(keys[11]),originalStudy,
+  'old 11-part backup must preserve new signed staff history');
  // Old nine-section v6 backup must not remove newly fixed 85-point records.
  const oldNine=fixture();for(const key of keys.slice(9))delete oldNine[key];
  const legacyNine=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v6',
