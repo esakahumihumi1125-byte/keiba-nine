@@ -44,6 +44,7 @@ from owner_auto_forecast_ui import (HTML as AUTO_FORECAST_HTML,
 from jrdb_owner_day_ui import HTML as OWNER_DAY_HTML, JS as OWNER_DAY_JS, CSS as OWNER_DAY_CSS
 from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
 from owner_past_staff_sample import inspect_one_past_staff_sample
+from owner_past_staff_batch import inspect_three_past_staff_samples
 from owner_rebound_receipts import (
     issue_rebound_watch_receipts, verify_rebound_watch_receipts,
     compare_watched_winners, WatchReceiptError
@@ -2455,12 +2456,16 @@ def create_app(settings=None):
                 if len(raw) != size:
                     raise ValueError()
                 args = json.loads(raw)
-                if not isinstance(args, dict) or set(args) - {'date', 'limit', 'staffSample'}:
+                if not isinstance(args, dict) or set(args) - {'date', 'limit', 'staffSample', 'staffBatchRaces'}:
                     raise ValueError()
                 date, limit = args.get('date'), args.get('limit', 8)
                 staff_sample = args.get('staffSample', False)
+                staff_batch = args.get('staffBatchRaces', 1)
                 if (not _valid_date(date) or type(limit) is not int
-                        or not 1 <= limit <= 8 or type(staff_sample) is not bool):
+                        or not 1 <= limit <= 8 or type(staff_sample) is not bool
+                        or type(staff_batch) is not int or staff_batch not in (1, 3)
+                        or ('staffBatchRaces' in args and not staff_sample)):
+
                     raise ValueError()
             except (ValueError, TypeError, UnicodeError, KeyError):
                 return response('400 Bad Request', {'error': '開催日または取得上限が不正です。'})
@@ -2511,11 +2516,14 @@ def create_app(settings=None):
                         preview, programme, password, date, now=stamp
                     )
                 if staff_sample:
-                    # Exactly the first already-validated past race: /dky and
-                    # /dse once each. Only the aggregates leave this service.
-                    # Fail-closed source problems HOLD the optional evidence;
-                    # signed picks, old scores and ROI remain untouched.
-                    preview['pastStaffSample'] = inspect_one_past_staff_sample(
+                    # Only the prevalidated fixed first 1 or 3 historical
+                    # races. No retries or arbitrary browser-supplied keys.
+                    # The original single-race response remains compatible.
+                    staff_fn = (inspect_three_past_staff_samples if
+                                staff_batch == 3 else inspect_one_past_staff_sample)
+                    staff_key = ('pastStaffBatch' if staff_batch == 3
+                                 else 'pastStaffSample')
+                    preview[staff_key] = staff_fn(
                         programme, entries, previous, date,
                         fetch_dky=fetch_historical_runner_staff,
                         fetch_dse=fetch_historical_finished_runners,
