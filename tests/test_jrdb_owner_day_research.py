@@ -3,6 +3,7 @@ import copy
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from jrdb_coverage import CoverageError
@@ -52,7 +53,47 @@ class OwnerDayResearchTests(unittest.TestCase):
         self.assertEqual(result["races"][0]["status"], "research_only")
         self.assertEqual(result["races"][1]["status"], "needs_review")
         self.assertIsNone(result["races"][1]["research"])
+        self.assertEqual(result["races"][1]["reviewStage"], "entries")
         self.assertFalse(result["predictionReady"])
+
+    def test_private_fixed_stage_codes_isolate_a_bad_source(self):
+        for stage in ("entries", "training", "recent", "runner_join"):
+            with self.subTest(stage=stage):
+                p, e, t, z, date = sample()
+                if stage == "entries":
+                    e[-1]["racedate"] = "20261102"
+                if stage == "training":
+                    # A bad training grade in Kyoto; no source strings leak.
+                    t[-1]["oikirisisu"] = "PRIVATE-RAW-WORKOUT"
+                if stage == "recent":
+                    z.append(copy.deepcopy(z[0]))
+                if stage == "runner_join":
+                    import jrdb_owner_day_research as module
+                    original = module.owner_runner_research
+
+                    def join(*args):
+                        if args[2:] == ("京都", 1):
+                            raise CoverageError("PRIVATE-RAW-ERROR-DO-NOT-LEAK")
+                        return original(*args)
+
+                if stage == "runner_join":
+                    with patch("jrdb_owner_day_research.owner_runner_research",
+                               side_effect=join):
+                        report = owner_day_research(p, e, t, z, date)
+                else:
+                    report = owner_day_research(p, e, t, z, date)
+                failed = [row for row in report["races"]
+                          if row["status"] == "needs_review"]
+                self.assertEqual(len(failed), 1)
+                # Duplicate recent for Tokyo is a Tokyo-only failure.
+                self.assertEqual(failed[0]["track"],
+                                 "東京" if stage == "recent" else "京都")
+                self.assertEqual(failed[0]["reviewStage"], stage)
+                self.assertIsNone(failed[0]["research"])
+                self.assertEqual(report["researchAvailableCount"], 1)
+                self.assertNotIn("PRIVATE-RAW", repr(report))
+                self.assertNotIn("racekey", repr(report))
+                self.assertNotIn("horse_id", repr(report))
 
     def test_empty_non_racing_date_is_not_misidentified_as_failure(self):
         result = owner_day_research([], [], [], [], "20261102")
