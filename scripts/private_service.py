@@ -2133,6 +2133,7 @@ def create_app(settings=None):
                     or settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
                     or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
                     or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not approved_api_base(settings.get('JRDB_API_BASE_URL', ''))
                     or not all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
                 return response('503 Service Unavailable', {
                     'error': '本人専用のJRDB研究用自動取得は未設定です。'})
@@ -2267,6 +2268,21 @@ def create_app(settings=None):
                 # read-only diagnostic must never mutate signed forecast
                 # receipts or create extra betting-ready grades.
                 report['sourcePassport'] = safe_owner_day_source_passport(report)
+                # Operator-only one-line proof of completing the genuine
+                # four-source pipeline, before sending the owner response.
+                # Fixed, aggregate values only: NO date, horse, race key,
+                # paid source row, credentials, host URL, or ticket contents.
+                # A live connection probe alone is not evidence of this step.
+                logging.warning(
+                    'KEIBA_AUTO_DRAFT_PIPELINE status=complete '
+                    'programme=%s drafts=%s holds=%s receipts=%s '
+                    'material=%s course=%s jra=unverified formal=ungraded',
+                    'present' if report['raceCount'] else 'empty',
+                    report['draftCount'], report['holdCount'],
+                    report['researchReceiptCount'],
+                    report['sourceMaterials']['status'],
+                    report['raceContext']['conditionProviderFetchStatus'],
+                )
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     ReceiptError, ArchiveUnavailable, ValueError, TypeError, KeyError) as exc:
                 if isinstance(exc, JRDBError):
