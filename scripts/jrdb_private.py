@@ -60,7 +60,12 @@ def _fetch_endpoint(endpoint, parameters):
     if endpoint in ('dra', 'dka', 'dky', 'dse'):
         racekey = parameters.get("racekey")
         if (set(parameters) != {"racekey"} or not isinstance(racekey, str)
-                or len(racekey) != 8 or any(ch not in "0123456789abcdef" for ch in racekey)):
+                or len(racekey) != 8
+                or any(ch not in "0123456789abcdef" for ch in racekey)
+                or racekey[:2] not in {f"{n:02d}" for n in range(1, 11)}
+                or not racekey[2:4].isdigit()
+                or not racekey[6:8].isdigit()
+                or not 1 <= int(racekey[6:8]) <= 12):
             raise JRDBError("Expected one lowercase eight-character JRDB race key")
     else:
         racedate = parameters.get("racedate")
