@@ -2329,6 +2329,20 @@ function boot(){
  assert.match(unsigned.get('autoSavedStatus').textContent,/保存はできませんでした/);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
+ // A receipt with the correct horses but an off-time that differs
+ // from the race in the validated draft cannot be shown or stored.
+ const timeShift=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ timeShift.storage.delete(STORAGE);
+ const wrongOff=resultWith('a'.repeat(64));
+ wrongOff.researchReceipts[0].snapshot.scheduledOffAt=
+  '2099-01-01T13:00:00+09:00';
+ timeShift.setServerRaw(wrongOff);
+ await timeShift.get('autoRun').onclick();
+ assert.equal(timeShift.storage.has(STORAGE),false);
+ assert.equal(timeShift.get('autoRaces').children.length,0);
+ assert.match(timeShift.get('autoSavedStatus').textContent,/保存はできませんでした/);
+ assert.equal(timeShift.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // A malformed or repeated receipt from ANOTHER DATE must stop any new
  // appends without deleting the existing archive or touching purchases.
  const crossDay=boot();
