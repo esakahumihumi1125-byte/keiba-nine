@@ -58,7 +58,7 @@ def inspect_one_past_staff_sample(programme, entries, previous, day, *,
         raise HistoryFetchError("Private historic callbacks required")
     plan = plan_bounded_history(programme, entries, previous, day, limit)
     pairs = plan.get("privateSelected")
-    if not isinstance(pairs, list):
+    if not isinstance(pairs, (list, tuple)):
         raise HistoryFetchError("Historical sample plan unavailable")
     if not pairs:
         return _report("no_referenced_past_race")
