@@ -4594,7 +4594,7 @@ $('autoHistoryAudit').onclick=async()=>{
       x.initialPublicationTimeVerified!==false||
       x.sourceTimestampAuthenticityVerified!==false||
       x.historicalResultPublicationTimesVerified!==false||
-      x.independentJraVerified!==false||
+      x.independentJraVerified!==false||x.officialJraVerified!==false||
       x.formalTenFactorsReady!==false||x.bettingReady!==false||
       x.researchOnly!==true||x.privateOwnerOnly!==true||
       x.extraProviderCalls!==0||x.changesExistingTickets!==false||
