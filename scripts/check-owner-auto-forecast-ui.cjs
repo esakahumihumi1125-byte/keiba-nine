@@ -799,6 +799,26 @@ function withPastStaffSample(report){
  };
  return report;
 }
+function withPastStaffBatch(report){
+ report.pastStaffBatch={
+  version:'owner-past-staff-batch-1',
+  requestedRaceLimit:3,selectedPastRaceCount:3,providerReadCount:6,
+  providerReadBudget:6,completedJoinRaceCount:3,heldOrIncompleteRaceCount:0,
+  providerUnavailable:false,totalJoinedRunnerObservations:21,
+  distinctJockeyCount:2,distinctTrainerCount:2,distinctPairCount:2,
+  pairsSeenInTwoOrMoreRaces:2,pairRunnerObservations:21,
+  observedFirstPlaceCount:3,observedTopThreeCount:9,
+  sourceFamily:'private_dky_dse_bounded_races',
+  pastResultPublicationVerified:false,independentJraVerified:false,
+  fullTenFactorReady:false,jockeyTrainerPerformanceAssessed:false,
+  holdoutValidated:false,formalTenPointGrade:'未評価',formalTenPointScore:null,
+  predictionReady:false,bettingReady:false,autoPurchase:false,
+  actualPurchase:false,researchOnly:true,privateOwnerOnly:true,
+  changesExistingReceipts:false,changesExistingTickets:false,
+  changesExistingRoi:false,additionalPaidReadsOnlyOnExplicitOptIn:true
+ };
+ return report;
+}
 function withPedigreePreflight(report){
  withFiveCore(report);
  const inv=report.tenFactorSourceInventory;
@@ -1773,6 +1793,49 @@ function boot(){
   assert.equal(a.storage.get(FIVE_STORAGE),oldFixed85);
   assert.equal(a.storage.get(STORAGE),oldRecord);
  }
+ // Three-race mode is still a separately selected, explicitly paid opt-in.
+ a.get('autoHistoryStaffSample').checked=true;
+ a.get('autoHistoryStaffRaceLimit').value='3';
+ const beforeBatch=a.requests.length;
+ a.setHistorical(withPastStaffBatch(historical()));
+ await a.get('autoHistoryAudit').onclick();
+ const batchRequest=a.requests.slice(beforeBatch).find(x=>
+  x.url==='/api/jrdb/history');
+ assert.deepEqual(JSON.parse(batchRequest.options.body),
+  {date:day,limit:8,staffSample:true,staffBatchRaces:3});
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/過去3Rのうち資料結合3R・保留0R/);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/追加照会6\/6回/);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/2R以上に登場：2組/);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/10点採点・公式結果・回収率には未使用/);
+ assert.equal(a.storage.get(FIVE_STORAGE),oldFixed85);
+ assert.equal(a.storage.get(STORAGE),oldRecord);
+ for(const mutate of [
+  x=>x.pastStaffBatch.formalTenPointScore=10,
+  x=>x.pastStaffBatch.formalTenPointGrade='S',
+  x=>x.pastStaffBatch.providerReadCount=7,
+  x=>x.pastStaffBatch.pairsSeenInTwoOrMoreRaces=19,
+  x=>x.pastStaffBatch.completedJoinRaceCount=4,
+  x=>x.pastStaffBatch.observedFirstPlaceCount=2,
+  x=>x.pastStaffBatch.independentJraVerified=true,
+  x=>x.pastStaffBatch.changesExistingRoi=true,
+  x=>x.pastStaffBatch.distinctPairCount=25,
+ ]){
+  const corrupt=withPastStaffBatch(historical());mutate(corrupt);
+  a.setHistorical(corrupt);
+  await a.get('autoHistoryAudit').onclick();
+  assert.equal(a.get('autoHistoryAuditRaces').children.length,0);
+  assert.match(a.get('autoHistoryAuditStatus').textContent,/照合ができません/);
+  assert.equal(a.storage.get(FIVE_STORAGE),oldFixed85);
+  assert.equal(a.storage.get(STORAGE),oldRecord);
+ }
+ // Returning to single-race retains the old response shape and budget.
+ a.get('autoHistoryStaffRaceLimit').value='1';
+ a.setHistorical(withPastStaffSample(historical()));
+ const oldRequest=a.requests.length;
+ await a.get('autoHistoryAudit').onclick();
+ const oneReq=a.requests.slice(oldRequest).find(x=>x.url==='/api/jrdb/history');
+ assert.equal(JSON.parse(oneReq.options.body).staffBatchRaces,undefined);
+ assert.match(a.get('autoHistoryStaffStatus').textContent,/過去1Rを資料結合：7頭/);
  // Default remains zero staff queries; the request has no staffSample field.
  a.get('autoHistoryStaffSample').checked=false;
  const afterExtra=a.requests.length;
