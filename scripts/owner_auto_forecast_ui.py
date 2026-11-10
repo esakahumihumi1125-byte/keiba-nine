@@ -1154,10 +1154,41 @@ function saveAutoReceipts(data,day){
  if(raw&&raw.length>650000)throw Error('端末内の固定記録が上限を超えました');
  const existing=JSON.parse(raw||'[]');
  if(!Array.isArray(existing)||existing.length>360)throw Error('保存済みの記録形式を確認できません');
- const identities=new Set(existing.map(x=>{
-  if(!x||!x.snapshot||typeof x.signature!=='string')throw Error('古い記録に不整合があります');
-  return x.snapshot.date+'|'+x.snapshot.track+'|'+x.snapshot.race;
- }));
+ // Reject corrupt or repeated records on ANY date before appending to the
+ // shared ledger. A different-day duplicate must not silently survive while
+ // the current day's new predictions are marked "saved".
+ const identities=new Set(),tracks=new Set(['札幌','函館','福島','新潟','東京',
+  '中山','中京','京都','阪神','小倉']);
+ for(const old of existing){
+  const p=old?.snapshot,id=p&&p.date+'|'+p.track+'|'+p.race;
+  if(!p||typeof p.date!=='string'||!/^20\\d{2}-\\d{2}-\\d{2}$/.test(p.date)||
+     !Number.isFinite(Date.parse(p.date+'T12:00:00Z'))||
+     new Date(p.date+'T12:00:00Z').toISOString().slice(0,10)!==p.date||
+     !tracks.has(p.track)||!Number.isInteger(p.race)||p.race<1||p.race>12||
+     identities.has(id)||typeof old.signature!=='string'||
+     !/^[a-f0-9]{64}$/.test(old.signature)||
+     p.sourceKind!=='prestart-locked'||p.actualPurchase!==false||
+     p.scheduleVerified!==false||p.predictionVerified!==false||
+     typeof p.lockedAt!=='string'||typeof p.scheduledOffAt!=='string'||
+     !/(?:Z|[+-]\\d\\d:\\d\\d)$/.test(p.lockedAt)||
+     !/(?:Z|[+-]\\d\\d:\\d\\d)$/.test(p.scheduledOffAt)||
+     !Number.isFinite(Date.parse(p.lockedAt))||
+     !Number.isFinite(Date.parse(p.scheduledOffAt))||
+     Date.parse(p.lockedAt)>=Date.parse(p.scheduledOffAt)||
+     !Array.isArray(p.trifectaTickets)||p.trifectaTickets.length<1||
+     p.trifectaTickets.length>48||!Array.isArray(p.trioTickets)||
+     p.trioTickets.length!==0)
+   throw Error('古い記録に不整合があります');
+  const tickets=new Set();
+  for(const ticket of p.trifectaTickets){
+   if(!Array.isArray(ticket)||ticket.length!==3||
+      ticket.some(n=>!Number.isInteger(n)||n<1||n>18)||
+      new Set(ticket).size!==3||tickets.has(ticket.join('-')))
+    throw Error('古い買い目に不整合があります');
+   tickets.add(ticket.join('-'));
+  }
+  identities.add(id);
+ }
  let added=0;
  const combined=existing.slice();
  for(const receipt of signed){
