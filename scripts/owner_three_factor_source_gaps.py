@@ -7,9 +7,6 @@ Source presence is NOT aptitude, a calibrated score or official JRA proof.
 """
 from evaluation_policy import OWNER_FORMAL_FACTORS
 from jrdb_coverage import CoverageError
-from jrdb_course_ground_factor_bridge import (
-    VERSION as COURSE_VERSION,
-)
 from jrdb_experimental_pace_scenarios import VERSION as PACE_VERSION
 
 VERSION = "owner-research6-three-factor-source-gaps-1"
@@ -87,13 +84,11 @@ def _pace_runner(horse):
             or not isinstance(horse.get("reason"), str)
             or not horse["reason"]):
         raise CoverageError("Invalid pace observation")
-    if ((horse["pastFourthCorner"] == "insufficient")
-            != (horse["scenarioFitBand"] == "未評価"
-                and horse["reason"] == "insufficient_position_coverage")):
-        # Other unassessed reasons (e.g. no observed front candidate) are
-        # permitted only for an observed style, never for 'insufficient'.
-        if horse["pastFourthCorner"] == "insufficient":
-            raise CoverageError("Unknown past position promoted to pace")
+    if (horse["pastFourthCorner"] == "insufficient"
+            and (horse["scenarioFitBand"] != "未評価"
+                 or horse["reason"] != "insufficient_position_coverage")):
+        # Missing prior position data must never be treated as proven pace.
+        raise CoverageError("Unknown past position promoted to pace")
     return horse
 
 
