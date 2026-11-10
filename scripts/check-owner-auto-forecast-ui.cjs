@@ -1808,8 +1808,9 @@ function boot(){
  const threePanel=threeCard.children.find(x=>x.tag==='details'&&
   /コース17・展開17・馬場12/.test(x.children[0]?.textContent||''));
  assert.ok(threePanel,'show 46-point source gap panel on verified owner races');
- assert.match(threePanel.textContent,/正式/);
- assert.match(threePanel.textContent,/資料/);
+ const threeText=threePanel.children.map(x=>x.textContent).join(' ');
+ assert.match(threeText,/正式/);
+ assert.match(threeText,/資料/);
  assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,
   beforeThreeSource+1,'only the explicit existing history lookup');
  assert.equal(a.storage.get(STORAGE),oldBeforeThreeSource);
