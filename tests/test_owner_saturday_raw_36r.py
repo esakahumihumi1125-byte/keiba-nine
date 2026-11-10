@@ -81,21 +81,27 @@ def owner_app():
     })
 
 
-def run_request(data):
+def run_request(data, *, clocks=None):
     programme, entries, training, previous = data
+    clock_patch = (patch("private_service._now_in_jst", side_effect=clocks)
+                   if clocks is not None else
+                   patch("private_service._now_in_jst",
+                         return_value="2099-01-01T09:00:00+09:00"))
     with (
         patch("private_service.fetch_race_program", return_value=programme) as tra,
         patch("private_service.fetch_horse_entries", return_value=entries) as tky,
         patch("private_service.fetch_training_analysis", return_value=training) as tcy,
         patch("private_service.fetch_recent_runs", return_value=previous) as tze,
         patch("private_service.fetch_venue_conditions", return_value=[]) as tka,
-        patch("private_service._now_in_jst",
-              return_value="2099-01-01T09:00:00+09:00"),
+        clock_patch as clock,
     ):
         reply = call(owner_app(), "/api/jrdb/owner-auto-draft",
                      QUERY_STRING="date=" + DAY)
     for adapter in (tra, tky, tcy, tze, tka):
         adapter.assert_called_once_with(DAY)
+    clock.assert_called()
+    if clocks is not None:
+        assert clock.call_count == 2
     return reply
 
 
@@ -163,6 +169,48 @@ class SaturdayRawDayTests(unittest.TestCase):
                 "tickets", "trifecta", "0526", "TRAINING", "JRDB_API"):
             self.assertNotIn(forbidden, events[0])
         self.assertNotIn("KEIBA_AUTO_DRAFT_FAILURE", " ".join(captured.output))
+
+    def test_optional_context_finishes_after_one_off_no_new_late_ticket(self):
+        programme, entries, training, previous = raw_day()
+        # One race starts while the optional fifth /tka is being processed.
+        # Initial research/HMAC capture still occurred BEFORE its start.
+        target = next(r for r in programme if r["racekey"] == "0599aa02")
+        target["post_time"] = "1000"
+        times = ["2099-01-01T09:59:00+09:00",
+                 "2099-01-01T10:01:00+09:00"]
+        with self.assertLogs(level="WARNING") as logs:
+            response = run_request(
+                (programme, entries, training, previous), clocks=times)
+        self.assertEqual(response["status"], "200 OK", response["body"][:200])
+        report = json.loads(response["body"])
+        self.assertEqual((report["raceCount"], report["draftCount"],
+                          report["holdCount"]), (36, 35, 1))
+        self.assertEqual(report["holdReasons"], {"after_provisional_off": 1})
+        self.assertEqual(report["researchReceiptCount"], 35)
+        self.assertEqual(len(verify_preview_receipts(
+            report["researchReceipts"], SECRET, "2099-01-01")), 35)
+        self.assertTrue(report["sourcePassport"]["sourceAuditAvailable"])
+        self.assertEqual(report["sourcePassport"]["raceCount"], 36)
+        held = [x for x in report["races"] if x["status"] == "hold"]
+        self.assertEqual([(r["track"], r["race"]) for r in held],
+                         [("東京", 2)])
+        self.assertEqual(held[0]["reason"], "after_provisional_off")
+        self.assertFalse(held[0]["tickets"])
+        self.assertFalse(held[0]["runners"])
+        self.assertEqual(held[0]["points"], 0)
+        self.assertEqual(held[0]["amountYen"], 0)
+        one = next(x for x in report["tenFactorPreview"]["races"]
+                   if x["track"] == "東京" and x["race"] == 2)
+        self.assertEqual(one["runnerCount"], 0)
+        self.assertEqual(one["horses"], [])
+        successes = [x for x in logs.output
+                     if "KEIBA_AUTO_DRAFT_PIPELINE" in x]
+        self.assertEqual(len(successes), 1)
+        self.assertIn("expired_on_return=1", successes[0])
+        self.assertIn("hold_causes=after_provisional_off:1", successes[0])
+        self.assertFalse(report["officialJraVerified"])
+        self.assertFalse(report["overallPredictionReady"])
+        self.assertNotIn("PRIVATE-", response["body"].decode())
 
     def test_one_source_withdrawal_logs_fixed_hold_cause_no_horse_data(self):
         programme, entries, training, previous = raw_day()
