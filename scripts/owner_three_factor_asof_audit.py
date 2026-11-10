@@ -72,12 +72,15 @@ def _race_fields(row, *, target):
     if type(row) is not dict or set(row) != (TARGET_KEYS if target else PAST_KEYS):
         raise CoverageError("Unexpected AS-OF source fields")
     day = _date(row["raceDate"])
-    if (row["track"] not in TRACKS or type(row["race"]) is not int
-            or not 1 <= row["race"] <= 12
+    if (type(row["track"]) is not str or row["track"] not in TRACKS
+            or type(row["race"]) is not int or not 1 <= row["race"] <= 12
+            or type(row["surface"]) is not str
             or row["surface"] not in SURFACES
             or type(row["distanceM"]) is not int
             or not 800 <= row["distanceM"] <= 4000
-            or (row["going"] is not None and row["going"] not in GOINGS)):
+            or (row["going"] is not None
+                and (type(row["going"]) is not str
+                     or row["going"] not in GOINGS))):
         raise CoverageError("Invalid AS-OF track or conditions")
     off = _timestamp(row["scheduledOffAt"])
     if off.astimezone(JST).date() != day:
