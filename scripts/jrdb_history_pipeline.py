@@ -37,6 +37,7 @@ from owner_three_core_research import three_core_research
 from owner_four_core_research import four_core_research
 from owner_five_core_research import five_core_research
 from owner_new_weight_five_research import new_weight_five_research
+from owner_three_factor_source_gaps import three_factor_source_gaps
 from owner_remaining21_source_gaps import remaining21_source_gaps
 from owner_research6_uncertainty import research6_uncertainty_intervals
 from owner_research6_five_drafts import build_research6_five_drafts
@@ -252,6 +253,9 @@ def run_bounded_history_audit(programme, entries, previous,
         runner_history = summarize_owner_runner_course_going(
             course_matrix, observations
         )
+        three_factor_source_audit = three_factor_source_gaps(
+            runner_history, pace_scenarios
+        )
         historical_bands = hypothesis_from_owner_history(runner_history)
         five_factor_view = combine_five_factor_hypotheses(
             private_matrix, historical_bands, pace_scenarios
@@ -355,6 +359,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "tenFactorMaterials": materials,
         "privateHistoryFactors": history_factor_summary,
         "ownerRunnerHistory": runner_history,
+        "research6ThreeFactorSourceGaps": three_factor_source_audit,
         "historicalEvidenceBands": historical_bands,
         "paceScenarioHypotheses": pace_scenarios,
         "fiveFactorHypotheses": five_factor_view,
