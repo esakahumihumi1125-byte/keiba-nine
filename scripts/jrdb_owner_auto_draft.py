@@ -315,7 +315,8 @@ def build_owner_auto_drafts(programme, research_report, day, *, now=None):
                 raise CoverageError("Unverified research must be null")
             # Older research snapshots can lack the optional fixed code.
             stage = item.get("reviewStage")
-            if stage is not None and stage not in REVIEW_STAGES:
+            if stage is not None and (
+                    not isinstance(stage, str) or stage not in REVIEW_STAGES):
                 raise CoverageError("Invalid research review stage")
         elif "reviewStage" in item:
             raise CoverageError("Unexpected stage for complete research")
