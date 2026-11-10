@@ -2238,6 +2238,41 @@ function boot(){
  assert.equal(a.get('autoRaces').children.length,0);
  assert.equal(a.get('autoVenues').children.length,0);
  assert.equal(a.get('autoHoldReasons').children.length,0);
+
+ // Save-first: iPhone quota refusal must hide unpersisted 3連単.
+ const quota=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ quota.storage.delete(STORAGE);
+ quota.setStorageWritable(false);
+ await quota.get('autoRun').onclick();
+ assert.equal(quota.storage.has(STORAGE),false);
+ assert.equal(quota.get('autoRaces').children.length,0);
+ assert.equal(quota.get('autoVenues').children.length,0);
+ assert.equal(quota.get('autoRacePick').disabled,true);
+ assert.match(quota.get('autoStatus').textContent,/端末保存失敗/);
+ assert.match(quota.get('autoSavedStatus').textContent,/保存はできませんでした/);
+ assert.match(quota.get('autoOperationalNext').textContent,/端末保存失敗/);
+ assert.equal(quota.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // A retry BEFORE the off time makes a single immutable original.
+ quota.setStorageWritable(true);
+ await quota.get('autoRun').onclick();
+ assert.equal(JSON.parse(quota.storage.get(STORAGE)).length,1);
+ assert.equal(quota.get('autoRaces').children.length,1);
+ assert.ok(quota.get('autoRaces').children[0].children[0].children.some(
+  x=>x.className==='formation'));
+ assert.match(quota.get('autoSavedStatus').textContent,/新規 1R/);
+ // A provisional draft without its server signature cannot be shown.
+ const unsigned=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ unsigned.storage.delete(STORAGE);
+ const noSignature=resultWith('a'.repeat(64));
+ noSignature.researchReceipts=[];
+ noSignature.researchReceiptCount=0;
+ unsigned.setServerRaw(noSignature);
+ await unsigned.get('autoRun').onclick();
+ assert.equal(unsigned.storage.has(STORAGE),false);
+ assert.equal(unsigned.get('autoRaces').children.length,0);
+ assert.match(unsigned.get('autoSavedStatus').textContent,/保存はできませんでした/);
  const firstSave=JSON.parse(a.storage.get(STORAGE));
  assert.equal(firstSave.length,1);
  // A malformed or repeated receipt from ANOTHER DATE must stop any new
