@@ -437,6 +437,10 @@ function withThreeFactorSourceGaps(report){
    noCourseComparableRuns:0,courseHistoryIncomplete:0,
    currentGoingUnknown:0,noSameGoingRuns:0,paceScenarioUnassessed:0
   };
+  const min={
+   courseDistanceAtLeastThree:0,sameGoingAtLeastThree:0,
+   paceScenarioObserved:0,allThreeMinimumStudySamples:0
+  };
   const horses=r.runners.map(h=>{
    const p=pByNum.get(h.number),course=h.comparableRuns>0,
     hist=h.historyLookupComplete,ground=h.currentGoingRecorded,
@@ -444,7 +448,15 @@ function withThreeFactorSourceGaps(report){
     position=p.pastFourthCorner!=='insufficient',
     scenario=pace.coverageAdequate&&p.scenarioFitBand!=='未評価',
     present={course_distance:course&&hist,pace:scenario,ground:matched&&hist},
-    missing=keys.filter(k=>!present[k]);
+    missing=keys.filter(k=>!present[k]),
+    samples={course_distance:hist&&h.comparableRuns>=3,
+     pace:scenario,ground:hist&&ground&&h.matchingCurrentGoingRuns>=3},
+    blockers=[];
+   if(!hist)blockers.push('course_history_incomplete');
+   if(h.comparableRuns<3)blockers.push('course_sample_below_three');
+   if(!ground)blockers.push('current_going_not_recorded');
+   if(h.matchingCurrentGoingRuns<3)blockers.push('same_going_sample_below_three');
+   if(!scenario)blockers.push('pace_scenario_unobserved');
    observed.courseComparableObserved+=Number(course);
    observed.courseHistoryComplete+=Number(hist);
    observed.currentGoingRecorded+=Number(ground);
@@ -457,24 +469,34 @@ function withThreeFactorSourceGaps(report){
    gaps.currentGoingUnknown+=Number(!ground);
    gaps.noSameGoingRuns+=Number(ground&&!matched);
    gaps.paceScenarioUnassessed+=Number(!scenario);
+   min.courseDistanceAtLeastThree+=Number(samples.course_distance);
+   min.sameGoingAtLeastThree+=Number(samples.ground);
+   min.paceScenarioObserved+=Number(samples.pace);
+   min.allThreeMinimumStudySamples+=Number(keys.every(k=>samples[k]));
    return {number:h.number,sourcePresent:present,missingSourceFactors:missing,
-    allThreeSourcesPresent:missing.length===0,formalGradesVerified:0,
+    allThreeSourcesPresent:missing.length===0,
+    minimumStudySamples:samples,allThreeStudySamplesMet:keys.every(k=>samples[k]),
+    sampleGaps:blockers,formalGradesVerified:0,
     formalGradeReady:false,officialJraVerified:false,holdoutValidated:false};
   });
   return {track:r.track,race:r.race,runnerCount:r.runnerCount,
-   observed,gaps,runners:horses,allThreeAreResearchOnly:true,
+   observed,gaps,minimumSampleCoverage:min,
+   runners:horses,allThreeAreResearchOnly:true,
    formalGradesVerified:0,bettingReady:false};
  });
  report.research6ThreeFactorSourceGaps={
-  version:'owner-research6-three-factor-source-gaps-1',
+  version:'owner-research6-three-factor-source-gaps-2',
   policyVersion:'research-6',
   factorWeights:{course_distance:17,pace:17,ground:12},weightTotal:46,
+  minimumComparableRuns:3,
   raceCount:races.length,races,extraProviderCalls:0,
   researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
   courseSuitabilityAssessed:false,paceForecastReady:false,
   goingSuitabilityAssessed:false,formalGradesVerified:0,
   independentTimeCutVerified:false,
   conditionMatchedHoldoutValidated:false,factorRubricsCalibrated:false,
+  historicalResultPublicationTimesVerified:false,
+  independentSourceFamiliesVerified:false,
   overallPredictionReady:false,bettingReady:false,changesExistingTickets:false
  };
  return report;
@@ -1812,6 +1834,7 @@ function boot(){
  const threeText=threeSourcePanel.children.map(x=>x.textContent).join(' ');
  assert.match(threeText,/正式/);
  assert.match(threeText,/資料/);
+ assert.match(threeText,/最低3走/);
  assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,
   beforeThreeSource+1,'only the explicit existing history lookup');
  assert.equal(a.storage.get(STORAGE),oldBeforeThreeSource);
@@ -1820,6 +1843,14 @@ function boot(){
    .sourcePresent.course_distance=true,
   h=>h.research6ThreeFactorSourceGaps.races[0].observed.sameGoingObserved+=1,
   h=>h.research6ThreeFactorSourceGaps.factorWeights.pace=20,
+  h=>h.research6ThreeFactorSourceGaps.minimumComparableRuns=1,
+  h=>h.research6ThreeFactorSourceGaps
+   .races[0].runners[0].minimumStudySamples.ground=true,
+  h=>h.research6ThreeFactorSourceGaps
+   .races[0].runners[0].sampleGaps=[],
+  h=>h.research6ThreeFactorSourceGaps
+   .races[0].minimumSampleCoverage.allThreeMinimumStudySamples=7,
+  h=>h.research6ThreeFactorSourceGaps.historicalResultPublicationTimesVerified=true,
   h=>h.research6ThreeFactorSourceGaps.factorRubricsCalibrated=true,
   h=>h.research6ThreeFactorSourceGaps.races[0].runners[0]
    .formalGradeReady=true
