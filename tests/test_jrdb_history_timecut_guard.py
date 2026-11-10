@@ -57,6 +57,28 @@ class HistoryTimecutGuardTests(unittest.TestCase):
             row["race_back_2_racekey"] = "05264a03"
         self._reject_before_reads(reverse)
 
+    def test_duplicate_previous_rows_for_same_current_runner_are_rejected(self):
+        programme, entries, previous, current, dra, dka = context()
+        previous.append(copy.deepcopy(previous[0]))
+        original = copy.deepcopy(previous)
+        with self.assertRaises(CoverageError):
+            plan_bounded_history(
+                programme, entries, previous, TARGET_DAY)
+        with self.assertRaises(CoverageError):
+            run_bounded_history_audit(
+                programme, entries, previous, current, TARGET_DAY,
+                fetch_dra=dra, fetch_dka=dka,
+            )
+        dky, dse = Mock(), Mock()
+        with self.assertRaises(CoverageError):
+            inspect_three_past_staff_samples(
+                programme, entries, previous, TARGET_DAY,
+                fetch_dky=dky, fetch_dse=dse,
+            )
+        for paid in (dra, dka, dky, dse):
+            paid.assert_not_called()
+        self.assertEqual(previous, original)
+
     def test_valid_cross_runner_references_are_still_deduplicated(self):
         programme, entries, previous, current, dra, dka = context()
         original = copy.deepcopy(previous)
