@@ -33,7 +33,9 @@ def seal_auto_research_drafts(report, password, now=None):
             or report.get("overallPredictionReady") is not False
             or report.get("bettingReady") is not False
             or report.get("autoPurchase") is not False
-            or report.get("sourceReadCount") != 4
+            or report.get("sourceReadCount") not in (1, 4)
+            or (report.get("sourceReadCount") == 1 and
+                report.get("raceCount") != 0)
             or not isinstance(report.get("races"), list)
             or len(report["races"]) > 120
             or report.get("raceCount") != len(report["races"])):
