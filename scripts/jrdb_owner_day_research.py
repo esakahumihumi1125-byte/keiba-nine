@@ -118,7 +118,8 @@ def owner_day_research(programme, entries, training, previous, date, *, source_r
         "predictionReady": False,
         "bettingReady": False,
         "sourceReadCount": source_read_count,
-        "note": ("本人の操作時に開催日分の番組・出走馬・調教・近走を各1回だけ読み、"
+        "note": ("本人の操作時に番組を先に1回だけ読み、0Rなら後続の資料照会を省略。"
+                 "番組にレースがあれば出走馬・調教・近走を各1回だけ取得し、"
                  "馬番別の未検証2項目を研究用に表示する。"
                  "レースごとに別々に整合性を確認し、不一致は要確認。"
                  "JRA公式の取消・馬場・発走時刻と残り8項目は未評価。"
