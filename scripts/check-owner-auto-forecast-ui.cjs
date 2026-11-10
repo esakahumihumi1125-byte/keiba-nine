@@ -3354,6 +3354,54 @@ function boot(){
  forgedR6.get('autoDay').onchange();
  assert.equal(forgedR6.get('autoResearch6DraftVerify').disabled,true);
  assert.match(forgedR6.get('autoResearch6DraftSaveStatus').textContent,/確認できません/);
+ // A legitimate server-signed response can arrive AFTER a race has begun.
+ // Never newly save or display that formation; keep other pre-off races.
+ const delayed=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ delayed.storage.delete(STORAGE); // No prior lock for the test day.
+ const straddled=full36EligibleDrafts();
+ straddled.races[0].postTime='11:00';
+ straddled.researchReceipts[0].snapshot.scheduledOffAt=
+  '2099-01-01T11:00:00+09:00';
+ delayed.setServerRaw(straddled);
+ let allowDelayedReply;
+ const paused=new Promise(resolve=>{allowDelayedReply=resolve;});
+ delayed.waitNextFetch(paused);
+ const pending=delayed.get('autoRun').onclick();
+ delayed.advanceClock('2099-01-01T02:30:00Z'); // 11:30 JST
+ allowDelayedReply();
+ await pending;
+ assert.equal(JSON.parse(delayed.storage.get(STORAGE)).length,35,
+  'only the other 35 races remain eligible for local first-write');
+ assert.match(delayed.get('autoSavedStatus').textContent,/新規 35R/);
+ assert.match(delayed.get('autoSavedStatus').textContent,/保存しなかった1R/);
+ assert.match(delayed.get('autoSummary').textContent,
+  /36R中、研究用自動案 35R／見送り 0R/);
+ const afterOffRace=delayed.get('autoRaces').children[0].children[0];
+ assert.match(afterOffRace.children[0].textContent,/発走時刻経過・新案非表示/);
+ assert.equal(afterOffRace.children.filter(x=>x.className==='formation').length,0);
+ const nextFuture=delayed.get('autoRaces').children[0].children[1];
+ assert.equal(nextFuture.children.filter(x=>x.className==='formation').length,1);
+ const storedBeforeResume=delayed.storage.get(STORAGE);
+ const readsBeforeResume=delayed.requests.length;
+ delayed.advanceClock('2099-01-01T03:01:00Z'); // Past ALL noon off-times
+ delayed.resume();
+ assert.equal(delayed.requests.length,readsBeforeResume,
+  'foreground expiry does not re-fetch paid JRDB data');
+ assert.equal(delayed.storage.get(STORAGE),storedBeforeResume);
+ assert.match(delayed.get('autoSummary').textContent,/研究用自動案 0R/);
+ assert.equal(delayed.get('autoRaces').children[0].children
+  .flatMap(card=>card.children.filter(x=>x.className==='formation')).length,0);
+ // A fully late single-race response must not be newly stored at all.
+ const allLate=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ allLate.storage.delete(STORAGE);
+ allLate.advanceClock('2099-01-01T03:01:00Z');
+ await allLate.get('autoRun').onclick();
+ assert.equal(allLate.storage.get(STORAGE),undefined);
+ assert.match(allLate.get('autoSummary').textContent,/研究用自動案 0R/);
+ assert.equal(allLate.get('autoRaces').children[0].children[0].children
+  .filter(x=>x.className==='formation').length,0);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
