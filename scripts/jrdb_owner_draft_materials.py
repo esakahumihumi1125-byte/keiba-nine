@@ -81,3 +81,66 @@ def observe_owner_draft_materials(programme, entries, training, recent, day):
     return {"version": VERSION, "status": "observed",
             "observedFactorSlots": 8, "gradedNewFactors": 0,
             "officialJraVerified": False, "races": output}
+
+
+def observe_owner_draft_materials_isolated(programme, entries, training, recent, day):
+    """Keep independent races' optional 8-factor *source coverage* visible.
+
+    First use the original strict whole-day evaluator. If any race's source
+    material is malformed, retry in-memory with exactly one programme race
+    and its four already-fetched source lists. This does NOT issue provider
+    requests, repair bad paid records, assign grades, or rank horses.
+    A failed race is simply absent from 'partial' observations, never 0/0.
+    """
+    try:
+        return observe_owner_draft_materials(
+            programme, entries, training, recent, day)
+    except (CoverageError, ValueError, TypeError, KeyError):
+        pass
+    if (not isinstance(programme, list) or len(programme) > 120
+            or not all(isinstance(p, dict) for p in programme)):
+        return unavailable()
+    sources = (entries, training, recent)
+    if any(not isinstance(source, list) or len(source) > 50000
+           or not all(isinstance(item, dict) for item in source)
+           for source in sources):
+        return unavailable()
+    coords = set()
+    observed = []
+    for race in programme:
+        coord = (race.get("track"), race.get("race"))
+        if coord in coords:
+            return unavailable()
+        coords.add(coord)
+        key = race.get("racekey")
+        if not isinstance(key, str):
+            continue
+        one = ([item for item in source if item.get("racekey") == key]
+               for source in sources)
+        one_entries, one_training, one_recent = one
+        try:
+            result = observe_owner_draft_materials(
+                [race], one_entries, one_training, one_recent, day)
+            if (result.get("status") != "observed"
+                    or result.get("races") is None
+                    or len(result["races"]) != 1
+                    or (result["races"][0].get("track"),
+                        result["races"][0].get("race")) != coord):
+                continue
+            observed.append(result["races"][0])
+        except (CoverageError, ValueError, TypeError, KeyError):
+            continue
+    if not observed:
+        return unavailable()
+    if len(observed) == len(programme):
+        # Even if the whole-day aggregator rejects unrelated/orphan rows,
+        # never call the partial fallback 'all observed'. The global source
+        # shape was not validated, so preserve the diagnostic distinction.
+        status = "partial"
+    else:
+        status = "partial"
+    return {
+        "version": VERSION, "status": status,
+        "observedFactorSlots": 8, "gradedNewFactors": 0,
+        "officialJraVerified": False, "races": observed,
+    }
