@@ -268,14 +268,16 @@ const REASONS={
  after_provisional_off:'暫定発走時刻を過ぎたため後付け買い目なし',
  ambiguous_equal_grade_boundary:'同評価の馬が候補の境界にいるため選定保留',
  invalid_two_factor:'このレースの調教・近走の資料検証に不一致があり、安全のため見送り',
- archived_earlier_draft:'このRの別の買い目が先にサーバーへ固定済み。再分析の買い目は表示しません。固定済み記録は100円仮想収支で確認'
+ archived_earlier_draft:'このRの別の買い目が先にサーバーへ固定済み。再分析の買い目は表示しません。固定済み記録は100円仮想収支で確認',
+ provider_withdrawal:'JRDB資料に出走取消の報告あり。研究用3連単は作成せず、JRA公式で取消・出走馬を確認してください。以前の固定買い目があっても有効とは限りません'
 };
 const SHORT_HOLDS={
  after_provisional_off:'発走済み',missing_factors:'調教・近走不足',
  ambiguous_equal_grade_boundary:'候補同点',missing_research:'資料確認',
  invalid_two_factor:'2項目不整合',runner_count_mismatch:'頭数不一致',
  too_few_runners:'少頭数',missing_post_time:'発走時刻未確認',
- archived_earlier_draft:'既存の固定買い目を優先'
+ archived_earlier_draft:'既存の固定買い目を優先',
+ provider_withdrawal:'提供元の取消報告'
 };
 const RUNNER_ISSUES={
  contract:'2項目評価の形式',runner_shape:'馬番別資料の形式',
