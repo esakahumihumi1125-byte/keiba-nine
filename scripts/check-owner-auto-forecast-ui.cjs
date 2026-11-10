@@ -2296,6 +2296,25 @@ function boot(){
    assert.equal(roundTrip.get('autoRaces').children.length,0);
   }
  }
+ // A silently ignored 36R write must preserve the one *earlier* signed
+ // race, while withholding all 35 newly generated formations.
+ const staleWrite=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ const originalSingle=staleWrite.storage.get(STORAGE);
+ staleWrite.setServerRaw(full36EligibleDrafts());
+ staleWrite.setStorageWriteMode('silent-drop');
+ await staleWrite.get('autoRun').onclick();
+ assert.equal(staleWrite.storage.get(STORAGE),originalSingle);
+ assert.equal(staleWrite.get('autoRaces').children.length,0);
+ assert.equal(staleWrite.get('autoHistory').children.length,1);
+ assert.match(staleWrite.get('autoHistoryStatus').textContent,/固定 1R/);
+ assert.match(staleWrite.get('autoStatus').textContent,/端末保存失敗/);
+ assert.equal(staleWrite.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ staleWrite.setStorageWriteMode('normal');
+ await staleWrite.get('autoRun').onclick();
+ assert.equal(JSON.parse(staleWrite.storage.get(STORAGE)).length,36);
+ assert.match(staleWrite.get('autoFixedConsistency').textContent,/一致 36R/);
+ assert.equal(staleWrite.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // A provisional draft without its server signature cannot be shown.
  const unsigned=boot();
  await new Promise(resolve=>setImmediate(resolve));
