@@ -89,10 +89,9 @@ def plan_bounded_history(programme, entries, previous, requested_date,
         if current_runner in seen_current_runners:
             raise CoverageError("Duplicate past-run row for runner")
         seen_current_runners.add(current_runner)
-        # The numbered back-runs are newest first for EACH runner. Check
-        # their date sequence and identity before any chargeable lookup.
-        # Equal dates are tolerated here because source rows may be partial;
-        # repeated keyed races for the SAME runner are never tolerated.
+        # A runner cannot race twice on the same JRA calendar date. Check
+        # strict reverse chronology before any chargeable provider lookup.
+        # Missing past slots are allowed; nonempty dates must descend.
         previous_day = requested_date
         runner_past_keys = set()
         for i in range(1, 6):
@@ -102,7 +101,7 @@ def plan_bounded_history(programme, entries, previous, requested_date,
                 continue
             if not _valid_date(date) or date >= requested_date:
                 raise CoverageError("Previous race date invalid")
-            if date > previous_day:
+            if date >= previous_day:
                 raise CoverageError("Previous race sequence invalid")
             previous_day = date
             if racekey is None or racekey == "":
