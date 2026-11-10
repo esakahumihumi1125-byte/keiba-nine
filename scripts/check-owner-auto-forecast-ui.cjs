@@ -2226,6 +2226,8 @@ function boot(){
  await crossDay.get('autoRun').onclick();
  assert.equal(crossDay.storage.get(STORAGE),validCrossDay);
  assert.match(crossDay.get('autoSavedStatus').textContent,/新規 0R/);
+ assert.equal(crossDay.get('autoRaces').children[0].children[0].children.some(
+  x=>x.className==='formation'),true);
  for(const mutated of [
   [...base,foreign,structuredClone(foreign)],
   [...base,{...foreign,signature:'invalid-signature'}],
@@ -2243,6 +2245,9 @@ function boot(){
    'invalid past ledger must remain untouched for owner recovery');
   assert.match(crossDay.get('autoSavedStatus').textContent,/保存はできませんでした/);
   assert.match(crossDay.get('autoRecordSafety').textContent,/新規固定失敗/);
+  assert.match(crossDay.get('autoFixedConsistency').textContent,/保存記録の確認が必要/);
+  assert.equal(crossDay.get('autoRaces').children[0].children[0].children.some(
+   x=>x.className==='formation'),false);
   assert.equal(crossDay.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  }
  crossDay.storage.set(STORAGE,validCrossDay);
