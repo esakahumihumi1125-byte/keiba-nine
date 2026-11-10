@@ -508,7 +508,10 @@ function validate(data,day){
    (data.sourceMaterials.observedFactorSlots!==8||
     data.sourceMaterials.races.length<1||
     data.sourceMaterials.races.length>data.raceCount))||
-  data.sourceReadCount!==4||data.unitYen!==100||
+  ![1,4].includes(data.sourceReadCount)||
+  (data.sourceReadCount===1&&
+   (data.raceCount!==0||data.sourceMaterials.status!=='unavailable'))||
+  data.unitYen!==100||
   data.weightedResearchOrder!=='training30_recent3'||
   data.weightedResearchMax!==99||data.weightedResearchPolicy!=='research-5'||
   !Array.isArray(data.races)||data.races.length>120||
