@@ -58,6 +58,24 @@ def owner_day_research(programme, entries, training, previous, date):
             # Separate the entry-roster gate from the training/recent
             # gates without asking the licensed provider for more data.
             audit_race_coverage([programme_row], one_entry, date)
+            # JRDB flags are NOT JRA's independently verified final
+            # scratch list. A reported withdrawal is nevertheless enough
+            # to BLOCK provisional tickets for the whole race. An absent
+            # flag remains unknown; a malformed flag fails its own race.
+            for entry in one_entry:
+                flag = entry.get("withdrawn_flag")
+                if flag is not None and flag != "" and (
+                        type(flag) is not str or flag not in ("0", "1")):
+                    raise CoverageError("Invalid provider withdrawal flag")
+            if any(entry.get("withdrawn_flag") == "1"
+                   for entry in one_entry):
+                rows.append({
+                    "track": track, "race": number,
+                    "status": "needs_review", "research": None,
+                    "reviewStage": "entries",
+                    "reviewKind": "provider_withdrawal",
+                })
+                continue
             stage = "training"
             t = build_training_hints([programme_row], one_entry, one_training, date)
             stage = "recent"
