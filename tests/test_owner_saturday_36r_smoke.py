@@ -8,6 +8,8 @@ import sys
 import unittest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
+import json
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
@@ -15,7 +17,8 @@ from jrdb_owner_auto_draft import build_owner_auto_drafts, JST
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_prestart_receipt import verify_preview_receipts
 from test_jrdb_owner_auto_draft import programme, research
-from test_private_service import SETTINGS
+from test_private_service import SETTINGS, call
+from private_service import create_app
 from owner_auto_forecast_ui import HTML as AUTO_HTML
 from owner_backup import HTML as BACKUP_HTML
 
@@ -119,6 +122,83 @@ class Saturday36RSmokeTests(unittest.TestCase):
             ("東京", 2),
             {(x["snapshot"]["track"], x["snapshot"]["race"]) for x in sealed},
         )
+
+    def test_authenticated_http_end_to_end_36r_five_provider_reads(self):
+        # Full private request pipeline, including signed receipts, the
+        # ten-factor ungraded contract, and race/source count consistency.
+        # All five external adapters are mocked; this never spends JRDB calls.
+        p, source = synthetic_day()
+        config = {
+            **SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY": "1",
+            "KEIBA_RENDER_PREVIEW_ONLY": "0", "JRDB_PRIVATE_ENABLED": "1",
+            "JRDB_API_KEY": "synthetic-api", "JRDB_AUTH_KEY": "synthetic-auth",
+        }
+        with (patch("private_service.fetch_race_program", return_value=[]) as tra,
+              patch("private_service.normalize_program_rows", return_value=p),
+              patch("private_service.fetch_horse_entries", return_value=[]) as tky,
+              patch("private_service.fetch_training_analysis", return_value=[]) as cyb,
+              patch("private_service.fetch_recent_runs", return_value=[]) as tze,
+              patch("private_service.owner_day_research", return_value=source),
+              patch("private_service.fetch_venue_conditions", return_value=[]) as tka,
+              patch("private_service._now_in_jst",
+                    return_value="2099-01-01T09:00:00+09:00")):
+            resp = call(create_app(config), "/api/jrdb/owner-auto-draft",
+                        QUERY_STRING="date=" + DAY)
+        self.assertEqual(resp["status"], "200 OK")
+        body = json.loads(resp["body"])
+        self.assertEqual((body["raceCount"], body["draftCount"], body["holdCount"]),
+                         (36, 36, 0))
+        self.assertEqual(body["researchReceiptCount"], 36)
+        self.assertEqual(body["sourceReadCount"], 4)
+        self.assertEqual(body["tenFactorPreview"]["raceCount"], 36)
+        self.assertEqual(body["sourcePassport"]["raceCount"], 36)
+        self.assertFalse(body["overallPredictionReady"])
+        self.assertFalse(body["officialJraVerified"])
+        self.assertFalse(body["bettingReady"])
+        self.assertFalse(body["captureAuditVerified"])
+        self.assertTrue(body["serverStamped"])
+        self.assertEqual(
+            len(verify_preview_receipts(body["researchReceipts"], SECRET,
+                                        "2099-01-01")), 36)
+        self.assertTrue(all(
+            race["fullTenFactorCount"] == 0
+            for race in body["tenFactorPreview"]["races"]))
+        for api in (tra, tky, cyb, tze, tka):
+            api.assert_called_once()
+        self.assertNotIn("synthetic-api", resp["body"].decode())
+        self.assertNotIn("synthetic-auth", resp["body"].decode())
+
+    def test_http_mixed_36r_keeps_34_safe_drafts(self):
+        p, source = synthetic_day(mixed=True)
+        config = {
+            **SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY": "1",
+            "KEIBA_RENDER_PREVIEW_ONLY": "0", "JRDB_PRIVATE_ENABLED": "1",
+            "JRDB_API_KEY": "synthetic-api", "JRDB_AUTH_KEY": "synthetic-auth",
+        }
+        with (patch("private_service.fetch_race_program", return_value=[]),
+              patch("private_service.normalize_program_rows", return_value=p),
+              patch("private_service.fetch_horse_entries", return_value=[]),
+              patch("private_service.fetch_training_analysis", return_value=[]),
+              patch("private_service.fetch_recent_runs", return_value=[]),
+              patch("private_service.owner_day_research", return_value=source),
+              patch("private_service.fetch_venue_conditions", return_value=[]),
+              patch("private_service._now_in_jst",
+                    return_value="2099-01-01T09:00:00+09:00")):
+            resp = call(create_app(config), "/api/jrdb/owner-auto-draft",
+                        QUERY_STRING="date=" + DAY)
+        self.assertEqual(resp["status"], "200 OK")
+        body = json.loads(resp["body"])
+        self.assertEqual((body["raceCount"], body["draftCount"], body["holdCount"]),
+                         (36, 34, 2))
+        self.assertEqual(body["researchReceiptCount"], 34)
+        self.assertEqual(body["holdReasons"],
+                         {"after_provisional_off": 1, "invalid_two_factor": 1})
+        self.assertTrue(all(
+            not row["tickets"] and row["points"] == 0
+            for row in body["races"] if row["status"] == "hold"))
+        self.assertFalse(body["officialJraVerified"])
+        self.assertFalse(body["bettingReady"])
+        self.assertFalse(body["tenFactorPreview"]["overallPredictionReady"])
 
     def test_after_off_never_reconstructs_historical_tickets(self):
         p, study = synthetic_day()
