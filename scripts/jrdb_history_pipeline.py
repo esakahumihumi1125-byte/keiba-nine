@@ -72,6 +72,7 @@ def plan_bounded_history(programme, entries, previous, requested_date,
              for r in entries if r.get("horse_id")}
     current_keys = {r["racekey"] for r in programme}
     referenced = {}
+    seen_current_runners = set()
     unkeyed = 0
     for row in previous:
         current = row["racekey"]
@@ -83,6 +84,11 @@ def plan_bounded_history(programme, entries, previous, requested_date,
                       and (current, hid) in by_id)
         if not (matched_number or matched_id):
             continue  # Anonymous source rows are not a basis for paid lookups.
+        runner_number = number if matched_number else by_id[(current, hid)]
+        current_runner = (current, runner_number)
+        if current_runner in seen_current_runners:
+            raise CoverageError("Duplicate past-run row for runner")
+        seen_current_runners.add(current_runner)
         # The numbered back-runs are newest first for EACH runner. Check
         # their date sequence and identity before any chargeable lookup.
         # Equal dates are tolerated here because source rows may be partial;
