@@ -230,6 +230,41 @@ class AutoDraftTests(unittest.TestCase):
         with self.assertRaises(CoverageError):
             generate(r=unsafe)
 
+    def test_reported_withdrawal_is_held_with_no_fresh_tickets(self):
+        src = research()
+        src["races"][0].update(
+            status="needs_review", research=None,
+            reviewStage="entries", reviewKind="provider_withdrawal")
+        result = generate(r=src)
+        held = result["races"][0]
+        self.assertEqual(result["draftCount"],0)
+        self.assertEqual(result["holdReasons"],{"provider_withdrawal":1})
+        self.assertEqual(held["reason"],"provider_withdrawal")
+        self.assertEqual(held["runners"],[])
+        self.assertEqual(held["tickets"],[])
+        self.assertEqual(held["points"],0)
+        self.assertNotIn("reviewKind",repr(held))
+        self.assertNotIn("reviewStage",held)
+        self.assertEqual(seal_auto_research_drafts(
+            result,SETTINGS["KEIBA_OWNER_PASSWORD"],
+            now=datetime(2099,1,1,9,tzinfo=JST)),[])
+        late=generate(r=src,now=datetime(2099,1,1,12,30,tzinfo=JST))
+        self.assertEqual(late["races"][0]["reason"],"after_provisional_off")
+        self.assertNotIn("reviewKind",repr(late))
+        for kind,stage in (
+            ("provider_withdrawal","training"),
+            ("invalid","entries"),("provider_withdrawal",None)):
+            with self.subTest(kind=kind,stage=stage):
+                bad=copy.deepcopy(src)
+                bad["races"][0]["reviewKind"]=kind
+                bad["races"][0]["reviewStage"]=stage
+                with self.assertRaises(CoverageError):
+                    generate(r=bad)
+        bad=research()
+        bad["races"][0]["reviewKind"]="provider_withdrawal"
+        with self.assertRaises(CoverageError):
+            generate(r=bad)
+
     def test_signed_auto_drafts_are_prestart_only_and_pending_in_roi(self):
         now=datetime(2099,1,1,9,0,tzinfo=JST)
         result=generate(now=now)
