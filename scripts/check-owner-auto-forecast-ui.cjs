@@ -2345,6 +2345,36 @@ function boot(){
  assert.match(partialView.get('autoTenStatus').textContent,/残り8項目は未評価/);
  assert.equal(partialView.storage.get(STORAGE),earlierPartial);
  assert.equal(partialView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // /tra returned zero races: no false "no racing" assertion, no
+ // unread 3-source claim, no new receipt or stored real purchase.
+ const emptyFeed=boot();
+ await new Promise(r=>setImmediate(r));
+ const noProgramme=resultWith('e'.repeat(64));
+ noProgramme.sourceReadCount=1;
+ noProgramme.races=[];noProgramme.raceCount=0;
+ noProgramme.draftCount=0;noProgramme.holdCount=0;
+ noProgramme.holdReasons={};noProgramme.researchReceipts=[];
+ noProgramme.researchReceiptCount=0;
+ noProgramme.tenFactorPreview.races=[];
+ noProgramme.tenFactorPreview.raceCount=0;
+ noProgramme.raceContext.races=[];
+ noProgramme.raceContext.raceCount=0;
+ noProgramme.raceContext.courseInfoPresentCount=0;
+ noProgramme.raceContext.goingAvailableCount=0;
+ noProgramme.raceContext.conditionProviderReadCount=0;
+ noProgramme.raceContext.conditionProviderFetchStatus='unavailable';
+ withSourcePassport(noProgramme);
+ emptyFeed.setServerRaw(noProgramme);
+ const beforeEmpty=emptyFeed.storage.get(STORAGE);
+ await emptyFeed.get('autoRun').onclick();
+ assert.match(emptyFeed.get('autoMorningStatus').textContent,
+  /JRDB番組0R。開催なし・提供前・資料不足の区別は未確認/);
+ assert.match(emptyFeed.get('autoProgrammeCoverage').textContent,
+  /開催なしとは断定できません/);
+ assert.match(emptyFeed.get('autoSummary').textContent,
+  /0R中、研究用自動案 0R／見送り 0R/);
+ assert.equal(emptyFeed.storage.get(STORAGE),beforeEmpty);
+ assert.equal(emptyFeed.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const tamperedPassport=resultWith('c'.repeat(64));
  tamperedPassport.sourcePassport.races[0].verifiedFactorCount=10;
  a.setServerRaw(tamperedPassport);
