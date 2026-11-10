@@ -199,6 +199,37 @@ class AutoDraftTests(unittest.TestCase):
             seal_auto_research_drafts(report, SETTINGS["KEIBA_OWNER_PASSWORD"],
                                       now=past), [])
 
+    def test_private_review_stage_is_only_for_prestart_missing_research(self):
+        src = research()
+        src["races"][0].update(status="needs_review",
+                               research=None, reviewStage="training")
+        row = generate(r=src)["races"][0]
+        self.assertEqual(row["status"], "hold")
+        self.assertEqual(row["reason"], "missing_research")
+        self.assertEqual(row["reviewStage"], "training")
+        self.assertEqual(row["points"], 0)
+        self.assertEqual(row["tickets"], [])
+        self.assertNotIn("reviewStage", generate(
+            r=src, now=datetime(2099, 1, 1, 13, tzinfo=JST)
+        )["races"][0])
+        older = copy.deepcopy(src)
+        del older["races"][0]["reviewStage"]
+        self.assertNotIn("reviewStage", generate(r=older)["races"][0])
+        for bad in ("horse_name: PRIVATE", "training extra", [], None, "raw"):
+            broken = copy.deepcopy(src)
+            broken["races"][0]["reviewStage"] = bad
+            if bad is None:
+                # Legacy omission is accepted, an explicit None also carries
+                # no failure-stage diagnostics.
+                self.assertNotIn("reviewStage", generate(r=broken)["races"][0])
+                continue
+            with self.subTest(stage=repr(bad)), self.assertRaises(CoverageError):
+                generate(r=broken)
+        unsafe = research()
+        unsafe["races"][0]["reviewStage"] = "training"
+        with self.assertRaises(CoverageError):
+            generate(r=unsafe)
+
     def test_signed_auto_drafts_are_prestart_only_and_pending_in_roi(self):
         now=datetime(2099,1,1,9,0,tzinfo=JST)
         result=generate(now=now)
