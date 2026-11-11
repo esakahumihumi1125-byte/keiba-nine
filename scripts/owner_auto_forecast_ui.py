@@ -86,6 +86,10 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>3. 競馬場・レースを選ぶ</h2>
 <p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
+<details id="autoEvidenceGapPanel"><summary>正式10項目の不足資料を確認（追加照会なし）</summary>
+<p class="muted">取得済みのJRDB資料がある頭数だけを集計。過去4角などの観測は今回の展開予測ではなく、資料の有無も正式な採点結果ではありません。発走前固定記録・買い目は変更しません。</p>
+<pre id="autoEvidenceGapReport" class="acceptance-report" role="status">まだ未取得です。発走前の研究用データを取得すると、追加照会なしで表示します。</pre>
+</details>
 <details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
 <p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
 <div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
@@ -439,6 +443,56 @@ function validateTen(data){
 // not a skill grade. Do not infer JRA starters, actual bodyweight, suitability,
 // prediction readiness or a 10-factor score. Legacy cached previews without
 // this optional report retain the previous UI.
+// Across all eligible, prestart draft horses, count SOURCE COLUMN PRESENCE
+// only. A missing optional report, a held race and a 0R programme must NEVER
+// appear as 0/0 graded horses. No paid reads, source rows, rankings, odds,
+// tickets, provisional score or runner IDs leave this text-only summary.
+function evidenceGapSummary(data, sourceByRace){
+ const report=data.runnerSourceEvidence;
+ if(!data.raceCount)return '番組0R：資料を集計できません。開催なしとは断定しません。正式10項目の採点は未完了。';
+ if(!report||report.raceCount===0)
+  return '馬別の追加資料は照合保留（未取得ではなく、状況未確認）。正式10項目の採点は未完了。';
+ const totals={pedigree:0,draw_weight:0,jockey_stable:0,rotation:0,past_corner:0};
+ let horses=0,events=0;
+ for(const row of report.races){
+  if(row.status!=='observed')continue;
+  const byHorse=sourceByRace.get(row.track+'|'+row.race);
+  if(!byHorse||byHorse.size!==row.runners.length)
+   return '馬別資料の集計を保留。正式10項目の採点は未完了。';
+  events++;
+  for(const observed of byHorse.values()){
+   horses++;
+   for(const key of Object.keys(totals)){
+    if(observed[key])totals[key]++;
+   }
+  }
+ }
+ if(!horses||!events)
+  return '発走前下書きの馬別追加資料は未照合。正式10項目の採点は未完了。';
+ const fields=[
+  ['past_corner','展開17点の参考：過去4角'],
+  ['jockey_stable','騎手・厩舎10点：名前の記録'],
+  ['pedigree','血統6点：父・母父'],
+  ['draw_weight','枠・斤量3点：両方の記録'],
+  ['rotation','ローテ1点：前走日の記録']
+ ];
+ const out=['【正式10項目の資料ギャップ】',
+  '発走前の下書き：'+events+'R／馬別資料の照合：'+horses+'頭',
+  '下の数は資料がある頭数です。得点・勝率・S/A/B/Cではありません。'];
+ for(const [key,label] of fields){
+  out.push(label+' '+totals[key]+'/'+horses+'頭');
+ }
+ out.push('コース・距離17点：今回の馬別適性を独立に検証できていません。');
+ out.push('馬場12点：今回の馬別適性を独立に検証できていません。');
+ out.push('当日馬体重1点：今回の実測値と前走比を確認できていません。');
+ out.push('調教30点・近走3点：現時点は仮評価（正式な採点ではありません）。');
+ out.push('JRA出走馬・取消・発走時刻：独立照合が未完成。');
+ out.push('正式総合100点：未作成。既存3連単への変更0件・JRDB追加照会0回。');
+ if(report.unavailableRaceCount)
+  out.push('追加資料を照合できなかったR：'+report.unavailableRaceCount+
+   'R（資料0頭とみなさず、別途確認）。');
+ return out.join('\n');
+}
 function validatedRunnerSourceEvidence(data){
  const report=data.runnerSourceEvidence, result=new Map();
  if(report===undefined)return result;
@@ -1133,6 +1187,7 @@ function clearDraftShortcut(){
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const materialByRace=validatedRunnerSourceEvidence(data);
+ $('autoEvidenceGapReport').textContent=evidenceGapSummary(data,materialByRace);
  const deviceExpired=new Set(data.races.filter(x=>
    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)
  ).map(x=>x.track+'|'+x.race));
