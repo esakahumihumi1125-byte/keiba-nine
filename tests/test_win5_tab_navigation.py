@@ -5,10 +5,13 @@ this test must never claim JRA-confirmed targets or paid provider data.
 """
 import re
 import unittest
+import sys
 from pathlib import Path
 
-HTML = (Path(__file__).resolve().parents[1] /
-        "keiba-nine-beta51-feed-record.html").read_text(encoding="utf-8")
+ROOT = Path(__file__).resolve().parents[1]
+HTML = (ROOT / "keiba-nine-beta51-feed-record.html").read_text(encoding="utf-8")
+sys.path.insert(0, str(ROOT / "scripts"))
+from owner_auto_forecast_ui import HTML as OWNER_HTML
 
 
 class Win5NavigationTest(unittest.TestCase):
@@ -25,6 +28,17 @@ class Win5NavigationTest(unittest.TestCase):
         self.assertIn("jump.onclick=()=>show('win5')", HTML)
         self.assertIn("if(location.hash==='#win5')show('win5');", HTML)
         self.assertIn(".tabs button{width:20%;max-width:none", HTML)
+
+    def test_owner_private_app_can_open_win5_without_exposing_credentials(self):
+        url = "https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html#win5"
+        self.assertEqual(OWNER_HTML.count('href="' + url + '"'), 1)
+        self.assertIn("WIN5（別画面）", OWNER_HTML)
+        self.assertIn('rel="noopener noreferrer"', OWNER_HTML)
+        self.assertNotIn("KEIBA_OWNER_PASSWORD=", OWNER_HTML)
+        self.assertNotIn("token=", url)
+        self.assertIn("keiba_nine_win5_v57", HTML)
+        self.assertNotIn("fetch(", HTML[HTML.index("/* WIN57_LOGIC_START */"):
+                                         HTML.index("</script>", HTML.index("/* WIN57_LOGIC_START */"))])
 
     def test_existing_win5_not_a_fake_automatic_prediction(self):
         self.assertEqual(HTML.count("function validateWin57(input,now,existing=[])"),1)
