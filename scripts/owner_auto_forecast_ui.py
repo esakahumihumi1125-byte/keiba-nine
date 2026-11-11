@@ -736,7 +736,10 @@ function morningStatus(data,day,localStatus,expiredCount=0){
   visible+'R／見送り '+data.holdCount+'R。'+
   (expiredCount?'暫定発走時刻経過で新案非表示 '+expiredCount+'R。':'')+
   (visible===0
-    ?'現在表示できる新しい3連単はありません。固定済みの履歴は下で確認できます。'
+    ?(data.draftCount===0
+      ?'資料不足などで全R見送り。買い目を無理に作りません。'
+      :'暫定発走時刻経過のため新案は表示できません。')+
+     '現在表示できる新しい3連単はありません。固定済みの履歴は下で確認できます。'
     :'下の「下書きのみ」から買い目を選べます。')+
   ' 発走前固定の状態：'+localStatus+
   ' 10項目本採点・JRA公式出走取消／発走時刻の独立確認は未完了。'+
