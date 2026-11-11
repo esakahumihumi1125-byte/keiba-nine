@@ -14,6 +14,7 @@ class FakeNode {
   constructor(name){this.name=name;this.attrs={};this.children=[];this.parent=null;this.textContent='';}
   setAttribute(k,v){this.attrs[k]=String(v);}
   getAttribute(k){return this.attrs[k]||null;}
+  removeAttribute(k){delete this.attrs[k];}
   append(...nodes){for(const node of nodes){node.parent=this;this.children.push(node)}}
   get firstChild(){return this.children[0]||null;}
   insertBefore(node,other){
