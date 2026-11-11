@@ -1427,6 +1427,8 @@ function boot(){
  // Visiting the owner-only page triggers the first read automatically.
  await new Promise(r=>setImmediate(r));
  assert.equal(a.requests.length,1);
+ assert.match(a.get('autoStatus').textContent,
+  /発走前の研究用暫定案 1Rを確認/);
  assert.match(a.get('autoReadProof').textContent,
   /番組あり・資料照会完了.*4回照会/);
  assert.match(a.get('autoReadProof').textContent,/研究用3連単 1R/);
@@ -2616,6 +2618,10 @@ function boot(){
   /番組0R・予想未作成.*照会 1回/);
  assert.match(emptyFeed.get('autoReadProof').textContent,
   /出走馬・調教・近走・馬場は照会していません/);
+ assert.match(emptyFeed.get('autoStatus').textContent,
+  /番組0R・予想未作成/);
+ assert.doesNotMatch(emptyFeed.get('autoStatus').textContent,
+  /暫定評価を自動生成しました|開催なしが確定/);
  assert.equal(emptyFeed.storage.get(STORAGE),beforeEmpty);
  assert.equal(emptyFeed.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const tamperedPassport=resultWith('c'.repeat(64));
@@ -3494,6 +3500,10 @@ function boot(){
  await allLate.get('autoRun').onclick();
  assert.equal(allLate.storage.get(STORAGE),undefined);
  assert.match(allLate.get('autoSummary').textContent,/研究用自動案 0R/);
+ assert.match(allLate.get('autoStatus').textContent,
+  /発走時刻経過・新案非表示/);
+ assert.doesNotMatch(allLate.get('autoStatus').textContent,
+  /発走前の研究用暫定案 [1-9]/);
  assert.equal(allLate.get('autoRaces').children[0].children[0].children
   .filter(x=>x.className==='formation').length,0);
  // Optional Saturday configuration check uses NO paid provider request.

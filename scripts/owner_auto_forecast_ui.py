@@ -3979,7 +3979,27 @@ $('autoRun').onclick=async()=>{
    :'サーバー保存は未設定。'+localStatus;
   showFixedHistory(day);
   $('autoRecordSafety').textContent=recordRetentionStatus(body,day);
-  $('autoStatus').textContent='暫定評価を自動生成しました。作成できないレースは無理に選定していません。';
+  // A valid HTTP response is NOT proof of a successful forecast.
+  // In particular /tra=0 only means the provider returned no programme;
+  // all held/expired drafts must not look like generated picks on iPhone.
+  const visibleDrafts=body.draftCount-latestExpiredDraftCount;
+  if(body.raceCount===0){
+   const ahead=day>jstToday().replaceAll('-','');
+   $('autoStatus').textContent=
+    '【番組0R・予想未作成】JRDB番組の取得結果は0件。'+
+    (ahead?'開催日前のため未配信の可能性があります。':
+     '資料の配信前・取得不備・実際の開催なしは区別できません。')+
+    '開催なしと断定せず、JRA公式の開催情報を確認してください。';
+  }else if(body.draftCount===0){
+   $('autoStatus').textContent='【全'+body.raceCount+
+    'R見送り・新規3連単0点】調教・近走や発走時刻などの条件が揃わず、研究用の買い目は作成していません。';
+  }else if(visibleDrafts===0){
+   $('autoStatus').textContent='【発走時刻経過・新案非表示】'+
+    '今回の研究用下書きは端末で確認した時点で暫定発走時刻を過ぎています。新規固定・表示はしていません。';
+  }else{
+   $('autoStatus').textContent='発走前の研究用暫定案 '+visibleDrafts+
+    'Rを確認。正式10項目の予想・JRA公式照合は未完了です。';
+  }
  }catch(error){if(seq===request){
   latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
   const storageFailure=error?.message==='receipt_storage_failed';
