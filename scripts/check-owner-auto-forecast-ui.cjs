@@ -1434,6 +1434,22 @@ function boot(){
  assert.match(a.get('autoReadProof').textContent,/研究用3連単 1R/);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
+ const firstCard=a.get('autoRaces').children[0].children[0];
+ assert.match(firstCard.children[0].textContent,/1着候補 1・2番/);
+ const firstFormation=firstCard.children.find(x=>x.className==='formation');
+ assert.ok(firstFormation,'verified 3連単 has a prominent formation card');
+ const ticketBreakdown=firstFormation.children.at(-1);
+ assert.equal(ticketBreakdown.tag,'details');
+ assert.equal(ticketBreakdown.open,undefined,'40 combinations start collapsed');
+ assert.match(ticketBreakdown.children[0].textContent,/全40点の組合せを見る/);
+ assert.equal(ticketBreakdown.children[1].className,'ticket-list');
+ assert.match(ticketBreakdown.children[1].textContent,/1→2→3/);
+ assert.match(a.get('autoDraftShortcut').textContent,/買い目あり 1Rだけ見る/);
+ const beforeShortcuts=a.requests.length,receiptAtShortcut=a.storage.get(STORAGE);
+ a.get('autoDraftShortcut').onclick();
+ assert.equal(a.requests.length,beforeShortcuts);
+ assert.equal(a.storage.get(STORAGE),receiptAtShortcut);
+ assert.match(a.get('autoViewingStatus').textContent,/発走前の研究用下書き 1R/);
  assert.match(a.get('autoJraCrosscheck').textContent,/独立照合 0R（未実施）/);
  assert.match(a.get('autoJraCrosscheck').textContent,/JRDBの開催場 1場（東京）/);
  assert.match(a.get('autoJraCrosscheck').textContent,/リンク発見も馬番・取消・馬場・発走時刻の一致を証明しません/);
@@ -1467,6 +1483,8 @@ function boot(){
  assert.match(weekend.get('autoStatus').textContent,
   /2099-01-03を選択しました.*追加照会はまだ/);
  assert.match(weekend.get('autoReadProof').textContent,/まだ照会していません/);
+ assert.equal(weekend.get('autoDraftShortcut').textContent,'買い目あり：未取得');
+ assert.equal(weekend.get('autoDraftShortcut').onclick,null);
  assert.match(weekend.get('autoJraReleaseGuide').textContent,/2099-01-01 16時すぎ/);
  weekend.get('autoSunday').onclick();
  assert.equal(weekend.get('autoDay').value,'2099-01-04');
@@ -3207,6 +3225,17 @@ function boot(){
  full.setServerRaw(full36RaceDraft());
  await full.get('autoRun').onclick();
  assert.match(full.get('autoSummary').textContent,/36R中、研究用自動案 1R／見送り 35R/);
+ assert.equal(full.get('autoRaces').children[0].children.length,36);
+ const fullBeforeShortcut=full.requests.length;
+ const fullBeforeStore=full.storage.get(STORAGE);
+ assert.match(full.get('autoDraftShortcut').textContent,/買い目あり 1Rだけ見る/);
+ full.get('autoDraftShortcut').onclick();
+ assert.equal(full.get('autoRaces').children[0].children.length,1);
+ assert.match(full.get('autoViewingStatus').textContent,/発走前の研究用下書き 1R/);
+ assert.equal(full.requests.length,fullBeforeShortcut);
+ assert.equal(full.storage.get(STORAGE),fullBeforeStore);
+ full.get('autoVenues').children[0].onclick(); // Restore all 36 for prior tests.
+ assert.equal(full.get('autoRaces').children[0].children.length,36);
  assert.match(full.get('autoMorningStatus').textContent,/番組 36R／発走前の研究用3連単下書き 1R／見送り 35R/);
  assert.match(full.get('autoOperationalNext').textContent,/全36R中、研究用3連単 1R／見送り 35R/);
  assert.match(full.get('autoMorningStatus').textContent,/サーバー永続保存は未設定/);

@@ -40,7 +40,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoOperationalNext" class="muted" role="status">土曜日の次の操作：当日の取得結果を確認中。</p>
 <nav class="quick-links" aria-label="画面内の移動">
-<a href="#autoVenues">予想一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
+<a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
+<a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
 <details><summary>取得・資料の詳しい状態</summary>
 <p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
 <p id="autoReadProof" class="muted" role="status">JRDB資料の照会状況は未確認です。番組0Rと全資料取得は別です。</p>
@@ -225,7 +226,10 @@ summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
 .formation{background:#192f46;border:1px solid #456582;border-radius:10px;padding:12px;margin:10px 0}
 .formation strong{color:#e8ca81}
 .formation p{margin:6px 0}
-.picks{font-weight:800;color:#f0e4c9;letter-spacing:.02em;overflow-wrap:anywhere}
+.picks{font-weight:850;font-size:18px;line-height:1.45;
+ color:#f0e4c9;letter-spacing:.02em;overflow-wrap:anywhere}
+.ticket-breakdown{margin-top:10px;background:#10263d}
+.ticket-breakdown summary{font-size:14px}
 .ticket-list{font:12px/1.75 system-ui,sans-serif;color:#cbd8e6;overflow-wrap:anywhere}
 .ten-weights,.ten-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .ten-weight,.ten-slot{background:#253e58;border-radius:7px;padding:7px;font-size:12px}
@@ -664,12 +668,16 @@ function renderTenHeader(p){
 }
 function formation(r){
  const block=dom('div',undefined,'formation');
+ const combinations=dom('details',undefined,'ticket-breakdown');
+ combinations.append(
+  dom('summary','全'+r.points+'点の組合せを見る'),
+  dom('p',r.tickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
  block.append(dom('strong','3連単・2項目だけの研究用自動下書き（1着'+r.first.length+'頭）'),
   dom('p','1着：'+r.first.join('・')+'番','picks'),
   dom('p','2着：'+r.second.join('・')+'番','picks'),
   dom('p','3着：'+r.third.join('・')+'番','picks'),
   dom('p',r.points+'点／1点100円なら'+r.amountYen.toLocaleString('ja-JP')+'円（仮計算・未購入）'),
-  dom('p',r.tickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
+  combinations);
  return block;
 }
 function dayMaterialGaps(a){
@@ -941,6 +949,11 @@ function fixedComparisonMessage(report){
    report.unlisted+'R。固定済みを後から変更しません。署名検証は別操作です。';
  return 'この開催日の端末に固定済みの研究記録はまだありません。発走前に生成した研究用下書きのみ、初回に限り固定保存します。';
 }
+function clearDraftShortcut(){
+ const shortcut=$('autoDraftShortcut');
+ shortcut.textContent='買い目あり：未取得';
+ shortcut.onclick=null;
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const deviceExpired=new Set(data.races.filter(x=>
@@ -977,7 +990,7 @@ function render(input,day){
    (race.status==='provisional_draft'
     ?elapsed?'端末受信後に発走時刻経過・新案非表示':
       changedLock?'固定済みとの不一致・再分析案非表示':
-      '研究用自動案 '+race.points+'点':'見送り'));
+      '研究用自動案 '+race.points+'点｜1着候補 '+race.first.join('・')+'番':'見送り'));
   detail.append(title);
   const course=courseRows.get(race.track+'|'+race.race);
   const condition=course.goingAvailable?course.going+'（JRDB資料）':'馬場未確認';
@@ -1136,6 +1149,20 @@ function render(input,day){
   button.onclick=()=>{select.value='';show(track);};tabs.append(button);
  }
  const safeDraftCount=nodes.filter(item=>item.draft).length;
+ const shortcut=$('autoDraftShortcut');
+ shortcut.textContent=safeDraftCount?'買い目あり '+safeDraftCount+'Rだけ見る':
+  '買い目あり 0R（未作成・見送り）';
+ shortcut.onclick=()=>{
+  // A held HTTP response, date change, or error must not reopen old
+  // predictions. This shortcut only filters the validated local result.
+  if(latestDisplayedReport!==data||latestDisplayedDay!==day||
+     $('autoDay').value.replaceAll('-','')!==day){
+   $('autoViewingStatus').textContent='この開催日の予想は未取得です。日付を確認してください。';
+   return;
+  }
+  select.value='';
+  show('','',safeDraftCount>0);
+ };
  const hiddenByFixed=Math.max(0,data.draftCount-deviceExpired.size-safeDraftCount);
  $('autoOperationalNext').textContent=operationalNextStep(
   data,fixed,deviceExpired.size,safeDraftCount);
@@ -3686,6 +3713,8 @@ $('autoDay').onchange=()=>{
  $('autoPreflightStatus').textContent='選択日が変わりました。無料診断は未実行です。';
  // Preserve an explicitly selected day across subsequent app resumes.
  followingToday=false;
+ latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+ clearDraftShortcut();
  // Invalidate the old response and unlock the button. A slow old request
  // must not leave the new day permanently disabled on iPhone.
  request++;$('autoRun').disabled=false;
@@ -3993,6 +4022,7 @@ $('autoRun').onclick=async()=>{
  if(button.disabled)return;
  const seq=++request,day=$('autoDay').value.replaceAll('-','');
  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+ clearDraftShortcut();
  if(!/^20[0-9]{6}$/.test(day)){
   $('autoStatus').textContent='開催日を選択してください。';return;
  }
@@ -4110,6 +4140,7 @@ $('autoRun').onclick=async()=>{
   }
  }catch(error){if(seq===request){
   latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+ clearDraftShortcut();
   const storageFailure=error?.message==='receipt_storage_failed';
   const gatewayFailure=error?.message==='render_gateway_nonjson';
   const networkFailure=error?.message==='owner_network_failure';
@@ -5748,6 +5779,7 @@ function resumeOwnerDay(){
   return;
  }
  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+ clearDraftShortcut();
  ++preflightSeq;
  $('autoPreflight').disabled=false;
  $('autoPreflightStatus').textContent='開催日が変わりました。無料診断は未実行。';
