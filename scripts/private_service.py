@@ -2184,7 +2184,9 @@ def create_app(settings=None):
             # paid fields, credentials, race keys or horse identifiers.
             stage = 'programme'
             try:
+                logging.warning('KEIBA_AUTO_DRAFT_SOURCE stage=programme state=begin')
                 programme = normalize_program_rows(fetch_race_program(day), day)
+                logging.warning('KEIBA_AUTO_DRAFT_SOURCE stage=programme state=returned')
                 # Do not make three more possibly billable JRDB reads when
                 # /tra returns zero races. This is a provisional EMPTY
                 # programme, never a JRA-certified no-racing-day result.
@@ -2192,11 +2194,17 @@ def create_app(settings=None):
                 source_reads = 1
                 if programme:
                     stage = 'entries'
+                    logging.warning('KEIBA_AUTO_DRAFT_SOURCE stage=entries state=begin')
                     entries = fetch_horse_entries(day)
+                    logging.warning('KEIBA_AUTO_DRAFT_SOURCE stage=entries state=returned')
                     stage = 'training'
+                    logging.warning('KEIBA_AUTO_DRAFT_SOURCE stage=training state=begin')
                     training = fetch_training_analysis(day)
+                    logging.warning('KEIBA_AUTO_DRAFT_SOURCE stage=training state=returned')
                     stage = 'recent'
+                    logging.warning('KEIBA_AUTO_DRAFT_SOURCE stage=recent state=begin')
                     recent = fetch_recent_runs(day)
+                    logging.warning('KEIBA_AUTO_DRAFT_SOURCE stage=recent state=returned')
                     source_reads = 4
                 stage = 'day_research'
                 research = owner_day_research(
@@ -2317,7 +2325,11 @@ def create_app(settings=None):
                 if programme:
                     report['raceContext']['conditionProviderReadCount'] = 1
                     try:
+                        logging.warning(
+                            'KEIBA_AUTO_DRAFT_SOURCE stage=optional_going state=begin')
                         conditions = fetch_venue_conditions(day)
+                        logging.warning(
+                            'KEIBA_AUTO_DRAFT_SOURCE stage=optional_going state=returned')
                         checked = audit_race_context(programme, conditions, day)
                         checked['conditionProviderReadCount'] = 1
                         checked['conditionProviderFetchStatus'] = 'received'
