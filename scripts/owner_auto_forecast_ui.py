@@ -17,8 +17,9 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>1. 予想を見る</h2>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
 <button id="autoSaturdayQuick" class="primary-cta" type="button">次の土曜の予想を見る</button>
+<button id="autoSundayQuick" class="secondary-cta" type="button">次の日曜の予想を見る</button>
 <button id="autoRun" class="secondary-cta" type="button">全場・全Rを再分析する</button>
-<p class="muted">土曜の1タップ取得は木曜以降。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
+<p class="muted">土日の1タップ取得は直前の木曜以降。取得済みの結果は再利用し、連打による追加照会はしません。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
 <details><summary>日付だけを切り替える（追加照会なし）</summary>
 <div class="day-shortcuts" role="group" aria-label="週末の開催日を選ぶ">
 <button id="autoSaturday" type="button">次の土曜日を選ぶ</button>
@@ -36,7 +37,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="autoConnectionCheck" type="button">選択日のJRDB接続を確認</button>
 <p id="autoConnectionStatus" class="muted" role="status">診断は未実行。</p>
 </details>
-<p class="muted">画面を開いたら本人用の当日分を一度だけ自動取得。
+<p class="muted">通常の土日に画面を開いた場合だけ、本人用の当日分を一度自動取得。平日・変則開催は日付を選んで手動取得。
 再分析ボタンを押した場合は番組・出走馬・調教・近走を各1回取得し、
 馬場情報の追加取得も最大1回だけ試みます。取得できなくても既存の発走前記録は維持します。
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
@@ -3781,33 +3782,29 @@ $('autoSunday').onclick=()=>chooseUpcomingJstDay(0);
 // A single, explicit owner gesture combines date selection and the
 // existing ONE guarded owner-auto-draft request. No extra probe/read, no
 // background schedule, and no second request while one is in flight.
-$('autoSaturdayQuick').onclick=async()=>{
- const button=$('autoSaturdayQuick');
+async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
+ const button=$(buttonId);
  if(button.disabled)return;
  if($('autoRun').disabled){
-  $('autoStatus').textContent='JRDB照会中です。完了後に土曜日の取得を押してください。追加照会はしていません。';
+  $('autoStatus').textContent='JRDB照会中です。完了後に'+label+'の取得を押してください。追加照会はしていません。';
   return;
  }
- const selected=nearestJstWeekday(6);
- const thursdayDate=new Date(selected+'T12:00:00Z');
- thursdayDate.setUTCDate(thursdayDate.getUTCDate()-2);
- const thursday=thursdayDate.toISOString().slice(0,10);
- if(jstToday()<thursday){
-  $('autoStatus').textContent='土曜日のクイック取得は木曜以降に利用できます。'+
+ const selected=nearestJstWeekday(weekday);
+ const releaseDate=new Date(selected+'T12:00:00Z');
+ releaseDate.setUTCDate(releaseDate.getUTCDate()-daysBefore);
+ const earliest=releaseDate.toISOString().slice(0,10);
+ if(jstToday()<earliest){
+  $('autoStatus').textContent=label+'のクイック取得は木曜以降に利用できます。'+
    'JRDB配信前の可能性があるため今回は有料照会していません。';
   return;
  }
  const selectedDay=selected.replaceAll('-','');
- // Use only a previously validated in-memory result for this date.
- // Repeat presses must not create extra paid reads. For an updated
- // provider snapshot the explicit "再分析" control remains available.
+ // Reuse a verified same-day result, even when /tra=0. The operator can
+ // explicitly reanalyse after the upstream feed publishes new material.
  if($('autoDay').value===selected&&latestDisplayedReport&&
     latestDisplayedDay===selectedDay){
   if(latestDisplayedReport.raceCount===0){
-   // /tra=0 might mean the weekly feed has not been released yet.
-   // Repeated one-tap presses must not bill another provider lookup.
-   // The separate explicit "再分析" button can request a fresh snapshot.
-   $('autoStatus').textContent='【土曜番組0R・取得済み】この画面でJRDB番組0件を確認済み。'+
+   $('autoStatus').textContent='【'+label+'番組0R・取得済み】この画面でJRDB番組0件を確認済み。'+
     '押し直しによる追加のJRDB照会は0回。開催なしとは断定できません。'+
     '木曜の配信更新後などに新しい情報を確認する場合は「全場・全Rを再分析する」を押してください。';
    return;
@@ -3815,8 +3812,8 @@ $('autoSaturdayQuick').onclick=async()=>{
   try{
    latestExpiredDraftCount=latestDisplayedReport.races.filter(r=>
     r.status==='provisional_draft'&&draftExpiredOnDevice(selectedDay,r.postTime)).length;
-   render(latestDisplayedReport,selectedDay); // Local display only.
-   $('autoStatus').textContent='【土曜データ取得済み】この画面の取得済み研究結果を再表示しました。'+
+   render(latestDisplayedReport,selectedDay);
+   $('autoStatus').textContent='【'+label+'データ取得済み】この画面の取得済み研究結果を再表示しました。'+
     '追加のJRDB照会は0回。新しい資料を取得する場合は「全場・全Rを再分析する」を押してください。';
   }catch(_){
    $('autoRaces').replaceChildren();
@@ -3827,16 +3824,18 @@ $('autoSaturdayQuick').onclick=async()=>{
  }
  button.disabled=true;
  try{
-  chooseUpcomingJstDay(6);
+  chooseUpcomingJstDay(weekday);
   if($('autoDay').value!==selected){
    $('autoStatus').textContent='日付が切り替わりました。照会せず、開催日を確認してください。';
    return;
   }
-  // The normal endpoint validates, signs and records only prestart
-  // provisional drafts. A failed/empty provider response is never retried.
+  // Exactly one authenticated auto-draft request. No probe, retry, or
+  // background schedule; the owner must explicitly request reanalysis.
   await $('autoRun').onclick();
  }finally{button.disabled=false;}
-};
+}
+$('autoSaturdayQuick').onclick=()=>quickWeekendForecast(6,'autoSaturdayQuick','土曜',2);
+$('autoSundayQuick').onclick=()=>quickWeekendForecast(0,'autoSundayQuick','日曜',3);
 // Optional, JRA-only HTML index lookup. Never use the PDF URL as evidence
 // of specific runners, scratches, going, off times, finalized picks or ROI.
 $('autoOfficialPdf').onclick=async()=>{
