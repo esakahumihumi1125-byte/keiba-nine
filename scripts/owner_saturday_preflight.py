@@ -7,7 +7,6 @@ horse IDs, ticket data, purchase history, or forecasts. No side effects.
 """
 from datetime import date, datetime, timedelta, timezone
 
-from jrdb_private import approved_api_base
 from jrdb_evidence_readiness import _valid_date
 
 VERSION = "owner-saturday-config-preflight-2"
@@ -43,7 +42,13 @@ def owner_saturday_config_preflight(settings, day, *, server_now):
             for key in ("JRDB_API_KEY", "JRDB_AUTH_KEY")
         )
     )
-    approved_host = approved_api_base(settings.get("JRDB_API_BASE_URL", ""))
+    # Match the actual owner Render startup contract, not the broader
+    # adapter allowlist (which also permits development and default URLs).
+    # The live owner service cannot boot with a blank or development base.
+    # Never return this raw URL to the browser.
+    approved_host = (
+        settings.get("JRDB_API_BASE_URL") == "https://api.bigtime.world/v1"
+    )
     configured = (
         private_mode and secrets_present and
         credentials_format_valid and approved_host

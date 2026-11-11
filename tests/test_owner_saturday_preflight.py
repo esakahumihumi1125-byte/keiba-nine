@@ -13,7 +13,7 @@ SETTINGS = {
     "JRDB_PRIVATE_ENABLED": "1",
     "JRDB_API_KEY": "SYNTHETIC_ONLY_NO_REAL_KEY",
     "JRDB_AUTH_KEY": "SYNTHETIC_ONLY_NO_REAL_AUTH",
-    "JRDB_API_BASE_URL": "",
+    "JRDB_API_BASE_URL": "https://api.bigtime.world/v1",
 }
 
 
@@ -27,6 +27,7 @@ class SaturdayConfigPreflightTests(unittest.TestCase):
         self.assertTrue(report["selectedDateIsWeekend"])
         self.assertFalse(report["selectedDateAlreadyPast"])
         self.assertTrue(report["configurationReady"])
+        self.assertTrue(report["approvedProviderHostConfigured"])
         self.assertTrue(report["jrdbCredentialsFormatValid"])
         self.assertTrue(report["privateServiceConfigured"])
         self.assertTrue(report["providerWeeklyUpdateMayBePending"])
@@ -94,7 +95,8 @@ class SaturdayConfigPreflightTests(unittest.TestCase):
                     self.assertNotIn("SYNTHETIC_ONLY_NO_REAL", str(report))
 
     def test_missing_secrets_or_unsafe_host_fail_configuration_only(self):
-        for kind in ("key", "auth", "host", "private", "preview"):
+        for kind in ("key", "auth", "host", "blank_host", "dev_host",
+                     "padded_host", "private", "preview"):
             config = dict(SETTINGS)
             if kind == "key":
                 config.pop("JRDB_API_KEY")
@@ -102,6 +104,14 @@ class SaturdayConfigPreflightTests(unittest.TestCase):
                 config["JRDB_AUTH_KEY"] = ""
             elif kind == "host":
                 config["JRDB_API_BASE_URL"] = "https://untrusted.example"
+            elif kind == "blank_host":
+                config["JRDB_API_BASE_URL"] = ""
+            elif kind == "dev_host":
+                # Accepted by the reader in other contexts, but NOT by
+                # this owner Render service's startup settings.
+                config["JRDB_API_BASE_URL"] = "https://dev.api.bigtime.world/v1"
+            elif kind == "padded_host":
+                config["JRDB_API_BASE_URL"] = " https://api.bigtime.world/v1 "
             elif kind == "private":
                 config["KEIBA_RENDER_PRIVATE_ONLY"] = "0"
             else:
@@ -110,8 +120,12 @@ class SaturdayConfigPreflightTests(unittest.TestCase):
                 report = owner_saturday_config_preflight(
                     config, "20261114", server_now=NOW)
                 self.assertFalse(report["configurationReady"])
+                if kind in ("host", "blank_host", "dev_host", "padded_host"):
+                    self.assertFalse(report["approvedProviderHostConfigured"])
                 self.assertFalse(report["providerConnectionVerified"])
                 self.assertFalse(report["liveRaceFeedVerified"])
+                self.assertEqual(report["sourceCallsMade"], 0)
+                self.assertNotIn("dev.api.bigtime.world", str(report))
 
     def test_past_day_and_nonweekend_are_not_assumed_no_racing(self):
         report = owner_saturday_config_preflight(
