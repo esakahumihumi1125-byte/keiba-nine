@@ -4097,6 +4097,11 @@ $('autoRun').onclick=async()=>{
    throw Error('receipt_storage_failed');
   }
   const displayed=render(body,day);
+  // Keep only a tiny, non-sensitive 0R read marker between Safari
+  // navigation/reloads. This is NOT a cached forecast or provider response.
+  // Failed/partial responses and signatures never create this marker.
+  if(body.raceCount===0)recordWeekendEmptyRead(day);
+  else clearWeekendEmptyRead();
   latestDisplayedReport=body;latestDisplayedDay=day;
   latestExpiredDraftCount=body.races.filter(x=>
    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)).length;
@@ -5827,12 +5832,44 @@ function resumeOwnerDay(){
 // Avoid automatic potentially billable JRDB reads on ordinary weekdays.
 // Special JRA Monday/holiday meetings remain accessible through the
 // explicit "全場・全Rを再分析する" action; this is not a race calendar.
+// A safe reload guard for the provider's valid empty programme. Without
+// this, navigating home -> forecast -> home -> forecast may repeatedly
+// bill an empty /tra read even though no data can be displayed.
+// Only the day (YYYYMMDD) and the local observation time are persisted.
+// The user can ALWAYS request a new /tra via the explicit reanalysis button.
+const AUTO_EMPTY_KEY='keiba-nine-owner-empty-programme-read-v1';
+const AUTO_EMPTY_AGE_MS=30*60*1000;
+function clearWeekendEmptyRead(){
+ try{localStorage.removeItem(AUTO_EMPTY_KEY);}catch(_){}
+}
+function recordWeekendEmptyRead(day){
+ const now=new Date().getTime();
+ if(!Number.isFinite(now)||!/^(20[0-9]{6})$/.test(day))return;
+ try{localStorage.setItem(AUTO_EMPTY_KEY,JSON.stringify({day,at:now}));}
+ catch(_){/* Never block a valid forecast because this optional marker failed. */}
+}
+function recentWeekendEmptyRead(day){
+ try{
+  const raw=localStorage.getItem(AUTO_EMPTY_KEY);
+  if(!raw||raw.length>100)return false;
+  const v=JSON.parse(raw),now=new Date().getTime();
+  return v&&Object.keys(v).length===2&&v.day===day&&
+   Number.isSafeInteger(v.at)&&Number.isFinite(now)&&
+   now>=v.at&&now-v.at<AUTO_EMPTY_AGE_MS;
+ }catch(_){return false;}
+}
 function autoFetchOnRegularRaceDay(){
  const day=$('autoDay').value;
  const dt=new Date(day+'T12:00:00Z');
  const normalWeekend=Number.isFinite(dt.valueOf())&&
   dt.toISOString().slice(0,10)===day&&[0,6].includes(dt.getUTCDay());
  if(normalWeekend){
+  if(recentWeekendEmptyRead(day.replaceAll('-',''))){
+   $('autoStatus').textContent='【前回の番組0Rを確認済み】同じ端末で30分以内に番組0件を取得したため、画面を開き直した際の自動JRDB照会は控えました。開催なしとは断定していません。配信更新後の再確認は「全場・全Rを再分析する」を押してください。';
+   $('autoMorningStatus').textContent='この画面では新しい番組・買い目は未取得。前回の番組0Rにより再照会を控えています（予想生成成功ではありません）。';
+   $('autoOperationalNext').textContent='【追加照会0回】配信更新を確認したい場合は「全場・全Rを再分析する」。以前の固定買い目は下で確認できます。';
+   return;
+  }
   $('autoRun').onclick();
   return;
  }
