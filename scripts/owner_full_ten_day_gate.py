@@ -47,7 +47,8 @@ def full_ten_day_research(day, race_snapshots, *, now):
     for row in race_snapshots:
         if (not isinstance(row, dict)
                 or set(row) != {"track", "race", "snapshot"}
-                or row.get("track") not in TRACK_NAMES
+                or type(row.get("track")) is not str
+                or row["track"] not in TRACK_NAMES
                 or type(row.get("race")) is not int
                 or not 1 <= row["race"] <= 12):
             raise CoverageError("Invalid full-ten day coordinate")
