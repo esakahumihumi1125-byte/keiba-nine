@@ -73,6 +73,52 @@ class PrivateServiceTests(unittest.TestCase):
         self.assertEqual(json.loads(response["body"])["renderCommit"],
                          "not-reported")
 
+    def test_private_saturday_preflight_zero_provider_reads_and_auth(self):
+        app = create_app({
+            **SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY": "1",
+            "JRDB_PRIVATE_ENABLED": "1",
+            "JRDB_API_KEY": "SYNTHETIC_PRESTART_KEY",
+            "JRDB_AUTH_KEY": "SYNTHETIC_PRESTART_AUTH",
+        })
+        with (patch("private_service.fetch_race_program") as programme,
+              patch("private_service.fetch_horse_entries") as entries,
+              patch("private_service.fetch_training_analysis") as training,
+              patch("private_service.fetch_recent_runs") as recent,
+              patch("private_service.fetch_venue_conditions") as going):
+            response = call(app, "/api/owner-saturday-preflight",
+                            QUERY_STRING="date=20261114")
+            self.assertEqual(response["status"], "200 OK")
+            payload = json.loads(response["body"])
+            self.assertEqual(payload["version"], "owner-saturday-config-preflight-1")
+            self.assertEqual(payload["date"], "20261114")
+            self.assertTrue(payload["configurationReady"])
+            self.assertEqual(payload["sourceCallsMade"], 0)
+            for flag in ("providerConnectionVerified", "liveRaceFeedVerified",
+                         "officialJraVerified", "formalTenFactorsReady",
+                         "archivePersistenceVerified", "bettingReady"):
+                self.assertFalse(payload[flag])
+            for private in ("SYNTHETIC_PRESTART_KEY", "SYNTHETIC_PRESTART_AUTH",
+                            SETTINGS["KEIBA_OWNER_PASSWORD"], "horse_id"):
+                self.assertNotIn(private.encode(), response["body"])
+            programme.assert_not_called()
+            entries.assert_not_called()
+            training.assert_not_called()
+            recent.assert_not_called()
+            going.assert_not_called()
+            self.assertEqual(call(app, "/api/owner-saturday-preflight",
+                                  QUERY_STRING="date=20261114", auth="")["status"],
+                             "401 Unauthorized")
+            self.assertEqual(call(app, "/api/owner-saturday-preflight",
+                                  QUERY_STRING="date=20260230")["status"],
+                             "400 Bad Request")
+            self.assertEqual(call(app, "/api/owner-saturday-preflight",
+                                  QUERY_STRING="date=20261114",
+                                  HTTP_X_KEIBA_REQUEST="")["status"],
+                             "403 Forbidden")
+            self.assertEqual(call(app, "/api/owner-saturday-preflight",
+                                  method="POST", QUERY_STRING="date=20261114")["status"],
+                             "404 Not Found")
+
     def test_owner_deployment_revision_check_requires_authentication(self):
         root = call(self.app, '/')['body'].decode('utf-8')
         js = call(self.app, '/app.js')['body'].decode('utf-8')

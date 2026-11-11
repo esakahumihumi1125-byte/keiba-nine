@@ -50,6 +50,7 @@ from jrdb_history_pipeline import run_bounded_history_audit, HistoryFetchError
 from owner_past_staff_sample import inspect_one_past_staff_sample
 from owner_past_staff_batch import inspect_three_past_staff_samples
 from owner_dse_update_diagnostic import audit_dse_update_fields
+from owner_saturday_preflight import owner_saturday_config_preflight
 from owner_rebound_receipts import (
     issue_rebound_watch_receipts, verify_rebound_watch_receipts,
     compare_watched_winners, WatchReceiptError
@@ -2143,6 +2144,19 @@ def create_app(settings=None):
                 logging.warning('KEIBA_JRDB_DAY_RESEARCH=provider_or_validation_failed')
                 return response('502 Bad Gateway', {
                     'error': '開催日の資料に不整合があります。予想や買い目は作成しません。'})
+            return response('200 OK', report)
+        if method == 'GET' and path == '/api/owner-saturday-preflight':
+            # A voluntary private, zero-JRDB-read diagnosis before Saturday.
+            # Key/host presence is not real provider authentication or JRA truth.
+            query = parse_qs(environ.get('QUERY_STRING', ''),
+                             keep_blank_values=True)
+            if (set(query) != {'date'} or len(query['date']) != 1
+                    or not _valid_date(query['date'][0])):
+                return response('400 Bad Request', {
+                    'error': '診断対象の開催日を正しく選択してください。'})
+            report = owner_saturday_config_preflight(
+                settings, query['date'][0],
+                server_now=datetime.fromisoformat(_now_in_jst()))
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/owner-auto-draft':
             # At most four core owner-triggered reads. Empty /tra means
