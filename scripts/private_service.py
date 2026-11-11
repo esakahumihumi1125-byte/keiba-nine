@@ -37,6 +37,7 @@ from jrdb_owner_auto_draft import (build_owner_auto_drafts, DAY_DRAFT_ISSUES,
                                    compact_hold_diagnostics)
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_ten_factor_contract import ten_factor_contract
+from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
 from jrdb_owner_draft_materials import (
     observe_owner_draft_materials_isolated, unavailable as unavailable_draft_materials
@@ -2363,6 +2364,33 @@ def create_app(settings=None):
                     report, datetime.fromisoformat(_now_in_jst()))
                 if expired_before_delivery:
                     report['tenFactorPreview'] = ten_factor_contract(report)
+                # Source-presence per horse: derive from the SAME four
+                # in-memory reads, AFTER the final server prestart gate has
+                # suppressed any newly late draft. Never re-create a hidden
+                # held race's runner list, introduce grades, or pay for more
+                # provider reads. Fail closed if optional evidence differs.
+                stage = 'runner_source_observations'
+                try:
+                    report['runnerSourceEvidence'] = observe_owner_runner_sources(
+                        programme, entries, training, recent, day, report)
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    report['runnerSourceEvidence'] = {
+                        'version': 'owner-runner-source-hints-1',
+                        'raceCount': 0, 'races': [],
+                        'observedRaceCount': 0, 'unavailableRaceCount': 0,
+                        'factorFields': ['pedigree', 'draw_weight',
+                                         'jockey_stable', 'rotation',
+                                         'past_corner'],
+                        'verifiedNewFactorCount': 0,
+                        'officialJraVerified': False,
+                        'overallPredictionReady': False,
+                        'bettingReady': False,
+                        'researchOnly': True, 'privateOwnerOnly': True,
+                        'newProviderRequests': 0,
+                        'rawSourceRowsIncluded': False,
+                    }
+                    logging.warning(
+                        'KEIBA_AUTO_DRAFT_RUNNER_MATERIALS=unavailable')
                 # Re-audit the FINAL response, which may now hold newly
                 # started races. No additional provider reads and no grades.
                 report['sourcePassport'] = safe_owner_day_source_passport(report)
