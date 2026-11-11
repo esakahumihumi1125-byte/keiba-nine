@@ -61,13 +61,21 @@ class OwnerRenderDeployFallbackTests(unittest.TestCase):
         self.assertIn("    needs: [deploy-jrdb]", raw)
         self.assertIn("deploy_sent: ${{ steps.trigger.outputs.deploy_sent }}", raw)
         self.assertIn("echo 'deploy_sent=true' >> \"$GITHUB_OUTPUT\"", raw)
-        self.assertIn("needs.deploy-jrdb.outputs.deploy_sent == 'true'", raw)
+        self.assertIn("always() &&", raw)
+        self.assertIn("deploy_sent=unconfirmed", raw)
+        self.assertIn("if curl --fail --silent --show-error", raw)
+        self.assertIn("HOOK RESPONSE UNKNOWN", raw)
+        self.assertIn("A timed-out POST may have reached Render: DO NOT blindly retry.", raw)
         self.assertIn("ref: ${{ github.event.workflow_run.head_sha }}", raw)
         self.assertIn("EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}", raw)
         self.assertIn("python scripts/owner_live_revision_probe.py", raw)
         self.assertIn("NOT VERIFIED", raw)
         self.assertIn("does not verify JRDB real-data reads", raw)
         live = raw.split("  verify-jrdb-live:\n", 1)[1]
+        self.assertIn("github.event.workflow_run.conclusion == 'success'", live)
+        self.assertIn("github.event.workflow_run.event == 'push'", live)
+        self.assertIn("github.event.workflow_run.head_branch == 'main'", live)
+        self.assertIn("github.event.workflow_run.head_repository.full_name == github.repository", live)
         for forbidden in ("RENDER_JRDB_DEPLOY_HOOK_URL", "JRDB_API_KEY",
                           "KEIBA_OWNER_PASSWORD", "Authorization", "Cookie",
                           "api/jrdb", "curl --request POST"):
