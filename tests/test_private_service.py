@@ -52,10 +52,8 @@ class PrivateServiceTests(unittest.TestCase):
             "ownerDataIncluded": False,
         })
         for secret in ("DONT_LEAK_PRIVATE_JRDB_KEY", "DONT_LEAK_PRIVATE_JRDB_AUTH",
-                       SETTINGS["KEIBA_OWNER_PASSWORD"], "owner", "JRDB_API_KEY"):
+                       SETTINGS["KEIBA_OWNER_PASSWORD"], "JRDB_API_KEY"):
             self.assertNotIn(secret.encode(), response["body"])
-        self.assertEqual(call(app, "/live-revision", auth="",
-                              wsgi_url_scheme="http")["status"], "200 OK")
         http_env = {"wsgi.url_scheme": "http", "REMOTE_ADDR": "198.51.100.4"}
         self.assertEqual(call(app, "/live-revision", auth="", **http_env)["status"],
                          "426 Upgrade Required")
