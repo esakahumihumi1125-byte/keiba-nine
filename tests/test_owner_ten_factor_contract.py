@@ -52,6 +52,13 @@ class TenFactorContractTests(unittest.TestCase):
             "course_distance","pace","ground","pedigree",
             "draw_weight","jockey_stable","rotation","body_condition")))
         self.assertEqual(h["provisionalFactorCount"],2)
+        self.assertEqual(h["provisionalWeightCapacity"],33)
+        self.assertEqual(h["unassessedWeightCapacity"],67)
+        self.assertEqual(h["verifiedWeightCapacity"],0)
+        self.assertEqual(h["priorityMissingFactors"],[
+            "course_distance", "pace", "ground", "jockey_stable",
+            "pedigree", "draw_weight", "rotation", "body_condition"
+        ])
         self.assertEqual(h["verifiedFactorCount"],0)
         self.assertIsNone(h["score"])
         self.assertIsNone(h["overallRank"])
@@ -67,6 +74,12 @@ class TenFactorContractTests(unittest.TestCase):
         last=converted["races"][0]["horses"][-1]
         self.assertEqual(last["grades"]["recent"],"未評価")
         self.assertEqual(last["provisionalFactorCount"],1)
+        self.assertEqual(last["provisionalWeightCapacity"],30)
+        self.assertEqual(last["unassessedWeightCapacity"],70)
+        self.assertEqual(last["verifiedWeightCapacity"],0)
+        self.assertEqual(last["priorityMissingFactors"][:3],
+                         ["course_distance","pace","ground"])
+        self.assertIn("recent",last["priorityMissingFactors"])
         self.assertEqual(len(last["missing"]),9)
         self.assertEqual(converted["fullPredictionRaceCount"],0)
 
