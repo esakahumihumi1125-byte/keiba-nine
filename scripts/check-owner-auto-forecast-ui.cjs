@@ -1102,7 +1102,8 @@ function boot(){
   receiptVerificationOk=true,coreVerificationOk=true,
   coreProviderCorrupt=false,fiveExposureCorrupt=false,
   archiveReady=false,archiveCorrupt=false,
-  autoDraftOk=true,autoDraftNonJson=null,officialPdfLinks=[{track:'東京',
+  autoDraftOk=true,autoDraftNonJson=null,autoDraftNetworkFailure=false,
+  officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true,preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
@@ -1376,6 +1377,8 @@ function boot(){
     privateOwnerOnly:true
    })};
   }
+  if(url.startsWith('/api/jrdb/owner-auto-draft?')&&autoDraftNetworkFailure)
+   throw TypeError('synthetic untrusted transport error');
   if(url.startsWith('/api/jrdb/owner-auto-draft?')&&autoDraftNonJson)
    return {ok:autoDraftNonJson===200,status:autoDraftNonJson,
     json:async()=>{throw SyntaxError('synthetic non-JSON gateway body');}};
@@ -1398,6 +1401,7 @@ function boot(){
   setServerRaw:x=>next=x,
   setAutoDraftOk:x=>autoDraftOk=x,
   setAutoDraftNonJson:x=>autoDraftNonJson=x,
+  setAutoDraftNetworkFailure:x=>autoDraftNetworkFailure=x,
   setAutoDraftFailure:x=>autoDraftFailure=x,
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
@@ -3255,6 +3259,27 @@ function boot(){
  assert.equal(gateway.get('autoRaces').children.length,0);
  assert.equal(gateway.storage.get(STORAGE),lockedGateway);
  gateway.setAutoDraftNonJson(null);
+ // A transport failure is not a JRDB data/protocol error. Keep
+ // previous signed tickets and never perform an automatic paid retry.
+ const disconnected=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ const previousSigned=disconnected.storage.get(STORAGE);
+ const paidRequestsBefore=disconnected.requests.length;
+ disconnected.setAutoDraftNetworkFailure(true);
+ await disconnected.get('autoRun').onclick();
+ assert.equal(disconnected.requests.length,paidRequestsBefore+1);
+ assert.match(disconnected.get('autoStatus').textContent,/【通信エラー】/);
+ assert.match(disconnected.get('autoStatus').textContent,
+  /自動で有料JRDB照会をやり直しません/);
+ assert.match(disconnected.get('autoOperationalNext').textContent,
+  /追加の有料JRDB照会を連打しない/);
+ assert.doesNotMatch(disconnected.get('autoStatus').textContent,
+  /synthetic untrusted/);
+ assert.equal(disconnected.get('autoRaces').children.length,0);
+ assert.equal(disconnected.get('autoHistory').children.length,1);
+ assert.equal(disconnected.storage.get(STORAGE),previousSigned);
+ assert.equal(disconnected.get('autoRun').disabled,false);
+ disconnected.setAutoDraftNetworkFailure(false);
  // The 70-point study is only attested before the provisional off and
  // persisted once on the iPhone, never blended with ordinary 3連単.
  const coreView=boot();
