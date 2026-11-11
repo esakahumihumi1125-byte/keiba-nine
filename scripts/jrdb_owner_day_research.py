@@ -49,18 +49,31 @@ def owner_day_research(programme, entries, training, previous, date, *, source_r
         ids.add(key)
         names.add((track, race))
 
-    # Do not mix records from a different day/race into a selected slot.
-    # Unrelated source anomalies remain flagged at their own race rather than
-    # affecting an otherwise valid one. No rows are guessed into a race.
+    # Group each source exactly once: 36 separate programme slots should
+    # not rescan tens of thousands of provider rows 36 times. Keep the input
+    # order within a race, and NEVER join by horse number alone.
+    # Malformed / unrelated race keys are not guessed into a known race.
+    by_source = []
+    for collection in (entries, training, previous):
+        grouped = {}
+        for source_row in collection:
+            source_key = source_row.get("racekey")
+            if type(source_key) is str and source_key in ids:
+                grouped.setdefault(source_key, []).append(source_row)
+        by_source.append(grouped)
+    entries_by_race, training_by_race, recent_by_race = by_source
+
+    # Each race gets only records with its exact day-specific provider key.
+    # One problematic race is held without contaminating other race research.
     rows = []
     for programme_row in programme:
         key = programme_row["racekey"]
         track, number = programme_row["track"], programme_row["race"]
         stage = "entries"
         try:
-            one_entry = [r for r in entries if r.get("racekey") == key]
-            one_training = [r for r in training if r.get("racekey") == key]
-            one_recent = [r for r in previous if r.get("racekey") == key]
+            one_entry = entries_by_race.get(key, [])
+            one_training = training_by_race.get(key, [])
+            one_recent = recent_by_race.get(key, [])
             # Separate the entry-roster gate from the training/recent
             # gates without asking the licensed provider for more data.
             audit_race_coverage([programme_row], one_entry, date)
