@@ -1002,12 +1002,40 @@ class AutoDraftHTTPTests(unittest.TestCase):
                 self.assertNotIn('trifectaTickets', result)
                 self.assertNotIn('api_key', response['body'].decode())
                 self.assertNotIn('x-user-key', response['body'].decode())
-                self.assertEqual(logger.call_count, 1)
+                # Safe progress stages precede exactly one fail-closed
+                # terminal error. Earlier tests assumed only one log call.
+                expected_events = []
+                for source in ("programme", "entries", "training", "recent"):
+                    expected_events.append((source, "begin"))
+                    if source == stage:
+                        break
+                    expected_events.append((source, "returned"))
+                source_calls = [
+                    item for item in logger.call_args_list
+                    if item.args and item.args[0].startswith(
+                        'KEIBA_AUTO_DRAFT_SOURCE stage=')
+                ]
                 self.assertEqual(
-                    logger.call_args.args[0],
+                    [entry.args[0].split("KEIBA_AUTO_DRAFT_SOURCE ", 1)[1]
+                     for entry in source_calls],
+                    ["stage=" + s + " state=" + state
+                     for s, state in expected_events])
+                failures = [item for item in logger.call_args_list
+                            if item.args and item.args[0].startswith(
+                                'KEIBA_AUTO_DRAFT_FAILURE ')]
+                self.assertEqual(len(failures), 1)
+                self.assertEqual(len(logger.call_args_list),
+                                 len(source_calls) + len(failures))
+                self.assertEqual(
+                    failures[0].args[0],
                     'KEIBA_AUTO_DRAFT_FAILURE stage=%s kind=%s detail=%s',
                 )
-                self.assertEqual(logger.call_args.args[1:], (stage, expected, 'none'))
+                self.assertEqual(failures[0].args[1:],
+                                 (stage, expected, 'none'))
+                for entry in source_calls:
+                    for secret in (DAY, "api_key", "x-user-key",
+                                   "racekey", "horse_id", "trifecta"):
+                        self.assertNotIn(secret, str(entry))
 
     def test_whole_day_draft_failure_reports_only_fixed_reason(self):
         from jrdb_owner_auto_draft import DAY_DRAFT_ISSUES

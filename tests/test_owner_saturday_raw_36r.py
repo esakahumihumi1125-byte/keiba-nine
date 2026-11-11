@@ -169,6 +169,24 @@ class SaturdayRawDayTests(unittest.TestCase):
                 "tickets", "trifecta", "0526", "TRAINING", "JRDB_API"):
             self.assertNotIn(forbidden, events[0])
         self.assertNotIn("KEIBA_AUTO_DRAFT_FAILURE", " ".join(captured.output))
+        source_events = [s.split("KEIBA_AUTO_DRAFT_SOURCE ", 1)[1]
+                         for s in captured.output if "KEIBA_AUTO_DRAFT_SOURCE " in s]
+        expected_events = [
+            f"stage={stage} state={state}"
+            for stage in ("programme", "entries", "training", "recent",
+                          "optional_going")
+            for state in ("begin", "returned")
+        ]
+        self.assertEqual(source_events, expected_events)
+        # The new stage trace is only fixed allowlisted words, never paid
+        # data, requested day, URL, race keys, horse IDs or owner secrets.
+        for event in source_events:
+            self.assertLess(len(event), 70)
+            for forbidden in (
+                    DAY, "PRIVATE", "raw-synthetic", "http", "api_key",
+                    "horse_id", "racekey", "tickets", "trifecta",
+                    "0526", "x-user-key"):
+                self.assertNotIn(forbidden, event)
 
     def test_optional_context_finishes_after_one_off_no_new_late_ticket(self):
         programme, entries, training, previous = raw_day()
