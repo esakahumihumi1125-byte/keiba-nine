@@ -1092,7 +1092,7 @@ function prestart(){
  result.bodyOneEvidencePreflight=gate;
  return result;
 }
-function boot(){
+function boot({manualWeekday=true}={}){
  const storage=new Map(),elements=new Map(),requests=[];
  let storageWritable=true,writeMode='normal';
  let next=resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
@@ -1395,6 +1395,9 @@ function boot(){
   String,Array,Error,Promise,Object};
  vm.runInNewContext(js,context);
  get('autoDay').value=date;
+ // Most legacy scenarios intentionally press the manual weekday action.
+ // A separate regression below verifies that page load alone uses no paid API.
+ if(manualWeekday)get('autoRun').onclick();
  return {get,storage,requests,setStorageWritable:x=>storageWritable=x,
   setStorageWriteMode:x=>writeMode=x,
   setServer:x=>next=withTenPreview(x),
@@ -1423,8 +1426,18 @@ function boot(){
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
 }
 (async()=>{
+ // Ordinary weekdays now render without triggering a possibly billed JRDB
+ // request. An explicit user press still works for a holiday race meeting.
+ const weekday=boot({manualWeekday:false});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(weekday.requests.length,0);
+ assert.match(weekday.get('autoStatus').textContent,/平日はJRDBの自動照会を控えています/);
+ assert.match(weekday.get('autoMorningStatus').textContent,/有料照会0回/);
+ await weekday.get('autoRun').onclick();
+ assert.equal(weekday.requests.length,1);
+ assert.match(weekday.get('autoStatus').textContent,/発走前の研究用暫定案 1Rを確認/);
  const a=boot();
- // Visiting the owner-only page triggers the first read automatically.
+ // Visiting an ordinary weekday requires the explicit run used by this fixture.
  await new Promise(r=>setImmediate(r));
  assert.equal(a.requests.length,1);
  assert.match(a.get('autoStatus').textContent,
@@ -3223,7 +3236,11 @@ function boot(){
  c.resume();
  await new Promise(r=>setImmediate(r));
  assert.equal(c.get('autoDay').value,'2099-01-02');
- assert.equal(c.requests.length,2);
+ assert.equal(c.requests.length,1,
+  'weekday midnight resume does not trigger a paid query');
+ assert.match(c.get('autoStatus').textContent,/平日はJRDBの自動照会を控えています/);
+ await c.get('autoRun').onclick();
+ assert.equal(c.requests.length,2,'manual weekday race query still works');
  assert.equal(c.get('autoHistory').children.length,1);
  c.resume();
  assert.equal(c.requests.length,2);
