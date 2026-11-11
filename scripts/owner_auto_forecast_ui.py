@@ -5,29 +5,27 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <title>KEIBA NINE｜本人用・自動暫定予想</title>
 <link rel="stylesheet" href="/owner-auto-forecast.css"></head><body><main>
 <nav><a href="/">← 本人用ホーム</a><a href="/owner-jrdb-day-research">2項目の根拠</a></nav>
-<h1>KEIBA NINE <small>本人用・自動暫定予想</small></h1>
-<p class="warning"><strong>実戦用の確定予想ではありません。</strong>
-JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自動計算します。
-血統・適性・枠・展開・馬場など残り8項目、JRA公式出走取消・発走時刻の照合はまだ未完成。
-資料が不足したレースは見送り。実際の投票・購入・正式収支への記録は行わず、発走前の研究用記録のみ端末に固定します。</p>
-<section>
+<h1>KEIBA NINE <small>本人用・予想</small></h1>
+<p class="warning"><strong>現在は研究用の暫定予想です。</strong>調教・近走の2項目で3連単を試算しています。
+正式10項目の予想とJRA公式照合は未完成。自動購入はしません。</p>
+<section class="daily-start">
+<h2>1. 予想を見る</h2>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
+<button id="autoSaturdayQuick" class="primary-cta" type="button">次の土曜の予想を見る</button>
+<button id="autoRun" class="secondary-cta" type="button">全場・全Rを再分析する</button>
+<p class="muted">土曜の1タップ取得は木曜以降。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
+<details><summary>日付だけを切り替える（追加照会なし）</summary>
 <div class="day-shortcuts" role="group" aria-label="週末の開催日を選ぶ">
 <button id="autoSaturday" type="button">次の土曜日を選ぶ</button>
 <button id="autoSunday" type="button">次の日曜日を選ぶ</button>
 </div>
-<p class="muted">土日ボタンは日付を選ぶだけ。JRDBへの照会は「全場・全Rを再分析する」を押すまで開始しません（初回の当日自動取得は従来どおり）。</p>
+<p class="muted">土日ボタンは日付だけを切り替え、追加のJRDB照会をしません。</p></details>
 <details><summary>土曜の無料・設定事前診断（任意）</summary>
 <p class="muted">本人専用サービスの設定・選択日・サーバーの日本時間をチェック。JRDB・JRA・買い目APIは呼ばず、設定された秘密情報も表示しません。設定が揃っていてもJRDB実接続と10項目予想は未検証です。</p>
 <button id="autoPreflight" type="button">選択日の無料事前診断</button>
 <p id="autoPreflightStatus" class="muted" role="status">事前診断は未実行。レースデータや購入記録は変更しません。</p>
 </details>
-<button id="autoRun" type="button">全場・全Rを再分析する</button>
-<button id="autoSaturdayQuick" type="button">次の土曜日の暫定予想を1タップで取得</button>
-<p class="muted">このボタンは土曜日を選択してから、本人用JRDBへ1セット照会します。
-番組が0Rなら1回で終了、番組があれば出走馬・調教・近走・任意の馬場を含め最大5回のAPI照会。
-料金・利用制限は契約条件によります。木曜日より前は照会せず案内だけ表示します。
-JRDBの配信開始やJRA公式照合を保証するものではありません。</p>
+
 <details><summary>JRDB実接続の確認（任意）</summary>
 <p class="muted">本人が押した時だけ設定を確認し、設定済みなら番組APIへ1回接続。未設定ならJRDBへの追加通信なし。買い目・収支・購入記録は変更しません。</p>
 <button id="autoConnectionCheck" type="button">選択日のJRDB接続を確認</button>
@@ -38,12 +36,15 @@ JRDBの配信開始やJRA公式照合を保証するものではありません�
 馬場情報の追加取得も最大1回だけ試みます。取得できなくても既存の発走前記録は維持します。
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
-<h2>開催日の利用状況</h2>
+<h2>2. 今日の予想状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoOperationalNext" class="muted" role="status">土曜日の次の操作：当日の取得結果を確認中。</p>
+<nav class="quick-links" aria-label="画面内の移動">
+<a href="#autoVenues">予想一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
+<details><summary>取得・資料の詳しい状態</summary>
 <p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
 <p id="autoReadProof" class="muted" role="status">JRDB資料の照会状況は未確認です。番組0Rと全資料取得は別です。</p>
-<p id="autoRecordSafety" class="muted" role="status">固定記録の保管状態：まだ確認していません。</p>
+<p id="autoRecordSafety" class="muted" role="status">固定記録の保管状態：まだ確認していません。</p></details>
 <a href="#autoVenues">開催日のレース一覧に進む</a>
 <p class="muted"><a href="#autoHistoryAudit">過去の同条件照合へ進む</a>（旧85点の比較と新配点79点の研究用下書きを確認。追加の有料API取得は本人がボタンを押した時のみ）</p>
 <details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
@@ -60,13 +61,48 @@ JRDBの配信開始やJRA公式照合を保証するものではありません�
 <p class="muted">② 下の「下書きのみ」を選ぶか、競馬場・レースを選択して1着／2着／3着の3連単と重複除外した点数を確認する。これは調教・近走だけの研究用下書きで、10項目の本予想や投票推奨ではない。</p>
 <p class="muted">③ 発走前の固定記録を確認し、必要に応じて「12種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
 </details>
+<details><summary>端末の保存状況と再分析の差分</summary>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
-<p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p>
+<p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p></details>
 <p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
 <a href="/owner-backup">固定済み買い目など12種類の端末記録をバックアップする</a>。
 既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
 <a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
+<section id="forecastRacesSection">
+<h2>3. 競馬場・レースを選ぶ</h2>
+<p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p>
+<p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
+<details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
+<p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
+<div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
+<p id="autoHoldStatus" class="muted" role="status">開催日を取得すると見送り理由を確認できます。</p>
+</details>
+<div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
+<label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
+<select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
+<p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
+<div id="autoRaces"></div>
+</section>
+<section id="fixedHistorySection">
+<h2>4. 発走前に固定した買い目</h2>
+<p class="muted">最初に保存した買い目は再分析で上書きしません。</p>
+<button id="autoReceiptVerify" type="button">この日の固定買い目をサーバーで署名確認</button>
+<p id="autoReceiptVerifyStatus" class="muted" role="status">未確認。端末内の署名付き研究記録だけを本人用サーバーで検証します。原データの追加取得や買い目の変更はありません。</p>
+<p class="muted">署名が正しくてもJRA公式の発走時刻・結果・実購入・サーバー保存を証明するものではありません。サーバー保存が未設定なら、別途バックアップが必要です。</p>
+<details><summary>サーバー保存済みの記録を見る（保存設定がある場合のみ）</summary>
+<p class="muted">この操作は保存済みの研究用買い目を読み取るだけです。JRDB有料データの追加取得、発走後の予想生成、iPhone記録の復元・上書き、実購入は行いません。</p>
+<button id="autoArchiveRead" type="button">選択日のサーバー固定記録を確認</button>
+<p id="autoArchiveStatus" class="muted" role="status">未確認。保存用データベースが未設定なら、その旨を表示します。</p>
+<div id="autoArchiveRaces"></div>
+</details>
+<p id="autoHistoryStatus" class="muted" role="status">この端末の固定記録を読み込み中です。</p>
+<div id="autoHistory"></div>
+<p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
+署名はこの画面では検証していません。後付け予想ではありません。</p>
+<a href="/owner-backup">12種類の記録をバックアップ・復元する</a>
+</section>
+<details class="advanced-panel"><summary>追加分析・詳しい設定（必要なときだけ）</summary>
 <section>
 <h2>過去の同条件実績を照合</h2>
 <p class="muted">必要なときだけ過去番組・馬場を最大8件照合（追加APIアクセスは最大16回）。
@@ -130,23 +166,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p id="autoPrestartStatus" class="muted" role="status">本人操作時だけ追加API照合。予想・買い目・回収率は変更しません。</p>
 <div id="autoPrestartRaces"></div>
 </section>
-<section>
-<h2>発走前に固定した買い目の履歴</h2>
-<button id="autoReceiptVerify" type="button">この日の固定買い目をサーバーで署名確認</button>
-<p id="autoReceiptVerifyStatus" class="muted" role="status">未確認。端末内の署名付き研究記録だけを本人用サーバーで検証します。原データの追加取得や買い目の変更はありません。</p>
-<p class="muted">署名が正しくてもJRA公式の発走時刻・結果・実購入・サーバー保存を証明するものではありません。サーバー保存が未設定なら、別途バックアップが必要です。</p>
-<details><summary>サーバー保存済みの記録を見る（保存設定がある場合のみ）</summary>
-<p class="muted">この操作は保存済みの研究用買い目を読み取るだけです。JRDB有料データの追加取得、発走後の予想生成、iPhone記録の復元・上書き、実購入は行いません。</p>
-<button id="autoArchiveRead" type="button">選択日のサーバー固定記録を確認</button>
-<p id="autoArchiveStatus" class="muted" role="status">未確認。保存用データベースが未設定なら、その旨を表示します。</p>
-<div id="autoArchiveRaces"></div>
-</details>
-<p id="autoHistoryStatus" class="muted" role="status">この端末の固定記録を読み込み中です。</p>
-<div id="autoHistory"></div>
-<p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
-署名はこの画面では検証していません。後付け予想ではありません。</p>
-<a href="/owner-backup">12種類の記録をバックアップ・復元する</a>
-</section>
+
 <section><h2>10項目の配点と評価状況</h2>
 <p id="autoTenStatus" class="muted" role="status">予想資料の取得後に表示します。</p>
 <div id="autoTenWeights" class="ten-weights"></div>
@@ -158,20 +178,8 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">根拠不足、発走済み、取消・出走確認の保留、点数同点の候補境界では正式3連単を作りません。表示中の3連単は引き続き2項目による研究用下書きです。</p>
 </details>
 </section>
-<section>
-<h2>全Rの結果</h2><p id="autoSummary" class="muted">未取得</p>
-<p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
-<details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
-<p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
-<div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
-<p id="autoHoldStatus" class="muted" role="status">開催日を取得すると見送り理由を確認できます。</p>
+
 </details>
-<div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
-<label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
-<select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
-<p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
-<div id="autoRaces"></div>
-</section>
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・最大40点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
@@ -185,6 +193,12 @@ h1 small{display:block;color:#c7d7e7;font-size:13px}
 h2{font-size:19px;margin:0 0 10px}
 nav{display:flex;justify-content:space-between;gap:12px}a{color:#f0d185}
 section{background:#142b43;border:1px solid #4d6b85;border-radius:14px;padding:14px;margin:14px 0}
+.daily-start{border-color:#8b764b}
+.primary-cta{background:#e8c774;color:#182b41}
+.secondary-cta{background:#2b425b;color:#eff5ff;border:1px solid #7894af}
+.quick-links{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.quick-links a{flex:1 1 130px;text-align:center;border:1px solid #7894af;border-radius:9px;background:#213a54;text-decoration:none;padding:10px}
+.advanced-panel{margin:16px 0}
 .warning{background:#342d25;color:#ffe6b5;border:1px solid #9b8052;border-radius:10px;padding:12px;font-size:13px}
 .muted{font-size:13px;color:#c3d3e3}
 label{display:block;font-weight:700}
