@@ -1664,7 +1664,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(reloadEmpty.get('autoStatus').textContent,
   /前回の番組0Rを確認済み.*30分以内/);
  assert.match(reloadEmpty.get('autoOperationalNext').textContent,/追加照会0回/);
- assert.equal(reloadEmpty.storage.has(STORAGE),true);
+ assert.equal(reloadEmpty.storage.has(STORAGE),false,
+  'a 0R read and its reload marker must not mint research receipts');
  assert.equal(reloadEmpty.get('autoRaces').children.length,0,
   '0R marker must not create or replay any unverified formation');
  await reloadEmpty.get('autoRun').onclick();
