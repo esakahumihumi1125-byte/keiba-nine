@@ -1800,6 +1800,15 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /騎手・厩舎の名前 資料不足／前走からの間隔 資料あり／過去4角位置 資料不足/);
  assert.match(firstTenDetail.children.map(x=>x.textContent).join('|'),
   /資料ありは適性や能力の評価ではありません.*馬体重当日値は未確認/);
+ const gap=evidenceView.get('autoEvidenceGapReport').textContent;
+ assert.match(gap,/発走前の下書き：1R／馬別資料の照合：7頭/);
+ assert.match(gap,/展開17点の参考：過去4角 0\/7頭/);
+ assert.match(gap,/騎手・厩舎10点：名前の記録 0\/7頭/);
+ assert.match(gap,/血統6点：父・母父 1\/7頭/);
+ assert.match(gap,/枠・斤量3点：両方の記録 7\/7頭/);
+ assert.match(gap,/ローテ1点：前走日の記録 7\/7頭/);
+ assert.match(gap,/正式総合100点：未作成.*JRDB追加照会0回/);
+ assert.doesNotMatch(gap,/\b[A-Fa-f0-9]{64}\b|PRIVATE-|racekey/);
  const evidenceReadCount=evidenceView.requests.length;
  assert.equal(evidenceReadCount,1);
  const originalEvidenceLock=evidenceView.storage.get(STORAGE);
@@ -1815,6 +1824,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const noExtraEvidence=boot({initialServerRaw:resultWith('a'.repeat(64))});
  await new Promise(r=>setImmediate(r));
  assert.equal(noExtraEvidence.requests.length,1);
+ assert.match(noExtraEvidence.get('autoEvidenceGapReport').textContent,
+  /馬別の追加資料は照合保留/);
  assert.match(noExtraEvidence.get('autoStatus').textContent,
   /発走前の研究用暫定案 1Rを確認/);
  // A successful, zero-race weekend read must stop duplicate automatic
@@ -1838,6 +1849,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const zeroAcceptance=firstEmptyLoad.get('autoAcceptanceReport').textContent;
  assert.equal(firstEmptyLoad.requests.length,zeroAcceptanceReads);
  assert.match(zeroAcceptance,/JRDB番組：0R/);
+ assert.match(firstEmptyLoad.get('autoEvidenceGapReport').textContent,
+  /番組0R：資料を集計できません/);
  assert.match(zeroAcceptance,/今回のJRDB主要ソース照会：1回（番組のみ）/);
  assert.match(zeroAcceptance,/番組0Rは配信前・取得不備・開催なしを区別できません/);
  assert.match(zeroAcceptance,/研究用3連単下書き：0R／見送り：0R/);
