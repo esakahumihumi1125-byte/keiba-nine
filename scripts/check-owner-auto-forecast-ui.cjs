@@ -1739,10 +1739,15 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(acceptance,/JRDB追加照会0回・買い目変更0件/);
  assert.doesNotMatch(acceptance,/[0-9a-f]{64}/);
  assert.doesNotMatch(acceptance,/PRIVATE-|horse_id|API_KEY|racekey/);
- const cachedReads=saturdayReturn.requests.length;
- await saturdayReturn.get('autoAcceptanceCheck').onclick();
- const cachedAcceptance=saturdayReturn.get('autoAcceptanceReport').textContent;
- assert.equal(saturdayReturn.requests.length,cachedReads);
+ const cachedOnly=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:08:00Z',
+  initialServerRaw:saturdayRaw,seedStorage:saturdayOpened.storage});
+ await new Promise(r=>setImmediate(r));
+ const cachedReads=cachedOnly.requests.length;
+ assert.equal(cachedReads,0);
+ await cachedOnly.get('autoAcceptanceCheck').onclick();
+ const cachedAcceptance=cachedOnly.get('autoAcceptanceReport').textContent;
+ assert.equal(cachedOnly.requests.length,cachedReads);
  assert.match(cachedAcceptance,/端末の発走前固定研究記録：1R/);
  assert.match(cachedAcceptance,/今回のJRDB取得：未実施/);
  assert.doesNotMatch(cachedAcceptance,/JRDB番組：1R/);
