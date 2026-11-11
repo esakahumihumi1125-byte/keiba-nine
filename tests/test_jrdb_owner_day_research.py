@@ -43,6 +43,38 @@ class OwnerDayResearchTests(unittest.TestCase):
             self.assertNotIn(secret, repr(data))
         self.assertEqual(inputs, frozen)
 
+    def test_single_pass_race_index_keeps_valid_results_with_unrelated_rows(self):
+        # Foreign-day and malformed keys must never be guessed into an
+        # in-programme race, and source input collections stay unchanged.
+        p,e,t,z,day = sample()
+        expected = owner_day_research(p,e,t,z,day)
+        unrelated = [
+            {"racekey":"20991231", "private_metric":"DO-NOT-LEAK"},
+            {"racekey":["not-hashable"], "private_metric":"DO-NOT-LEAK"},
+            {"private_metric":"DO-NOT-LEAK"},
+        ]
+        inputs = (p,unrelated + e,t + unrelated,z + unrelated,day)
+        frozen = copy.deepcopy(inputs)
+        actual = owner_day_research(*inputs)
+        self.assertEqual(actual,expected)
+        self.assertEqual(inputs,frozen)
+        self.assertNotIn("DO-NOT-LEAK",repr(actual))
+        self.assertEqual(actual["sourceReadCount"],4)
+        self.assertFalse(actual["officialJraVerified"])
+
+    def test_single_pass_race_index_preserves_per_race_order(self):
+        p,e,t,z,day = sample()
+        reference = owner_day_research(p,e,t,z,day)
+        # Interleave source rows from separate races without rearranging
+        # the within-race order required by downstream evidence validators.
+        def interleave(rows):
+            groups = [[r for r in rows if r.get("racekey")==row["racekey"]]
+                      for row in p]
+            return [r for i in range(max(map(len,groups)))
+                    for group in groups for r in group[i:i+1]]
+        merged=(interleave(e),interleave(t),interleave(z))
+        self.assertEqual(owner_day_research(p,*merged,day),reference)
+
     def test_unrelated_race_failure_does_not_spoil_other_race(self):
         p, e, t, z, date = sample()
         e[-1]["racedate"] = "20261102"  # only Kyoto is inconsistent
