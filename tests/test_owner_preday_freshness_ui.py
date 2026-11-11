@@ -29,7 +29,7 @@ class OwnerForecastFreshnessTests(unittest.TestCase):
         self.assertLess(HOME.index('href="/owner-preday-forecast"'),
                         HOME.index('href="/my-scorecard"'))
         self.assertIn("登録済みなら自動表示", HOME)
-        self.assertIn("完全自動予想とJRA公式照合はまだ未完成", HOME)
+        self.assertIn("正式10項目とJRA公式照合は未完成", HOME)
         self.assertNotIn("④ 11月7日・前日予想36R", HOME)
         self.assertIn("過去の開催日の予想は自動的に非表示", HTML)
 
