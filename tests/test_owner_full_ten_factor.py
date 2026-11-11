@@ -160,6 +160,56 @@ class FullTenFactorGateTests(unittest.TestCase):
         self.assertEqual(result["missingByNumber"], {1: ["ground"]})
         self.assertEqual(result["trifecta"]["points"], 0)
 
+    def test_bad_evidence_timestamps_hold_only_the_unassessed_factor(self):
+        # Never promote malformed/JRDB-unavailable date metadata to a
+        # prestart score. Other runners retain no retrospective ranking
+        # when even one source factor is missing.
+        for wrong in (None, "not-a-date", "2099-01-01T08:00:00",
+                      [], "2099-99-99T09:00:00+09:00"):
+            with self.subTest(timestamp=repr(wrong)):
+                source = fixture()
+                item = source["horses"][2]["assessments"]["course_distance"]
+                item["evidence"][0]["availableAt"] = wrong
+                item["evidence"][0]["sourceId"] = "PRIVATE-BAD-ORIGIN"
+                original = copy.deepcopy(source)
+                result = full_ten_factor_preview(source, now=NOW)
+                self.assertEqual(source, original)
+                self.assertEqual(result["status"], "missing_evidence")
+                self.assertEqual(result["missingByNumber"], {
+                    3: ["course_distance"]
+                })
+                self.assertEqual(result["missingReasonCodesByNumber"], {
+                    3: {"course_distance": "evidence_timestamp_invalid"}
+                } if wrong is not None else {
+                    3: {"course_distance": "evidence_unverified"}
+                })
+                self.assertEqual(result["ranking"], [])
+                self.assertEqual(result["trifecta"]["points"], 0)
+                self.assertEqual(result["trifecta"]["tickets"], [])
+                self.assertNotIn("PRIVATE-BAD-ORIGIN", repr(result))
+
+    def test_missing_metadata_and_late_source_remain_distinct_and_ungraded(self):
+        source = fixture()
+        source["horses"][0]["assessments"]["pedigree"]["reason"] = "  "
+        source["horses"][1]["assessments"]["pace"]["evidence"][0]["availableAt"] = (
+            "2099-01-01T09:01:00+09:00"
+        )
+        source["horses"][2]["assessments"]["rotation"]["grade"] = "未評価"
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(result["missingReasonCodesByNumber"], {
+            1: {"pedigree": "evidence_unverified"},
+            2: {"pace": "evidence_after_prediction_cutoff"},
+            3: {"rotation": "factor_unassessed"},
+        })
+        self.assertEqual(result["ranking"], [])
+        self.assertFalse(result["overallReady"])
+        self.assertEqual(result["trifecta"]["points"], 0)
+
+    def test_complete_ten_factor_evidence_has_no_missing_diagnostics(self):
+        result = full_ten_factor_preview(fixture(), now=NOW)
+        self.assertEqual(result["missingReasonCodesByNumber"], {})
+        self.assertEqual(result["trifecta"]["points"], 40)
+
     def test_source_available_after_prediction_cutoff_is_unassessed(self):
         source = fixture()
         source["horses"][1]["assessments"]["pace"]["evidence"][0]["availableAt"] = (
