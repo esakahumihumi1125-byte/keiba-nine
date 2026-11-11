@@ -3928,5 +3928,67 @@ a{color:#f3cf88}
 
 <style>#knPurchaseLink{display:block;margin:12px 0;padding:15px;border-radius:12px;background:#e6f0e8;border:1px solid #b1c9b8;color:#23553d;text-align:center;font-weight:800;text-decoration:none;font-size:16px;min-height:48px}</style>
 <script>(function(){function install(){if(document.getElementById('knPurchaseLink'))return;const target=document.getElementById('home')||document.getElementById('app');if(!target)return;const a=document.createElement('a');a.id='knPurchaseLink';a.href='./purchase-check.html';a.textContent='馬券の購入前チェックを開く →';a.setAttribute('aria-label','馬券の券種・馬番・金額を確認する');const panel=target.querySelector('#simple52');if(panel)panel.before(a);else target.prepend(a)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install()})();</script>
+<style id="arc-race-blue-controls">
+/* Shared ARC RACE blue controls; colors only, preserving state and behavior.
+   Main actions use the same blue as the owner-forecast launch. */
+:root{
+ --arc-action-top:#2b78b4;
+ --arc-action-bottom:#1c5486;
+ --arc-action-border:#70aee0;
+ --arc-action-secondary-top:#1d4e75;
+ --arc-action-secondary-bottom:#123a5b;
+ --arc-action-secondary-border:#578db9;
+}
+/* Main action buttons, including all standard screens and button-like links. */
+#app .btn:not(.secondary):not(.ghost):not(.danger){
+ background:linear-gradient(180deg,var(--arc-action-top),var(--arc-action-bottom));
+ color:#fff;border:1px solid var(--arc-action-border);
+ box-shadow:0 3px 12px #06162761
+}
+#app .btn:not(.secondary):not(.ghost):not(.danger):not(:disabled):hover{
+ background:linear-gradient(180deg,#3486c4,#236598)
+}
+#app .btn:not(.secondary):not(.ghost):not(.danger):not(:disabled):active{
+ background:#174b79
+}
+/* Secondary tasks use a quieter blue to keep primary actions discoverable. */
+#app .btn.secondary,#app .btn.ghost{
+ background:linear-gradient(180deg,var(--arc-action-secondary-top),var(--arc-action-secondary-bottom));
+ color:#eef7ff;border:1px solid var(--arc-action-secondary-border)
+}
+#app .btn.secondary:not(:disabled):hover,
+#app .btn.ghost:not(:disabled):hover{background:#245e88}
+#app .btn.secondary:not(:disabled):active,
+#app .btn.ghost:not(:disabled):active{background:#10334e}
+/* Non-.btn controls in forms should also fit the blue family. */
+#app .screen button:not(.btn):not(.danger):not(:disabled):not([aria-pressed="true"]){
+ background:linear-gradient(180deg,var(--arc-action-secondary-top),var(--arc-action-secondary-bottom));
+ border:1px solid var(--arc-action-secondary-border);color:#f2f8ff
+}
+/* Navigation remains distinct: deep blue surface, gold only for selected tab. */
+#app .tabs button{background:transparent;border:1px solid transparent;color:#b8ccdf}
+#app .tabs button.active{background:#1c4668;border-color:#4e85ac;color:#ffda91}
+/* Preserve deliberate selection colors and red destructive controls. */
+#app .record66-states button[aria-pressed="true"]{
+ background:#a98043;border-color:#e0bc75;color:#101d2b
+}
+#app .btn.danger{background:#8d3443;border:1px solid #bc5261;color:#fff}
+#app .btn:disabled,#app button:disabled{
+ opacity:.52;cursor:not-allowed;box-shadow:none
+}
+#app .btn:focus-visible,#app .tabs button:focus-visible,
+#app #knOwnerForecastLaunch:focus-visible{
+ outline:3px solid #f2ca72;outline-offset:3px
+}
+/* Home shortcuts are links rather than .btn; match the primary blue CTA. */
+#knTicketShortcut,#knPurchaseLink,#knPersonalRecord{
+ background:linear-gradient(180deg,var(--arc-action-top),var(--arc-action-bottom));
+ border:1px solid var(--arc-action-border);color:#fff;
+ box-shadow:0 4px 14px #06162761
+}
+#knTicketShortcut:hover,#knPurchaseLink:hover,#knPersonalRecord:hover{
+ background:linear-gradient(180deg,#3486c4,#236598)
+}
+</style>
 <script src="./owner-ticket-transfer.js" defer></script>
 </body></html>
