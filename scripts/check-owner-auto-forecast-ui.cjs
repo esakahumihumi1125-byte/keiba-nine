@@ -1102,7 +1102,7 @@ function boot(){
   receiptVerificationOk=true,coreVerificationOk=true,
   coreProviderCorrupt=false,fiveExposureCorrupt=false,
   archiveReady=false,archiveCorrupt=false,
-  autoDraftOk=true,officialPdfLinks=[{track:'東京',
+  autoDraftOk=true,autoDraftNonJson=null,officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true,preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
@@ -1376,6 +1376,9 @@ function boot(){
     privateOwnerOnly:true
    })};
   }
+  if(url.startsWith('/api/jrdb/owner-auto-draft?')&&autoDraftNonJson)
+   return {ok:autoDraftNonJson===200,status:autoDraftNonJson,
+    json:async()=>{throw SyntaxError('synthetic non-JSON gateway body');}};
   if(url.startsWith('/api/jrdb/owner-auto-draft?')&&autoDraftFailure)
    return {ok:false,json:async()=>structuredClone(autoDraftFailure)};
   if(url.startsWith('/api/jrdb/owner-auto-draft?')&&!autoDraftOk)
@@ -1394,6 +1397,7 @@ function boot(){
   setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
   setAutoDraftOk:x=>autoDraftOk=x,
+  setAutoDraftNonJson:x=>autoDraftNonJson=x,
   setAutoDraftFailure:x=>autoDraftFailure=x,
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
@@ -3223,6 +3227,34 @@ function boot(){
   assert.equal(failures.storage.get(STORAGE),originalLocked);
   assert.equal(failures.get('autoRun').disabled,false);
  }
+ // Render can return HTML instead of private JSON on 502/503/504.
+ // Fail closed, show an actionable infrastructure hint, never retry paid
+ // reads in a loop or touch the first-written research receipt.
+ const gateway=boot();
+ await new Promise(r=>setImmediate(r));
+ const lockedGateway=gateway.storage.get(STORAGE);
+ for(const status of [502,503,504]){
+  gateway.setAutoDraftNonJson(status);
+  const before=gateway.requests.length;
+  await gateway.get('autoRun').onclick();
+  assert.equal(gateway.requests.length,before+1);
+  assert.match(gateway.get('autoStatus').textContent,
+   /Render応答エラー（502\/503\/504）/);
+  assert.match(gateway.get('autoOperationalNext').textContent,
+   /追加の有料JRDB照会を連打しない/);
+  assert.equal(gateway.get('autoRaces').children.length,0);
+  assert.equal(gateway.get('autoHistory').children.length,1);
+  assert.equal(gateway.storage.get(STORAGE),lockedGateway);
+  assert.equal(gateway.get('autoRun').disabled,false);
+ }
+ gateway.setAutoDraftNonJson(200);
+ const beforeBadJson=gateway.requests.length;
+ await gateway.get('autoRun').onclick();
+ assert.equal(gateway.requests.length,beforeBadJson+1);
+ assert.match(gateway.get('autoStatus').textContent,/応答形式未確認/);
+ assert.equal(gateway.get('autoRaces').children.length,0);
+ assert.equal(gateway.storage.get(STORAGE),lockedGateway);
+ gateway.setAutoDraftNonJson(null);
  // The 70-point study is only attested before the provisional off and
  // persisted once on the iPhone, never blended with ordinary 3連単.
  const coreView=boot();

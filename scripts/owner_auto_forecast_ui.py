@@ -3909,7 +3909,16 @@ $('autoRun').onclick=async()=>{
    credentials:'same-origin',cache:'no-store',
    headers:{'X-Keiba-Request':'private','Accept':'application/json'}
   });
-  const body=await result.json();
+  // Render may return a plain-text/HTML gateway failure rather than our
+  // private service's structured JSON. Never render an untrusted body,
+  // silently retry a potentially billed call, or show a new formation.
+  let body;
+  try{body=await result.json();}
+  catch(_){
+   if(!result.ok&&[502,503,504].includes(result.status))
+    throw Error('render_gateway_nonjson');
+   throw Error('unverified_server_response');
+  }
   if(!result.ok){
    const step=Object.hasOwn(FAILURE_STAGE,body.failureStage)
      ?FAILURE_STAGE[body.failureStage]:null;
@@ -3966,10 +3975,16 @@ $('autoRun').onclick=async()=>{
  }catch(error){if(seq===request){
   latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
   const storageFailure=error?.message==='receipt_storage_failed';
+  const gatewayFailure=error?.message==='render_gateway_nonjson';
+  const badResponse=error?.message==='unverified_server_response';
   const detail=error&&typeof error.message==='string'&&
    error.message.startsWith('停止した工程：')?error.message:null;
   $('autoStatus').textContent=storageFailure
    ?'【端末保存失敗】新しい3連単は表示していません。既存の固定履歴を確認し、端末の空き容量・バックアップを確認してください。'
+   :gatewayFailure
+   ?'【Render応答エラー（502/503/504）】サーバーの応答が確認できません。新しい買い目は非表示。自動再取得はしません。時間を空けて状態を確認してください。'
+   :badResponse
+   ?'【応答形式未確認】サーバーから安全なJSONを受信できず、新しい買い目は非表示です。自動再取得はしません。'
    :detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
@@ -3993,6 +4008,8 @@ $('autoRun').onclick=async()=>{
    :'JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
   $('autoOperationalNext').textContent=storageFailure
    ?'【端末保存失敗・新規下書きなし】既存の固定履歴を先に確認して、同じiPhoneのバックアップを安全に保管してください。保存できる状態になってから発走前に再取得してください。'
+   :gatewayFailure
+   ?'【Renderの状態確認】502/503/504はネットワークや実行環境の問題でも発生します。既存の固定履歴を確認し、Renderの稼働状況・非公開の処理ログを確認してください。原因が分かるまで追加の有料JRDB照会を連打しないでください。'
    :'【取得失敗・新規予想なし】上の停止工程と401/403/429等の原因表示を確認。日付・接続設定・利用権限を見直し、既存の固定履歴を先に確認してください。JRA公式照合と正式100点予想は未完了です。';
   $('autoProgrammeCoverage').textContent='取得失敗：開催場別R数は確認できません。';
   $('autoReadProof').textContent='【照会失敗】番組・出走馬・調教・近走の取得完了は未確認。新規予想・署名を確認できません。';
