@@ -446,7 +446,7 @@ class PrivateServiceTests(unittest.TestCase):
             self.assertIn('href="#operatorFactorPanel"', page)
             self.assertIn('href="#ownerTools"', page)
             self.assertIn('id="ownerManualSection"', page)
-            self.assertIn('本人用：手動の3連単下書きが使えます', page)
+            self.assertIn('研究用の自動予想・馬券記録が使えます', page)
             self.assertIn('実馬のAI予想・馬券購入は未接続', page)
             self.assertIn('iphone-login-recovery-20261105-v9', page)
             self.assertLess(page.index('id="researchPanel"'),
