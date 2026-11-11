@@ -1439,14 +1439,14 @@ function boot(){
  assert.equal(firstCard.children[2].className,'formation',
   'newest eligible trifecta is visible before horse-by-horse analysis');
  assert.equal(firstCard.children.filter(x=>x.className==='formation').length,1);
- const horsePanel=firstCard.children.find(x=>x.className==='horse-research');
- assert.ok(horsePanel);
- assert.equal(horsePanel.tag,'details');
- assert.equal(horsePanel.open,undefined);
- assert.match(horsePanel.children[0].textContent,/馬ごとの調教・近走の仮評価を見る（7頭）/);
- assert.match(horsePanel.children[1].textContent,/調教30：近走3での仮順位/);
+ const topHorsePanel=firstCard.children.find(x=>x.className==='horse-research');
+ assert.ok(topHorsePanel);
+ assert.equal(topHorsePanel.tag,'details');
+ assert.equal(topHorsePanel.open,undefined);
+ assert.match(topHorsePanel.children[0].textContent,/馬ごとの調教・近走の仮評価を見る（7頭）/);
+ assert.match(topHorsePanel.children[1].textContent,/調教30：近走3での仮順位/);
  const beforeHorsePanel=a.requests.length,originalTickets=a.storage.get(STORAGE);
- horsePanel.open=true;
+ topHorsePanel.open=true;
  assert.equal(a.requests.length,beforeHorsePanel);
  assert.equal(a.storage.get(STORAGE),originalTickets);
  const firstFormation=firstCard.children.find(x=>x.className==='formation');
