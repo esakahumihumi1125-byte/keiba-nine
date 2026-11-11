@@ -46,6 +46,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>2. 今日の予想状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
+<details id="autoAcceptancePanel"><summary>土日の動作チェック（追加のJRDB照会なし）</summary>
+<p class="muted">この画面で取得済みのデータと、このiPhoneの保存済み研究記録の件数だけを確認します。馬番・馬名・オッズ・認証キー・署名・買い目そのものは表示しません。</p>
+<button id="autoAcceptanceCheck" type="button">選択日の取得・保存状況を確認</button>
+<pre id="autoAcceptanceReport" class="acceptance-report" role="status">未確認。押した時だけ端末内の既存情報を集計します。</pre>
+</details>
 <nav class="quick-links" aria-label="画面内の移動">
 <a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
 <a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
@@ -204,6 +209,7 @@ nav{display:flex;justify-content:space-between;gap:12px}a{color:#f0d185}
 .owner-nav a{display:inline-flex;align-items:center;min-height:34px;font-size:13px}
 section{background:#142b43;border:1px solid #4d6b85;border-radius:14px;padding:14px;margin:14px 0}
 .daily-start{border-color:#8b764b}
+.acceptance-report{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #536d84;background:#0d2339;color:#dbe9f7;border-radius:10px;padding:10px;font-size:13px;line-height:1.65}
 .primary-cta{background:#e8c774;color:#182b41}
 .secondary-cta{background:#2b425b;color:#eff5ff;border:1px solid #7894af}
 .quick-links{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
@@ -827,6 +833,72 @@ function programmeCoverage(data){
 }
 // Show structural local receipt counts only, never claim HMAC verification,
 // durable server storage, actual bets, or results.
+// One-tap operational acceptance report. All values are counts from the
+// ALREADY validated private snapshot, never JRDB source rows/horse numbers,
+// names, betting combinations, signatures or official JRA conclusions.
+// It makes NO fetch and can never reconstruct a post-start formation.
+function dayAcceptanceReport(day){
+ const out=['【本人用・取得と保存の確認】'];
+ if(!/^20\d{6}$/.test(day)){
+  return '開催日の指定が不正です。取得・保存の確認はできません。';
+ }
+ out.push('対象日：'+day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6));
+ const saved=(()=>{
+  try{return selectedReceiptsForVerification(day).length;}
+  catch(_){return null;}
+ })();
+ out.push('端末の発走前固定研究記録：'+
+  (saved===null?'照合保留（保存内容を変更せずバックアップを確認）':
+   saved+'R（署名の真正性は別途確認）'));
+ const report=latestDisplayedReport;
+ if(!report||latestDisplayedDay!==day){
+  out.push('今回のJRDB取得：未実施（再訪問時に保存履歴だけ表示している場合を含む）');
+  out.push('番組・資料・3連単の新案：未取得。0Rと断定しません。');
+ }else{
+  // If any client state was replaced, fail closed instead of misreporting
+  // accepted R counts. validate() does not perform any paid reads.
+  try{validate(report,day);}
+  catch(_){return '取得内容の照合ができません。固定記録を変更せず、以前の履歴を確認してください。';}
+  out.push('JRDB番組：'+report.raceCount+'R（JRA公式開催場との照合は未実施）');
+  out.push('研究用3連単下書き：'+report.draftCount+
+   'R／見送り：'+report.holdCount+'R／署名付き記録の受信：'+
+   report.researchReceiptCount+'R');
+  if(report.raceCount===0)
+   out.push('番組0Rは配信前・取得不備・開催なしを区別できません。');
+  else{
+   const courses=new Map();
+   for(const row of report.races){
+    const n=courses.get(row.track)||{found:0,drafts:0,holds:0};
+    n.found++;
+    if(row.status==='provisional_draft')n.drafts++;
+    else n.holds++;
+    courses.set(row.track,n);
+   }
+   const names=['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'];
+   for(const [venue,n] of [...courses].sort((a,b)=>names.indexOf(a[0])-names.indexOf(b[0]))){
+    out.push(venue+'：番組'+n.found+'/12R／下書き'+n.drafts+
+     'R／見送り'+n.holds+'R');
+   }
+   if(report.holdCount){
+    const causes=Object.entries(report.holdReasons).filter(([,n])=>n>0)
+     .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))
+     .map(([reason,n])=>(SHORT_HOLDS[reason]||'原因未確認')+' '+n+'R');
+    out.push('見送りの主な理由：'+causes.join('／'));
+   }
+   out.push('追加資料の件数照合：'+report.sourceMaterials.status+
+    '／当日馬場の取得状態：'+report.raceContext.conditionProviderFetchStatus);
+  }
+ }
+ out.push('正式10項目の実証済み総合予想：未完成');
+ out.push('JRA公式の出走・取消・馬場・発走時刻の独立照合：未完成');
+ out.push('公式結果による確定回収率：未接続／自動購入なし');
+ out.push('この集計は画面表示だけ。JRDB追加照会0回・買い目変更0件。');
+ return out.join('\n');
+}
+$('autoAcceptanceCheck').onclick=()=>{
+ const day=$('autoDay').value.replaceAll('-','');
+ $('autoAcceptanceReport').textContent=dayAcceptanceReport(day);
+};
 function sourceReadProof(data){
  // This reports *provider reads*, not actual verified runner records,
  // official JRA information, calibrated grades or purchase readiness.
