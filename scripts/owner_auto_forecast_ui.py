@@ -3638,6 +3638,7 @@ function updateReviewLink(){
 }
 $('autoDay').onchange=()=>{
  ++preflightSeq;
+ $('autoPreflight').disabled=false;
  $('autoPreflightStatus').textContent='選択日が変わりました。無料診断はまだ実行していません。';
  // Preserve an explicitly selected day across subsequent app resumes.
  followingToday=false;
@@ -5576,6 +5577,7 @@ function resumeOwnerDay(){
  }
  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
  ++preflightSeq;
+ $('autoPreflight').disabled=false;
  $('autoPreflightStatus').textContent='開催日が変わりました。無料診断は未実行。';
  request++;$('autoRun').disabled=false;
  $('autoDay').value=today;
