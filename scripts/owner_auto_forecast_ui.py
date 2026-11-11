@@ -813,7 +813,7 @@ function operationalNextStep(data,fixed,expiredCount=0,displayableCount=null){
   .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
  const lead=reasons.slice(0,2).map(([reason,count])=>
   SHORT_HOLDS[reason]+' '+count+'R').join('／');
- if(data.draftCount>0&&visible===0)
+ if(data.draftCount>0&&visible===0&&expiredCount===data.draftCount)
   return '【発走時刻経過・新案0R】受信済み下書き '+data.draftCount+
    'Rはすべて端末で確認した時点で暫定発走時刻を過ぎました。'+
    '新しい買い目は表示せず、以前の固定履歴だけを確認してください。'+warning;
