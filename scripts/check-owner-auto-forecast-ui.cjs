@@ -1474,6 +1474,46 @@ function boot(){
  assert.equal(weekend.storage.get(STORAGE),preservedWeekend);
  assert.equal(weekend.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.match(weekend.get('autoJraCrosscheck').textContent,/JRDBの開催場 0場/);
+ // One-tap Saturday: NO fetch before Thursday, ONE guarded JRDB
+ // request when eligible, and no mutation of previously signed tickets.
+ const early=boot();
+ await new Promise(r=>setImmediate(r));
+ early.advanceClock('2098-12-31T10:00:00Z'); // Wednesday 19:00 JST
+ const earlyBefore=early.requests.length,earlySaved=early.storage.get(STORAGE);
+ await early.get('autoSaturdayQuick').onclick();
+ assert.equal(early.requests.length,earlyBefore);
+ assert.match(early.get('autoStatus').textContent,/木曜以降/);
+ assert.equal(early.storage.get(STORAGE),earlySaved);
+ const quick=boot();
+ await new Promise(r=>setImmediate(r));
+ const quickSaved=quick.storage.get(STORAGE),quickBefore=quick.requests.length;
+ await quick.get('autoSaturdayQuick').onclick();
+ assert.equal(quick.get('autoDay').value,'2099-01-03');
+ assert.equal(quick.requests.length,quickBefore+1,
+  'quick Saturday makes one draft API request, not setup + probe + draft');
+ assert.equal(quick.requests.at(-1).url,
+  '/api/jrdb/owner-auto-draft?date=20990103');
+ assert.equal(quick.requests.at(-1).options.credentials,'same-origin');
+ assert.equal(quick.storage.get(STORAGE),quickSaved,
+  'mismatched synthetic provider day must not corrupt first-write receipts');
+ assert.equal(quick.get('autoSaturdayQuick').disabled,false);
+ assert.equal(quick.get('autoRun').disabled,false);
+ assert.equal(quick.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // If a regular request is already outstanding, no second billed
+ // Saturday request is started or the existing date silently altered.
+ const pendingView=boot();
+ await new Promise(r=>setImmediate(r));
+ let unblock;
+ const suspended=new Promise(resolve=>{unblock=resolve;});
+ pendingView.waitNextFetch(suspended);
+ const inFlight=pendingView.get('autoRun').onclick();
+ const pendingBefore=pendingView.requests.length;
+ await pendingView.get('autoSaturdayQuick').onclick();
+ assert.equal(pendingView.requests.length,pendingBefore);
+ assert.equal(pendingView.get('autoDay').value,date);
+ assert.match(pendingView.get('autoStatus').textContent,/JRDB照会中/);
+ unblock();
+ await inFlight;
  // JRDB connection probe is a deliberate, independently limited action.
  assert.equal(a.requests.filter(r=>r.url==='/api/setup').length,0);
  assert.equal(a.requests.filter(r=>

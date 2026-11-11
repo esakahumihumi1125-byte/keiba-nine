@@ -23,6 +23,11 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <p id="autoPreflightStatus" class="muted" role="status">事前診断は未実行。レースデータや購入記録は変更しません。</p>
 </details>
 <button id="autoRun" type="button">全場・全Rを再分析する</button>
+<button id="autoSaturdayQuick" type="button">次の土曜日の暫定予想を1タップで取得</button>
+<p class="muted">このボタンは土曜日を選択してから、本人用JRDBへ1セット照会します。
+番組が0Rなら1回で終了、番組があれば出走馬・調教・近走・任意の馬場を含め最大5回のAPI照会。
+料金・利用制限は契約条件によります。木曜日より前は照会せず案内だけ表示します。
+JRDBの配信開始やJRA公式照合を保証するものではありません。</p>
 <details><summary>JRDB実接続の確認（任意）</summary>
 <p class="muted">本人が押した時だけ設定を確認し、設定済みなら番組APIへ1回接続。未設定ならJRDBへの追加通信なし。買い目・収支・購入記録は変更しません。</p>
 <button id="autoConnectionCheck" type="button">選択日のJRDB接続を確認</button>
@@ -3689,6 +3694,37 @@ function chooseUpcomingJstDay(weekday){
 }
 $('autoSaturday').onclick=()=>chooseUpcomingJstDay(6);
 $('autoSunday').onclick=()=>chooseUpcomingJstDay(0);
+// A single, explicit owner gesture combines date selection and the
+// existing ONE guarded owner-auto-draft request. No extra probe/read, no
+// background schedule, and no second request while one is in flight.
+$('autoSaturdayQuick').onclick=async()=>{
+ const button=$('autoSaturdayQuick');
+ if(button.disabled)return;
+ if($('autoRun').disabled){
+  $('autoStatus').textContent='JRDB照会中です。完了後に土曜日の取得を押してください。追加照会はしていません。';
+  return;
+ }
+ const selected=nearestJstWeekday(6);
+ const thursdayDate=new Date(selected+'T12:00:00Z');
+ thursdayDate.setUTCDate(thursdayDate.getUTCDate()-2);
+ const thursday=thursdayDate.toISOString().slice(0,10);
+ if(jstToday()<thursday){
+  $('autoStatus').textContent='土曜日のクイック取得は木曜以降に利用できます。'+
+   'JRDB配信前の可能性があるため今回は有料照会していません。';
+  return;
+ }
+ button.disabled=true;
+ try{
+  chooseUpcomingJstDay(6);
+  if($('autoDay').value!==selected){
+   $('autoStatus').textContent='日付が切り替わりました。照会せず、開催日を確認してください。';
+   return;
+  }
+  // The normal endpoint validates, signs and records only prestart
+  // provisional drafts. A failed/empty provider response is never retried.
+  await $('autoRun').onclick();
+ }finally{button.disabled=false;}
+};
 // Optional, JRA-only HTML index lookup. Never use the PDF URL as evidence
 // of specific runners, scratches, going, off times, finalized picks or ROI.
 $('autoOfficialPdf').onclick=async()=>{
