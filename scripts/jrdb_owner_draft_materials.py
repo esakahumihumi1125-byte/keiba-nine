@@ -126,19 +126,42 @@ def observe_owner_draft_materials_isolated(programme, entries, training, recent,
         if diagnostics is not None:
             diagnostics["rejectedRaces"] = len(programme)
         return unavailable()
-    coords = set()
-    observed = []
+    # A broken whole-day material join may need per-race isolation.
+    # Build a strict index just once instead of rescanning every potentially
+    # 50,000-row paid source for each of the 36 programme races.
+    coords, keys = set(), set()
     for race in programme:
         coord = (race.get("track"), race.get("race"))
+        if type(coord[0]) is not str or type(coord[1]) is not int:
+            return unavailable()
         if coord in coords:
             return unavailable()
         coords.add(coord)
         key = race.get("racekey")
-        if not isinstance(key, str):
+        if type(key) is str:
+            # Two race slots may not reuse one source identity; reject the
+            # whole fallback rather than misattribute one horse's records.
+            if key in keys:
+                return unavailable()
+            keys.add(key)
+    indexed = []
+    for source in sources:
+        groups = {}
+        for item in source:
+            key = item.get("racekey")
+            if type(key) is str and key in keys:
+                groups.setdefault(key, []).append(item)
+        indexed.append(groups)
+
+    observed = []
+    for race in programme:
+        coord = (race["track"], race["race"])
+        key = race.get("racekey")
+        if type(key) is not str:
             continue
-        one = ([item for item in source if item.get("racekey") == key]
-               for source in sources)
-        one_entries, one_training, one_recent = one
+        one_entries, one_training, one_recent = (
+            group.get(key, []) for group in indexed
+        )
         try:
             result = observe_owner_draft_materials(
                 [race], one_entries, one_training, one_recent, day)
