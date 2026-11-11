@@ -1092,7 +1092,7 @@ function prestart(){
  result.bodyOneEvidencePreflight=gate;
  return result;
 }
-function boot({manualWeekday=true}={}){
+function boot({manualWeekday=true,initialClock=null}={}){
  const storage=new Map(),elements=new Map(),requests=[];
  let storageWritable=true,writeMode='normal';
  let next=resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
@@ -1107,7 +1107,7 @@ function boot({manualWeekday=true}={}){
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true,preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
- let now='2099-01-01T00:00:00Z',onVisibility=null;
+ let now=initialClock||'2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
    tag,children:[],textContent:'',className:'',value:'',disabled:false,
@@ -1394,7 +1394,7 @@ function boot({manualWeekday=true}={}){
  const context={document,localStorage,fetch,Intl,URL,Date:FakeDate,JSON,Set,Map,Number,
   String,Array,Error,Promise,Object};
  vm.runInNewContext(js,context);
- get('autoDay').value=date;
+ if(!initialClock)get('autoDay').value=date;
  // Most legacy scenarios intentionally press the manual weekday action.
  // A separate regression below verifies that page load alone uses no paid API.
  if(manualWeekday)get('autoRun').onclick();
@@ -1426,6 +1426,24 @@ function boot({manualWeekday=true}={}){
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
 }
 (async()=>{
+ // Normal Saturdays and Sundays issue exactly one request on page entry.
+ // The fake upstream returns an old date, so no new ticket is stored.
+ const saturdayLanding=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:00:00Z'}); // 2099-01-03 00:00 JST
+ const sundayLanding=boot({manualWeekday:false,
+  initialClock:'2099-01-03T15:00:00Z'}); // 2099-01-04 00:00 JST
+ await new Promise(r=>setImmediate(r));
+ for(const [view,iso,compact] of [
+  [saturdayLanding,'2099-01-03','20990103'],
+  [sundayLanding,'2099-01-04','20990104']]){
+  assert.equal(view.get('autoDay').value,iso);
+  assert.equal(view.requests.length,1,
+   'opening a normal weekend day makes one guarded data request');
+  assert.equal(view.requests[0].url,
+   '/api/jrdb/owner-auto-draft?date='+compact);
+  assert.equal(view.storage.has(STORAGE),false,
+   'mismatched old provider data must not become a new signed record');
+ }
  // Ordinary weekdays now render without triggering a possibly billed JRDB
  // request. An explicit user press still works for a holiday race meeting.
  const weekday=boot({manualWeekday:false});
