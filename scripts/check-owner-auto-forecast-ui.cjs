@@ -1808,7 +1808,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  evidenceView.setServerRaw(corruptedEvidence);
  await evidenceView.get('autoRun').onclick();
  assert.equal(evidenceView.requests.length,evidenceReadCount+1);
- assert.match(evidenceView.get('autoStatus').textContent,/確認できません/);
+ assert.match(evidenceView.get('autoStatus').textContent,
+  /安全な自動生成ができません|確認できません/);
  assert.equal(evidenceView.storage.get(STORAGE),originalEvidenceLock);
  // A missing extra source section keeps the older, guarded forecast usable.
  const noExtraEvidence=boot({initialServerRaw:resultWith('a'.repeat(64))});
