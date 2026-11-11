@@ -105,7 +105,111 @@ def run_request(data, *, clocks=None):
     return reply
 
 
+def raw_specific_saturday_2026_11_14():
+    """An entirely synthetic current-calendar feed; no real JRDB request.
+
+    The provider racekey's year component and every source row's date
+    must agree, not just the HTTP query date.
+    """
+    programme, entries, training, previous = copy.deepcopy(raw_day())
+    for rows in (programme, entries, training, previous):
+        for row in rows:
+            assert row["racedate"] == DAY
+            row["racedate"] = "20261114"
+            row["racekey"] = row["racekey"].replace("99aa", "26aa")
+    for row in previous:
+        row["race_back_1_racedate"] = "20261015"
+        row["race_back_2_racedate"] = "20260915"
+    return programme, entries, training, previous
+
+
+def run_november_14_synthetic(data, *, clocks):
+    """Full authenticated HTTP path with four/five mocked provider reads."""
+    date = "20261114"
+    programme, entries, training, previous = data
+    with (
+        patch("private_service.fetch_race_program", return_value=programme) as tra,
+        patch("private_service.fetch_horse_entries", return_value=entries) as tky,
+        patch("private_service.fetch_training_analysis", return_value=training) as tcy,
+        patch("private_service.fetch_recent_runs", return_value=previous) as tze,
+        patch("private_service.fetch_venue_conditions", return_value=[]) as tka,
+        patch("private_service._now_in_jst", side_effect=clocks) as clock,
+    ):
+        reply = call(owner_app(), "/api/jrdb/owner-auto-draft",
+                     QUERY_STRING="date=" + date)
+    for adapter in (tra, tky, tcy, tze, tka):
+        adapter.assert_called_once_with(date)
+    assert clock.call_count == 2
+    return reply
+
+
 class SaturdayRawDayTests(unittest.TestCase):
+    def test_november_14_real_calendar_date_prestart_and_final_gate(self):
+        """Saturday 2026-11-14: source join and immutable HMAC cutoff.
+
+        Data is deliberately synthetic: successful assertions must not be
+        mistaken for JRDB weekly delivery, actual race venues or JRA proof.
+        """
+        raw = raw_specific_saturday_2026_11_14()
+        snapshot = copy.deepcopy(raw)
+        prior = run_november_14_synthetic(raw, clocks=[
+            "2026-11-14T09:00:00+09:00",
+            "2026-11-14T09:01:00+09:00",
+        ])
+        self.assertEqual(prior["status"], "200 OK", prior["body"][:250])
+        data = json.loads(prior["body"])
+        self.assertEqual(data["date"], "20261114")
+        self.assertEqual((data["raceCount"], data["draftCount"],
+                          data["holdCount"]), (36, 36, 0))
+        self.assertEqual(data["researchReceiptCount"], 36)
+        self.assertEqual(data["sourceReadCount"], 4)
+        self.assertEqual(len(verify_preview_receipts(
+            data["researchReceipts"], SECRET, "2026-11-14")), 36)
+        for r in data["researchReceipts"]:
+            self.assertEqual(r["snapshot"]["date"], "2026-11-14")
+            self.assertEqual(r["snapshot"]["scheduledOffAt"],
+                             "2026-11-14T15:00:00+09:00")
+            self.assertFalse(r["snapshot"]["actualPurchase"])
+        self.assertEqual(raw, snapshot,
+                         "provider rows must not be rewritten after parsing")
+        for marker in ("PRIVATE-TEST-HORSE", "horse_id", "raw-synthetic",
+                       "20261015", "racekey", "API_KEY"):
+            self.assertNotIn(marker, prior["body"].decode())
+        self.assertFalse(data["officialJraVerified"])
+        self.assertFalse(data["overallPredictionReady"])
+
+        # The same day, but now after all provisional start times:
+        # retrieving a historical source never creates post-hoc tickets.
+        after = run_november_14_synthetic(raw, clocks=[
+            "2026-11-14T15:01:00+09:00",
+            "2026-11-14T15:01:01+09:00",
+        ])
+        self.assertEqual(after["status"], "200 OK", after["body"][:250])
+        late = json.loads(after["body"])
+        self.assertEqual((late["raceCount"], late["draftCount"],
+                          late["holdCount"]), (36, 0, 36))
+        self.assertEqual(late["holdReasons"], {"after_provisional_off": 36})
+        self.assertEqual(late["researchReceiptCount"], 0)
+        self.assertEqual(late["researchReceipts"], [])
+        self.assertTrue(all(not row["tickets"] and not row["runners"]
+                            for row in late["races"]))
+        self.assertFalse(late["bettingReady"])
+
+        # Even if the provider finishes exactly as the clock crosses
+        # the temporary start, the final server gate refuses new records.
+        crosses_off = run_november_14_synthetic(raw, clocks=[
+            "2026-11-14T14:59:59+09:00",
+            "2026-11-14T15:00:01+09:00",
+        ])
+        self.assertEqual(crosses_off["status"], "200 OK",
+                         crosses_off["body"][:250])
+        crossed = json.loads(crosses_off["body"])
+        self.assertEqual((crossed["draftCount"], crossed["holdCount"]),
+                         (0, 36))
+        self.assertEqual(crossed["researchReceiptCount"], 0)
+        self.assertEqual(crossed["researchReceipts"], [])
+        self.assertFalse(crossed["officialJraVerified"])
+
     def test_raw_36r_really_parses_analyzes_signs_and_redacts(self):
         raw = raw_day()
         frozen = copy.deepcopy(raw)
