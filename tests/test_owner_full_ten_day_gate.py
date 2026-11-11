@@ -14,10 +14,14 @@ VENUES = ("東京", "京都", "福島")
 
 
 def batch():
-    return [
+    rows = [
         {"track": track, "race": race, "snapshot": fixture()}
         for track in VENUES for race in range(1, 13)
     ]
+    for row in rows:
+        row["snapshot"]["track"] = row["track"]
+        row["snapshot"]["race"] = row["race"]
+    return rows
 
 
 class FullTenDayGateTests(unittest.TestCase):
@@ -73,6 +77,25 @@ class FullTenDayGateTests(unittest.TestCase):
         self.assertEqual(report["races"][1]["preview"]["ranking"], [])
         self.assertEqual(report["races"][1]["preview"]["trifecta"]["tickets"], [])
         self.assertEqual(report["races"][2]["reviewOnlyTicketCount"], 40)
+        self.assertFalse(report["officialJraVerified"])
+
+    def test_foreign_race_snapshots_never_become_another_races_prediction(self):
+        # Two legitimate-looking independent 10-factor assessments cannot
+        # be swapped between a different R/venue or silently reused.
+        rows = batch()
+        rows[0]["snapshot"], rows[1]["snapshot"] = (
+            rows[1]["snapshot"], rows[0]["snapshot"])
+        rows[2]["snapshot"].pop("track")
+        original = copy.deepcopy(rows)
+        report = full_ten_day_research(DATE, rows, now=NOW)
+        self.assertEqual(rows, original)
+        self.assertEqual(report["researchFormationRaces"], 33)
+        self.assertEqual(report["invalidInternalSnapshotRaces"], 3)
+        for row in report["races"][:3]:
+            self.assertEqual(row["status"], "invalid_internal_snapshot")
+            self.assertEqual(row["preview"]["ranking"], [])
+            self.assertEqual(row["reviewOnlyTicketCount"], 0)
+        self.assertEqual(report["races"][3]["reviewOnlyTicketCount"], 40)
         self.assertFalse(report["officialJraVerified"])
 
     def test_at_race_off_none_of_the_36_gets_retroactive_tickets(self):
