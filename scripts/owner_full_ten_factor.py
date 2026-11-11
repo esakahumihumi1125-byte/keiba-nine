@@ -68,12 +68,44 @@ def _has_independent_pair(support):
     )
 
 
-def _empty(status, *, missing=None, evidence=None):
+
+def _evidence_blocker(item, cutoff):
+    """Only fixed diagnostic codes leave the private prestart evaluator.
+
+    A malformed or late source must make its factor *unassessed*, not crash
+    every other race's work or allow an invented S/A/B/C grade.
+    Source values, URLs, freeform reasons and timestamps never leave here.
+    """
+    if item is None or item["grade"] == UNASSESSED:
+        return "factor_unassessed"
+    try:
+        if supported(item, cutoff):
+            return None
+    except (ValueError, TypeError, OverflowError, AttributeError):
+        return "evidence_timestamp_invalid"
+    sources = item.get("evidence")
+    if isinstance(sources, list):
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            raw = source.get("availableAt")
+            if raw is None:
+                continue
+            try:
+                if timestamp(raw) > cutoff:
+                    return "evidence_after_prediction_cutoff"
+            except (ValueError, TypeError, OverflowError, AttributeError):
+                return "evidence_timestamp_invalid"
+    return "evidence_unverified"
+
+
+def _empty(status, *, missing=None, missing_reasons=None, evidence=None):
     return {
         "version": VERSION, "policyVersion": POLICY_VERSION,
         "status": status, "researchOnly": True, "publishable": False,
         "bettingReady": False, "autoPurchase": False, "overallReady": False,
         "ranking": [], "missingByNumber": missing or {},
+        "missingReasonCodesByNumber": missing_reasons or {},
         "winnerRecheck": _empty_recheck(),
         "upsetAlternative": hold_upset("full_ten_not_ready"),
         "trifecta": build_trifecta([1, 2, 3, 4], evidence=evidence),
@@ -104,7 +136,7 @@ def full_ten_factor_preview(snapshot, *, now):
     if not isinstance(official, dict):
         official = {}
     valid_official = {k: official.get(k) is True for k in OFFICIAL}
-    numbers, ranking, missing, support_by_number = set(), [], {}, {}
+    numbers, ranking, missing, missing_reasons, support_by_number = set(), [], {}, {}, {}
     blocked_numbers = set()
     for horse in horses:
         if not isinstance(horse, dict):
@@ -116,15 +148,17 @@ def full_ten_factor_preview(snapshot, *, now):
         a = horse.get("assessments")
         if not isinstance(a, dict) or set(a) - set(FACTORS):
             raise CoverageError("Invalid factor names")
-        weighted, absent, grades, contributions = 0, [], {}, {}
+        weighted, absent, reason_codes, grades, contributions = 0, [], {}, {}, {}
         for key, weight in FACTORS.items():
             item = a.get(key)
             if item is not None and (
                 not isinstance(item, dict) or item.get("grade") not in (*POINTS, UNASSESSED)
             ):
                 raise CoverageError("Invalid factor grade")
-            if not item or item["grade"] == UNASSESSED or not supported(item, as_of):
+            blocked_reason = _evidence_blocker(item, as_of)
+            if blocked_reason:
                 absent.append(key)
+                reason_codes[key] = blocked_reason
                 grades[key] = UNASSESSED
                 continue
             grades[key] = item["grade"]
@@ -140,6 +174,7 @@ def full_ten_factor_preview(snapshot, *, now):
             }
         if absent:
             missing[n] = absent
+            missing_reasons[n] = reason_codes
 
         # These flags do NOT create a win pick. They only make a horse
         # eligible for a separate, explicitly reviewed lower-rank hypothesis.
@@ -180,7 +215,8 @@ def full_ten_factor_preview(snapshot, *, now):
 
     # Do not extrapolate or sort partial 2-factor material into a full ranking.
     if missing:
-        return _empty("missing_evidence", missing=missing)
+        return _empty("missing_evidence", missing=missing,
+                      missing_reasons=missing_reasons)
 
     ranking.sort(key=lambda h: (-h["weightedPoints"], h["number"]))
     for pos, horse in enumerate(ranking):
@@ -233,6 +269,7 @@ def full_ten_factor_preview(snapshot, *, now):
         "publishable": False, "bettingReady": False,
         "autoPurchase": False, "overallReady": True,
         "ranking": ranking, "missingByNumber": {},
+        "missingReasonCodesByNumber": {},
         "winnerRecheck": recheck,
         "independentJraVerified": all(valid_official.values()),
         "blockedRunnerCount": len(blocked_numbers),
