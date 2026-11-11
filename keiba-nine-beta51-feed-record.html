@@ -3892,6 +3892,122 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 <!-- personal-only record shortcut --><style>#knPersonalRecord{display:block;margin:10px 0;padding:14px;border:1px solid #b4c8e4;border-radius:12px;background:#eaf1fc;color:#203c66;text-align:center;font-size:16px;font-weight:800;text-decoration:none}</style><script>(function(){function install(){if(document.getElementById('knPersonalRecord'))return;const a=document.createElement('a');a.id='knPersonalRecord';a.href='./personal-record.html';a.textContent='自分用の実戦収支を記録する →';const p=document.getElementById('knPurchaseLink');if(p)p.after(a);else{const target=document.getElementById('home')||document.getElementById('app');if(target)target.prepend(a)}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install()})();</script>
+<style id="arc-race-premium-theme">
+/* ARC RACE / premium-night UI across all five app screens.
+   Presentation only: keep routes, saved state, JRDB links, WIN5 and purchase logic. */
+:root{
+ color-scheme:dark;
+ --arc-bg:#071521;--arc-surface:#10283b;--arc-card:#152f44;
+ --arc-ink:#eaf1f8;--arc-muted:#b4c7d8;--arc-gold:#f3cc7e;
+ --arc-line:#38566c;--arc-blue:#70b4dd;
+ background:var(--arc-bg);color:var(--arc-ink)
+}
+html{background:#071521}
+body{
+ background:
+ radial-gradient(ellipse 108% 33% at 95% 0%,#1d4d604d,transparent 77%),
+ radial-gradient(ellipse 88% 42% at -25% 21%,#23476d55,transparent 76%),
+ linear-gradient(163deg,#0b2134 0%,#071521 57%,#07121e 100%);
+ color:var(--arc-ink);min-height:100vh
+}
+#app{color:var(--arc-ink)}
+.screen{background:#0e2335f5;border:1px solid #28475d;border-radius:24px;
+ box-shadow:0 13px 32px #0209135c;color:var(--arc-ink)}
+.panel,.kpi,.hero,#realForecastList>.real-record,#realResultForms>details{
+ background:var(--arc-card);color:var(--arc-ink);border-color:var(--arc-line);
+ box-shadow:0 5px 14px #030d1b2c
+}
+.panel.hero{background:linear-gradient(135deg,#1b3d55,#12283b)}
+h2,h4,.sectiontitle,.heading{color:#f3f6fb}
+h3,summary,.gold{color:var(--arc-gold)}
+.caption,.muted,label,.navhint,#recordsCount56,#recordEmpty56,.r56-state,
+#recordSummary61,.purchase67-badge{color:var(--arc-muted)}
+input,select,textarea{background:#0a1e2f;color:#f4f8ff;border-color:#4b6a83}
+input::placeholder,textarea::placeholder{color:#a9bdd0;opacity:1}
+select option{background:#10283b;color:#f4f8ff}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--arc-blue);outline-offset:2px}
+button:focus-visible,a:focus-visible,summary:focus-visible{
+ outline:3px solid #f2ca72;outline-offset:3px
+}
+.btn{background:#cda45b;color:#101d2c;border:1px solid #ecc27b}
+.btn.secondary,.btn.ghost{background:#1b3b53;color:#f2f6fc;border-color:#64819a}
+.btn.danger{background:#8d3443;color:#fff;border-color:#bc5261}
+a{color:#f3cf88}
+.notice,#simple52 .notice,.record66-mode{
+ background:#41321f;color:#f5dba9;border-color:#997542
+}
+.empty,.s55-empty,.record66-pending{
+ background:#102639;color:#bcd0de;border:1px solid #37536a
+}
+.s55-empty h3{color:#f1cc80}.s55-empty p{color:#bcd0de}
+.s55-eyebrow,.s55-step{color:#b4d1e5}
+.s55-racehead{border-color:#39566b}.s55-racehead h2{color:#f1f5fa}
+/* Distinctive S gold, A red and B blue-green remain easy to compare. */
+#simple52 .s52-rank{background:#112b3d;border-color:#405a6e;border-left-color:var(--rank-ink)}
+.s52-rank-S{--rank-ink:#e8bc5f;--rank-bg:#46371f;--rank-text:#ffe3a4}
+.s52-rank-A{--rank-ink:#f47881;--rank-bg:#4a2937;--rank-text:#ffd9dc}
+.s52-rank-B{--rank-ink:#83c5d0;--rank-bg:#1b3c4a;--rank-text:#cbf4f5}
+#simple52 .s52-horse{background:var(--rank-bg);color:var(--rank-text);border-color:var(--rank-ink)}
+.s55-ticket{background:linear-gradient(130deg,#19344a,#10283b);border:1px solid #6d6553}
+.s55-ticket h3,#simple52 .s55-ticket h3,.s52-total{color:var(--arc-gold)}
+.s55-bet{background:#1d3a4f;color:#f0f5fb;border-color:#49667b}
+.s55-bet i{color:#b1c6d6}
+.s55-legend span:nth-child(1){color:#e8bc5f}
+.s55-legend span:nth-child(2){color:#ff8c93}
+.s55-legend span:nth-child(3){color:#8bd3c2}
+.tabs{background:#071828f7;border-color:#39566a;box-shadow:0 -7px 22px #01081280}
+.tabs button{color:#b8cad9}
+.tabs button.active{color:#ffda91;background:#1d3b50;border-radius:12px}
+.pill,.real-pill{background:#254356;color:#e0edf6}
+.pill.ok{background:#1b483c;color:#c4f3d7}
+.pill.warn{background:#463621;color:#ffe3a4}
+.pill.old{background:#273849;color:#d6e1e9}
+#finance54 .finance54-grid>.kpi:last-child{background:#253a4b;border-color:#8e734b}
+#financeNet54{color:#f3cf85}
+#financeNet54[data-negative="true"]{color:#ff9ea7}
+#purchaseBets54{background:#10283b;color:#ebf3fb}
+.r56-fold{border-color:#435d6e}
+#win57 .w57-leg>span,#win57 .w57-horses,#win57 .w57-total,
+#win57Notice,#win57Preview{color:#f2c981}
+#win57 .w57-leg,#win57 .w57-fields,#win57History .w57-old{border-color:#466075}
+.quality58{background:#132d3f;border:1px solid #405e73;color:#dbe9f2}
+.quality58 summary{color:#f2d28c}
+.review58{background:#193546;color:#dbe8ee}
+#tools .panel,#resultsAdvanced56,#live details:not(#purchaseDetail56):not(.r56-fold) .real-mini{
+ background:#0f2638;color:#e9f1f8
+}
+#tools .panel label,#tools .panel .caption,#tools .panel .muted,
+#resultsAdvanced56 .caption{color:#b8cbd9}
+#tools .panel summary,#tools .panel h3{color:#f2ce8e}
+#knOwnerForecastHub{background:linear-gradient(125deg,#243746,#132b40);
+ border:2px solid #b19155;color:#eef3f7}
+#knOwnerForecastHub h2{color:#f5d591}
+#knOwnerForecastHub .caption{color:#ccd8e1}
+.record66-mode[data-mode="actual"]{background:#193f37;color:#c6f2d8}
+.record66-states button{background:#142e42;color:#eef4fb;border-color:#486479}
+.record66-states button[aria-pressed="true"]{background:#a98043;color:#0c1d2b;border-color:#e0bc75}
+.record66-detail[open]>summary{border-bottom-color:#425c70}
+.purchase67-badge[data-purchased="true"]{
+ color:#c1eeda;background:#1c4138;border-color:#3f806a
+}
+#backupTools68{background:#112a3e;border-color:#405d71;color:#ebf2fa}
+#backupTools68>.panel{background:transparent;color:inherit}
+#backupStatus68{color:#bce0d7}
+.restore68{border-top-color:#3c5c70}
+#knTicketShortcut,#knPurchaseLink,#knPersonalRecord{
+ background:#193a50;border:1px solid #668098;color:#f3d794;
+ box-shadow:0 4px 14px #030d1c42
+}
+#knTicketShortcut:focus-visible,#knPurchaseLink:focus-visible,#knPersonalRecord:focus-visible{
+ outline:3px solid #f0cb80;outline-offset:3px
+}
+@media(max-width:480px){
+ .screen{border-radius:19px}
+ #app{padding-left:12px;padding-right:12px}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
 <!-- purchase-check integration 5.7 -->
 <script>(function(){document.addEventListener('click',function(e){const a=e.target.closest('#knPurchaseLink');if(!a)return;const panel=document.getElementById('forecastTickets65');if(!panel)return;const btn=panel.querySelector('#copyTicket63');if(!btn||btn.disabled)return;const entries=[...panel.querySelectorAll('.s52-bets .s55-bet')].map(el=>[...el.querySelectorAll('b')].map(b=>b.textContent.trim())).filter(x=>x.length===3&&x.every(n=>/^\d{1,2}$/.test(n)));if(!entries.length)return;const title=(document.querySelector('#simple52 .s55-heading')?.textContent||'').trim();try{sessionStorage.setItem('kn_purchase_import_v1',JSON.stringify({type:'3連単',race:document.querySelector('#simple52 h3')?.textContent?.trim()||'表示中のレース',entries,created:Date.now()}));}catch(err){return;}},true)})();</script>
 
