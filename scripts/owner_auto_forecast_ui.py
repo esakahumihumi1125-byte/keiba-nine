@@ -435,6 +435,68 @@ function validateTen(data){
  }
  return p;
 }
+// Optional live four-source drill-down. Each value is source column presence,
+// not a skill grade. Do not infer JRA starters, actual bodyweight, suitability,
+// prediction readiness or a 10-factor score. Legacy cached previews without
+// this optional report retain the previous UI.
+function validatedRunnerSourceEvidence(data){
+ const report=data.runnerSourceEvidence, result=new Map();
+ if(report===undefined)return result;
+ const keys=['pedigree','draw_weight','jockey_stable','rotation','past_corner'];
+ if(!report||report.version!=='owner-runner-source-hints-1'||
+    report.verifiedNewFactorCount!==0||report.officialJraVerified!==false||
+    report.overallPredictionReady!==false||report.bettingReady!==false||
+    report.researchOnly!==true||report.privateOwnerOnly!==true||
+    report.newProviderRequests!==0||report.rawSourceRowsIncluded!==false||
+    !Array.isArray(report.factorFields)||report.factorFields.join('|')!==keys.join('|')||
+    !Array.isArray(report.races)||report.raceCount!==report.races.length||
+    !Number.isInteger(report.observedRaceCount)||
+    !Number.isInteger(report.unavailableRaceCount))
+   throw Error('追加10項目資料の形式不正');
+ if(report.raceCount===0){
+  if(report.observedRaceCount!==0||report.unavailableRaceCount!==0)
+   throw Error('資料欠損の集計不一致');
+  return result;
+ }
+ if(report.raceCount!==data.raceCount)throw Error('追加資料のレース数不一致');
+ const drafts=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+ let observed=0, unavailable=0;
+ for(const row of report.races){
+  const id=row?.track+'|'+row?.race,original=drafts.get(id);
+  if(!original||result.has(id)||!['held','observed','unavailable'].includes(row.status)||
+     !Array.isArray(row.runners)||row.runners.length>18)
+   throw Error('追加資料の競馬場照合不一致');
+  if(row.status==='held'){
+   if(original.status!=='hold'||row.runners.length)
+    throw Error('見送りRに馬番資料を再生成できません');
+   result.set(id,new Map());
+   continue;
+  }
+  if(row.status==='unavailable'){
+   if(row.runners.length)throw Error('未取得馬番資料を拒否');
+   unavailable++;
+   result.set(id,new Map());
+   continue;
+  }
+  observed++;
+  if(original.status!=='provisional_draft'||row.runners.length!==original.runners.length)
+   throw Error('未検証の馬番資料を拒否');
+  const horseNumbers=new Set(original.runners.map(h=>h.number)),byHorse=new Map();
+  for(const horse of row.runners){
+   if(!horse||!horseNumbers.has(horse.number)||byHorse.has(horse.number)||
+      horse.verifiedFactorCount!==0||
+      !horse.observed||Object.keys(horse.observed).length!==keys.length||
+      keys.some(key=>typeof horse.observed[key]!=='boolean'))
+    throw Error('馬ごとの10項目資料不一致');
+   byHorse.set(horse.number,horse.observed);
+  }
+  result.set(id,byHorse);
+ }
+ if(result.size!==drafts.size||report.observedRaceCount!==observed||
+    report.unavailableRaceCount!==unavailable)
+  throw Error('追加10項目資料の件数不一致');
+ return result;
+}
 function validateContext(data){
  const ctx=data.raceContext;
  if(!ctx||ctx.version!=='race-context-1'||
@@ -674,7 +736,7 @@ function runnerView(h,index){
  if(missingText(h))p.append(dom('span',missingText(h),'notes'));
  return p;
 }
-function renderTenHorse(h){
+function renderTenHorse(h,source){
  const details=dom('details',undefined,'ten-horse');
  details.append(dom('summary',h.number+'番：総合 未評価（仮評価'+
    h.provisionalWeightCapacity+'点分の項目／未評価'+
@@ -687,6 +749,16 @@ function renderTenHorse(h){
   grid.append(slot);
  }
  details.append(grid);
+ if(source){
+  const labels=[['pedigree','血統（父・母父）'],['draw_weight','枠・負担重量'],
+   ['jockey_stable','騎手・厩舎の名前'],
+   ['rotation','前走からの間隔'],['past_corner','過去4角位置']];
+  details.append(dom('p','JRDB資料の有無：'+labels.map(([key,label])=>
+   label+' '+(source[key]?'資料あり':'資料不足')).join('／')+
+   '。資料ありは適性や能力の評価ではありません。馬体重当日値は未確認。','muted'));
+ }else{
+  details.append(dom('p','JRDBの馬別追加資料は照合保留。残り8項目は未採点。','muted'));
+ }
  details.append(dom('p','未評価の項目（配点が大きい順）：'+
   h.priorityMissingFactors.map(key=>{
    const entry=TEN.find(([k])=>k===key);
@@ -1060,6 +1132,7 @@ function clearDraftShortcut(){
 }
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
+ const materialByRace=validatedRunnerSourceEvidence(data);
  const deviceExpired=new Set(data.races.filter(x=>
    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)
  ).map(x=>x.track+'|'+x.race));
@@ -1139,7 +1212,7 @@ function render(input,day){
    for(const [i,h] of race.runners.entries()){
     horses.append(runnerView(h,i));
     const ten=tenRows.get(race.track+'|'+race.race).horses.find(x=>x.number===h.number);
-    horses.append(renderTenHorse(ten));
+    horses.append(renderTenHorse(ten,materialByRace.get(key)?.get(h.number)));
    }
    detail.append(horses);
   }
