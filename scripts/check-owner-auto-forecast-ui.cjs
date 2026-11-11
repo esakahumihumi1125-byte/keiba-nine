@@ -1785,6 +1785,16 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(marker.day,'20990103');
  assert.equal(typeof marker.at,'number');
  assert.equal(firstEmptyLoad.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const zeroAcceptanceReads=firstEmptyLoad.requests.length;
+ await firstEmptyLoad.get('autoAcceptanceCheck').onclick();
+ const zeroAcceptance=firstEmptyLoad.get('autoAcceptanceReport').textContent;
+ assert.equal(firstEmptyLoad.requests.length,zeroAcceptanceReads);
+ assert.match(zeroAcceptance,/JRDB番組：0R/);
+ assert.match(zeroAcceptance,/今回のJRDB主要ソース照会：1回（番組のみ）/);
+ assert.match(zeroAcceptance,/番組0Rは配信前・取得不備・開催なしを区別できません/);
+ assert.match(zeroAcceptance,/研究用3連単下書き：0R／見送り：0R/);
+ assert.match(zeroAcceptance,/端末の発走前固定研究記録：0R/);
+ assert.doesNotMatch(zeroAcceptance,/正式10項目の実証済み総合予想：完成/);
  const reloadEmpty=boot({manualWeekday:false,
   initialClock:'2099-01-02T15:04:00Z',
   initialServerRaw:saturdayRaw,seedStorage:firstEmptyLoad.storage});
