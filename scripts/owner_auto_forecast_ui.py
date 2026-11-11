@@ -3639,7 +3639,7 @@ function updateReviewLink(){
 $('autoDay').onchange=()=>{
  ++preflightSeq;
  $('autoPreflight').disabled=false;
- $('autoPreflightStatus').textContent='選択日が変わりました。無料診断はまだ実行していません。';
+ $('autoPreflightStatus').textContent='選択日が変わりました。無料診断は未実行です。';
  // Preserve an explicitly selected day across subsequent app resumes.
  followingToday=false;
  // Invalidate the old response and unlock the button. A slow old request
