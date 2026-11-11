@@ -31,6 +31,50 @@ def call(app, path='/', method='GET', auth=AUTH, data=None, **changes):
 class PrivateServiceTests(unittest.TestCase):
     def setUp(self): self.app = create_app(SETTINGS)
 
+    def test_anonymous_live_revision_reports_only_public_build_identity(self):
+        sha = "a" * 40
+        app = create_app({
+            **SETTINGS, "RENDER_GIT_COMMIT": sha,
+            "JRDB_PRIVATE_ENABLED": "1",
+            "JRDB_API_KEY": "DONT_LEAK_PRIVATE_JRDB_KEY",
+            "JRDB_AUTH_KEY": "DONT_LEAK_PRIVATE_JRDB_AUTH",
+            "KEIBA_RENDER_PRIVATE_ONLY": "1",
+        })
+        response = call(app, "/live-revision", auth="")
+        self.assertEqual(response["status"], "200 OK")
+        self.assertIn("no-store", response["headers"]["Cache-Control"])
+        self.assertEqual(json.loads(response["body"]), {
+            "version": "owner-live-revision-1",
+            "renderCommit": sha[:12],
+            "revisionOnly": True,
+            "jrdbConnectionVerified": False,
+            "forecastExecutionVerified": False,
+            "ownerDataIncluded": False,
+        })
+        for secret in ("DONT_LEAK_PRIVATE_JRDB_KEY", "DONT_LEAK_PRIVATE_JRDB_AUTH",
+                       SETTINGS["KEIBA_OWNER_PASSWORD"], "owner", "JRDB_API_KEY"):
+            self.assertNotIn(secret.encode(), response["body"])
+        self.assertEqual(call(app, "/live-revision", auth="",
+                              wsgi_url_scheme="http")["status"], "200 OK")
+        http_env = {"wsgi.url_scheme": "http", "REMOTE_ADDR": "198.51.100.4"}
+        self.assertEqual(call(app, "/live-revision", auth="", **http_env)["status"],
+                         "426 Upgrade Required")
+        self.assertEqual(call(app, "/live-revision", auth="",
+                              QUERY_STRING="key=anything")["status"],
+                         "401 Unauthorized")
+        self.assertEqual(call(app, "/live-revision", method="POST",
+                              auth="")["status"], "401 Unauthorized")
+        self.assertEqual(call(app, "/ui-version", auth="")["status"],
+                         "401 Unauthorized")
+        self.assertEqual(call(app, "/api/status", auth="")["status"],
+                         "401 Unauthorized")
+
+    def test_anonymous_revision_without_render_sha_is_explicitly_unknown(self):
+        response = call(self.app, "/live-revision", auth="")
+        self.assertEqual(response["status"], "200 OK")
+        self.assertEqual(json.loads(response["body"])["renderCommit"],
+                         "not-reported")
+
     def test_owner_deployment_revision_check_requires_authentication(self):
         root = call(self.app, '/')['body'].decode('utf-8')
         js = call(self.app, '/app.js')['body'].decode('utf-8')
