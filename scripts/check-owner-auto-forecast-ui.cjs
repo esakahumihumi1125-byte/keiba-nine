@@ -52,10 +52,17 @@ function withTenPreview(r){
    horses:row.runners.map(h=>{
     const grades=Object.fromEntries(POLICY.map(([key])=>
      [key,key==='training'?h.training:key==='recent'?h.recent:'未評価']));
+    const provisionalWeight=POLICY.reduce((sum,[key,,weight])=>
+     sum+(['training','recent'].includes(key)&&grades[key]!=='未評価'?weight:0),0);
+    const missing=POLICY.map(([key])=>key).filter(key=>grades[key]==='未評価');
+    const priorityMissingFactors=POLICY.filter(([key])=>missing.includes(key))
+     .slice().sort((a,b)=>b[2]-a[2]).map(([key])=>key);
     return {number:h.number,grades,score:null,overallGrade:'未評価',
      overallRank:null,verifiedFactorCount:0,
      provisionalFactorCount:['training','recent'].filter(k=>grades[k]!=='未評価').length,
-     missing:POLICY.map(([k])=>k).filter(k=>grades[k]==='未評価')};
+     provisionalWeightCapacity:provisionalWeight,
+     unassessedWeightCapacity:100-provisionalWeight,
+     verifiedWeightCapacity:0,priorityMissingFactors,missing};
    })
   }))
  };
