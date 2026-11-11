@@ -1104,7 +1104,8 @@ function boot(){
   archiveReady=false,archiveCorrupt=false,
   autoDraftOk=true,officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
-  officialPdfOk=true,preflightCorrupt=false;
+  officialPdfOk=true,preflightCorrupt=false,preflightBadKey=false,
+  preflightServerDate='20990101';
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -1137,15 +1138,26 @@ function boot(){
   if(url.startsWith('/api/owner-saturday-preflight?date=')){
    const date=new URL('http://localhost'+url).searchParams.get('date');
    const obj={
-    version:'owner-saturday-config-preflight-1',
-    date,serverDate:'20990101',serverTimeJst:'09:00',
+    version:'owner-saturday-config-preflight-2',
+    date,serverDate:preflightServerDate,serverTimeJst:'09:00',
     serverTimeZone:'Asia/Tokyo',
     privateServiceConfigured:true,jrdbCredentialsPresent:true,
-    approvedProviderHostConfigured:true,configurationReady:true,
-    selectedDateAlreadyPast:date<'20990101',
+    jrdbCredentialsFormatValid:!preflightBadKey,
+    approvedProviderHostConfigured:true,configurationReady:!preflightBadKey,
+    selectedDateAlreadyPast:date<preflightServerDate,
     selectedDateIsWeekend:[0,6].includes(
      new Date(date.slice(0,4)+'-'+date.slice(4,6)+'-'+
       date.slice(6,8)+'T12:00:00Z').getUTCDay()),
+    providerWeeklyUpdateMayBePending:(()=>{
+      const d=new Date(date.slice(0,4)+'-'+date.slice(4,6)+'-'+
+       date.slice(6,8)+'T12:00:00Z'),dayOfWeek=d.getUTCDay();
+      const weekThursday=new Date(d);
+      weekThursday.setUTCDate(d.getUTCDate()+
+       (dayOfWeek===0?-3:4-dayOfWeek));
+      return [0,6].includes(dayOfWeek)&&
+       preflightServerDate<weekThursday.toISOString().slice(0,10).replaceAll('-','');
+     })(),
+    providerPublicationVerified:false,
     serverClockIndependentlyVerified:false,
     providerConnectionVerified:false,liveRaceFeedVerified:false,
     officialJraVerified:false,formalTenFactorsReady:false,
@@ -1395,6 +1407,8 @@ function boot(){
   setOfficialPdfLinks:x=>officialPdfLinks=x,
   setOfficialPdfOk:x=>officialPdfOk=x,
   setPreflightCorrupt:x=>preflightCorrupt=x,
+  setPreflightBadKey:x=>preflightBadKey=x,
+  setPreflightServerDate:x=>preflightServerDate=x,
   setConnectionCount:x=>connectionCount=x,
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
@@ -3444,6 +3458,26 @@ function boot(){
  assert.equal(configView.requests.filter(x=>
   x.url.startsWith('/api/jrdb/')).length,paidBeforeConfig);
  assert.equal(configView.storage.get(STORAGE),savedBeforeConfig);
+ configView.setPreflightBadKey(true);
+ await configView.get('autoPreflight').onclick();
+ assert.match(configView.get('autoPreflightStatus').textContent,/通信可能な文字形式/);
+ assert.equal(configView.storage.get(STORAGE),savedBeforeConfig);
+ configView.setPreflightBadKey(false);
+ configView.setPreflightServerDate('20261111');
+ configView.get('autoDay').value='2026-11-14';
+ configView.get('autoDay').onchange();
+ await configView.get('autoPreflight').onclick();
+ assert.match(configView.get('autoPreflightStatus').textContent,/まだ木曜前/);
+ assert.match(configView.get('autoPreflightStatus').textContent,/未配信の可能性/);
+ configView.setPreflightServerDate('20261112');
+ await configView.get('autoPreflight').onclick();
+ assert.doesNotMatch(configView.get('autoPreflightStatus').textContent,/まだ木曜前/);
+ assert.match(configView.get('autoPreflightStatus').textContent,/配信開始はまだ確認していません/);
+ assert.equal(configView.requests.filter(x=>x.url.startsWith('/api/jrdb/')).length,
+  paidBeforeConfig);
+ configView.setPreflightServerDate('20990101');
+ configView.get('autoDay').value='2099-01-01';
+ configView.get('autoDay').onchange();
  configView.setPreflightCorrupt(true);
  await configView.get('autoPreflight').onclick();
  assert.match(configView.get('autoPreflightStatus').textContent,/完了できませんでした/);

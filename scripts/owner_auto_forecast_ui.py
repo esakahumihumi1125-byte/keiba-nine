@@ -3774,17 +3774,26 @@ $('autoPreflight').onclick=async()=>{
   const data=await resp.json();
   if(seq!==preflightSeq||day!==$('autoDay').value.replaceAll('-',''))return;
   const b=x=>typeof x==='boolean';
-  const expectedWeekend=[0,6].includes(
-   new Date(day.slice(0,4)+'-'+day.slice(4,6)+'-'+
-    day.slice(6,8)+'T12:00:00Z').getUTCDay());
-  if(!data||data.version!=='owner-saturday-config-preflight-1'||
+  const selectedDate=new Date(day.slice(0,4)+'-'+day.slice(4,6)+'-'+
+    day.slice(6,8)+'T12:00:00Z');
+  const expectedWeekend=[0,6].includes(selectedDate.getUTCDay());
+  const thursday=new Date(selectedDate);
+  thursday.setUTCDate(selectedDate.getUTCDate()+
+   (selectedDate.getUTCDay()===0?-3:4-selectedDate.getUTCDay()));
+  const thursdayDay=thursday.toISOString().slice(0,10).replaceAll('-','');
+  const releasePending=expectedWeekend&&data.serverDate<thursdayDay;
+  if(!data||data.version!=='owner-saturday-config-preflight-2'||
      data.date!==day||!/^20[0-9]{6}$/.test(data.serverDate)||
      !/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(data.serverTimeJst)||
      data.serverTimeZone!=='Asia/Tokyo'||
      !b(data.privateServiceConfigured)||!b(data.jrdbCredentialsPresent)||
+     !b(data.jrdbCredentialsFormatValid)||
      !b(data.approvedProviderHostConfigured)||!b(data.configurationReady)||
      data.configurationReady!==(data.privateServiceConfigured&&
-      data.jrdbCredentialsPresent&&data.approvedProviderHostConfigured)||
+      data.jrdbCredentialsPresent&&data.jrdbCredentialsFormatValid&&
+      data.approvedProviderHostConfigured)||
+     data.providerWeeklyUpdateMayBePending!==releasePending||
+     data.providerPublicationVerified!==false||
      data.selectedDateAlreadyPast!==(day<data.serverDate)||
      data.selectedDateIsWeekend!==expectedWeekend||
      data.serverClockIndependentlyVerified!==false||
@@ -3801,6 +3810,8 @@ $('autoPreflight').onclick=async()=>{
   const missing=[];
   if(!data.privateServiceConfigured)missing.push('本人専用サービス設定');
   if(!data.jrdbCredentialsPresent)missing.push('JRDBの認証設定');
+  if(data.jrdbCredentialsPresent&&!data.jrdbCredentialsFormatValid)
+   missing.push('JRDBキーの通信可能な文字形式');
   if(!data.approvedProviderHostConfigured)missing.push('許可されたAPI接続先');
   status.textContent=(data.configurationReady
    ?'本人専用・JRDB認証・接続先の設定項目は揃っています。'
@@ -3808,6 +3819,9 @@ $('autoPreflight').onclick=async()=>{
    (data.selectedDateAlreadyPast?'指定日は過去日付です。':
     data.selectedDateIsWeekend?'選択日は土日です。':
     '土日以外の開催はJRA公式の開催有無を別途確認。')+
+   (data.providerWeeklyUpdateMayBePending
+    ?'JRDBの今週データは通常木曜の更新後に配信。対象週はまだ木曜前なので未配信の可能性があります。'
+    :'JRDBの実際の配信開始はまだ確認していません。')+
    'サーバー日本時間 '+data.serverDate+' '+data.serverTimeJst+
    '。有料照会0回。JRDB実データ接続・当日番組・JRA公式・10項目の本採点・サーバー永続保存は未確認。';
  }catch(_){if(seq===preflightSeq)

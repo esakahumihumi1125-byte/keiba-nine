@@ -89,9 +89,11 @@ class PrivateServiceTests(unittest.TestCase):
                             QUERY_STRING="date=20261114")
             self.assertEqual(response["status"], "200 OK")
             payload = json.loads(response["body"])
-            self.assertEqual(payload["version"], "owner-saturday-config-preflight-1")
+            self.assertEqual(payload["version"], "owner-saturday-config-preflight-2")
             self.assertEqual(payload["date"], "20261114")
             self.assertTrue(payload["configurationReady"])
+            self.assertTrue(payload["jrdbCredentialsFormatValid"])
+            self.assertFalse(payload["providerPublicationVerified"])
             self.assertEqual(payload["sourceCallsMade"], 0)
             for flag in ("providerConnectionVerified", "liveRaceFeedVerified",
                          "officialJraVerified", "formalTenFactorsReady",
