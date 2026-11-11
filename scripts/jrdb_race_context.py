@@ -11,6 +11,10 @@ from jrdb_program_preview import TRACKS
 VERSION = "race-context-1"
 HOLDING = re.compile(r"[0-9a-f]{6}\Z", re.ASCII)
 DATE = re.compile(r"[0-9]{8}\Z", re.ASCII)
+DATE_DASHED = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}\Z", re.ASCII)
+DATETIME_VALUE = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+    r"(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})?\Z", re.ASCII)
 GOING = {"1": "良", "2": "稍重", "3": "重", "4": "不良"}
 SURFACES = {"芝", "ダート", "障害"}
 
@@ -27,6 +31,34 @@ def _going(value):
     if isinstance(value, str) and value in ("01", "02", "03", "04"):
         return GOING[value[1:]]
     raise RaceContextError("Invalid going code")
+
+
+def _update_has_offset(value):
+    """Valid metadata format, NOT proof of as-of publication or JRA truth.
+
+    JRDB's endpoint sample is UTC-offset-aware, but the shared fields
+    documentation also shows naive timestamps. A valid naive timestamp or
+    date-only marker must not discard unrelated observed going codes.
+    It also must never count as independently timestamp-verified evidence.
+    """
+    if value is None or value == "":
+        return False
+    if not isinstance(value, str) or len(value) > 40:
+        raise RaceContextError("Invalid condition timestamp")
+    if DATE.fullmatch(value) or DATE_DASHED.fullmatch(value):
+        try:
+            datetime.strptime(value, "%Y%m%d" if DATE.fullmatch(value)
+                              else "%Y-%m-%d")
+        except ValueError:
+            raise RaceContextError("Invalid condition timestamp") from None
+        return False
+    if not DATETIME_VALUE.fullmatch(value):
+        raise RaceContextError("Invalid condition timestamp")
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt.tzinfo is not None and dt.utcoffset() is not None
+    except ValueError:
+        raise RaceContextError("Invalid condition timestamp") from None
 
 
 def audit_race_context(programme, holding_rows, requested_date):
@@ -57,17 +89,12 @@ def audit_race_context(programme, holding_rows, requested_date):
         turf = _going(row.get("turf_condition_cd"))
         dirt = _going(row.get("dirt_condition_cd"))
         updated = row.get("updated_at")
-        if updated is not None and updated != "":
-            if not isinstance(updated, str) or len(updated) > 40:
-                raise RaceContextError("Invalid condition timestamp")
-            try:
-                ts = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-                if ts.tzinfo is None:
-                    raise ValueError()
-            except ValueError:
-                raise RaceContextError("Invalid condition timestamp") from None
+        has_offset = _update_has_offset(updated)
         venues[track] = {"turf": turf, "dirt": dirt,
-                         "updateRecorded": bool(updated)}
+                         # Only offset-aware metadata is counted as a
+                         # recorded point-in-time marker. The existence or
+                         # order of this marker does NOT prove freshness.
+                         "updateRecorded": has_offset}
     observed = set()
     result = []
     for race in programme:
@@ -110,6 +137,7 @@ def audit_race_context(programme, holding_rows, requested_date):
         "raceConditionsVerified": False, "predictionReady": False,
         "races": result,
         "note": ("番組の芝/ダート・距離・回り方向と開催馬場データの存在を確認。"
+                 "馬場更新日時の時差なし/日付のみは時刻未確認として扱う。"
                  "馬場の最新性、取消、競走馬の距離/コース/不良馬場適性は未検証。"
                  "馬ごとの比較・適性ランク・買い目は一切作成していません。")
     }
