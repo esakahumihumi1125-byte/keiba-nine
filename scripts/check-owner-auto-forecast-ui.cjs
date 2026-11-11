@@ -3033,10 +3033,19 @@ function boot(){
  assert.equal(a.storage.get(STORAGE),fixedBeforeConflict);
  assert.match(a.get('autoSavedStatus').textContent,/新規 0R/);
  assert.match(a.get('autoFixedConsistency').textContent,/買い目の不一致 1R/);
+ assert.match(a.get('autoMorningStatus').textContent,
+  /発走前の研究用3連単下書き 0R/);
+ assert.match(a.get('autoMorningStatus').textContent,
+  /固定済み記録との不一致・確認保留で新案非表示 1R/);
+ assert.match(a.get('autoStatus').textContent,
+  /固定記録の確認が必要・新案非表示/);
+ assert.doesNotMatch(a.get('autoStatus').textContent,
+  /発走前の研究用暫定案 1Rを確認/);
  assert.match(a.get('autoOperationalNext').textContent,/固定記録の確認が必要/);
  assert.match(a.get('autoOperationalNext').textContent,/照合保留・不一致 1R/);
  assert.match(a.get('autoFixedConsistency').textContent,/最初の買い目を確認/);
  assert.equal(a.get('autoVenues').children.some(x=>x.dataset.mode==='drafts'),false);
+ assert.match(a.get('autoSummary').textContent,/研究用自動案 0R/);
  const changedCard=a.get('autoRaces').children[0].children[0];
  assert.equal(changedCard.children.some(x=>x.className==='formation'),false);
  assert.match(changedCard.children.at(-1).textContent,/以前の固定買い目と不一致/);

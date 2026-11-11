@@ -725,16 +725,19 @@ function sourceNextChecks(row){
  items.push('JRA公式の出走馬・取消・馬場・発走時刻を独立照合');
  return items;
 }
-function morningStatus(data,day,localStatus,expiredCount=0){
+function morningStatus(data,day,localStatus,expiredCount=0,displayableCount=null){
  const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
  if(data.raceCount===0)
   return iso+'：JRDB番組0R。開催なし・提供前・資料不足の区別は未確認。予想は作成していません。固定済みの以前の研究記録は変更しません。';
  // Report only still-displayable prestart drafts. Receipts already signed
  // before off-time remain immutable but do not mean a new bet is available.
- const visible=Math.max(0,data.draftCount-expiredCount);
+ const visible=displayableCount===null
+  ?Math.max(0,data.draftCount-expiredCount):displayableCount;
+ const blockedActive=Math.max(0,data.draftCount-expiredCount-visible);
  return iso+'：番組 '+data.raceCount+'R／発走前の研究用3連単下書き '+
   visible+'R／見送り '+data.holdCount+'R。'+
   (expiredCount?'暫定発走時刻経過で新案非表示 '+expiredCount+'R。':'')+
+  (blockedActive?'固定済み記録との不一致・確認保留で新案非表示 '+blockedActive+'R。':'')+
   (visible===0
     ?(data.draftCount===0
       ?'資料不足などで全R見送り。買い目を無理に作りません。'
@@ -799,9 +802,10 @@ function recordRetentionStatus(data,day){
    'サーバー永続保存は未設定')+
   '。Safariとホーム画面の保存領域は異なる場合があります。バックアップ画面で別に保管してください。';
 }
-function operationalNextStep(data,fixed,expiredCount=0){
+function operationalNextStep(data,fixed,expiredCount=0,displayableCount=null){
  const warning='JRA公式の出走・取消・馬場・発走時刻は未照合。正式100点予想・実購入ではありません。';
- const visible=Math.max(0,data.draftCount-expiredCount);
+ const visible=displayableCount===null
+  ?Math.max(0,data.draftCount-expiredCount):displayableCount;
  if(data.raceCount===0)
   return '【番組0R・確認保留】JRDBが0件でも開催なしとは断定できません。'+
    '次：日付・公開状況・JRDB接続を確認。後付けの買い目は作りません。'+warning;
@@ -930,9 +934,8 @@ function render(input,day){
  ).map(x=>x.track+'|'+x.race));
  jraDraftTracks=new Set(data.races.map(x=>x.track));updateJraCrosscheck();
  const fixed=compareFixedWithDrafts(data,day);
- $('autoOperationalNext').textContent=operationalNextStep(data,fixed,deviceExpired.size);
- $('autoMorningStatus').textContent=morningStatus(
-  data,day,localReceiptStatus(day),deviceExpired.size);
+ // The top status is written after the safe display count is known.
+ // Old first-write disagreements must not count as actionable picks.
  $('autoProgrammeCoverage').textContent=programmeCoverage(data);
  $('autoReadProof').textContent=sourceReadProof(data);
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
@@ -1119,6 +1122,11 @@ function render(input,day){
   button.onclick=()=>{select.value='';show(track);};tabs.append(button);
  }
  const safeDraftCount=nodes.filter(item=>item.draft).length;
+ const hiddenByFixed=Math.max(0,data.draftCount-deviceExpired.size-safeDraftCount);
+ $('autoOperationalNext').textContent=operationalNextStep(
+  data,fixed,deviceExpired.size,safeDraftCount);
+ $('autoMorningStatus').textContent=morningStatus(
+  data,day,localReceiptStatus(day),deviceExpired.size,safeDraftCount);
  if(safeDraftCount>0){
   const draftButton=dom('button','下書きのみ '+safeDraftCount+'R');
   draftButton.type='button';draftButton.dataset.track='';
@@ -1154,6 +1162,8 @@ function render(input,day){
       '/'+data.raceCount+'Rを確認（他のRは照合保留・採点なし）'
      :'照合保留')+
   '。JRA公式照合や正式な投票は未実施。';
+ return {visibleCount:safeDraftCount,expiredCount:deviceExpired.size,
+  blockedCount:hiddenByFixed};
 }
 function localReceiptStatus(day){
  // Only inspect previously sealed local snapshots. Never treat draft
@@ -4027,7 +4037,7 @@ $('autoRun').onclick=async()=>{
   }catch(_){
    throw Error('receipt_storage_failed');
   }
-  render(body,day);
+  const displayed=render(body,day);
   latestDisplayedReport=body;latestDisplayedDay=day;
   latestExpiredDraftCount=body.races.filter(x=>
    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)).length;
@@ -4051,8 +4061,8 @@ $('autoRun').onclick=async()=>{
   $('autoHistoryAudit').disabled=historyCoordinates.size===0;
   $('autoHistoryAuditStatus').textContent=historyCoordinates.size
    ?'必要なときに過去の同条件資料を確認できます。':'この開催日のレースはありません。';
-  $('autoMorningStatus').textContent=morningStatus(
-   body,day,localReceiptStatus(day),latestExpiredDraftCount);
+  // render already calculated *visible* new picks, including first-write
+  // conflicts and elapsed offs. Do not overwrite with raw draftCount.
   $('autoSavedStatus').textContent=body.archiveEnabled
    ?'サーバー固定済み '+body.archiveRecordCount+'R／前の買い目を優先したレース '+
      body.archiveConflictCount+'R。'+localStatus
@@ -4062,7 +4072,7 @@ $('autoRun').onclick=async()=>{
   // A valid HTTP response is NOT proof of a successful forecast.
   // In particular /tra=0 only means the provider returned no programme;
   // all held/expired drafts must not look like generated picks on iPhone.
-  const visibleDrafts=body.draftCount-latestExpiredDraftCount;
+  const visibleDrafts=displayed.visibleCount;
   if(body.raceCount===0){
    const ahead=day>jstToday().replaceAll('-','');
    $('autoStatus').textContent=
@@ -4073,6 +4083,10 @@ $('autoRun').onclick=async()=>{
   }else if(body.draftCount===0){
    $('autoStatus').textContent='【全'+body.raceCount+
     'R見送り・新規3連単0点】調教・近走や発走時刻などの条件が揃わず、研究用の買い目は作成していません。';
+  }else if(visibleDrafts===0&&displayed.blockedCount){
+   $('autoStatus').textContent='【固定記録の確認が必要・新案非表示】'+
+    '再分析と以前の固定買い目が一致しない、または保存確認が必要なため、新しい3連単は表示していません。'+
+    '発走前に固定した最初の買い目を下の履歴で確認してください。';
   }else if(visibleDrafts===0){
    $('autoStatus').textContent='【発走時刻経過・新案非表示】'+
     '今回の研究用下書きは端末で確認した時点で暫定発走時刻を過ぎています。新規固定・表示はしていません。';
