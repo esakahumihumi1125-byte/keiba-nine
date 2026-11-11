@@ -1769,6 +1769,53 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(fullDayText,/福島：番組12\/12R/);
  assert.match(fullDayText,/研究用3連単下書き：1R／見送り：35R/);
  assert.doesNotMatch(fullDayText,/[\d]{1,2}→[\d]{1,2}→[\d]{1,2}/);
+ // Per-runner source completeness can be rendered with NO additional
+ // paid call. These flags are source-column presence, never S/A/B/C.
+ const annotated=resultWith('a'.repeat(64));
+ const fieldKeys=['pedigree','draw_weight','jockey_stable','rotation','past_corner'];
+ annotated.runnerSourceEvidence={
+  version:'owner-runner-source-hints-1',raceCount:1,observedRaceCount:1,
+  unavailableRaceCount:0,factorFields:fieldKeys,
+  verifiedNewFactorCount:0,officialJraVerified:false,
+  overallPredictionReady:false,bettingReady:false,
+  researchOnly:true,privateOwnerOnly:true,newProviderRequests:0,
+  rawSourceRowsIncluded:false,
+  races:[{track:'東京',race:1,status:'observed',
+   runners:annotated.races[0].runners.map(h=>({
+    number:h.number,verifiedFactorCount:0,
+    observed:{pedigree:h.number===1,draw_weight:true,
+     jockey_stable:false,rotation:true,past_corner:false}
+   }))}]
+ };
+ const evidenceView=boot({initialServerRaw:annotated});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(evidenceView.requests.length,1);
+ const evidenceCard=evidenceView.get('autoRaces').children[0].children[0];
+ const evidencePanel=evidenceCard.children.find(x=>x.className==='horse-research');
+ const firstTenDetail=evidencePanel.children.find(x=>x.className==='ten-horse');
+ assert.ok(firstTenDetail);
+ assert.match(firstTenDetail.children.map(x=>x.textContent).join('|'),
+  /JRDB資料の有無：血統（父・母父） 資料あり／枠・負担重量 資料あり/);
+ assert.match(firstTenDetail.children.map(x=>x.textContent).join('|'),
+  /騎手・厩舎の名前 資料不足／前走からの間隔 資料あり／過去4角位置 資料不足/);
+ assert.match(firstTenDetail.children.map(x=>x.textContent).join('|'),
+  /資料ありは適性や能力の評価ではありません.*馬体重当日値は未確認/);
+ const evidenceReadCount=evidenceView.requests.length;
+ assert.equal(evidenceReadCount,1);
+ const originalEvidenceLock=evidenceView.storage.get(STORAGE);
+ const corruptedEvidence=structuredClone(annotated);
+ corruptedEvidence.runnerSourceEvidence.races[0].runners[0].observed.pedigree='yes';
+ evidenceView.setServerRaw(corruptedEvidence);
+ await evidenceView.get('autoRun').onclick();
+ assert.equal(evidenceView.requests.length,evidenceReadCount+1);
+ assert.match(evidenceView.get('autoStatus').textContent,/確認できません/);
+ assert.equal(evidenceView.storage.get(STORAGE),originalEvidenceLock);
+ // A missing extra source section keeps the older, guarded forecast usable.
+ const noExtraEvidence=boot({initialServerRaw:resultWith('a'.repeat(64))});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(noExtraEvidence.requests.length,1);
+ assert.match(noExtraEvidence.get('autoStatus').textContent,
+  /発走前の研究用暫定案 1Rを確認/);
  // A successful, zero-race weekend read must stop duplicate automatic
  // /tra calls when the owner leaves and reopens the page within 30 min.
  // No licensed body/rows or ticket contents enter the reload marker.
