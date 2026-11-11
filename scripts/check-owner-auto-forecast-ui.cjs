@@ -1531,9 +1531,21 @@ function boot(){
  // reanalysis button remains available for when the real feed updates.
  const zeroQuick=boot();
  await new Promise(r=>setImmediate(r));
- const saturdayZero=JSON.parse(JSON.stringify(noProgramme)
-  .replaceAll('20990101','20990103')
-  .replaceAll('2099-01-01','2099-01-03'));
+ const saturdayZero=structuredClone(saturdayRaw);
+ saturdayZero.sourceReadCount=1;
+ saturdayZero.races=[];saturdayZero.raceCount=0;
+ saturdayZero.draftCount=0;saturdayZero.holdCount=0;
+ saturdayZero.holdReasons={};saturdayZero.researchReceipts=[];
+ saturdayZero.researchReceiptCount=0;
+ saturdayZero.tenFactorPreview.races=[];
+ saturdayZero.tenFactorPreview.raceCount=0;
+ saturdayZero.raceContext.races=[];
+ saturdayZero.raceContext.raceCount=0;
+ saturdayZero.raceContext.courseInfoPresentCount=0;
+ saturdayZero.raceContext.goingAvailableCount=0;
+ saturdayZero.raceContext.conditionProviderReadCount=0;
+ saturdayZero.raceContext.conditionProviderFetchStatus='unavailable';
+ withSourcePassport(saturdayZero);
  zeroQuick.setServerRaw(saturdayZero);
  const zeroBefore=zeroQuick.requests.length;
  const zeroStored=zeroQuick.storage.get(STORAGE);
