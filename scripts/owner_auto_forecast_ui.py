@@ -17,6 +17,11 @@ JRDBの調教・近走2項目だけで参考評価と3連単の下書きを自�
 <button id="autoSunday" type="button">次の日曜日を選ぶ</button>
 </div>
 <p class="muted">土日ボタンは日付を選ぶだけ。JRDBへの照会は「全場・全Rを再分析する」を押すまで開始しません（初回の当日自動取得は従来どおり）。</p>
+<details><summary>土曜の無料・設定事前診断（任意）</summary>
+<p class="muted">本人専用サービスの設定・選択日・サーバーの日本時間をチェック。JRDB・JRA・買い目APIは呼ばず、設定された秘密情報も表示しません。設定が揃っていてもJRDB実接続と10項目予想は未検証です。</p>
+<button id="autoPreflight" type="button">選択日の無料事前診断</button>
+<p id="autoPreflightStatus" class="muted" role="status">事前診断は未実行。レースデータや購入記録は変更しません。</p>
+</details>
 <button id="autoRun" type="button">全場・全Rを再分析する</button>
 <details><summary>JRDB実接続の確認（任意）</summary>
 <p class="muted">本人が押した時だけ設定を確認し、設定済みなら番組APIへ1回接続。未設定ならJRDBへの追加通信なし。買い目・収支・購入記録は変更しません。</p>
@@ -1371,7 +1376,8 @@ const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
-let request=0,followingToday=true,latestDisplayedDay='',latestDisplayedReport=null,
+let request=0,followingToday=true,preflightSeq=0,
+ latestDisplayedDay='',latestDisplayedReport=null,
  latestExpiredDraftCount=0,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
  r6VerifySeq=0,staffArchiveVerifySeq=0,
@@ -3631,6 +3637,8 @@ function updateReviewLink(){
   (valid?'?date='+encodeURIComponent(day):'');
 }
 $('autoDay').onchange=()=>{
+ ++preflightSeq;
+ $('autoPreflightStatus').textContent='選択日が変わりました。無料診断はまだ実行していません。';
  // Preserve an explicitly selected day across subsequent app resumes.
  followingToday=false;
  // Invalidate the old response and unlock the button. A slow old request
@@ -3744,6 +3752,67 @@ $('autoOfficialPdf').onclick=async()=>{
   $('autoOfficialPdfStatus').textContent=
    'JRA公式PDFリンクを確認できませんでした。JRA公式一覧から手動で確認してください。';
  }}finally{if(seq===officialPdfSeq)button.disabled=false;}
+};
+// Owner-requested, configuration-only check. No paid provider reads.
+$('autoPreflight').onclick=async()=>{
+ const button=$('autoPreflight'),status=$('autoPreflightStatus');
+ if(button.disabled)return;
+ const seq=++preflightSeq,day=$('autoDay').value.replaceAll('-','');
+ if(!/^20[0-9]{6}$/.test(day)){
+  status.textContent='開催日を選択してください。';return;
+ }
+ button.disabled=true;
+ status.textContent='設定の有無だけを確認中（JRDBへの有料照会なし）…';
+ try{
+  const resp=await fetch('/api/owner-saturday-preflight?date='+
+   encodeURIComponent(day),{
+    credentials:'same-origin',cache:'no-store',
+    headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  if(!resp.ok)throw Error('preflight_http');
+  const data=await resp.json();
+  if(seq!==preflightSeq||day!==$('autoDay').value.replaceAll('-',''))return;
+  const b=x=>typeof x==='boolean';
+  const expectedWeekend=[0,6].includes(
+   new Date(day.slice(0,4)+'-'+day.slice(4,6)+'-'+
+    day.slice(6,8)+'T12:00:00Z').getUTCDay());
+  if(!data||data.version!=='owner-saturday-config-preflight-1'||
+     data.date!==day||!/^20[0-9]{6}$/.test(data.serverDate)||
+     !/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(data.serverTimeJst)||
+     data.serverTimeZone!=='Asia/Tokyo'||
+     !b(data.privateServiceConfigured)||!b(data.jrdbCredentialsPresent)||
+     !b(data.approvedProviderHostConfigured)||!b(data.configurationReady)||
+     data.configurationReady!==(data.privateServiceConfigured&&
+      data.jrdbCredentialsPresent&&data.approvedProviderHostConfigured)||
+     data.selectedDateAlreadyPast!==(day<data.serverDate)||
+     data.selectedDateIsWeekend!==expectedWeekend||
+     data.serverClockIndependentlyVerified!==false||
+     data.providerConnectionVerified!==false||
+     data.liveRaceFeedVerified!==false||
+     data.officialJraVerified!==false||
+     data.formalTenFactorsReady!==false||
+     data.archivePersistenceVerified!==false||
+     data.sourceCallsMade!==0||data.researchOnly!==true||
+     data.privateOwnerOnly!==true||data.bettingReady!==false||
+     data.existingReceiptsChanged!==false||
+     data.existingRoiChanged!==false)
+   throw Error('preflight_contract');
+  const missing=[];
+  if(!data.privateServiceConfigured)missing.push('本人専用サービス設定');
+  if(!data.jrdbCredentialsPresent)missing.push('JRDBの認証設定');
+  if(!data.approvedProviderHostConfigured)missing.push('許可されたAPI接続先');
+  status.textContent=(data.configurationReady
+   ?'本人専用・JRDB認証・接続先の設定項目は揃っています。'
+   :'設定不足：'+missing.join('・')+'。')+
+   (data.selectedDateAlreadyPast?'指定日は過去日付です。':
+    data.selectedDateIsWeekend?'選択日は土日です。':
+    '土日以外の開催はJRA公式の開催有無を別途確認。')+
+   'サーバー日本時間 '+data.serverDate+' '+data.serverTimeJst+
+   '。有料照会0回。JRDB実データ接続・当日番組・JRA公式・10項目の本採点・サーバー永続保存は未確認。';
+ }catch(_){if(seq===preflightSeq)
+  status.textContent='無料事前診断を完了できませんでした。'+
+   'JRDBの有料照会や買い目の保存は行っていません。';
+ }finally{if(seq===preflightSeq)button.disabled=false;}
 };
 // One explicit, owner-authenticated /tra request. No background probe.
 $('autoConnectionCheck').onclick=async()=>{
@@ -5506,6 +5575,8 @@ function resumeOwnerDay(){
   return;
  }
  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+ ++preflightSeq;
+ $('autoPreflightStatus').textContent='開催日が変わりました。無料診断は未実行。';
  request++;$('autoRun').disabled=false;
  $('autoDay').value=today;
  updateReviewLink();
