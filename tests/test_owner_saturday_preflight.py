@@ -76,6 +76,23 @@ class SaturdayConfigPreflightTests(unittest.TestCase):
             config, "20261114", server_now=NOW)
         self.assertTrue(result["jrdbCredentialsFormatValid"])
 
+    def test_whitespace_only_credential_never_passes_free_preflight(self):
+        # The actual adapter strips secrets before the API call, so blanks
+        # must be rejected during the zero-provider-read setup diagnosis.
+        for key in ("JRDB_API_KEY", "JRDB_AUTH_KEY"):
+            for blank in (" ", "\t\n", " \r\n\t "):
+                config = dict(SETTINGS, **{key: blank})
+                with self.subTest(key=key, whitespace_len=len(blank)):
+                    report = owner_saturday_config_preflight(
+                        config, "20261114", server_now=NOW)
+                    self.assertTrue(report["jrdbCredentialsPresent"])
+                    self.assertFalse(report["jrdbCredentialsFormatValid"])
+                    self.assertFalse(report["configurationReady"])
+                    self.assertFalse(report["providerConnectionVerified"])
+                    self.assertFalse(report["liveRaceFeedVerified"])
+                    self.assertEqual(report["sourceCallsMade"], 0)
+                    self.assertNotIn("SYNTHETIC_ONLY_NO_REAL", str(report))
+
     def test_missing_secrets_or_unsafe_host_fail_configuration_only(self):
         for kind in ("key", "auth", "host", "private", "preview"):
             config = dict(SETTINGS)

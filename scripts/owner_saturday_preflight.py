@@ -33,9 +33,15 @@ def owner_saturday_config_preflight(settings, day, *, server_now):
         isinstance(settings.get(key), str) and bool(settings.get(key))
         for key in ("JRDB_API_KEY", "JRDB_AUTH_KEY")
     )
+    # Match the private JRDB adapter: trim surrounding whitespace, but
+    # reject keys that become empty after trimming. all([]) is True, so a
+    # whitespace-only credential must never be marked configured.
     credentials_format_valid = secrets_present and all(
-        all(33 <= ord(char) <= 126 for char in settings[key].strip())
-        for key in ("JRDB_API_KEY", "JRDB_AUTH_KEY")
+        stripped and all(33 <= ord(char) <= 126 for char in stripped)
+        for stripped in (
+            settings[key].strip()
+            for key in ("JRDB_API_KEY", "JRDB_AUTH_KEY")
+        )
     )
     approved_host = approved_api_base(settings.get("JRDB_API_BASE_URL", ""))
     configured = (
