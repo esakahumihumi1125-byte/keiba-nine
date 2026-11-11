@@ -5822,14 +5822,30 @@ function resumeOwnerDay(){
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(today.replaceAll('-',''));
  showFixedHistory(today.replaceAll('-',''));
- $('autoStatus').textContent='新しい開催日の研究用自動案を確認します。';
- $('autoRun').onclick();
+ $('autoStatus').textContent='新しい日付を選択しました。';
+ autoFetchOnRegularRaceDay();
+}
+// Avoid automatic potentially billable JRDB reads on ordinary weekdays.
+// Special JRA Monday/holiday meetings remain accessible through the
+// explicit "全場・全Rを再分析する" action; this is not a race calendar.
+function autoFetchOnRegularRaceDay(){
+ const day=$('autoDay').value;
+ const dt=new Date(day+'T12:00:00Z');
+ const normalWeekend=Number.isFinite(dt.valueOf())&&
+  dt.toISOString().slice(0,10)===day&&[0,6].includes(dt.getUTCDay());
+ if(normalWeekend){
+  $('autoRun').onclick();
+  return;
+ }
+ $('autoStatus').textContent='平日はJRDBの自動照会を控えています。土曜日・日曜日は上のボタンで選択。祝日の変則開催は日付を選んで「全場・全Rを再分析する」を押してください。';
+ $('autoMorningStatus').textContent='平日・変則開催の自動取得は停止中（有料照会0回）。取得するには手動で再分析してください。';
+ $('autoOperationalNext').textContent='次の通常開催：土曜日・日曜日を選ぶ。平日の特別開催はJRA公式で確認後に手動取得。';
 }
 if(typeof document.addEventListener==='function')
  document.addEventListener('visibilitychange',resumeOwnerDay);
 if(typeof window!=='undefined'&&typeof window.addEventListener==='function')
  window.addEventListener('pageshow',event=>{if(event.persisted)resumeOwnerDay();});
-// Opening the authenticated owner page triggers the initial day once.
-// No timers, background provider polling, or auto-purchase.
-if(document.visibilityState!=='hidden')$('autoRun').onclick();
+// Opening an authenticated owner page auto-reads only on regular weekends.
+// Special weekday races are explicit manual reads. No polling or purchase.
+if(document.visibilityState!=='hidden')autoFetchOnRegularRaceDay();
 })();"""
