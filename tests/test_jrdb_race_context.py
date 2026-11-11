@@ -132,7 +132,10 @@ class RaceContextTests(unittest.TestCase):
             with self.subTest(stamp=stamp):
                 result = audit_race_context(programme, holding, "20261101")
                 self.assertEqual((programme, holding), source)
-                turf, dirt = result["races"][:2]
+                by_key = {(r["track"], r["race"]): r
+                          for r in result["races"]}
+                turf = by_key["東京", 1]
+                dirt = by_key["東京", 2]
                 self.assertTrue(turf["conditionSnapshotPresent"])
                 self.assertEqual(turf["going"], "稍重")
                 self.assertEqual(dirt["going"], "不良")
