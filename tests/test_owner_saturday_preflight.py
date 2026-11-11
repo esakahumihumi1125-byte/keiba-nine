@@ -27,7 +27,10 @@ class SaturdayConfigPreflightTests(unittest.TestCase):
         self.assertTrue(report["selectedDateIsWeekend"])
         self.assertFalse(report["selectedDateAlreadyPast"])
         self.assertTrue(report["configurationReady"])
+        self.assertTrue(report["jrdbCredentialsFormatValid"])
         self.assertTrue(report["privateServiceConfigured"])
+        self.assertTrue(report["providerWeeklyUpdateMayBePending"])
+        self.assertFalse(report["providerPublicationVerified"])
         self.assertEqual(report["sourceCallsMade"], 0)
         for k in ("serverClockIndependentlyVerified",
                   "providerConnectionVerified", "liveRaceFeedVerified",
@@ -38,6 +41,40 @@ class SaturdayConfigPreflightTests(unittest.TestCase):
         for secret in ("SYNTHETIC_ONLY_NO_REAL_KEY", "SYNTHETIC_ONLY_NO_REAL_AUTH",
                        "dev.api.bigtime.world"):
             self.assertNotIn(secret, str(report))
+
+    def test_thursday_is_only_a_calendar_hint_not_publication_proof(self):
+        thursday = datetime(2026, 11, 12, 9, 0,
+                            tzinfo=timezone(timedelta(hours=9)))
+        result = owner_saturday_config_preflight(
+            SETTINGS, "20261114", server_now=thursday)
+        self.assertFalse(result["providerWeeklyUpdateMayBePending"])
+        self.assertFalse(result["providerPublicationVerified"])
+        self.assertFalse(result["liveRaceFeedVerified"])
+        self.assertTrue(result["configurationReady"])
+        future = owner_saturday_config_preflight(
+            SETTINGS, "20261121", server_now=thursday)
+        self.assertTrue(future["providerWeeklyUpdateMayBePending"])
+        past = owner_saturday_config_preflight(
+            SETTINGS, "20261107", server_now=thursday)
+        self.assertFalse(past["providerWeeklyUpdateMayBePending"])
+
+    def test_present_but_invalid_credential_character_is_not_ready(self):
+        for key in ("JRDB_API_KEY", "JRDB_AUTH_KEY"):
+            for bad in ("SYNTHETIC TEST KEY", "SYNTHETIC\nKEY", "全角キー"):
+                config = dict(SETTINGS, **{key: bad})
+                result = owner_saturday_config_preflight(
+                    config, "20261114", server_now=NOW)
+                with self.subTest(key=key, bad_kind=len(bad)):
+                    self.assertTrue(result["jrdbCredentialsPresent"])
+                    self.assertFalse(result["jrdbCredentialsFormatValid"])
+                    self.assertFalse(result["configurationReady"])
+                    self.assertFalse(result["providerConnectionVerified"])
+                    self.assertNotIn(bad, str(result))
+        # These edge spaces are stripped by the real JRDB adapter.
+        config = dict(SETTINGS, JRDB_API_KEY="  VALID_TOKEN  ")
+        result = owner_saturday_config_preflight(
+            config, "20261114", server_now=NOW)
+        self.assertTrue(result["jrdbCredentialsFormatValid"])
 
     def test_missing_secrets_or_unsafe_host_fail_configuration_only(self):
         for kind in ("key", "auth", "host", "private", "preview"):
