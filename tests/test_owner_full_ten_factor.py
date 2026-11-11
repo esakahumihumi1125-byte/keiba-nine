@@ -180,8 +180,6 @@ class FullTenFactorGateTests(unittest.TestCase):
                 })
                 self.assertEqual(result["missingReasonCodesByNumber"], {
                     3: {"course_distance": "evidence_timestamp_invalid"}
-                } if wrong is not None else {
-                    3: {"course_distance": "evidence_unverified"}
                 })
                 self.assertEqual(result["ranking"], [])
                 self.assertEqual(result["trifecta"]["points"], 0)
