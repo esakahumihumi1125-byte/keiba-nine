@@ -17,7 +17,9 @@ class PublicArcRaceBrandTests(unittest.TestCase):
         self.assertIn('stroke="url(#arc-brand-gold)"', MAIN)
         self.assertIn("Powered by <strong>UMETRIC</strong>", MAIN)
         self.assertIn('id="arc-race-public-brand"', MAIN)
-        self.assertIn('青空のターフへ · ARC RACE', MAIN)
+        self.assertIn('勝負を描く、予想のアーク。', MAIN)
+        self.assertIn('ARC RACE · NIGHT TRACK', MAIN)
+        self.assertNotIn('青空のターフへ', MAIN)
         self.assertIn('>ARC RACEを開く</a>', INDEX)
 
     def test_existing_navigation_and_storage_stay_intact(self):
