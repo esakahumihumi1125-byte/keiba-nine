@@ -249,6 +249,31 @@ class SaturdayRawDayTests(unittest.TestCase):
             self.assertNotIn(private, reply["body"].decode())
         self.assertEqual(report["researchReceiptCount"], 36)
 
+    def test_optional_personnel_malformed_in_one_race_keeps_35_other_sources(self):
+        raw = raw_day()
+        # An unsupported optional staff field is not a graded F-grade and
+        # must not poison the other venue/race source-presence snapshots.
+        raw[1][0]["trainer_name"] = ["PRIVATE-BAD-STAFF"]
+        reply = run_request(raw)
+        self.assertEqual(reply["status"], "200 OK")
+        report = json.loads(reply["body"])
+        hints = report["runnerSourceEvidence"]
+        self.assertEqual(hints["raceCount"], 36)
+        self.assertEqual(hints["unavailableRaceCount"], 1)
+        self.assertEqual(hints["observedRaceCount"], 35)
+        unavailable = [r for r in hints["races"]
+                       if r["status"] == "unavailable"]
+        self.assertEqual(len(unavailable), 1)
+        self.assertEqual((unavailable[0]["track"], unavailable[0]["race"]),
+                         ("東京", 1))
+        self.assertEqual(unavailable[0]["runners"], [])
+        self.assertTrue(all(
+            r["status"] == "observed" and len(r["runners"]) == 7
+            for r in hints["races"] if (r["track"], r["race"]) != ("東京", 1)))
+        self.assertEqual(hints["newProviderRequests"], 0)
+        self.assertEqual(hints["verifiedNewFactorCount"], 0)
+        self.assertNotIn("PRIVATE-BAD-STAFF", reply["body"].decode())
+
     def test_poststart_runner_fields_cannot_recreate_held_rosters(self):
         raw = raw_specific_saturday_2026_11_14()
         late = run_november_14_synthetic(raw, clocks=[
