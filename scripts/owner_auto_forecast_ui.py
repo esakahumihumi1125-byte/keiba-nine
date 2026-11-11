@@ -44,7 +44,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <h2>2. 今日の予想状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
-<p id="autoOperationalNext" class="muted" role="status">土曜日の次の操作：当日の取得結果を確認中。</p>
+<p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
 <nav class="quick-links" aria-label="画面内の移動">
 <a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
 <a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
@@ -63,7 +63,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoOfficialPdfLinks"></div>
 <a href="https://www.jra.go.jp/keiba/rpdf/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く</a>
 </details>
-<details><summary>土曜朝の使い方（3ステップ）</summary>
+<details><summary>開催日朝の使い方（3ステップ）</summary>
 <p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
 <p class="muted">② 下の「下書きのみ」を選ぶか、競馬場・レースを選択して1着／2着／3着の3連単と重複除外した点数を確認する。これは調教・近走だけの研究用下書きで、10項目の本予想や投票推奨ではない。</p>
 <p class="muted">③ 発走前の固定記録を確認し、必要に応じて「12種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
@@ -3748,7 +3748,7 @@ $('autoDay').onchange=()=>{
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
- $('autoOperationalNext').textContent='土曜日の次の操作：当日の取得結果を確認中。';
+ $('autoOperationalNext').textContent='開催日の次の操作：当日の取得結果を確認中。';
  $('autoProgrammeCoverage').textContent='開催場別の取得R数：まだ確認していません。';
  $('autoRecordSafety').textContent='固定記録の保管状態：まだ確認していません。';
  $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
@@ -5813,7 +5813,7 @@ function resumeOwnerDay(){
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
- $('autoOperationalNext').textContent='土曜日の次の操作：当日の取得結果を確認中。';
+ $('autoOperationalNext').textContent='開催日の次の操作：当日の取得結果を確認中。';
  $('autoProgrammeCoverage').textContent='開催場別の取得R数：まだ確認していません。';
  $('autoRecordSafety').textContent='固定記録の保管状態：まだ確認していません。';
  $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
