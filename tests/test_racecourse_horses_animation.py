@@ -56,7 +56,12 @@ class MiniTurfHorsesTests(unittest.TestCase):
         self.assertIn("observer.observe(home,{attributes:true,attributeFilter:['class']})",self.scene)
         self.assertIn("document.addEventListener('visibilitychange',syncPlayback)",self.scene)
         self.assertIn("reduced.addEventListener('change',updateMotion)",self.scene)
-        self.assertIn("height:125px",self.scene)
+        self.assertIn("height:160px",self.scene)
+        self.assertIn("background:linear-gradient(115deg,#061321",self.scene)
+        self.assertIn("勝負を描く、予想のアーク。",self.scene)
+        self.assertIn("AI競馬予想・データ分析",self.scene)
+        self.assertIn("<b>3連単</b><b>WIN5</b><b>実戦記録</b>",self.scene)
+        self.assertNotIn("青空のターフへ",self.scene)
         self.assertIn("overflow:hidden",self.scene)
 
     def test_no_extra_provider_requests_and_no_record_mutations(self):
@@ -64,7 +69,9 @@ class MiniTurfHorsesTests(unittest.TestCase):
                           "onClick","JRDB_API_KEY","KEIBA_OWNER_PASSWORD"):
             self.assertNotIn(forbidden,self.scene)
         self.assertIn("home.prepend(banner);",self.scene)
-        self.assertIn("url('./assets/racecourse58.svg')",self.scene)
+        self.assertNotIn("url('./assets/racecourse58.svg')",self.scene)
+        self.assertIn("arc-race-night-copy",self.scene)
+        self.assertIn("pointer-events:none",self.scene)
         self.assertEqual(HTML.count("const banner=document.createElement('div');"),1)
         self.assertIn('id="knOwnerForecastLaunch"',HTML)
         self.assertIn('data-screen="win5"',HTML)
