@@ -3642,8 +3642,87 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 
-<style>.racecourse58-banner{height:125px;background:#cee9da url('./assets/racecourse58.svg') center 62%/cover no-repeat;border-radius:16px;padding:14px;margin-bottom:18px}.racecourse58-banner span{display:inline-block;color:#28523b;background:#ffffffeb;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700}</style>
-<script>(function(){const banner=document.createElement('div');banner.className='racecourse58-banner';banner.innerHTML='<span>青空のターフへ · KEIBA NINE</span>';document.getElementById('home').prepend(banner);})();</script>
+<!-- RACECOURSE58_MINI_HORSES_START: decorative SVG only; no data/network access. -->
+<style>
+.racecourse58-banner{position:relative;isolation:isolate;overflow:hidden;height:125px;
+ background:#cee9da url('./assets/racecourse58.svg') center center/cover no-repeat;
+ border-radius:16px;padding:14px;margin-bottom:18px}
+.racecourse58-banner>span{position:relative;z-index:2;display:inline-block;
+ color:#28523b;background:#ffffffeb;border-radius:20px;padding:5px 12px;
+ font-size:12px;font-weight:700}
+.kn-racecourse-horses{position:absolute;inset:0;width:100%;height:100%;
+ pointer-events:none;z-index:1;overflow:hidden}
+.kn-horse-pack{animation:kn-turf-pass 24s linear infinite;animation-delay:-9s}
+.kn-horse-bob{animation:kn-turf-gallop .46s ease-in-out infinite}
+.kn-mini-horse[data-horse="3"] .kn-horse-bob{animation-delay:-.14s}
+.kn-mini-horse[data-horse="8"] .kn-horse-bob{animation-delay:-.27s}
+.kn-mini-horse text{font:900 20px system-ui,sans-serif;fill:#172d26;text-anchor:middle}
+@keyframes kn-turf-pass{
+ from{transform:translateX(-530px)}to{transform:translateX(1520px)}
+}
+@keyframes kn-turf-gallop{
+ 0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}
+}
+@media(prefers-reduced-motion:reduce){
+ .kn-horse-pack,.kn-horse-bob{animation:none!important}
+ .kn-horse-pack{transform:translateX(300px)}
+}
+</style>
+<script>
+(function(){
+ const home=document.getElementById('home');if(!home)return;
+ const banner=document.createElement('div');
+ banner.className='racecourse58-banner';
+ // Inline vectors ensure iPhone Safari animates even if an SVG background image
+ // would be rendered as a static raster. Horse numbers are illustrative, not picks.
+ banner.innerHTML=`
+ <span>青空のターフへ · KEIBA NINE</span>
+ <svg class="kn-racecourse-horses" viewBox="0 0 1440 600"
+      preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+  <defs><g id="kn-mini-horse-art">
+    <path d="M30 44Q12 27 5 38Q13 34 22 51" fill="var(--coat)"/>
+    <path d="M33 58L19 76L5 80M52 59L43 80L22 84M78 59L103 73L115 82M94 54L114 59L134 72"
+          fill="none" stroke="var(--coat)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23 43Q27 26 48 31L83 30Q96 30 103 40L97 56Q67 65 40 58Z"
+          fill="var(--coat)"/>
+    <path d="M83 35L103 13L114 17L107 39Z" fill="var(--coat)"/>
+    <path d="M106 18L122 17L136 26L132 37L119 38L110 32Z"
+          fill="var(--coat)"/>
+    <circle cx="125" cy="24" r="2.4" fill="#172a27"/>
+    <path d="M118 34L129 33" stroke="#f2eddf" stroke-width="2" fill="none"/>
+    <path d="M56 34Q73 27 87 38L85 53L54 54Z" fill="#f8f8ed" stroke="#b6c9b8" stroke-width="2"/>
+    <path d="M62 29L65 18L75 19L83 32L70 40Z" fill="var(--silks)"/>
+    <path d="M63 18L59 26M77 24L89 34" fill="none" stroke="var(--silks)" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="70" cy="11" r="7" fill="var(--helmet)"/>
+    <path d="M61 12Q72 2 79 10" fill="none" stroke="#fff" stroke-width="2"/>
+   </g></defs>
+  <g class="kn-horse-pack">
+    <g class="kn-mini-horse" data-horse="2" transform="translate(0 260)"
+       style="--coat:#bfc3bf;--silks:#ebc04a;--helmet:#efce54">
+      <g class="kn-horse-bob"><use href="#kn-mini-horse-art"/><text x="70" y="50">2</text></g>
+    </g>
+    <g class="kn-mini-horse" data-horse="3" transform="translate(168 251)"
+       style="--coat:#433e36;--silks:#5298dc;--helmet:#4286c7">
+      <g class="kn-horse-bob"><use href="#kn-mini-horse-art"/><text x="70" y="50">3</text></g>
+    </g>
+    <g class="kn-mini-horse" data-horse="8" transform="translate(336 244)"
+       style="--coat:#a3653c;--silks:#59a875;--helmet:#f4f4ed">
+      <g class="kn-horse-bob"><use href="#kn-mini-horse-art"/><text x="70" y="50">8</text></g>
+    </g>
+  </g>
+  <!-- Fence deliberately drawn AFTER the horses to put them on the far side. -->
+  <g class="kn-far-side-fence" fill="none" stroke="#fff" stroke-width="7">
+    <path d="M-80 560C100 300 1190 300 1510 420"/>
+    <path d="M-80 580C100 320 1190 320 1510 440"/>
+  </g>
+  <g stroke="#f7faf5" stroke-width="8">
+   <path d="M85 430v63M220 385v61M380 356v58M550 342v58M730 338v58M915 344v58M1100 361v58M1270 385v58M1420 419v58"/>
+  </g>
+ </svg>`;
+ home.prepend(banner);
+})();
+</script>
+<!-- RACECOURSE58_MINI_HORSES_END -->
 <style id="data59style">
 .data59-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}.data59-grid>div{background:#fff;padding:10px 5px;border-radius:10px;text-align:center;border:1px solid #d2dfd4}.data59-grid span,.data59-grid small{display:block;font-size:11px;color:#52665b}.data59-grid b{display:block;font-size:18px;color:#244f38}.horse59{min-width:0;width:100%;padding:6px 0}.horse59 .s52-horse{width:100%}.reason59{font-size:13px;color:#405c49;margin:6px 2px 4px;overflow-wrap:anywhere}.horse59 details{margin:0 2px;font-size:13px;overflow-wrap:anywhere}.horse59 summary{font-size:12px}.horse59 h4{margin-bottom:4px}.quality58 p{overflow-wrap:anywhere}
 </style>
