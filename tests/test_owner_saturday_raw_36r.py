@@ -210,6 +210,60 @@ class SaturdayRawDayTests(unittest.TestCase):
         self.assertEqual(crossed["researchReceipts"], [])
         self.assertFalse(crossed["officialJraVerified"])
 
+    def test_per_runner_remaining_factor_field_presence_from_same_reads(self):
+        # Horse-level availability, not skill or S/A/B/C. The fixture
+        # carries historical dates and past-corner fields, but intentionally
+        # lacks sire/draw/personnel fields. No extra paid fetch is allowed.
+        reply = run_request(raw_day())
+        self.assertEqual(reply["status"], "200 OK")
+        report = json.loads(reply["body"])
+        evidence = report["runnerSourceEvidence"]
+        self.assertEqual(evidence["version"], "owner-runner-source-hints-1")
+        self.assertEqual(evidence["raceCount"], 36)
+        self.assertEqual(evidence["observedRaceCount"], 36)
+        self.assertEqual(evidence["unavailableRaceCount"], 0)
+        self.assertEqual(evidence["newProviderRequests"], 0)
+        self.assertEqual(evidence["verifiedNewFactorCount"], 0)
+        self.assertFalse(evidence["overallPredictionReady"])
+        self.assertFalse(evidence["officialJraVerified"])
+        self.assertFalse(evidence["rawSourceRowsIncluded"])
+        self.assertEqual(evidence["factorFields"], [
+            "pedigree", "draw_weight", "jockey_stable",
+            "rotation", "past_corner"])
+        self.assertTrue(all(row["status"] == "observed"
+                            and len(row["runners"]) == 7
+                            for row in evidence["races"]))
+        first = evidence["races"][0]["runners"][0]
+        self.assertEqual(first, {
+            "number": 1,
+            "observed": {
+                "pedigree": False, "draw_weight": False,
+                "jockey_stable": False, "rotation": True,
+                "past_corner": True,
+            },
+            "verifiedFactorCount": 0,
+        })
+        for private in ("PRIVATE-TEST-HORSE", "PRIVATE-WORKOUT",
+                        "PRIVATE-PAST", "horse_id", "racekey",
+                        "race_back_1_idm", "sire_name", "trainer_name"):
+            self.assertNotIn(private, reply["body"].decode())
+        self.assertEqual(report["researchReceiptCount"], 36)
+
+    def test_poststart_runner_fields_cannot_recreate_held_rosters(self):
+        raw = raw_specific_saturday_2026_11_14()
+        late = run_november_14_synthetic(raw, clocks=[
+            "2026-11-14T15:01:00+09:00",
+            "2026-11-14T15:01:01+09:00",
+        ])
+        self.assertEqual(late["status"], "200 OK")
+        data = json.loads(late["body"])
+        hints = data["runnerSourceEvidence"]
+        self.assertEqual(hints["raceCount"], 36)
+        self.assertEqual(hints["observedRaceCount"], 0)
+        self.assertTrue(all(r["status"] == "held"
+                            and r["runners"] == [] for r in hints["races"]))
+        self.assertEqual(data["researchReceiptCount"], 0)
+
     def test_raw_36r_really_parses_analyzes_signs_and_redacts(self):
         raw = raw_day()
         frozen = copy.deepcopy(raw)
