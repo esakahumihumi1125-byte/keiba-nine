@@ -860,6 +860,8 @@ function dayAcceptanceReport(day){
   try{validate(report,day);}
   catch(_){return '取得内容の照合ができません。固定記録を変更せず、以前の履歴を確認してください。';}
   out.push('JRDB番組：'+report.raceCount+'R（JRA公式開催場との照合は未実施）');
+  out.push('今回のJRDB主要ソース照会：'+report.sourceReadCount+
+   '回（'+(report.raceCount===0?'番組のみ':'番組・出走馬・調教・近走')+'）');
   out.push('研究用3連単下書き：'+report.draftCount+
    'R／見送り：'+report.holdCount+'R／署名付き記録の受信：'+
    report.researchReceiptCount+'R');
