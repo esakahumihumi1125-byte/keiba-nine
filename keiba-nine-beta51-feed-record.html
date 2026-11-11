@@ -3642,7 +3642,7 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 
-<!-- RACECOURSE58_MINI_HORSES_START: decorative SVG only; no data/network access. -->
+<!-- RACECOURSE58_MINI_HORSES_START: decorative 18-runner SVG; no data/network access. -->
 <style>
 .racecourse58-banner{position:relative;isolation:isolate;overflow:hidden;height:125px;
  background:#cee9da url('./assets/racecourse58.svg') center center/cover no-repeat;
@@ -3652,20 +3652,16 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
  font-size:12px;font-weight:700}
 .kn-racecourse-horses{position:absolute;inset:0;width:100%;height:100%;
  pointer-events:none;z-index:1;overflow:hidden}
-.kn-horse-pack{animation:kn-turf-pass 24s linear infinite;animation-delay:-9s}
-.kn-horse-bob{animation:kn-turf-gallop .46s ease-in-out infinite}
-.kn-mini-horse[data-horse="3"] .kn-horse-bob{animation-delay:-.14s}
-.kn-mini-horse[data-horse="8"] .kn-horse-bob{animation-delay:-.27s}
-.kn-mini-horse text{font:900 20px system-ui,sans-serif;fill:#172d26;text-anchor:middle}
-@keyframes kn-turf-pass{
- from{transform:translateX(-530px)}to{transform:translateX(1520px)}
-}
-@keyframes kn-turf-gallop{
- 0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}
+.kn-horse-bob{animation:kn-thoroughbred-gallop .43s ease-in-out infinite alternate}
+.kn-race-horse:nth-child(3n) .kn-horse-bob{animation-delay:-.15s}
+.kn-race-horse:nth-child(3n + 1) .kn-horse-bob{animation-delay:-.31s}
+.kn-horse-number{font:900 24px system-ui,sans-serif;fill:#17382d;
+ paint-order:stroke;stroke:#fff;stroke-width:.8px;text-anchor:middle}
+@keyframes kn-thoroughbred-gallop{
+ from{transform:translateY(1px)}to{transform:translateY(-7px)}
 }
 @media(prefers-reduced-motion:reduce){
- .kn-horse-pack,.kn-horse-bob{animation:none!important}
- .kn-horse-pack{transform:translateX(300px)}
+ .kn-horse-bob{animation:none!important}
 }
 </style>
 <script>
@@ -3673,53 +3669,81 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
  const home=document.getElementById('home');if(!home)return;
  const banner=document.createElement('div');
  banner.className='racecourse58-banner';
- // Inline vectors ensure iPhone Safari animates even if an SVG background image
- // would be rendered as a static raster. Horse numbers are illustrative, not picks.
- banner.innerHTML=`
- <span>青空のターフへ · KEIBA NINE</span>
- <svg class="kn-racecourse-horses" viewBox="0 0 1440 600"
-      preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
-  <defs><g id="kn-mini-horse-art">
-    <path d="M30 44Q12 27 5 38Q13 34 22 51" fill="var(--coat)"/>
-    <path d="M33 58L19 76L5 80M52 59L43 80L22 84M78 59L103 73L115 82M94 54L114 59L134 72"
-          fill="none" stroke="var(--coat)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M23 43Q27 26 48 31L83 30Q96 30 103 40L97 56Q67 65 40 58Z"
-          fill="var(--coat)"/>
-    <path d="M83 35L103 13L114 17L107 39Z" fill="var(--coat)"/>
-    <path d="M106 18L122 17L136 26L132 37L119 38L110 32Z"
-          fill="var(--coat)"/>
-    <circle cx="125" cy="24" r="2.4" fill="#172a27"/>
-    <path d="M118 34L129 33" stroke="#f2eddf" stroke-width="2" fill="none"/>
-    <path d="M56 34Q73 27 87 38L85 53L54 54Z" fill="#f8f8ed" stroke="#b6c9b8" stroke-width="2"/>
-    <path d="M62 29L65 18L75 19L83 32L70 40Z" fill="var(--silks)"/>
-    <path d="M63 18L59 26M77 24L89 34" fill="none" stroke="var(--silks)" stroke-width="5" stroke-linecap="round"/>
-    <circle cx="70" cy="11" r="7" fill="var(--helmet)"/>
-    <path d="M61 12Q72 2 79 10" fill="none" stroke="#fff" stroke-width="2"/>
-   </g></defs>
-  <g class="kn-horse-pack">
-    <g class="kn-mini-horse" data-horse="2" transform="translate(0 260)"
-       style="--coat:#bfc3bf;--silks:#ebc04a;--helmet:#efce54">
-      <g class="kn-horse-bob"><use href="#kn-mini-horse-art"/><text x="70" y="50">2</text></g>
-    </g>
-    <g class="kn-mini-horse" data-horse="3" transform="translate(168 251)"
-       style="--coat:#433e36;--silks:#5298dc;--helmet:#4286c7">
-      <g class="kn-horse-bob"><use href="#kn-mini-horse-art"/><text x="70" y="50">3</text></g>
-    </g>
-    <g class="kn-mini-horse" data-horse="8" transform="translate(336 244)"
-       style="--coat:#a3653c;--silks:#59a875;--helmet:#f4f4ed">
-      <g class="kn-horse-bob"><use href="#kn-mini-horse-art"/><text x="70" y="50">8</text></g>
-    </g>
-  </g>
-  <!-- Fence deliberately drawn AFTER the horses to put them on the far side. -->
-  <g class="kn-far-side-fence" fill="none" stroke="#fff" stroke-width="7">
-    <path d="M-80 560C100 300 1190 300 1510 420"/>
-    <path d="M-80 580C100 320 1190 320 1510 440"/>
-  </g>
-  <g stroke="#f7faf5" stroke-width="8">
-   <path d="M85 430v63M220 385v61M380 356v58M550 342v58M730 338v58M915 344v58M1100 361v58M1270 385v58M1420 419v58"/>
-  </g>
- </svg>`;
+ // All horses are illustrative, numbered 1–18; never use them as predictions.
+ // One reusable vector horse keeps the SVG small and avoids 18 image downloads.
+ banner.innerHTML="\n <span>青空のターフへ · KEIBA NINE</span>\n <svg class=\"kn-racecourse-horses\" viewBox=\"0 0 1440 600\"\n    preserveAspectRatio=\"xMidYMid slice\" aria-hidden=\"true\" focusable=\"false\">\n  <defs>\n   <!-- The same Bezier arc is reused for all horses, not a straight x-axis march. -->\n   <path id=\"kn-racecourse-arc\" d=\"M -190 548 C 90 395 415 318 735 324 C 1040 329 1320 365 1635 482\"/>\n   <g id=\"kn-thoroughbred\" stroke-linejoin=\"round\" stroke-linecap=\"round\">\n    <!-- Four separately drawn legs, with visible fetlocks/hooves. -->\n    <g class=\"kn-hind-legs\" fill=\"none\" stroke=\"var(--coat,#93694a)\" stroke-width=\"8\">\n     <path d=\"M-43-33 Q-55-18 -66-13 L-84 3 L-93 6\"/>\n     <path d=\"M-34-32 Q-45-10 -41-6 L-23 8 L-17 8\"/>\n    </g>\n    <g class=\"kn-tail\" fill=\"var(--mane,#503525)\">\n     <path d=\"M-57-46Q-78-63-89-51Q-78-54-79-38Q-84-25-96-23Q-75-20-67-38Z\"/>\n    </g>\n    <!-- Deep chest, rounded rump, sloped shoulders: a horse, not a runner icon. -->\n    <path d=\"M-57-44Q-52-60-33-59Q-6-55 12-53Q29-54 34-41\n       Q41-25 19-24L-27-23Q-49-26-57-44Z\"\n       fill=\"var(--coat,#93694a)\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"2.5\"/>\n    <path d=\"M12-48Q25-64 34-80Q42-89 49-80L48-53Q43-36 33-29L20-34Z\"\n       fill=\"var(--coat,#93694a)\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"2.5\"/>\n    <path d=\"M43-79L43-96Q50-91 51-79L56-90Q62-79 57-71\"\n       fill=\"var(--coat,#93694a)\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"2\"/>\n    <path d=\"M38-74Q27-68 23-54L17-51Q24-71 35-84Z\"\n       fill=\"var(--mane,#503525)\"/>\n    <path d=\"M43-77Q50-83 61-74L73-69Q81-66 79-59L72-51\n       L53-54Q45-57 43-67Z\"\n       fill=\"var(--coat,#93694a)\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"2.2\"/>\n    <path d=\"M74-55Q79-52 83-56L80-62\" fill=\"#4b3027\"/>\n    <circle cx=\"64\" cy=\"-67\" r=\"2.8\" fill=\"#15251e\"/>\n    <path d=\"M46-62Q66-51 78-57M73-56L80-42\" fill=\"none\"\n       stroke=\"#f6eee1\" stroke-width=\"2\"/>\n    <g class=\"kn-fore-legs\" fill=\"none\" stroke=\"var(--coat,#93694a)\" stroke-width=\"8\">\n     <path d=\"M25-31Q33-18 42-17L59 0L66 4\"/>\n     <path d=\"M36-30Q45-14 41-6L29 10L23 11\"/>\n    </g>\n    <g fill=\"none\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"3\">\n     <path d=\"M-93 6L-103 6M-17 8L-25 12M66 4L75 6M23 11L14 14\"/>\n    </g>\n    <!-- The racing saddlecloth remains visible even at small phone size. -->\n    <path d=\"M-29-54Q-10-60 15-52L17-30Q-9-26-27-34Z\"\n       fill=\"var(--cloth,#f8f8ed)\" stroke=\"#e4ddc8\" stroke-width=\"2\"/>\n    <!-- Crouched jockey with colored racing silks and a rounded helmet. -->\n    <path d=\"M-8-60L1-87L14-84L22-63L8-51Z\"\n       fill=\"var(--silks,#439a70)\"/>\n    <path d=\"M3-79L23-70L37-60\" fill=\"none\"\n       stroke=\"var(--silks,#439a70)\" stroke-width=\"7\"/>\n    <path d=\"M4-56L-14-48L-24-43\" fill=\"none\"\n       stroke=\"#283a37\" stroke-width=\"6\"/>\n    <circle cx=\"4\" cy=\"-92\" r=\"9\" fill=\"var(--helmet,#eeeacf)\"/>\n    <path d=\"M-4-94Q3-105 12-97L15-92L-5-90Z\"\n       fill=\"var(--silks,#439a70)\"/>\n    <path d=\"M-1-85L-3-81\" stroke=\"#eadcc8\" stroke-width=\"4\"/>\n   </g>\n  </defs>\n  <g id=\"kn-racecourse-horse-field\"></g>\n  <!-- Rail passes IN FRONT of the horses, so they run beyond the fence. -->\n  <g class=\"kn-far-side-fence\" fill=\"none\" stroke=\"#fff\" stroke-width=\"7\">\n   <path d=\"M-80 560C100 300 1190 300 1510 420\"/>\n   <path d=\"M-80 580C100 320 1190 320 1510 440\"/>\n  </g>\n  <g stroke=\"#f7faf5\" stroke-width=\"8\">\n   <path d=\"M85 430v63M220 385v61M380 356v58M550 342v58M730 338v58M915 344v58M1100 361v58M1270 385v58M1420 419v58\"/>\n  </g>\n </svg>";
  home.prepend(banner);
+ const svg=banner.querySelector('svg');
+ const field=svg.querySelector('#kn-racecourse-horse-field');
+ const arc=svg.querySelector('#kn-racecourse-arc');
+ const NS='http://www.w3.org/2000/svg';
+ const ROUTE=arc.getAttribute('d');
+ const palette=[
+  ['#bfae9c','#71594a','#e1bd4b','#f7e4a2','#f0f0e5'],
+  ['#7b4f34','#503525','#449bc5','#f1f1eb','#ffffff'],
+  ['#3d362f','#211e1b','#dc6854','#ffefaa','#fff5e3'],
+  ['#9b6840','#5d3c27','#5b9a6a','#fbf5de','#ffffff'],
+  ['#c1c3c1','#707572','#7d5abc','#efe6c1','#ffffff'],
+  ['#794833','#3e2b21','#dc9b36','#faf3d6','#ffffff']
+ ];
+ const newNode=(tag)=>document.createElementNS(NS,tag);
+ const reduced=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
+ const horses=[];
+ const positions=arc.getTotalLength();
+ const numHorses=18;
+ for(let i=0;i<numHorses;i++){
+  const horse=newNode('g');
+  horse.setAttribute('class','kn-race-horse');
+  horse.setAttribute('data-horse',String(i+1));
+  const [coat,mane,silks,helmet,cloth]=palette[i%palette.length];
+  horse.setAttribute('style','--coat:'+coat+';--shade:'+mane+
+   ';--mane:'+mane+';--silks:'+silks+';--helmet:'+helmet+';--cloth:'+cloth);
+  const bob=newNode('g');bob.setAttribute('class','kn-horse-bob');
+  const scale=newNode('g');scale.setAttribute('transform','scale(.66)');
+  const vector=newNode('use');vector.setAttribute('href','#kn-thoroughbred');
+  const number=newNode('text');number.setAttribute('class','kn-horse-number');
+  number.setAttribute('x','-7');number.setAttribute('y','-35');
+  number.textContent=String(i+1);
+  scale.append(vector,number);bob.append(scale);horse.append(bob);
+  field.append(horse);
+  horses.push(horse);
+ }
+ function updateMotion(){
+  const still=Boolean(reduced&&reduced.matches);
+  for(let i=0;i<numHorses;i++){
+   const horse=horses[i];
+   const anim=horse.querySelector('animateMotion');
+   if(anim)anim.remove();
+   if(still){
+    const p=arc.getPointAtLength(positions*(i+.5)/numHorses);
+    horse.setAttribute('transform','translate('+p.x+' '+p.y+')');
+   }else{
+    horse.removeAttribute('transform');
+    const motion=newNode('animateMotion');
+    motion.setAttribute('dur','28s');
+    motion.setAttribute('repeatCount','indefinite');
+    motion.setAttribute('rotate','auto');
+    motion.setAttribute('begin','-'+(1+i*1.25).toFixed(2)+'s');
+    motion.setAttribute('path',ROUTE);
+    horse.insertBefore(motion,horse.firstChild);
+   }
+  }
+  syncPlayback();
+ }
+ function syncPlayback(){
+  // Nothing runs in a hidden tab, another app section, or Reduce Motion mode.
+  const paused=document.hidden||!home.classList.contains('active')||
+   Boolean(reduced&&reduced.matches);
+  if(paused&&typeof svg.pauseAnimations==='function')svg.pauseAnimations();
+  else if(!paused&&typeof svg.unpauseAnimations==='function')svg.unpauseAnimations();
+ }
+ updateMotion();
+ document.addEventListener('visibilitychange',syncPlayback);
+ const observer=new MutationObserver(syncPlayback);
+ observer.observe(home,{attributes:true,attributeFilter:['class']});
+ if(reduced&&typeof reduced.addEventListener==='function')
+  reduced.addEventListener('change',updateMotion);
+ window.addEventListener('pageshow',syncPlayback);
 })();
 </script>
 <!-- RACECOURSE58_MINI_HORSES_END -->
