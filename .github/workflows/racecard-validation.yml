@@ -20,6 +20,7 @@ on:
       - 'racecard-preview-bridge.js'
       - 'racecard-preview-bridge-tests.js'
       - 'scripts/check-racecard-main-import.cjs'
+      - 'scripts/check-racecourse-horses-ui.cjs'
       - 'keiba-nine-beta51-feed-record.html'
       - '.github/workflows/racecard-validation.yml'
   pull_request:
@@ -42,6 +43,7 @@ on:
       - 'racecard-preview-bridge.js'
       - 'racecard-preview-bridge-tests.js'
       - 'scripts/check-racecard-main-import.cjs'
+      - 'scripts/check-racecourse-horses-ui.cjs'
       - 'keiba-nine-beta51-feed-record.html'
       - '.github/workflows/racecard-validation.yml'
   workflow_dispatch:
@@ -52,6 +54,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate 18 SVG thoroughbreds, curved route and iPhone motion controls
+        run: |
+          node --check scripts/check-racecourse-horses-ui.cjs
+          node scripts/check-racecourse-horses-ui.cjs
       - name: Check engine JavaScript
         run: node --check racecard-engine.js
       - name: Check test JavaScript
