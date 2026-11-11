@@ -2623,11 +2623,13 @@ function boot(){
 
  assert.match(a.get('autoRaces').children[0].children[0].children[1].textContent,
   /芝／2000m／左／重（JRDB資料）/);
- assert.match(a.get('autoRaces').children[0].children[0].children[2].textContent,
+ assert.match(a.get('autoRaces').children[0].children[0].children[3].textContent,
   /過去4角の位置取り観測/);
  const firstDetail=a.get('autoRaces').children[0].children[0];
- assert.equal(firstDetail.children.filter(x=>x.className==='ten-horse').length,7);
- const firstTen=firstDetail.children.find(x=>x.className==='ten-horse');
+ const compactHorseRows=firstDetail.children.find(x=>x.className==='horse-research');
+ assert.ok(compactHorseRows);
+ assert.equal(compactHorseRows.children.filter(x=>x.className==='ten-horse').length,7);
+ const firstTen=compactHorseRows.children.find(x=>x.className==='ten-horse');
  assert.match(firstTen.children[0].textContent,/総合 未評価/);
  assert.equal(firstTen.children[1].children.length,10);
  const watchText=a.get('autoRaces').children[0].children[0].children
