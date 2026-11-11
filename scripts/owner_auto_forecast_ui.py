@@ -2,7 +2,7 @@
 HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#09172b">
-<title>KEIBA NINE｜本人用・自動暫定予想</title>
+<title>ARC RACE｜本人用・研究予想</title>
 <link rel="stylesheet" href="/owner-auto-forecast.css"></head><body><main>
 <nav class="owner-nav">
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
@@ -10,7 +10,18 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="/owner-jrdb-day-research">2項目の根拠</a>
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html#win5" rel="noopener noreferrer">WIN5（別画面）</a>
 </nav>
-<h1>KEIBA NINE <small>本人用・予想</small></h1>
+<header class="arc-brand" aria-label="ARC RACE アークレース">
+<svg class="arc-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 100" role="img" aria-label="円弧と競走馬の横顔">
+<defs><linearGradient id="arc-brand-gold" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#fff1bc"/><stop offset=".48" stop-color="#d8ac55"/><stop offset="1" stop-color="#99702d"/></linearGradient></defs>
+<path d="M9 83 C26 25 69 7 113 18" fill="none" stroke="url(#arc-brand-gold)" stroke-width="5" stroke-linecap="round"/>
+<path d="M17 88 C40 46 72 28 116 32" fill="none" stroke="#3d97ce" stroke-width="3.5" stroke-linecap="round"/>
+<path d="M75 54 Q90 49 100 37 L108 23 L114 34 L124 27 L127 47 L139 58 Q143 64 136 72 L123 76 Q117 76 111 70 L100 68 Q94 77 93 90" fill="#0a192b" stroke="url(#arc-brand-gold)" stroke-width="3.8" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M100 37 Q83 37 65 49 Q78 48 90 44 M94 43 Q77 46 57 61 Q78 59 88 53" fill="url(#arc-brand-gold)"/>
+<circle cx="126" cy="57" r="2" fill="#fff0b5"/>
+</svg>
+<div class="arc-brand-copy"><h1>ARC RACE</h1><p class="arc-brand-jp">アークレース</p><p class="arc-brand-sub">AI競馬予想・データ分析</p><p class="arc-brand-engine">Powered by <strong>UMETRIC</strong></p></div>
+</header>
+<p class="arc-legacy-context">本人用・研究予想（従来のKEIBA NINEと保存記録・接続先は共通）</p>
 <p class="warning"><strong>現在は研究用の暫定予想です。</strong>調教・近走の2項目で3連単を試算しています。
 正式10項目の予想とJRA公式照合は未完成。自動購入はしません。</p>
 <section class="daily-start">
@@ -207,6 +218,20 @@ body{margin:0;background:#09172b;color:#eff5ff;font:15px/1.55 system-ui,sans-ser
 main{max-width:780px;margin:auto;padding:16px 13px 46px}
 h1{font-size:24px;color:#f0d07e;margin:17px 0}
 h1 small{display:block;color:#c7d7e7;font-size:13px}
+/* ARC RACE B direction: dynamic gold/blue course arcs + readable horse silhouette.
+   Presentation only: no storage, provider calls, prediction or auth changes. */
+.arc-brand{display:flex;align-items:center;gap:11px;overflow:hidden;margin:12px 0 15px;padding:13px 10px;background:linear-gradient(125deg,#071322 0%,#10263c 75%,#0a1a2d 100%);border:1px solid #bc954b;border-radius:17px;box-shadow:inset 0 1px 0 #edca7850,0 10px 22px #020a1538}
+.arc-brand-mark{width:100px;height:86px;flex:0 0 100px;filter:drop-shadow(0 0 6px #d7a84c38)}
+.arc-brand-copy{min-width:0}
+.arc-brand-copy h1{margin:0;color:#f0cf80;font:italic 800 clamp(25px,5.7vw,37px)/1.05 Georgia,'Times New Roman',serif;letter-spacing:.025em;white-space:nowrap;text-shadow:0 0 14px #d6a85522}
+.arc-brand-jp{margin:2px 0;color:#f2dbaa;font-size:13px;letter-spacing:.13em}
+.arc-brand-sub{margin:3px 0 0;font-size:12px;color:#e6eef7}
+.arc-brand-engine{margin:0;font-size:11px;color:#9ab9d6}
+.arc-brand-engine strong{color:#f1cb76;letter-spacing:.045em}
+@media(max-width:360px){.arc-brand{gap:6px;padding:9px 6px}.arc-brand-mark{width:80px;height:75px;flex-basis:80px}.arc-brand-copy h1{font-size:25px}.arc-brand-sub{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.arc-brand-mark{animation:none}}
+
+.arc-legacy-context{font-size:12px;color:#b9cbe0;margin:-7px 0 13px}
 h2{font-size:19px;margin:0 0 10px}
 nav{display:flex;justify-content:space-between;gap:12px}a{color:#f0d185}
 .owner-nav{flex-wrap:wrap;gap:6px 12px;justify-content:flex-start}
