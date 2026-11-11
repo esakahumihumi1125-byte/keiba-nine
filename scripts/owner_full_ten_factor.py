@@ -218,6 +218,21 @@ def full_ten_factor_preview(snapshot, *, now):
         return _empty("missing_evidence", missing=missing,
                       missing_reasons=missing_reasons)
 
+    # Official starter/scratch *flags* cannot prove that the right horses
+    # were graded. A trusted future JRA adapter must supply its exact
+    # independently checked active-starter roster, never a browser claim.
+    # One omitted, extra, duplicated or changed horse blocks the entire
+    # formal ranking and all first-place alternatives. The private 2-factor
+    # research service is unchanged and does not use this gate.
+    confirmed = official.get("confirmedStarterNumbers")
+    roster_valid = (type(confirmed) is list
+                    and len(confirmed) == len(numbers)
+                    and all(type(n) is int and 1 <= n <= 18 for n in confirmed)
+                    and len(set(confirmed)) == len(confirmed)
+                    and set(confirmed) == numbers)
+    if not roster_valid:
+        return _empty("unverified_starter_roster")
+
     ranking.sort(key=lambda h: (-h["weightedPoints"], h["number"]))
     for pos, horse in enumerate(ranking):
         horse["score100"] = round(horse["weightedPoints"] / 3, 2)
