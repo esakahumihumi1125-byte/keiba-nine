@@ -34,6 +34,17 @@ class PublicArcRaceBrandTests(unittest.TestCase):
             self.assertIn(token, MAIN)
         self.assertIn('https://keiba-nine-owner-jrdb.onrender.com/owner-auto-forecast', MAIN)
 
+    def test_owner_forecast_launch_matches_blue_arc_race_theme(self):
+        self.assertIn('id="knOwnerForecastLaunch"', MAIN)
+        self.assertIn('href="https://keiba-nine-owner-jrdb.onrender.com/owner-auto-forecast"', MAIN)
+        style = MAIN.split('<style id="knForecastHubStyle">', 1)[1].split('</style>', 1)[0]
+        self.assertIn('#knOwnerForecastLaunch{', style)
+        self.assertIn('background:linear-gradient(180deg,#2b78b4 0%,#1c5486 100%)', style)
+        self.assertIn('border:1px solid #70aee0', style)
+        self.assertIn('color:#fff', style)
+        self.assertIn('#knOwnerForecastLaunch:focus-visible', style)
+        self.assertNotIn('background:#266647', style)
+
     def test_new_icons(self):
         png = (ROOT / "assets" / "arc-race-icon-v1.png").read_bytes()
         self.assertEqual(png[:8], bytes((137,80,78,71,13,10,26,10)))
