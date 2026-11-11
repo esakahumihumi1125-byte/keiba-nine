@@ -230,6 +230,8 @@ summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
  color:#f0e4c9;letter-spacing:.02em;overflow-wrap:anywhere}
 .ticket-breakdown{margin-top:10px;background:#10263d}
 .ticket-breakdown summary{font-size:14px}
+.horse-research{margin:9px 0}
+.horse-research>summary{font-size:14px;color:#d5e2f1}
 .ticket-list{font:12px/1.75 system-ui,sans-serif;color:#cbd8e6;overflow-wrap:anywhere}
 .ten-weights,.ten-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .ten-weight,.ten-slot{background:#253e58;border-radius:7px;padding:7px;font-size:12px}
@@ -997,6 +999,10 @@ function render(input,day){
   detail.append(dom('p','コース条件：'+(course.surface||'芝・ダート未確認')+
     '／'+(course.distance_m===null?'距離未確認':course.distance_m+'m')+
     '／'+(course.turn||'回り未確認')+'／'+condition,'muted'));
+  // Display validated prestart picks before long analysis; never reveal
+  // new tickets after off-time or if a first-write receipt conflicts.
+  if(race.status==='provisional_draft'&&!elapsed&&!changedLock)
+   detail.append(formation(race));
   if(race.runners.length){
    const front=race.runners.filter(h=>h.pastFourthCorner==='frontObserved').length;
    const back=race.runners.filter(h=>h.pastFourthCorner==='backObserved').length;
@@ -1024,12 +1030,16 @@ function render(input,day){
      'hold'));
   }
   if(race.runners.length){
-   detail.append(dom('p','調教30：近走3での仮順位（10項目総合評価ではない）','muted'));
+   const horses=dom('details',undefined,'horse-research');
+   horses.append(dom('summary','馬ごとの調教・近走の仮評価を見る（'+
+    race.runners.length+'頭）'));
+   horses.append(dom('p','調教30：近走3での仮順位（10項目総合評価ではない）','muted'));
    for(const [i,h] of race.runners.entries()){
-    detail.append(runnerView(h,i));
+    horses.append(runnerView(h,i));
     const ten=tenRows.get(race.track+'|'+race.race).horses.find(x=>x.number===h.number);
-    detail.append(renderTenHorse(ten));
+    horses.append(renderTenHorse(ten));
    }
+   detail.append(horses);
   }
   const item=data.sourceMaterials.races.find(x=>
     x.track===race.track&&x.race===race.race);
@@ -1081,7 +1091,6 @@ function render(input,day){
      ?'端末固定記録の確認に失敗。新しい3連単案は非表示。保存済み記録を確認してな。'
      :'【以前の固定買い目と不一致】新しい下書きの3連単を非表示にしました。下の発走前固定履歴を確認してな。',
      'hold'));
-   else detail.append(formation(race));
   }
   const raceKey=race.track+'|'+race.race;
   nodes.push({key:raceKey,track:race.track,

@@ -1436,6 +1436,19 @@ function boot(){
  assert.equal(a.get('autoHistoryAudit').disabled,false);
  const firstCard=a.get('autoRaces').children[0].children[0];
  assert.match(firstCard.children[0].textContent,/1着候補 1・2番/);
+ assert.equal(firstCard.children[2].className,'formation',
+  'newest eligible trifecta is visible before horse-by-horse analysis');
+ assert.equal(firstCard.children.filter(x=>x.className==='formation').length,1);
+ const horsePanel=firstCard.children.find(x=>x.className==='horse-research');
+ assert.ok(horsePanel);
+ assert.equal(horsePanel.tag,'details');
+ assert.equal(horsePanel.open,undefined);
+ assert.match(horsePanel.children[0].textContent,/馬ごとの調教・近走の仮評価を見る（7頭）/);
+ assert.match(horsePanel.children[1].textContent,/調教30：近走3での仮順位/);
+ const beforeHorsePanel=a.requests.length,originalTickets=a.storage.get(STORAGE);
+ horsePanel.open=true;
+ assert.equal(a.requests.length,beforeHorsePanel);
+ assert.equal(a.storage.get(STORAGE),originalTickets);
  const firstFormation=firstCard.children.find(x=>x.className==='formation');
  assert.ok(firstFormation,'verified 3連単 has a prominent formation card');
  const ticketBreakdown=firstFormation.children.at(-1);
@@ -2512,7 +2525,8 @@ function boot(){
  assert.equal(a.requests[0].options.headers['X-Keiba-Request'],'private');
  assert.equal(a.get('autoSummary').textContent.includes('1R中、研究用自動案 1R'),true);
  assert.equal(a.get('autoTenWeights').children.length,10);
- assert.match(a.get('autoRaces').children[0].children[0].children[4].textContent,
+ assert.match(a.get('autoRaces').children[0].children[0].children
+  .find(x=>x.className==='horse-research').children[1].textContent,
   /調教30：近走3での仮順位/);
  assert.match(a.get('autoTenStatus').textContent,/残り8項目は未評価/);
  assert.match(a.get('autoSummary').textContent,/馬場資料の存在 1R/);
@@ -3652,6 +3666,7 @@ function boot(){
  const afterOffRace=delayed.get('autoRaces').children[0].children[0];
  assert.match(afterOffRace.children[0].textContent,/発走時刻経過・新案非表示/);
  assert.equal(afterOffRace.children.filter(x=>x.className==='formation').length,0);
+ assert.notEqual(afterOffRace.children[2].className,'formation');
  const nextFuture=delayed.get('autoRaces').children[0].children[1];
  assert.equal(nextFuture.children.filter(x=>x.className==='formation').length,1);
  const storedBeforeResume=delayed.storage.get(STORAGE);
