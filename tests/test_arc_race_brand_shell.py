@@ -32,7 +32,9 @@ class ArcRaceBrandShellTests(unittest.TestCase):
 
     def test_legacy_links_credentials_and_forecast_controls_are_not_renamed(self):
         # Brand is cosmetic. No renaming of private URLs or storage keys.
-        self.assertIn('href="/owner-auto-forecast"', HOME)
+        # Home route is intentionally an owner-only placeholder resolved by
+        # the existing WSGI handler after authentication.
+        self.assertIn('href="__OWNER_FORECAST_ROUTE__"', HOME)
         self.assertIn('href="/my-tickets"', HOME)
         self.assertIn('href="/owner-backup"', HOME)
         self.assertIn("__OWNER_RELEASE__", HOME)
