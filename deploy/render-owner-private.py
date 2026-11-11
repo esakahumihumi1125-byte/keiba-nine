@@ -44,7 +44,15 @@ if not port.isascii() or not port.isdecimal() or not 1024 <= int(port) <= 65535:
 chdir = str(Path(__file__).resolve().parents[1] / "scripts")
 bind = "0.0.0.0:" + port
 workers = 1
-timeout = 60
+# The owner requests /tra then /tky /tcy /tze sequentially (30s socket
+# timeout per required source), and only after signing reads optional /tka
+# (10s socket timeout). The previous Gunicorn 60s worker timeout could kill
+# an otherwise valid slow four-source request before the app could return.
+# 4*30 + 10 = 130s is a conservative socket-time upper model, NOT a
+# guaranteed wall-clock bound (DNS, JSON parsing and CPU also take time).
+# No extra provider reads, parallel calls, retries, background jobs or
+# changed request authentication are introduced by this setting.
+timeout = 150
 graceful_timeout = 20
 accesslog = None
 errorlog = "-"
