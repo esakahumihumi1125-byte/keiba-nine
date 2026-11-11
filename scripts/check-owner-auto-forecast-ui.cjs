@@ -1631,6 +1631,59 @@ function boot({manualWeekday=true}={}){
  assert.equal(storedAfterUpdate.length,2);
  assert.equal(storedAfterUpdate.filter(x=>x.snapshot.date==='2099-01-03').length,1);
  assert.equal(zeroQuick.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+
+ // Sunday has its own one-tap path, the same Thurs gate, no repeat
+ // provider reads, immutable prestart receipts, and 0R cache protection.
+ await early.get('autoSundayQuick').onclick();
+ assert.equal(early.requests.length,earlyBefore);
+ assert.match(early.get('autoStatus').textContent,/日曜.*木曜以降/);
+ assert.equal(early.storage.get(STORAGE),earlySaved);
+ const sunday=boot();
+ await new Promise(r=>setImmediate(r));
+ const sundayRaw=JSON.parse(JSON.stringify(resultWith('e'.repeat(64)))
+  .replaceAll('20990101','20990104')
+  .replaceAll('2099-01-01','2099-01-04'));
+ sunday.setServerRaw(sundayRaw);
+ const sundayBefore=sunday.requests.length;
+ const sundayOld=sunday.storage.get(STORAGE);
+ await sunday.get('autoSundayQuick').onclick();
+ assert.equal(sunday.get('autoDay').value,'2099-01-04');
+ assert.equal(sunday.requests.length,sundayBefore+1);
+ assert.equal(sunday.requests.at(-1).url,
+  '/api/jrdb/owner-auto-draft?date=20990104');
+ assert.equal(sunday.requests.at(-1).options.credentials,'same-origin');
+ const sundaySaved=sunday.storage.get(STORAGE);
+ assert.notEqual(sundaySaved,sundayOld);
+ assert.equal(JSON.parse(sundaySaved).length,2);
+ assert.equal(JSON.parse(sundaySaved).filter(x=>
+  x.snapshot.date==='2099-01-04').length,1);
+ await sunday.get('autoSundayQuick').onclick();
+ assert.equal(sunday.requests.length,sundayBefore+1,
+  'repeated Sunday quick must reuse the in-memory report');
+ assert.equal(sunday.storage.get(STORAGE),sundaySaved);
+ assert.match(sunday.get('autoStatus').textContent,
+  /日曜データ取得済み.*追加のJRDB照会は0回/);
+ sunday.advanceClock('2099-01-04T03:01:00Z');
+ await sunday.get('autoSundayQuick').onclick();
+ assert.equal(sunday.requests.length,sundayBefore+1);
+ assert.equal(sunday.storage.get(STORAGE),sundaySaved);
+ assert.match(sunday.get('autoSummary').textContent,/研究用自動案 0R/);
+ assert.equal(sunday.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const zeroSunday=boot();
+ await new Promise(r=>setImmediate(r));
+ const zeroSundayRaw=JSON.parse(JSON.stringify(saturdayZero)
+  .replaceAll('20990103','20990104')
+  .replaceAll('2099-01-03','2099-01-04'));
+ zeroSunday.setServerRaw(zeroSundayRaw);
+ const zeroSundayBefore=zeroSunday.requests.length;
+ const zeroSundaySaved=zeroSunday.storage.get(STORAGE);
+ await zeroSunday.get('autoSundayQuick').onclick();
+ assert.equal(zeroSunday.requests.length,zeroSundayBefore+1);
+ assert.match(zeroSunday.get('autoStatus').textContent,/番組0R・予想未作成/);
+ await zeroSunday.get('autoSundayQuick').onclick();
+ assert.equal(zeroSunday.requests.length,zeroSundayBefore+1);
+ assert.match(zeroSunday.get('autoStatus').textContent,/日曜番組0R・取得済み/);
+ assert.equal(zeroSunday.storage.get(STORAGE),zeroSundaySaved);
  // If a regular request is already outstanding, no second billed
  // Saturday request is started or the existing date silently altered.
  const pendingView=boot();
