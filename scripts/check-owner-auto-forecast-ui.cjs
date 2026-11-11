@@ -3269,6 +3269,21 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(a.get('autoTenStatus').textContent,/確認できません/);
  assert.equal(a.get('autoTenWeights').children.length,0);
  assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
+ // Declared factor weights must agree with the actual 10-slot grades,
+ // not just the headline policy weights. Reject tampered readiness reports
+ // without touching the already-frozen first receipt.
+ const badWeightCapacity=resultWith('a'.repeat(64));
+ badWeightCapacity.tenFactorPreview.races[0].horses[0].unassessedWeightCapacity=0;
+ a.setServerRaw(badWeightCapacity);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoTenStatus').textContent,/確認できません/);
+ assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
+ const badMissingPriority=resultWith('a'.repeat(64));
+ badMissingPriority.tenFactorPreview.races[0].horses[0].priorityMissingFactors.reverse();
+ a.setServerRaw(badMissingPriority);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoTenStatus').textContent,/確認できません/);
+ assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
  // A corrupt current-going source must not be displayed as a trusted
  // racing condition or cause any new receipt write.
  const badCondition=resultWith('a'.repeat(64));
