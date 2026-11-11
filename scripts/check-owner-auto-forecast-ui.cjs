@@ -1499,6 +1499,32 @@ function boot(){
  assert.equal(quick.get('autoSaturdayQuick').disabled,false);
  assert.equal(quick.get('autoRun').disabled,false);
  assert.equal(quick.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // For a correctly dated Saturday response, one tap both loads and
+ // first-writes its own signed prestart draft. Repeated one-tap presses
+ // reuse the verified in-memory result without another paid API request.
+ const successQuick=boot();
+ await new Promise(r=>setImmediate(r));
+ const saturdayRaw=JSON.parse(JSON.stringify(resultWith('f'.repeat(64)))
+  .replaceAll('20990101','20990103')
+  .replaceAll('2099-01-01','2099-01-03'));
+ successQuick.setServerRaw(saturdayRaw);
+ const beforeSuccess=successQuick.requests.length;
+ await successQuick.get('autoSaturdayQuick').onclick();
+ assert.equal(successQuick.get('autoDay').value,'2099-01-03');
+ assert.equal(successQuick.requests.length,beforeSuccess+1);
+ assert.match(successQuick.get('autoStatus').textContent,
+  /発走前の研究用暫定案 1Rを確認/);
+ const saturdayStored=JSON.parse(successQuick.storage.get(STORAGE));
+ assert.equal(saturdayStored.length,2);
+ assert.equal(saturdayStored.filter(x=>x.snapshot.date==='2099-01-03').length,1);
+ assert.equal(saturdayStored.filter(x=>x.snapshot.date==='2099-01-01').length,1);
+ const firstWrite=successQuick.storage.get(STORAGE);
+ await successQuick.get('autoSaturdayQuick').onclick();
+ assert.equal(successQuick.requests.length,beforeSuccess+1);
+ assert.equal(successQuick.storage.get(STORAGE),firstWrite);
+ assert.match(successQuick.get('autoStatus').textContent,
+  /土曜データ取得済み.*追加のJRDB照会は0回/);
+ assert.equal(successQuick.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // If a regular request is already outstanding, no second billed
  // Saturday request is started or the existing date silently altered.
  const pendingView=boot();

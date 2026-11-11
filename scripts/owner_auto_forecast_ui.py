@@ -3713,6 +3713,25 @@ $('autoSaturdayQuick').onclick=async()=>{
    'JRDB配信前の可能性があるため今回は有料照会していません。';
   return;
  }
+ const selectedDay=selected.replaceAll('-','');
+ // Use only a previously validated in-memory result for this date.
+ // Repeat presses must not create extra paid reads. For an updated
+ // provider snapshot the explicit "再分析" control remains available.
+ if($('autoDay').value===selected&&latestDisplayedReport&&
+    latestDisplayedDay===selectedDay&&latestDisplayedReport.raceCount>0){
+  try{
+   latestExpiredDraftCount=latestDisplayedReport.races.filter(r=>
+    r.status==='provisional_draft'&&draftExpiredOnDevice(selectedDay,r.postTime)).length;
+   render(latestDisplayedReport,selectedDay); // Local display only.
+   $('autoStatus').textContent='【土曜データ取得済み】この画面の取得済み研究結果を再表示しました。'+
+    '追加のJRDB照会は0回。新しい資料を取得する場合は「全場・全Rを再分析する」を押してください。';
+  }catch(_){
+   $('autoRaces').replaceChildren();
+   $('autoStatus').textContent='保存済み情報の表示を確認できません。'+
+    '固定済み履歴を保護し、追加の有料照会は行いません。';
+  }
+  return;
+ }
  button.disabled=true;
  try{
   chooseUpcomingJstDay(6);
