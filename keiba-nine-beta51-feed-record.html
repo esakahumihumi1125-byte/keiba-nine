@@ -442,7 +442,19 @@ function trioTickets29(mode, pool, axis, a, b, c){
 <link rel="icon" type="image/png" href="./assets/keiba-nine-icon-v1.png">
 <meta name="apple-mobile-web-app-title" content="KEIBA NINE">
 </head><body><main id="app"><header class="brand"><div><div class="logo">KEIBA NINE</div><div class="sub">レースを選ぶ。評価を見る。記録する。</div></div><span class="tag">BETA · 5.7</span></header>
-<section id="home" class="screen active"><section class="panel" id="simple52"><div class="s55-heading"><div><p class="s55-eyebrow">RACE PICK</p><h2>レースを選ぶ</h2></div><span class="s55-step">01 / 予想</span></div><div class="cols"><div><label for="raceDate54">日付</label><select id="raceDate54"></select><button type="button" class="btn secondary" id="todayRace54" style="margin-top:8px">今日の予想に戻る</button><p class="caption">過去・次回開催の予想は日付を選んだ時だけ表示します。</p></div><div><label for="raceTrack54">競馬場</label><select id="raceTrack54"></select></div></div><div class="cols"><div><label for="simple52Pick">レース</label><select id="simple52Pick"></select></div><div><label>レース移動</label><button class="btn secondary full" type="button" id="nextRace54">次のレース →</button></div></div><p class="caption"><a href="./racecard-batch.html">全R一括チェック（最大120R）</a> ／ <a href="./racecard-check.html">1Rずつの形式チェック</a>｜実データ自動取得は未接続</p><p id="feedSync72" class="caption" role="status">配信を確認中…</p><div id="simple52Body" aria-live="polite"></div></section><details><summary style="padding:16px">記録・収支・詳しい操作</summary><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
+<section id="home" class="screen active">
+<section class="panel" id="knOwnerForecastHub" aria-label="本人用レース予想への入口">
+  <p class="s55-eyebrow">KEIBA NINE · 本人用予想</p>
+  <h2>レース予想はこちら</h2>
+  <p class="caption">JRDBの実データ取得・3連単の暫定自動予想・発走前の固定記録は、ログインで保護された本人用画面で扱います。</p>
+  <a id="knOwnerForecastLaunch" href="https://keiba-nine-owner-jrdb.onrender.com/owner-auto-forecast" rel="noopener noreferrer">本人用レース予想を開く</a>
+  <p class="caption">現在は調教・近走2項目の研究用。正式10項目100点予想とJRA公式照合は未完成です。本人用画面を開くと、当日分のJRDB照会を試みます。契約による利用制限・料金に注意してください。</p>
+  <div class="buttons kn-hub-secondary">
+    <button type="button" class="btn secondary" onclick="show('win5')">WIN5を見る</button>
+    <button type="button" class="btn secondary" onclick="show('live')">記録を見る</button>
+  </div>
+</section>
+<section class="panel" id="simple52"><div class="s55-heading"><div><p class="s55-eyebrow">RACE PICK</p><h2>レースを選ぶ</h2></div><span class="s55-step">01 / 予想</span></div><div class="cols"><div><label for="raceDate54">日付</label><select id="raceDate54"></select><button type="button" class="btn secondary" id="todayRace54" style="margin-top:8px">今日の予想に戻る</button><p class="caption">過去・次回開催の予想は日付を選んだ時だけ表示します。</p></div><div><label for="raceTrack54">競馬場</label><select id="raceTrack54"></select></div></div><div class="cols"><div><label for="simple52Pick">レース</label><select id="simple52Pick"></select></div><div><label>レース移動</label><button class="btn secondary full" type="button" id="nextRace54">次のレース →</button></div></div><p class="caption"><a href="./racecard-batch.html">全R一括チェック（最大120R）</a> ／ <a href="./racecard-check.html">1Rずつの形式チェック</a>｜実データ自動取得は未接続</p><p id="feedSync72" class="caption" role="status">配信を確認中…</p><div id="simple52Body" aria-live="polite"></div></section><details><summary style="padding:16px">記録・収支・詳しい操作</summary><div class="heading">ホーム</div><div class="panel hero"><div class="muted small">個人検証の仮想回収率（実戦区分だけ・非公開）</div><div style="font-size:42px;font-weight:850;margin:11px 0" id="homeROI">— %</div><div class="small muted" id="homeLabel">まだ実績データがありません</div></div><div class="kpis"><div class="kpi"><span class="caption">仮想投資</span><strong id="homeStake">¥0</strong></div><div class="kpi"><span class="caption">仮想払戻</span><strong id="homeReturn">¥0</strong></div><div class="kpi"><span class="caption">収支</span><strong id="homeNet">¥0</strong></div><div class="kpi"><span class="caption">従来フォームの予想</span><strong id="homeCount">0 R</strong></div></div>
 <section class="panel" id="flow50" aria-label="BETA 5.1 個人実戦の運用ガイド">
  <div class="f50-top"><h3>🏇 BETA 5.1｜予想の自動保存・馬券連携</h3><span class="f50-chip">個人用・予想保存</span></div>
  <p class="f50-note">実際に端末へ保存した記録の進行状況を確認できるで。ここから保存・投票・結果確定・Google送信はしません。既存の画面へ移動するだけやで。</p>
@@ -3592,6 +3604,18 @@ function validateWin57(input,now,existing=[]){
 })();
 </script>
 
+<style id="knForecastHubStyle">
+#knOwnerForecastHub{border:2px solid #c8ae69;background:#fffdf5;margin-bottom:12px}
+#knOwnerForecastHub h2{font-size:23px;color:#244d36;margin:4px 0 10px}
+#knOwnerForecastHub .caption{line-height:1.65}
+#knOwnerForecastLaunch{display:block;margin:15px 0 12px;padding:16px 12px;
+ border-radius:13px;background:#266647;color:white;text-align:center;
+ text-decoration:none;font-size:18px;font-weight:850;min-height:55px;
+ box-shadow:0 4px 14px #204c3524}
+#knOwnerForecastLaunch:focus-visible{outline:3px solid #e9b85a;outline-offset:3px}
+#knOwnerForecastHub .kn-hub-secondary{margin:12px 0 0}
+#knOwnerForecastHub .kn-hub-secondary button{min-height:46px}
+</style>
 <style id="racecourse58">
 :root{color-scheme:light;background:#edf4ed;color:#233c32}
 body{background:#edf4ed url('./assets/racecourse58.svg') center top/auto 520px no-repeat;color:#233c32}

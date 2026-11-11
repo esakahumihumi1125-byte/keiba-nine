@@ -4,7 +4,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="theme-color" content="#09172b">
 <title>KEIBA NINE｜本人用・自動暫定予想</title>
 <link rel="stylesheet" href="/owner-auto-forecast.css"></head><body><main>
-<nav><a href="/">← 本人用ホーム</a><a href="/owner-jrdb-day-research">2項目の根拠</a><a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html#win5" rel="noopener noreferrer">WIN5（別画面）</a></nav>
+<nav class="owner-nav">
+<a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
+<a href="/">本人用ホーム</a>
+<a href="/owner-jrdb-day-research">2項目の根拠</a>
+<a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html#win5" rel="noopener noreferrer">WIN5</a>
+</nav>
 <h1>KEIBA NINE <small>本人用・予想</small></h1>
 <p class="warning"><strong>現在は研究用の暫定予想です。</strong>調教・近走の2項目で3連単を試算しています。
 正式10項目の予想とJRA公式照合は未完成。自動購入はしません。</p>
@@ -193,6 +198,8 @@ h1{font-size:24px;color:#f0d07e;margin:17px 0}
 h1 small{display:block;color:#c7d7e7;font-size:13px}
 h2{font-size:19px;margin:0 0 10px}
 nav{display:flex;justify-content:space-between;gap:12px}a{color:#f0d185}
+.owner-nav{flex-wrap:wrap;gap:6px 12px;justify-content:flex-start}
+.owner-nav a{display:inline-flex;align-items:center;min-height:34px;font-size:13px}
 section{background:#142b43;border:1px solid #4d6b85;border-radius:14px;padding:14px;margin:14px 0}
 .daily-start{border-color:#8b764b}
 .primary-cta{background:#e8c774;color:#182b41}
