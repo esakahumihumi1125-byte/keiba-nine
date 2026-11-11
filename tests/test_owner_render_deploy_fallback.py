@@ -55,6 +55,25 @@ class OwnerRenderDeployFallbackTests(unittest.TestCase):
             self.assertNotIn("git push", part)
             self.assertNotIn("workflow_dispatch", part)
 
+    def test_live_jrdb_build_shares_no_owner_secrets_and_checks_exact_sha(self):
+        raw = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("  verify-jrdb-live:", raw)
+        self.assertIn("    needs: [deploy-jrdb]", raw)
+        self.assertIn("deploy_sent: ${{ steps.trigger.outputs.deploy_sent }}", raw)
+        self.assertIn("echo 'deploy_sent=true' >> \"$GITHUB_OUTPUT\"", raw)
+        self.assertIn("needs.deploy-jrdb.outputs.deploy_sent == 'true'", raw)
+        self.assertIn("ref: ${{ github.event.workflow_run.head_sha }}", raw)
+        self.assertIn("EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}", raw)
+        self.assertIn("python scripts/owner_live_revision_probe.py", raw)
+        self.assertIn("NOT VERIFIED", raw)
+        self.assertIn("does not verify JRDB real-data reads", raw)
+        live = raw.split("  verify-jrdb-live:\n", 1)[1]
+        for forbidden in ("RENDER_JRDB_DEPLOY_HOOK_URL", "JRDB_API_KEY",
+                          "KEIBA_OWNER_PASSWORD", "Authorization", "Cookie",
+                          "api/jrdb", "curl --request POST"):
+            self.assertNotIn(forbidden, live)
+        self.assertIn("persist-credentials: false", live)
+
     def test_no_provider_data_or_credentials_are_embedded(self):
         raw = WORKFLOW.read_text(encoding="utf-8")
         self.assertNotIn("JRDB_API_KEY", raw)
