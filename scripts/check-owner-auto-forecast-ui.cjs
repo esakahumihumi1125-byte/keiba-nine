@@ -1524,6 +1524,19 @@ function boot(){
  assert.equal(successQuick.storage.get(STORAGE),firstWrite);
  assert.match(successQuick.get('autoStatus').textContent,
   /土曜データ取得済み.*追加のJRDB照会は0回/);
+ // Cached Saturday data is still a historical prestart research record
+ // after the clock reaches off-time. Even the top status must not falsely
+ // advertise 1R as an active draft when one-tap reopens the local result.
+ successQuick.advanceClock('2099-01-03T03:01:00Z'); // Saturday 12:01 JST
+ const afterOffReads=successQuick.requests.length;
+ await successQuick.get('autoSaturdayQuick').onclick();
+ assert.equal(successQuick.requests.length,afterOffReads);
+ assert.equal(successQuick.storage.get(STORAGE),firstWrite);
+ assert.match(successQuick.get('autoSummary').textContent,/研究用自動案 0R/);
+ assert.match(successQuick.get('autoMorningStatus').textContent,
+  /発走前の研究用3連単下書き 0R/);
+ assert.match(successQuick.get('autoOperationalNext').textContent,
+  /発走時刻経過・新案0R/);
  assert.equal(successQuick.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // One-tap response can legitimately contain zero JRDB programme races
  // before the weekly feed. Repeat taps MUST NOT silently make a second
