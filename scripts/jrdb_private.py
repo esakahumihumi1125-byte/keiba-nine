@@ -21,6 +21,11 @@ ALLOWED_API_BASES = frozenset({
     "https://dev.api.bigtime.world/v1",
     "https://api.bigtime.world/v1",
 })
+# Optional current-going is NOT used to pick the 2-factor ticket. Do not
+# block delivery behind a full 30-second socket wait for this 5th request.
+# This is a socket timeout, not a guarantee of the whole request's duration.
+CORE_SOURCE_SOCKET_TIMEOUT_SECONDS = 30
+OPTIONAL_GOING_SOCKET_TIMEOUT_SECONDS = 10
 
 
 def approved_api_base(raw):
@@ -42,7 +47,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def _fetch_endpoint(endpoint, parameters):
+def _fetch_endpoint(endpoint, parameters, *, timeout_seconds=CORE_SOURCE_SOCKET_TIMEOUT_SECONDS):
     """Private memory-only source retrieval for one strict allowlisted request.
 
     JRDB_PRIVATE_ENABLED is not owner authentication; HTTPS + owner gating is mandatory.
@@ -51,6 +56,15 @@ def _fetch_endpoint(endpoint, parameters):
     """
     if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'dra', 'dka', 'dky', 'dse'):
         raise JRDBError('Unsupported JRDB endpoint')
+    # A smaller socket wait is permitted ONLY for the optional /tka
+    # supplement. Never silently change the four core sources or open
+    # arbitrary durations/call patterns from a user-supplied value.
+    if (type(timeout_seconds) is not int or
+            timeout_seconds not in (CORE_SOURCE_SOCKET_TIMEOUT_SECONDS,
+                                    OPTIONAL_GOING_SOCKET_TIMEOUT_SECONDS) or
+            (timeout_seconds == OPTIONAL_GOING_SOCKET_TIMEOUT_SECONDS
+             and endpoint != 'tka')):
+        raise JRDBError('Invalid private source timeout contract')
     if os.environ.get("JRDB_PRIVATE_ENABLED") != "1":
         raise JRDBError("Private JRDB integration is disabled")
     if os.environ.get("GITHUB_ACTIONS") == "true":
@@ -89,7 +103,8 @@ def _fetch_endpoint(endpoint, parameters):
     request = urllib.request.Request(url, data=json.dumps(parameters).encode(),
         headers={"Content-Type": "application/json", "x-user-key": auth_key}, method="POST")
     try:
-        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=30) as response:
+        with urllib.request.build_opener(_NoRedirect()).open(
+                request, timeout=timeout_seconds) as response:
             raw = response.read(10_000_001)
         if len(raw) > 10_000_000:
             raise JRDBError("JRDB response exceeds size limit")
@@ -140,11 +155,12 @@ def _fetch_endpoint(endpoint, parameters):
 
 
 
-def _fetch_day(endpoint, racedate):
+def _fetch_day(endpoint, racedate, *, timeout_seconds=CORE_SOURCE_SOCKET_TIMEOUT_SECONDS):
     """Private current-week reader; historic endpoints cannot use this."""
     if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse'):
         raise JRDBError("Unsupported current-day endpoint")
-    return _fetch_endpoint(endpoint, {"racedate": racedate})
+    return _fetch_endpoint(endpoint, {"racedate": racedate},
+                           timeout_seconds=timeout_seconds)
 
 
 def fetch_historical_race_program(racekey):
@@ -191,8 +207,14 @@ def fetch_recent_runs(racedate):
 
 
 def fetch_venue_conditions(racedate):
-    """Private-only current meeting/going records (/tka). No public output."""
-    return _fetch_day('tka', racedate)
+    """Private-only OPTIONAL going (/tka), never a prestart ticket factor.
+
+    A failed/slow fifth read is handled by the owner service as unavailable
+    without discarding an already-computed research ticket. Socket timeout
+    reduced from 30s to 10s, with the usual 4 core source reads unchanged.
+    """
+    return _fetch_day('tka', racedate,
+                      timeout_seconds=OPTIONAL_GOING_SOCKET_TIMEOUT_SECONDS)
 
 
 def fetch_prestart_body(racedate):
