@@ -1724,6 +1724,46 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await new Promise(r=>setImmediate(r));
  assert.equal(noReceipt.requests.length,1,
   'a marker without actual prestart sealed receipts is not sufficient');
+ // The owner can inspect all available evidence and per-venue readiness
+ // without calling another (possibly paid) provider endpoint.
+ const acceptanceReads=saturdayOpened.requests.length;
+ await saturdayOpened.get('autoAcceptanceCheck').onclick();
+ const acceptance=saturdayOpened.get('autoAcceptanceReport').textContent;
+ assert.equal(saturdayOpened.requests.length,acceptanceReads);
+ assert.match(acceptance,/JRDB番組：1R/);
+ assert.match(acceptance,/東京：番組1\/12R／下書き1R／見送り0R/);
+ assert.match(acceptance,/端末の発走前固定研究記録：1R/);
+ assert.match(acceptance,/研究用3連単下書き：1R／見送り：0R／署名付き記録の受信：1R/);
+ assert.match(acceptance,/正式10項目.*未完成/);
+ assert.match(acceptance,/JRA公式.*独立照合：未完成/);
+ assert.match(acceptance,/JRDB追加照会0回・買い目変更0件/);
+ assert.doesNotMatch(acceptance,/[0-9a-f]{64}/);
+ assert.doesNotMatch(acceptance,/PRIVATE-|horse_id|API_KEY|racekey/);
+ const cachedReads=saturdayReturn.requests.length;
+ await saturdayReturn.get('autoAcceptanceCheck').onclick();
+ const cachedAcceptance=saturdayReturn.get('autoAcceptanceReport').textContent;
+ assert.equal(saturdayReturn.requests.length,cachedReads);
+ assert.match(cachedAcceptance,/端末の発走前固定研究記録：1R/);
+ assert.match(cachedAcceptance,/今回のJRDB取得：未実施/);
+ assert.doesNotMatch(cachedAcceptance,/JRDB番組：1R/);
+ // Three venues can be counted from 36 validated synthetic programme
+ // slots without inventing the JRA's actual official race schedule.
+ const saturday36=JSON.parse(JSON.stringify(full36RaceDraft())
+  .replaceAll('20990101','20990103')
+  .replaceAll('2099-01-01','2099-01-03'));
+ const fullDayBoot=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:00:00Z',initialServerRaw:saturday36});
+ await new Promise(r=>setImmediate(r));
+ const before36=fullDayBoot.requests.length;
+ await fullDayBoot.get('autoAcceptanceCheck').onclick();
+ const fullDayText=fullDayBoot.get('autoAcceptanceReport').textContent;
+ assert.equal(fullDayBoot.requests.length,before36);
+ assert.match(fullDayText,/JRDB番組：36R/);
+ assert.match(fullDayText,/東京：番組12\/12R/);
+ assert.match(fullDayText,/京都：番組12\/12R/);
+ assert.match(fullDayText,/福島：番組12\/12R/);
+ assert.match(fullDayText,/研究用3連単下書き：1R／見送り：35R/);
+ assert.doesNotMatch(fullDayText,/[\d]{1,2}→[\d]{1,2}→[\d]{1,2}/);
  // A successful, zero-race weekend read must stop duplicate automatic
  // /tra calls when the owner leaves and reopens the page within 30 min.
  // No licensed body/rows or ticket contents enter the reload marker.
