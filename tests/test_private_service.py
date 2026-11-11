@@ -80,11 +80,11 @@ class PrivateServiceTests(unittest.TestCase):
             "JRDB_API_KEY": "SYNTHETIC_PRESTART_KEY",
             "JRDB_AUTH_KEY": "SYNTHETIC_PRESTART_AUTH",
         })
-        with patch("private_service.fetch_race_program") as programme, \\
-             patch("private_service.fetch_horse_entries") as entries, \\
-             patch("private_service.fetch_training_analysis") as training, \\
-             patch("private_service.fetch_recent_runs") as recent, \\
-             patch("private_service.fetch_venue_conditions") as going:
+        with (patch("private_service.fetch_race_program") as programme,
+              patch("private_service.fetch_horse_entries") as entries,
+              patch("private_service.fetch_training_analysis") as training,
+              patch("private_service.fetch_recent_runs") as recent,
+              patch("private_service.fetch_venue_conditions") as going):
             response = call(app, "/api/owner-saturday-preflight",
                             QUERY_STRING="date=20261114")
             self.assertEqual(response["status"], "200 OK")
