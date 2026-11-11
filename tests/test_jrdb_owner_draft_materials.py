@@ -41,17 +41,28 @@ class OwnerDraftMaterialTests(unittest.TestCase):
 
     def test_one_broken_race_keeps_other_ungraded_source_counts(self):
         p,e,t,z=self.samples()
-        normal=observe_owner_draft_materials_isolated(p,e,t,z,"20261101")
+        healthy_diagnostic={}
+        normal=observe_owner_draft_materials_isolated(
+            p,e,t,z,"20261101",diagnostics=healthy_diagnostic)
         self.assertEqual(normal["status"],"observed")
+        self.assertEqual(healthy_diagnostic,{
+            "wholeDayCode":"ok","fallbackUsed":False,
+            "candidateRaces":2,"verifiedRaces":2,"rejectedRaces":0
+        })
         self.assertEqual(len(normal["races"]),2)
         bad=copy.deepcopy(e)
         bad.append(copy.deepcopy(bad[0]))
         pristine=copy.deepcopy((p,bad,t,z))
         self.assertRaises(CoverageError,observe_owner_draft_materials,
                           p,bad,t,z,"20261101")
+        failed_diagnostic={}
         partial=observe_owner_draft_materials_isolated(
-            p,bad,t,z,"20261101")
+            p,bad,t,z,"20261101",diagnostics=failed_diagnostic)
         self.assertEqual((p,bad,t,z),pristine)
+        self.assertEqual(failed_diagnostic,{
+            "wholeDayCode":"source_coverage","fallbackUsed":True,
+            "candidateRaces":2,"verifiedRaces":1,"rejectedRaces":1
+        })
         self.assertEqual(partial["status"],"partial")
         self.assertEqual(len(partial["races"]),1)
         self.assertNotEqual(partial["races"][0]["track"],p[0]["track"])
@@ -70,9 +81,13 @@ class OwnerDraftMaterialTests(unittest.TestCase):
         broken=copy.deepcopy(e)
         for row in broken:
             row["horse_number"]="INVALID"
+        diagnostic={}
         partial=observe_owner_draft_materials_isolated(
-            p,broken,t,z,"20261101")
+            p,broken,t,z,"20261101",diagnostics=diagnostic)
         self.assertEqual(partial,unavailable())
+        self.assertEqual(diagnostic["wholeDayCode"],"source_coverage")
+        self.assertEqual(diagnostic["verifiedRaces"],0)
+        self.assertEqual(diagnostic["rejectedRaces"],2)
 
     def test_conflicting_roster_fails_without_graded_fallback(self):
         p,e,t,z=self.samples()
