@@ -1646,6 +1646,84 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(zeroQuick.get('autoStatus').textContent,
   /全場・全Rを再分析する/);
  assert.equal(zeroQuick.storage.get(STORAGE),zeroStored);
+ // Successful nonempty owner research is kept only as the original
+ // sealed, prestart iPhone receipts. Reopening the UI in 20 minutes is a
+ // local history view, not a new forecast and not a new paid /tra read.
+ const fixedMarkerKey='keiba-nine-owner-recent-fixed-day-read-v1';
+ const saturdayOpened=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:00:00Z',initialServerRaw:saturdayRaw});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(saturdayOpened.requests.length,1);
+ const firstSatReceipts=saturdayOpened.storage.get(STORAGE);
+ assert.equal(JSON.parse(firstSatReceipts).length,1);
+ const fixedMarker=JSON.parse(saturdayOpened.storage.get(fixedMarkerKey));
+ assert.deepEqual(Object.keys(fixedMarker).sort(),['at','day','fixedCount']);
+ assert.equal(fixedMarker.day,'20990103');
+ assert.equal(fixedMarker.fixedCount,1);
+ assert.equal(typeof fixedMarker.at,'number');
+ assert.equal(saturdayOpened.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const saturdayReturn=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:08:00Z',
+  initialServerRaw:saturdayRaw,seedStorage:saturdayOpened.storage});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(saturdayReturn.requests.length,0,
+  'return within 20min must reuse fixed tickets without paid provider read');
+ assert.equal(saturdayReturn.storage.get(STORAGE),firstSatReceipts);
+ assert.equal(saturdayReturn.get('autoRaces').children.length,0,
+  'local receipt view must never imply a freshly generated score/ranking');
+ assert.equal(saturdayReturn.get('autoHistory').children.length,1);
+ assert.match(saturdayReturn.get('autoSummary').textContent,/新規未取得｜端末内の発走前固定 1R/);
+ assert.match(saturdayReturn.get('autoStatus').textContent,
+  /固定履歴を表示.*自動JRDB再照会0回.*未検証/);
+ assert.equal(saturdayReturn.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Explicit refresh stays possible and never replaces the original ticket.
+ await saturdayReturn.get('autoRun').onclick();
+ assert.equal(saturdayReturn.requests.length,1);
+ assert.equal(saturdayReturn.storage.get(STORAGE),firstSatReceipts);
+ assert.equal(saturdayReturn.get('autoRaces').children.length,1);
+ // The one-tap Saturday button shares the same guard across navigations.
+ const fridayQuickFromFixed=boot({manualWeekday:false,
+  initialClock:'2099-01-02T12:00:00Z',
+  initialServerRaw:saturdayRaw,seedStorage:saturdayOpened.storage});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(fridayQuickFromFixed.requests.length,0);
+ await fridayQuickFromFixed.get('autoSaturdayQuick').onclick();
+ assert.equal(fridayQuickFromFixed.requests.length,0);
+ assert.equal(fridayQuickFromFixed.get('autoDay').value,'2099-01-03');
+ assert.match(fridayQuickFromFixed.get('autoStatus').textContent,
+  /土曜・固定履歴を表示.*再照会0回/);
+ assert.equal(fridayQuickFromFixed.storage.get(STORAGE),firstSatReceipts);
+ // Expired or invalid markers must never suppress fresh day retrieval.
+ const staleSat=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:21:00Z',
+  initialServerRaw:saturdayRaw,seedStorage:saturdayOpened.storage});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(staleSat.requests.length,1);
+ for(const tampered of [
+  '{"day":"20990104","at":'+fixedMarker.at+',"fixedCount":1}',
+  '{"day":"20990103","at":0,"fixedCount":1}',
+  '{"day":"20990103","at":'+(fixedMarker.at+3600000)+',"fixedCount":1}',
+  '{"day":"20990103","at":'+fixedMarker.at+',"fixedCount":36}',
+  '{"day":"20990103","at":'+fixedMarker.at+',"fixedCount":1,"extra":true}',
+  '{"day":"20990103","at":"invalid","fixedCount":1}',
+  '{"day":"20990103","at":',
+ ]){
+  const seed=new Map(saturdayOpened.storage);
+  seed.set(fixedMarkerKey,tampered);
+  const fresh=boot({manualWeekday:false,
+   initialClock:'2099-01-02T15:01:00Z',
+   initialServerRaw:saturdayRaw,seedStorage:seed});
+  await new Promise(r=>setImmediate(r));
+  assert.equal(fresh.requests.length,1,'untrusted marker must never block a read');
+ }
+ const missingLocked=new Map(saturdayOpened.storage);
+ missingLocked.delete(STORAGE);
+ const noReceipt=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:01:00Z',
+  initialServerRaw:saturdayRaw,seedStorage:missingLocked});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(noReceipt.requests.length,1,
+  'a marker without actual prestart sealed receipts is not sufficient');
  // A successful, zero-race weekend read must stop duplicate automatic
  // /tra calls when the owner leaves and reopens the page within 30 min.
  // No licensed body/rows or ticket contents enter the reload marker.
