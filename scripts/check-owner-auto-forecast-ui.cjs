@@ -1763,8 +1763,13 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   initialClock:'2099-01-02T15:05:00Z',initialServerRaw:saturdayRaw,
   seedStorage:reloadEmpty.storage});
  await new Promise(r=>setImmediate(r));
- assert.equal(afterUpdateReload.requests.length,1,
-  'a successful 1R fetch must not be suppressed as 0R');
+ assert.equal(afterUpdateReload.requests.length,0,
+  'a successful 1R fetch should now show fixed receipts without paid reread');
+ assert.match(afterUpdateReload.get('autoStatus').textContent,
+  /固定履歴を表示.*自動JRDB再照会0回/);
+ assert.equal(afterUpdateReload.storage.get(STORAGE),
+  reloadEmpty.storage.get(STORAGE),
+  'a 0R-to-1R manual update must retain its immutable prestart receipt');
  // 0R markers with wrong day, clock rollback, stale timestamp or
  // corrupted JSON are never trusted as evidence of a prior read.
  for(const corrupted of [
