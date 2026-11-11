@@ -76,6 +76,35 @@ class OwnerDraftMaterialTests(unittest.TestCase):
                         "PRIVATE-JOCKEY","oikirisisu"):
             self.assertNotIn(private,repr(partial))
 
+    def test_fallback_keeps_valid_other_race_with_unrelated_bad_keys(self):
+        p,e,t,z = self.samples()
+        damaged = copy.deepcopy(e)
+        damaged.append(copy.deepcopy(damaged[0]))
+        # Paid source rows that cannot be associated with an exact known
+        # race key must not be guessed into a healthy separate race.
+        damaged.append({"racekey": ["unhashable"], "horse_id":"PRIVATE"})
+        unrelated = {"racekey":"20991231", "horse_id":"PRIVATE"}
+        untouched = copy.deepcopy((p,damaged,t,z))
+        report = observe_owner_draft_materials_isolated(
+            p,damaged,t+[unrelated],z+[unrelated],"20261101")
+        self.assertEqual((p,damaged,t,z),untouched)
+        self.assertEqual(report["status"],"partial")
+        self.assertEqual(len(report["races"]),1)
+        self.assertEqual(report["races"][0]["track"],p[1]["track"])
+        self.assertNotIn("PRIVATE",repr(report))
+        self.assertFalse(report["officialJraVerified"])
+        self.assertEqual(report["gradedNewFactors"],0)
+
+    def test_duplicate_provider_race_keys_not_reused_by_isolation(self):
+        p,e,t,z = self.samples()
+        altered = copy.deepcopy(p)
+        altered[1]["racekey"] = altered[0]["racekey"]
+        # A slot with a duplicate provider identity must never reuse
+        # another race's material if whole-day verification failed.
+        report = observe_owner_draft_materials_isolated(
+            altered,e,t,z,"20261101")
+        self.assertEqual(report,unavailable())
+
     def test_no_valid_optional_race_never_invents_zero_materials(self):
         p,e,t,z=self.samples()
         broken=copy.deepcopy(e)
