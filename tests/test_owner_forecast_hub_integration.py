@@ -26,7 +26,7 @@ class OwnerForecastHubIntegrationTests(unittest.TestCase):
         self.assertIn("正式10項目100点予想とJRA公式照合は未完成", MAIN)
         self.assertIn("通常の土日に当日分を自動照会", MAIN)
         self.assertIn("平日・祝日の変則開催は日付を選んで手動取得", MAIN)
-        self.assertIn("契約による利用制限・料金", MAIN)
+        self.assertIn("JRDB契約の利用制限・料金", MAIN)
         self.assertIn("onclick=\"show('win5')\"", MAIN)
         self.assertNotIn("KEIBA_OWNER_PASSWORD=", MAIN)
         self.assertNotIn("JRDB_API_KEY=", MAIN)
