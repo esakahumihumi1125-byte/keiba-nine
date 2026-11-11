@@ -114,11 +114,42 @@ class RaceContextTests(unittest.TestCase):
         with self.assertRaises(RaceContextError):
             audit_race_context(programme, holding, "20261101")
 
-    def test_bad_timestamp_fails_closed(self):
-        for value in ("2026-11-01", "garbage", [], 123):
+    def test_tka_utc_updated_at_is_present_not_independent_publication_proof(self):
+        programme, holding = fake()
+        holding[0]["updated_at"] = "2025-10-31T16:29:18.862Z"
+        report = audit_race_context(programme, holding, "20261101")
+        self.assertTrue(report["races"][0]["conditionUpdateRecorded"])
+        self.assertTrue(report["races"][0]["goingAvailable"])
+        self.assertFalse(report["raceConditionsVerified"])
+
+    def test_valid_naive_and_date_only_updates_keep_going_but_not_time_proof(self):
+        # JRDB shared field samples may contain a timezone-free updated_at.
+        # Do not reject the whole /tka response or make a false cut-off claim.
+        for stamp in ("2026-10-31T16:30:00", "2026-10-31", "20261031"):
+            programme, holding = fake()
+            holding[0]["updated_at"] = stamp
+            source = copy.deepcopy((programme, holding))
+            with self.subTest(stamp=stamp):
+                result = audit_race_context(programme, holding, "20261101")
+                self.assertEqual((programme, holding), source)
+                turf, dirt = result["races"][:2]
+                self.assertTrue(turf["conditionSnapshotPresent"])
+                self.assertEqual(turf["going"], "稍重")
+                self.assertEqual(dirt["going"], "不良")
+                self.assertTrue(turf["goingAvailable"])
+                self.assertFalse(turf["conditionUpdateRecorded"])
+                self.assertFalse(dirt["conditionUpdateRecorded"])
+                self.assertFalse(result["raceConditionsVerified"])
+                self.assertFalse(result["predictionReady"])
+                self.assertIn("時刻未確認", result["note"])
+
+    def test_bad_timestamp_fails_closed_without_promoting_going(self):
+        for value in ("garbage", [], 123, "2026-02-30", "20260230",
+                      "2026-11-01T25:00:00", "2026-11-01T13:00:00+25:00",
+                      "2026-11-01 13:00:00", "2026-11-01T13:00"):
             programme, holding = fake()
             holding[0]["updated_at"] = value
-            with self.subTest(value=value), self.assertRaises(RaceContextError):
+            with self.subTest(value=str(value)), self.assertRaises(RaceContextError):
                 audit_race_context(programme, holding, "20261101")
 
     def test_duplicate_or_bad_programme_fails_closed(self):
