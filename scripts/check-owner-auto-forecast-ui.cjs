@@ -3592,6 +3592,12 @@ function boot(){
  assert.match(delayed.get('autoSavedStatus').textContent,/保存しなかった1R/);
  assert.match(delayed.get('autoSummary').textContent,
   /36R中、研究用自動案 35R／見送り 0R/);
+ assert.match(delayed.get('autoMorningStatus').textContent,
+  /発走前の研究用3連単下書き 35R／見送り 0R/);
+ assert.match(delayed.get('autoMorningStatus').textContent,
+  /新案非表示 1R/);
+ assert.match(delayed.get('autoOperationalNext').textContent,
+  /研究用3連単 35R／見送り 0R/);
  const afterOffRace=delayed.get('autoRaces').children[0].children[0];
  assert.match(afterOffRace.children[0].textContent,/発走時刻経過・新案非表示/);
  assert.equal(afterOffRace.children.filter(x=>x.className==='formation').length,0);
@@ -3605,6 +3611,12 @@ function boot(){
   'foreground expiry does not re-fetch paid JRDB data');
  assert.equal(delayed.storage.get(STORAGE),storedBeforeResume);
  assert.match(delayed.get('autoSummary').textContent,/研究用自動案 0R/);
+ assert.match(delayed.get('autoMorningStatus').textContent,
+  /発走前の研究用3連単下書き 0R／見送り 0R/);
+ assert.match(delayed.get('autoMorningStatus').textContent,
+  /新案非表示 36R/);
+ assert.match(delayed.get('autoOperationalNext').textContent,
+  /発走時刻経過・新案0R/);
  assert.equal(delayed.get('autoRaces').children[0].children
   .flatMap(card=>card.children.filter(x=>x.className==='formation')).length,0);
  // A fully late single-race response must not be newly stored at all.
@@ -3617,6 +3629,10 @@ function boot(){
  assert.match(allLate.get('autoSummary').textContent,/研究用自動案 0R/);
  assert.match(allLate.get('autoStatus').textContent,
   /発走時刻経過・新案非表示/);
+ assert.match(allLate.get('autoMorningStatus').textContent,
+  /発走前の研究用3連単下書き 0R/);
+ assert.match(allLate.get('autoOperationalNext').textContent,
+  /発走時刻経過・新案0R/);
  assert.doesNotMatch(allLate.get('autoStatus').textContent,
   /発走前の研究用暫定案 [1-9]/);
  assert.equal(allLate.get('autoRaces').children[0].children[0].children
