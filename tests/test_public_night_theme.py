@@ -25,7 +25,7 @@ class PublicNightThemeTests(unittest.TestCase):
                         'setInterval(', 'window.location', 'document.cookie'):
             self.assertNotIn(illegal,self.theme)
         for saved in ("keiba_nine_race_flow_demo_v1_8", "keiba-nine-auto-feed.json",
-                      'const numHorses=18;', 'id="knOwnerForecastLaunch"',
+                      'id="arc-race-static-hero"', 'id="knOwnerForecastLaunch"',
                       'data-screen="win5"', "show('results')"):
             self.assertIn(saved,HTML)
         self.assertIn("勝負を描く、予想のアーク。",HTML)

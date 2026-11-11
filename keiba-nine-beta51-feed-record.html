@@ -443,6 +443,14 @@ function trioTickets29(mode, pool, axis, a, b, c){
 <meta name="apple-mobile-web-app-title" content="ARC RACE">
 </head><body><main id="app"><header class="brand arc-public-brand" aria-label="ARC RACE アークレース"><svg class="arc-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 100" role="img" aria-label="円弧と競走馬の横顔"><defs><linearGradient id="arc-brand-gold" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#fff1bc"/><stop offset=".48" stop-color="#d8ac55"/><stop offset="1" stop-color="#99702d"/></linearGradient></defs><path d="M9 83 C26 25 69 7 113 18" fill="none" stroke="url(#arc-brand-gold)" stroke-width="5" stroke-linecap="round"/><path d="M17 88 C40 46 72 28 116 32" fill="none" stroke="#3d97ce" stroke-width="3.5" stroke-linecap="round"/><path d="M75 54 Q90 49 100 37 L108 23 L114 34 L124 27 L127 47 L139 58 Q143 64 136 72 L123 76 Q117 76 111 70 L100 68 Q94 77 93 90" fill="#0a192b" stroke="url(#arc-brand-gold)" stroke-width="3.8" stroke-linejoin="round" stroke-linecap="round"/><path d="M100 37 Q83 37 65 49 Q78 48 90 44 M94 43 Q77 46 57 61 Q78 59 88 53" fill="url(#arc-brand-gold)"/><circle cx="126" cy="57" r="2" fill="#fff0b5"/></svg><div class="arc-brand-copy"><h1>ARC RACE</h1><p class="arc-brand-jp">アークレース</p><p class="arc-brand-sub">AI競馬予想・データ分析</p><p class="arc-brand-engine">Powered by <strong>UMETRIC</strong> · BETA 5.7</p></div></header>
 <section id="home" class="screen active">
+<div class="arc-race-static-hero" id="arc-race-static-hero" aria-label="ARC RACE ホームバナー">
+ <div class="arc-race-static-copy">
+  <span class="arc-static-eyebrow">ARC RACE · NIGHT TRACK</span>
+  <strong class="arc-static-title">勝負を描く、予想のアーク。</strong>
+  <span class="arc-static-subtitle">AI競馬予想・データ分析</span>
+  <span class="arc-static-features"><b>3連単</b><b>WIN5</b><b>実戦記録</b></span>
+ </div>
+</div>
 <section class="panel" id="knOwnerForecastHub" aria-label="本人用レース予想への入口">
   <p class="s55-eyebrow">ARC RACE · 本人用予想</p>
   <h2>レース予想はこちら</h2>
@@ -3655,133 +3663,37 @@ h3,summary,.gold{color:#735315}input,select,textarea{background:#fff;color:#233c
 @media(max-width:360px){.brand.arc-public-brand{gap:7px;padding:10px 8px}.brand.arc-public-brand .arc-brand-mark{width:79px;height:72px;flex-basis:79px}.brand.arc-public-brand .arc-brand-copy h1{font-size:25px}.brand.arc-public-brand .arc-brand-sub{font-size:11px}}
 </style>
 
-<!-- RACECOURSE58_MINI_HORSES_START: decorative 18-runner SVG; no data/network access. -->
-<style>
-/* ARC RACE night-race hero. Visual-only, no external assets/data or storage writes. */
-.racecourse58-banner{position:relative;isolation:isolate;overflow:hidden;height:160px;
- background:linear-gradient(115deg,#061321 0%,#0b2539 56%,#133b43 100%);
- border:1px solid #a58248;border-radius:17px;padding:13px 14px;margin-bottom:18px;
- box-shadow:inset 0 1px 0 #f6da8f26,0 10px 27px #0b192b36}
-.racecourse58-banner::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
- background:radial-gradient(ellipse 90% 75% at 75% 100%,#287a8055,transparent 78%),
- radial-gradient(ellipse 110% 90% at 80% 130%,transparent 58%,#c69a4a66 59%,transparent 60%),
- radial-gradient(ellipse 105% 86% at 80% 133%,transparent 64%,#408eb57a 65%,transparent 66%)}
-.racecourse58-banner::after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;
- background:linear-gradient(90deg,#071421c7 0%,#07142185 44%,transparent 88%),
- linear-gradient(0deg,#06132140,transparent 64%)}
-.arc-race-night-copy{position:relative;z-index:3;display:flex;flex-direction:column;
- align-items:flex-start;gap:4px;max-width:min(275px,84%);pointer-events:none}
-.arc-race-night-copy .arc-night-eyebrow{font:800 10px/1.4 system-ui,sans-serif;
- color:#a9c8e0;letter-spacing:.11em;text-shadow:0 1px 3px #081522}
-.arc-race-night-copy .arc-night-title{margin:1px 0 3px;color:#f6d68c;
- font:800 clamp(15px,4.1vw,20px)/1.32 system-ui,sans-serif;
- text-shadow:0 2px 8px #071321;letter-spacing:.015em}
-.arc-race-night-copy .arc-night-detail{font-size:10px;color:#e0e9ef;line-height:1.4;
- text-shadow:0 1px 4px #071321}
-.arc-race-night-copy .arc-night-features{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
-.arc-race-night-copy .arc-night-features b{display:inline-flex;align-items:center;padding:3px 7px;
- border:1px solid #8e784b80;border-radius:6px;background:#081d30c8;color:#f4deb0;
- font:750 10px/1.3 system-ui,sans-serif;white-space:nowrap}
-@media(max-width:360px){.racecourse58-banner{height:158px;padding:12px 11px}
- .arc-race-night-copy{max-width:94%}.arc-race-night-copy .arc-night-title{font-size:15px}}
-
-.kn-racecourse-horses{position:absolute;inset:0;width:100%;height:100%;
- pointer-events:none;z-index:1;overflow:hidden}
-.kn-horse-bob{animation:kn-thoroughbred-gallop .43s ease-in-out infinite alternate}
-.kn-race-horse:nth-child(3n) .kn-horse-bob{animation-delay:-.15s}
-.kn-race-horse:nth-child(3n + 1) .kn-horse-bob{animation-delay:-.31s}
-.kn-horse-number{font:900 24px system-ui,sans-serif;fill:#17382d;
- paint-order:stroke;stroke:#fff;stroke-width:.8px;text-anchor:middle}
-@keyframes kn-thoroughbred-gallop{
- from{transform:translateY(1px)}to{transform:translateY(-7px)}
-}
-@media(prefers-reduced-motion:reduce){
- .kn-horse-bob{animation:none!important}
-}
+<!-- ARC_RACE_STATIC_HERO_STYLE: motion-free home banner -->
+<style id="arc-race-static-hero-style">
+/* No JavaScript, SVG animation, timers, external assets, or data access. */
+.arc-race-static-hero{position:relative;isolation:isolate;overflow:hidden;min-height:142px;
+ display:flex;align-items:center;margin:0 0 18px;padding:18px 16px;
+ border:1px solid #a9884b;border-radius:17px;
+ background:radial-gradient(ellipse 115% 145% at 91% 125%,#246c7b62,transparent 65%),
+ linear-gradient(116deg,#081827 0%,#103048 65%,#0b253b 100%);
+ box-shadow:inset 0 1px 0 #f5d98a26,0 10px 25px #06111e45}
+.arc-race-static-hero::before,.arc-race-static-hero::after{content:"";position:absolute;
+ pointer-events:none;z-index:0;border-radius:50%;transform:rotate(-14deg)}
+.arc-race-static-hero::before{right:-105px;top:-92px;width:390px;height:220px;
+ border:2px solid #d8ab59a3;box-shadow:0 0 28px #d8ab5927}
+.arc-race-static-hero::after{right:-130px;top:-67px;width:420px;height:205px;
+ border:2px solid #4898c5a1}
+.arc-race-static-copy{position:relative;z-index:1;display:flex;flex-direction:column;
+ align-items:flex-start;gap:5px;max-width:100%}
+.arc-race-static-copy .arc-static-eyebrow{color:#b8d4e6;letter-spacing:.10em;
+ font:800 10px/1.4 system-ui,sans-serif;text-shadow:0 1px 5px #041522}
+.arc-race-static-copy .arc-static-title{color:#ffdc91;margin:0;
+ font:800 clamp(17px,4.5vw,22px)/1.4 system-ui,sans-serif;
+ text-shadow:0 2px 9px #041421}
+.arc-race-static-copy .arc-static-subtitle{color:#e0eaf2;font-size:11px;
+ text-shadow:0 1px 5px #041421}
+.arc-race-static-copy .arc-static-features{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.arc-race-static-copy .arc-static-features b{font:750 10px/1.3 system-ui,sans-serif;
+ color:#f4deb0;background:#0b2438e6;padding:4px 8px;border:1px solid #907c588c;border-radius:6px}
+@media(max-width:360px){.arc-race-static-hero{padding:16px 12px;min-height:139px}
+ .arc-race-static-hero::before{right:-180px}.arc-race-static-hero::after{right:-198px}}
 </style>
-<script>
-(function(){
- const home=document.getElementById('home');if(!home)return;
- const banner=document.createElement('div');
- banner.className='racecourse58-banner';
- // All horses are illustrative, numbered 1–18; never use them as predictions.
- // One reusable vector horse keeps the SVG small and avoids 18 image downloads.
- banner.innerHTML="\n <div class=\"arc-race-night-copy\"><span class=\"arc-night-eyebrow\">ARC RACE · NIGHT TRACK</span><strong class=\"arc-night-title\">勝負を描く、予想のアーク。</strong><span class=\"arc-night-detail\">AI競馬予想・データ分析</span><span class=\"arc-night-features\"><b>3連単</b><b>WIN5</b><b>実戦記録</b></span></div>\n <svg class=\"kn-racecourse-horses\" viewBox=\"0 0 1440 600\"\n    preserveAspectRatio=\"xMidYMid slice\" aria-hidden=\"true\" focusable=\"false\">\n  <defs>\n   <!-- The same Bezier arc is reused for all horses, not a straight x-axis march. -->\n   <path id=\"kn-racecourse-arc\" d=\"M -190 548 C 90 395 415 318 735 324 C 1040 329 1320 365 1635 482\"/>\n   <g id=\"kn-thoroughbred\" stroke-linejoin=\"round\" stroke-linecap=\"round\">\n<!-- Anatomical rear legs: two visible hocks and short, grounded hooves. -->\n    <g class=\"kn-hind-legs\" stroke-linejoin=\"round\" stroke-linecap=\"round\">\n     <g transform=\"translate(-36 -31)\">\n      <g class=\"kn-leg-hind-far\">\n       <path d=\"M0 0Q-7 10-6 19L-17 28L-19 42\" fill=\"none\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"6.5\"/>\n       <path d=\"M-19 41L-27 42L-27 46L-17 46Z\" fill=\"var(--mane,#503525)\"/>\n       <animateTransform attributeName=\"transform\" type=\"rotate\" values=\"0;14;-13;0\" keyTimes=\"0;.32;.72;1\" dur=\".43s\" begin=\"-.15s\" repeatCount=\"indefinite\"/>\n      </g>\n     </g>\n     <g transform=\"translate(-47 -32)\">\n      <g class=\"kn-leg-hind-near\">\n       <path d=\"M0 0Q-10 10-13 20L-7 29L-11 43\" fill=\"none\" stroke=\"var(--coat,#93694a)\" stroke-width=\"7\"/>\n       <path d=\"M-11 42L-20 44L-19 48L-8 46Z\" fill=\"var(--shade,#6b4d35)\"/>\n       <animateTransform attributeName=\"transform\" type=\"rotate\" values=\"0;-16;13;0\" keyTimes=\"0;.28;.68;1\" dur=\".43s\" begin=\"-.06s\" repeatCount=\"indefinite\"/>\n      </g>\n     </g>\n    </g>\n    <g class=\"kn-tail\" fill=\"var(--mane,#503525)\">\n     <path d=\"M-57-46Q-78-63-89-51Q-78-54-79-38Q-84-25-96-23Q-75-20-67-38Z\"/>\n    </g>\n    <!-- Deep chest, rounded rump, sloped shoulders: a horse, not a runner icon. -->\n    <path d=\"M-57-44Q-52-60-33-59Q-6-55 12-53Q29-54 34-41\n       Q41-25 19-24L-27-23Q-49-26-57-44Z\"\n       fill=\"var(--coat,#93694a)\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"2.5\"/>\n    <path d=\"M12-48Q25-64 34-80Q42-89 49-80L48-53Q43-36 33-29L20-34Z\"\n       fill=\"var(--coat,#93694a)\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"2.5\"/>\n    <path d=\"M43-79L43-96Q50-91 51-79L56-90Q62-79 57-71\"\n       fill=\"var(--coat,#93694a)\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"2\"/>\n    <path d=\"M38-74Q27-68 23-54L17-51Q24-71 35-84Z\"\n       fill=\"var(--mane,#503525)\"/>\n    <path d=\"M43-77Q50-83 61-74L73-69Q81-66 79-59L72-51\n       L53-54Q45-57 43-67Z\"\n       fill=\"var(--coat,#93694a)\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"2.2\"/>\n    <path d=\"M74-55Q79-52 83-56L80-62\" fill=\"#4b3027\"/>\n    <circle cx=\"64\" cy=\"-67\" r=\"2.8\" fill=\"#15251e\"/>\n    <path d=\"M46-62Q66-51 78-57M73-56L80-42\" fill=\"none\"\n       stroke=\"#f6eee1\" stroke-width=\"2\"/>\n<!-- Each foreleg pivots from the shoulder; knees bend without spider-like straight sticks. -->\n    <g class=\"kn-fore-legs\" stroke-linejoin=\"round\" stroke-linecap=\"round\">\n     <g transform=\"translate(22 -31)\">\n      <g class=\"kn-leg-fore-far\">\n       <path d=\"M0 0Q5 10 3 21L-5 31L-6 43\" fill=\"none\" stroke=\"var(--shade,#6b4d35)\" stroke-width=\"6.5\"/>\n       <path d=\"M-6 41L-14 44L-13 48L-3 46Z\" fill=\"var(--mane,#503525)\"/>\n       <animateTransform attributeName=\"transform\" type=\"rotate\" values=\"0;-14;12;0\" keyTimes=\"0;.33;.7;1\" dur=\".43s\" begin=\"-.28s\" repeatCount=\"indefinite\"/>\n      </g>\n     </g>\n     <g transform=\"translate(34 -31)\">\n      <g class=\"kn-leg-fore-near\">\n       <path d=\"M0 0Q7 10 12 18L20 24L27 39\" fill=\"none\" stroke=\"var(--coat,#93694a)\" stroke-width=\"7\"/>\n       <path d=\"M26 37L33 38L35 43L25 43Z\" fill=\"var(--shade,#6b4d35)\"/>\n       <animateTransform attributeName=\"transform\" type=\"rotate\" values=\"0;19;-15;0\" keyTimes=\"0;.3;.68;1\" dur=\".43s\" begin=\"-.20s\" repeatCount=\"indefinite\"/>\n      </g>\n     </g>\n    </g>\n    <!-- The racing saddlecloth remains visible even at small phone size. -->\n    <path d=\"M-29-54Q-10-60 15-52L17-30Q-9-26-27-34Z\"\n       fill=\"var(--cloth,#f8f8ed)\" stroke=\"#e4ddc8\" stroke-width=\"2\"/>\n    <!-- Crouched jockey with colored racing silks and a rounded helmet. -->\n    <path d=\"M-8-60L1-87L14-84L22-63L8-51Z\"\n       fill=\"var(--silks,#439a70)\"/>\n    <path d=\"M3-79L23-70L37-60\" fill=\"none\"\n       stroke=\"var(--silks,#439a70)\" stroke-width=\"7\"/>\n    <path d=\"M4-56L-14-48L-24-43\" fill=\"none\"\n       stroke=\"#283a37\" stroke-width=\"6\"/>\n    <circle cx=\"4\" cy=\"-92\" r=\"9\" fill=\"var(--helmet,#eeeacf)\"/>\n    <path d=\"M-4-94Q3-105 12-97L15-92L-5-90Z\"\n       fill=\"var(--silks,#439a70)\"/>\n    <path d=\"M-1-85L-3-81\" stroke=\"#eadcc8\" stroke-width=\"4\"/>\n   </g>\n  </defs>\n  <g id=\"kn-racecourse-horse-field\"></g>\n  <!-- Rail passes IN FRONT of the horses, so they run beyond the fence. -->\n  <g class=\"kn-far-side-fence\" fill=\"none\" stroke=\"#c0a168\" stroke-width=\"7\" opacity=\".85\">\n   <path d=\"M-80 560C100 300 1190 300 1510 420\"/>\n   <path d=\"M-80 580C100 320 1190 320 1510 440\"/>\n  </g>\n  <g stroke=\"#8db4ba\" stroke-width=\"8\" opacity=\".8\">\n   <path d=\"M85 430v63M220 385v61M380 356v58M550 342v58M730 338v58M915 344v58M1100 361v58M1270 385v58M1420 419v58\"/>\n  </g>\n </svg>";
- home.prepend(banner);
- const svg=banner.querySelector('svg');
- const field=svg.querySelector('#kn-racecourse-horse-field');
- const arc=svg.querySelector('#kn-racecourse-arc');
- const NS='http://www.w3.org/2000/svg';
- const ROUTE=arc.getAttribute('d');
- const palette=[
-  ['#bfae9c','#71594a','#e1bd4b','#f7e4a2','#f0f0e5'],
-  ['#7b4f34','#503525','#449bc5','#f1f1eb','#ffffff'],
-  ['#3d362f','#211e1b','#dc6854','#ffefaa','#fff5e3'],
-  ['#9b6840','#5d3c27','#5b9a6a','#fbf5de','#ffffff'],
-  ['#c1c3c1','#707572','#7d5abc','#efe6c1','#ffffff'],
-  ['#794833','#3e2b21','#dc9b36','#faf3d6','#ffffff']
- ];
- const newNode=(tag)=>document.createElementNS(NS,tag);
- const reduced=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
- const horses=[];
- const positions=arc.getTotalLength();
- const numHorses=18;
- for(let i=0;i<numHorses;i++){
-  const horse=newNode('g');
-  horse.setAttribute('class','kn-race-horse');
-  horse.setAttribute('data-horse',String(i+1));
-  const [coat,mane,silks,helmet,cloth]=palette[i%palette.length];
-  horse.setAttribute('style','--coat:'+coat+';--shade:'+mane+
-   ';--mane:'+mane+';--silks:'+silks+';--helmet:'+helmet+';--cloth:'+cloth);
-  const bob=newNode('g');bob.setAttribute('class','kn-horse-bob');
-  const scale=newNode('g');scale.setAttribute('transform','scale(.66)');
-  const vector=newNode('use');vector.setAttribute('href','#kn-thoroughbred');
-  const number=newNode('text');number.setAttribute('class','kn-horse-number');
-  number.setAttribute('x','-7');number.setAttribute('y','-35');
-  number.textContent=String(i+1);
-  scale.append(vector,number);bob.append(scale);horse.append(bob);
-  field.append(horse);
-  horses.push(horse);
- }
- function updateMotion(){
-  const still=Boolean(reduced&&reduced.matches);
-  for(let i=0;i<numHorses;i++){
-   const horse=horses[i];
-   const anim=horse.querySelector('animateMotion');
-   if(anim)anim.remove();
-   if(still){
-    const p=arc.getPointAtLength(positions*(i+.5)/numHorses);
-    horse.setAttribute('transform','translate('+p.x+' '+p.y+')');
-   }else{
-    horse.removeAttribute('transform');
-    const motion=newNode('animateMotion');
-    motion.setAttribute('dur','28s');
-    motion.setAttribute('repeatCount','indefinite');
-    motion.setAttribute('rotate','auto');
-    motion.setAttribute('begin','-'+(1+i*1.25).toFixed(2)+'s');
-    motion.setAttribute('path',ROUTE);
-    horse.insertBefore(motion,horse.firstChild);
-   }
-  }
-  syncPlayback();
- }
- function syncPlayback(){
-  // Nothing runs in a hidden tab, another app section, or Reduce Motion mode.
-  const paused=document.hidden||!home.classList.contains('active')||
-   Boolean(reduced&&reduced.matches);
-  if(paused&&typeof svg.pauseAnimations==='function')svg.pauseAnimations();
-  else if(!paused&&typeof svg.unpauseAnimations==='function')svg.unpauseAnimations();
- }
- updateMotion();
- document.addEventListener('visibilitychange',syncPlayback);
- const observer=new MutationObserver(syncPlayback);
- observer.observe(home,{attributes:true,attributeFilter:['class']});
- if(reduced&&typeof reduced.addEventListener==='function')
-  reduced.addEventListener('change',updateMotion);
- window.addEventListener('pageshow',syncPlayback);
-})();
-</script>
-<!-- RACECOURSE58_MINI_HORSES_END -->
+<!-- ARC_RACE_STATIC_HERO_STYLE_END -->
 <style id="data59style">
 .data59-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}.data59-grid>div{background:#fff;padding:10px 5px;border-radius:10px;text-align:center;border:1px solid #d2dfd4}.data59-grid span,.data59-grid small{display:block;font-size:11px;color:#52665b}.data59-grid b{display:block;font-size:18px;color:#244f38}.horse59{min-width:0;width:100%;padding:6px 0}.horse59 .s52-horse{width:100%}.reason59{font-size:13px;color:#405c49;margin:6px 2px 4px;overflow-wrap:anywhere}.horse59 details{margin:0 2px;font-size:13px;overflow-wrap:anywhere}.horse59 summary{font-size:12px}.horse59 h4{margin-bottom:4px}.quality58 p{overflow-wrap:anywhere}
 </style>

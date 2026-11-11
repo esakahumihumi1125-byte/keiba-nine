@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate 18 SVG thoroughbreds, curved route and iPhone motion controls
+      - name: Validate static ARC RACE public banner and motion-free presentation
         run: |
           node --check scripts/check-racecourse-horses-ui.cjs
           node scripts/check-racecourse-horses-ui.cjs

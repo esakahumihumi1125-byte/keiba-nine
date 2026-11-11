@@ -29,8 +29,8 @@ class PublicArcRaceBrandTests(unittest.TestCase):
                       'keiba_nine_mykeiba_url_v30', 'keiba-nine-auto-feed.json',
                       'data-screen="win5"', "show('results')",
                       'id="knOwnerForecastLaunch"',
-                      'RACECOURSE58_MINI_HORSES_START',
-                      'const numHorses=18;'):
+                      'id="arc-race-static-hero"',
+                      'class="arc-race-static-copy"'):
             self.assertIn(token, MAIN)
         self.assertIn('https://keiba-nine-owner-jrdb.onrender.com/owner-auto-forecast', MAIN)
 
