@@ -1011,11 +1011,9 @@ class AutoDraftHTTPTests(unittest.TestCase):
                         break
                     expected_events.append((source, "returned"))
                 source_calls = [
-                    item for item in logger.call_args_list if item.args and
-                    item.args[0] == (
-                        'KEIBA_AUTO_DRAFT_SOURCE stage=' + stage + ' state=begin')
-                    or (item.args and item.args[0].startswith(
-                        'KEIBA_AUTO_DRAFT_SOURCE stage='))
+                    item for item in logger.call_args_list
+                    if item.args and item.args[0].startswith(
+                        'KEIBA_AUTO_DRAFT_SOURCE stage=')
                 ]
                 self.assertEqual(
                     [entry.args[0].split("KEIBA_AUTO_DRAFT_SOURCE ", 1)[1]
