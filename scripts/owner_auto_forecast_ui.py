@@ -694,7 +694,7 @@ function renderTenHeader(p){
   const el=dom('div',undefined,'ten-weight');
   el.append(dom('span',f.label),dom('b',f.weight+'点'));host.append(el);
  }
- $('autoTenStatus').textContent='正式配点100点／10項目。調教30点・近走3点分は仮評価、残り8項目67点分は未評価（資料が欠ける馬は仮評価項目も減る）。これは能力得点ではありません。正式な総合点・総合順位は未作成。';
+ $('autoTenStatus').textContent='正式配点100点／10項目。調教30点・近走3点分は仮評価、残り8項目は未評価（配点67点分。資料が欠ける馬は仮評価項目も減る）。これは能力得点ではありません。正式な総合点・総合順位は未作成。';
 }
 function formation(r){
  const block=dom('div',undefined,'formation');
