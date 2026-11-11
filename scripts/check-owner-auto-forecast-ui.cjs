@@ -1682,17 +1682,17 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(saturdayReturn.storage.get(STORAGE),firstSatReceipts);
  assert.equal(saturdayReturn.get('autoRaces').children.length,1);
  // The one-tap Saturday button shares the same guard across navigations.
- const fridayQuickFromFixed=boot({manualWeekday:false,
-  initialClock:'2099-01-02T12:00:00Z',
+ const saturdayQuickFromFixed=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:08:00Z',
   initialServerRaw:saturdayRaw,seedStorage:saturdayOpened.storage});
  await new Promise(r=>setImmediate(r));
- assert.equal(fridayQuickFromFixed.requests.length,0);
- await fridayQuickFromFixed.get('autoSaturdayQuick').onclick();
- assert.equal(fridayQuickFromFixed.requests.length,0);
- assert.equal(fridayQuickFromFixed.get('autoDay').value,'2099-01-03');
- assert.match(fridayQuickFromFixed.get('autoStatus').textContent,
+ assert.equal(saturdayQuickFromFixed.requests.length,0);
+ await saturdayQuickFromFixed.get('autoSaturdayQuick').onclick();
+ assert.equal(saturdayQuickFromFixed.requests.length,0);
+ assert.equal(saturdayQuickFromFixed.get('autoDay').value,'2099-01-03');
+ assert.match(saturdayQuickFromFixed.get('autoStatus').textContent,
   /土曜・固定履歴を表示.*再照会0回/);
- assert.equal(fridayQuickFromFixed.storage.get(STORAGE),firstSatReceipts);
+ assert.equal(saturdayQuickFromFixed.storage.get(STORAGE),firstSatReceipts);
  // Expired or invalid markers must never suppress fresh day retrieval.
  const staleSat=boot({manualWeekday:false,
   initialClock:'2099-01-02T15:21:00Z',
