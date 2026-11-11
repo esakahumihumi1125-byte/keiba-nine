@@ -18,18 +18,20 @@ class OwnerBluePaletteTests(unittest.TestCase):
         self.assertIn('linear-gradient(160deg,#103a61,#0b2745',FORECAST_CSS)
         self.assertIn('section{background:#173b5b',FORECAST_CSS)
         self.assertIn('linear-gradient(165deg,#10355a,#07182c',LOGIN_CSS)
-        self.assertIn('theme=arc-blue-20261112',OWNER_HTML)
+        self.assertIn('theme=arc-blue-static-20261112',OWNER_HTML)
         self.assertIn('theme=arc-blue-20261112',FORECAST_HTML)
         self.assertIn('theme=arc-blue-20261112',LOGIN_HTML)
 
     def test_track_is_blue_without_green_gradient(self):
-        self.assertIn('arc-scene-blue-track',SCENE_HTML)
-        self.assertIn('stop-color="#2b638e"',SCENE_HTML)
-        self.assertIn('stop-color="#102b47"',SCENE_HTML)
-        self.assertNotIn('stop-color="#314b3b"',SCENE_HTML)
-        self.assertNotIn('arc-scene-grass',SCENE_HTML)
-        self.assertEqual(SCENE_HTML.count('<animateMotion '),18)
-        self.assertIn('.arc-horse-motion{display:none}',SCENE_CSS)
+        self.assertIn('arc-race-scene-static',SCENE_HTML)
+        self.assertIn('勝負を描く、予想のアーク。',SCENE_HTML)
+        self.assertIn('linear-gradient(115deg,#0a2238,#15476c',SCENE_CSS)
+        self.assertIn('border:2px solid #69b8e6a6',SCENE_CSS)
+        self.assertIn('border:2px solid #dfb56d9e',SCENE_CSS)
+        self.assertNotIn('arc-scene-grass',SCENE_HTML + SCENE_CSS)
+        self.assertNotIn('<animateMotion ',SCENE_HTML)
+        self.assertNotIn('@keyframes',SCENE_CSS)
+        self.assertNotIn('animation:',SCENE_CSS)
 
     def test_unmodified_forecast_and_owner_access(self):
         for token in ('name="username"','name="password"','name="login_csrf"'):
