@@ -46,7 +46,7 @@ def fixture():
     return {
         "mode": "owner_verified_prestart_v1",
         "asOf": AS_OF, "offAt": OFF,
-        "independentJra": dict(OFFICIAL),
+        "independentJra": {**OFFICIAL, "confirmedStarterNumbers": list(range(1, 9))},
         "assessmentValidated": True, "predictionValidated": True,
         "horses": [horse(i + 1, change) for i, change in enumerate(CHANGES)],
     }
@@ -230,6 +230,35 @@ class FullTenFactorGateTests(unittest.TestCase):
         result = full_ten_factor_preview(source, now=NOW)
         self.assertIn("jra_scratches_verified", result["trifecta"]["blockingEvidence"])
         self.assertEqual(result["trifecta"]["points"], 0)
+
+    def test_official_starter_roster_must_match_all_ten_graded_horses(self):
+        """Flags alone, even four True, cannot validate a wrong runner list."""
+        for roster in (None, [], [1, 2, 3, 4, 5, 6, 7],
+                       [1, 2, 3, 4, 5, 6, 7, 9],
+                       [1, 2, 3, 4, 5, 6, 7, 7],
+                       ["1", 2, 3, 4, 5, 6, 7, 8],
+                       [True, 2, 3, 4, 5, 6, 7, 8],
+                       "not-an-independent-roster", {"1": 1}):
+            with self.subTest(roster=repr(roster)):
+                source = fixture()
+                if roster is None:
+                    del source["independentJra"]["confirmedStarterNumbers"]
+                else:
+                    source["independentJra"]["confirmedStarterNumbers"] = roster
+                report = full_ten_factor_preview(source, now=NOW)
+                self.assertEqual(report["status"], "unverified_starter_roster")
+                self.assertFalse(report["overallReady"])
+                self.assertEqual(report["ranking"], [])
+                self.assertEqual(report["trifecta"]["points"], 0)
+                self.assertEqual(report["winnerRecheck"]["lowerRankCandidates"], [])
+                self.assertFalse(report["bettingReady"])
+                self.assertFalse(report["publishable"])
+
+        source = fixture()
+        source["independentJra"]["confirmedStarterNumbers"].reverse()
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(result["status"], "review_only")
+        self.assertEqual(result["trifecta"]["points"], 40)
 
     def test_cutoff_ties_never_split_using_horse_number(self):
         source = fixture()
