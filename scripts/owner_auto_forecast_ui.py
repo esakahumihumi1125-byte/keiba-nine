@@ -19,7 +19,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="autoSaturdayQuick" class="primary-cta" type="button">次の土曜の予想を見る</button>
 <button id="autoSundayQuick" class="secondary-cta" type="button">次の日曜の予想を見る</button>
 <button id="autoRun" class="secondary-cta" type="button">全場・全Rを再分析する</button>
-<p class="muted">土日の1タップ取得は直前の木曜以降。取得済みの結果は再利用し、連打による追加照会はしません。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
+<p class="muted">土日の1タップ取得は直前の木曜以降。取得済みデータは開いている画面で再利用します。また、発走前固定済みの研究記録がある日は20分以内の再訪問でその履歴を表示し、再照会を控えます。新しい配信資料を見たい場合は「全場・全Rを再分析する」を押してください。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
 <details><summary>日付だけを切り替える（追加照会なし）</summary>
 <div class="day-shortcuts" role="group" aria-label="週末の開催日を選ぶ">
 <button id="autoSaturday" type="button">次の土曜日を選ぶ</button>
@@ -3849,6 +3849,9 @@ async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
    $('autoStatus').textContent='日付が切り替わりました。照会せず、開催日を確認してください。';
    return;
   }
+  if(showRecentlyFixedWithoutProvider(selectedDay,label)){
+   return;
+  }
   // Exactly one authenticated auto-draft request. No probe, retry, or
   // background schedule; the owner must explicitly request reanalysis.
   await $('autoRun').onclick();
@@ -4122,6 +4125,7 @@ $('autoRun').onclick=async()=>{
   // Failed/partial responses and signatures never create this marker.
   if(body.raceCount===0)recordWeekendEmptyRead(day);
   else clearWeekendEmptyRead();
+  recordWeekendFixedRead(day,body);
   latestDisplayedReport=body;latestDisplayedDay=day;
   latestExpiredDraftCount=body.races.filter(x=>
    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)).length;
@@ -5878,6 +5882,62 @@ function recentWeekendEmptyRead(day){
    now>=v.at&&now-v.at<AUTO_EMPTY_AGE_MS;
  }catch(_){return false;}
 }
+// A valid signed prestart research receipt can be safely *revisited* from
+// this iPhone without re-querying the paid provider on every home navigation.
+// Only a small day/time/count marker is kept. Never cache the JRDB day feed,
+// unverified horse grades or licensed source rows outside the request.
+// Existing fixed receipts are preserved as originally received and are never
+// treated as independently JRA-verified, actual purchases, or final scores.
+const AUTO_FIXED_READ_KEY='keiba-nine-owner-recent-fixed-day-read-v1';
+const AUTO_FIXED_READ_AGE_MS=20*60*1000;
+function clearWeekendFixedRead(){
+ try{localStorage.removeItem(AUTO_FIXED_READ_KEY);}catch(_){}
+}
+function recordWeekendFixedRead(day,data){
+ if(!data||data.raceCount<=0||data.draftCount<=0){
+  clearWeekendFixedRead();return;
+ }
+ try{
+  // Only record a successful already-sealed day. A corrupt/missing ledger
+  // must never suppress the next legitimate attempt to get a forecast.
+  const sealed=selectedReceiptsForVerification(day);
+  if(!sealed.length||sealed.length>36){clearWeekendFixedRead();return;}
+  const at=new Date().getTime();
+  if(!Number.isSafeInteger(at)||!/^(20[0-9]{6})$/.test(day))return;
+  localStorage.setItem(AUTO_FIXED_READ_KEY,JSON.stringify({
+   day,at,fixedCount:sealed.length
+  }));
+ }catch(_){clearWeekendFixedRead();}
+}
+function recentWeekendFixedRead(day){
+ try{
+  const raw=localStorage.getItem(AUTO_FIXED_READ_KEY);
+  if(!raw||raw.length>110)return 0;
+  const v=JSON.parse(raw),now=new Date().getTime();
+  if(!v||Object.keys(v).length!==3||v.day!==day||
+     !Number.isSafeInteger(v.at)||!Number.isSafeInteger(now)||
+     !Number.isInteger(v.fixedCount)||v.fixedCount<1||v.fixedCount>36||
+     now<v.at||now-v.at>=AUTO_FIXED_READ_AGE_MS)return 0;
+  const sealed=selectedReceiptsForVerification(day);
+  return sealed.length===v.fixedCount?sealed.length:0;
+ }catch(_){return 0;}
+}
+function showRecentlyFixedWithoutProvider(day,label){
+ const count=recentWeekendFixedRead(day);
+ if(!count)return false;
+ showFixedHistory(day);
+ $('autoSavedStatus').textContent=localReceiptStatus(day);
+ $('autoSummary').textContent='新規未取得｜端末内の発走前固定 '+count+'R';
+ $('autoStatus').textContent='【'+label+'・固定履歴を表示】この端末に保存済みの発走前研究用3連単 '+count+
+  'Rを表示しています。20分以内に確認済みのため自動JRDB再照会0回。今回の新しい出走資料・予想は取得していません。'+
+  '署名の真正性とJRA公式出走・取消・馬場・発走時刻は未検証。';
+ $('autoMorningStatus').textContent='以前に発走前固定した研究記録 '+count+
+  'R（この画面では新規予想0R）。発走時刻経過後も後付け買い目は作成しません。';
+ $('autoOperationalNext').textContent='新しいJRDB配信を確認したい場合のみ「全場・全Rを再分析する」。'+
+  '追加照会を行わず固定履歴を確認するには下の「発走前に固定した買い目の履歴」を開いてください。';
+ $('autoReadProof').textContent='以前の端末保存記録を表示。今回のJRDB資料取得・JRA公式照合は未実施。';
+ return true;
+}
 function autoFetchOnRegularRaceDay(){
  const day=$('autoDay').value;
  const dt=new Date(day+'T12:00:00Z');
@@ -5888,6 +5948,9 @@ function autoFetchOnRegularRaceDay(){
    $('autoStatus').textContent='【前回の番組0Rを確認済み】同じ端末で30分以内に番組0件を取得したため、画面を開き直した際の自動JRDB照会は控えました。開催なしとは断定していません。配信更新後の再確認は「全場・全Rを再分析する」を押してください。';
    $('autoMorningStatus').textContent='この画面では新しい番組・買い目は未取得。前回の番組0Rにより再照会を控えています（予想生成成功ではありません）。';
    $('autoOperationalNext').textContent='【追加照会0回】配信更新を確認したい場合は「全場・全Rを再分析する」。以前の固定買い目は下で確認できます。';
+   return;
+  }
+  if(showRecentlyFixedWithoutProvider(day.replaceAll('-',''),'土日当日')){
    return;
   }
   $('autoRun').onclick();
