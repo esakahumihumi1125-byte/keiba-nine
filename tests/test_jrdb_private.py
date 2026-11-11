@@ -12,7 +12,10 @@ from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_prestart_body,fetch_finished_race_results,
                           fetch_historical_race_program, fetch_historical_venue_conditions,
                           fetch_historical_runner_staff, fetch_historical_finished_runners,
-                          JRDBError, _NoRedirect)
+                          JRDBError, _NoRedirect,
+                          _fetch_endpoint, _fetch_day,
+                          CORE_SOURCE_SOCKET_TIMEOUT_SECONDS,
+                          OPTIONAL_GOING_SOCKET_TIMEOUT_SECONDS)
 
 
 class PrivateClientTests(unittest.TestCase):
@@ -77,6 +80,49 @@ class PrivateClientTests(unittest.TestCase):
         for fn in (fetch_training_analysis, fetch_recent_runs):
             with self.assertRaises(JRDBError):
                 fn('20261026')
+
+    def test_only_optional_venue_going_uses_shorter_socket_wait(self):
+        self.assertEqual(CORE_SOURCE_SOCKET_TIMEOUT_SECONDS, 30)
+        self.assertEqual(OPTIONAL_GOING_SOCKET_TIMEOUT_SECONDS, 10)
+        readers = [
+            (fetch_race_program, 30, "tra"),
+            (fetch_horse_entries, 30, "tky"),
+            (fetch_training_analysis, 30, "tcy"),
+            (fetch_recent_runs, 30, "tze"),
+            (fetch_venue_conditions, 10, "tka"),
+            (fetch_prestart_body, 30, "tpd"),
+            (fetch_finished_race_results, 30, "tse"),
+        ]
+        for reader, seconds, endpoint in readers:
+            with self.subTest(endpoint=endpoint):
+                self.assertEqual(reader("20261026"), [{"racekey": "synthetic"}])
+                req=self.mock.return_value.open.call_args.args[0]
+                self.assertIn("/v1/"+endpoint+"?", req.full_url)
+                self.assertEqual(self.mock.return_value.open.call_args.kwargs["timeout"],
+                                 seconds)
+        # An internal caller cannot shorten source reads or inject an
+        # arbitrary duration, even on a permitted provider endpoint.
+        self.mock.reset_mock()
+        for bad in (0, 1, 9, 11, True, "10", None, 120):
+            with self.subTest(bad=str(bad)), self.assertRaises(JRDBError):
+                _fetch_day("tka", "20261026", timeout_seconds=bad)
+        for endpoint in ("tra", "tky", "tcy", "tze", "tpd", "tse", "dra"):
+            params=({"racekey":"05264b01"} if endpoint=="dra"
+                    else {"racedate":"20261026"})
+            with self.subTest(endpoint=endpoint), self.assertRaises(JRDBError):
+                _fetch_endpoint(endpoint, params, timeout_seconds=10)
+        self.mock.assert_not_called()
+
+    def test_optional_going_socket_timeout_is_private_and_does_not_retry(self):
+        self.mock.return_value.open.side_effect = TimeoutError(
+            "SYNTHETIC-PAID-DETAIL-DO-NOT-LEAK")
+        with self.assertRaises(JRDBError) as result:
+            fetch_venue_conditions("20261026")
+        self.assertEqual(str(result.exception),
+                         "JRDB request or response failed")
+        self.assertNotIn("SYNTHETIC-PAID-DETAIL", str(result.exception))
+        self.assertEqual(self.mock.return_value.open.call_count, 1)
+        self.assertEqual(self.mock.return_value.open.call_args.kwargs["timeout"],10)
 
     def test_venue_going_request_is_owner_only_and_no_credentials_in_response(self):
         self.assertEqual(fetch_venue_conditions('20261026'), [{'racekey': 'synthetic'}])

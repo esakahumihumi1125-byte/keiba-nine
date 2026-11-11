@@ -710,6 +710,45 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["raceContext"]["races"][0]["going"],"未確認")
         self.assertNotIn("SECRET-PAID-RESPONSE",result["body"].decode())
 
+    def test_optional_going_network_timeout_does_not_discard_signed_drafts(self):
+        from jrdb_private import JRDBError
+        from owner_prestart_receipt import verify_preview_receipts
+        def run_once():
+            with (patch("private_service.fetch_race_program",return_value=[]),
+                  patch("private_service.normalize_program_rows",
+                        return_value=programme()),
+                  patch("private_service.fetch_horse_entries",return_value=[]),
+                  patch("private_service.fetch_training_analysis",return_value=[]),
+                  patch("private_service.fetch_recent_runs",return_value=[]),
+                  patch("private_service.owner_day_research",return_value=research()),
+                  patch("private_service._now_in_jst",
+                        return_value="2099-01-01T09:00:00+09:00")):
+                return call(self.app,"/api/jrdb/owner-auto-draft",
+                            QUERY_STRING="date="+DAY)
+        original = run_once()
+        self.assertEqual(original["status"],"200 OK")
+        self.mock_venue.reset_mock()
+        self.mock_venue.side_effect=JRDBError(
+            "JRDB request or response failed")
+        with self.assertLogs(level="WARNING") as captured:
+            timed_out = run_once()
+        self.assertEqual(timed_out["status"],"200 OK")
+        good, stalled = json.loads(original["body"]),json.loads(timed_out["body"])
+        self.assertEqual(stalled["draftCount"],1)
+        self.assertEqual(stalled["researchReceipts"],good["researchReceipts"])
+        self.assertEqual(stalled["races"],good["races"])
+        self.assertEqual(stalled["raceContext"]["conditionProviderReadCount"],1)
+        self.assertEqual(stalled["raceContext"]["conditionProviderFetchStatus"],
+                         "unavailable")
+        self.assertEqual(stalled["raceContext"]["goingAvailableCount"],0)
+        self.assertFalse(stalled["overallPredictionReady"])
+        self.assertEqual(len(verify_preview_receipts(
+            stalled["researchReceipts"],self.config["KEIBA_OWNER_PASSWORD"],
+            "2099-01-01")),1)
+        self.assertIn("KEIBA_AUTO_DRAFT_CONTEXT=unavailable reason=provider_other",
+                      "\n".join(captured.output))
+        self.mock_venue.assert_called_once_with(DAY)
+
     def test_optional_server_archive_first_write_wins(self):
         from owner_receipt_archive import FLAG, SIGNING_KEY, DSN_KEY
         secret = "synthetic-independent-signing-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
