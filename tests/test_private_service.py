@@ -79,6 +79,9 @@ class PrivateServiceTests(unittest.TestCase):
             "JRDB_PRIVATE_ENABLED": "1",
             "JRDB_API_KEY": "SYNTHETIC_PRESTART_KEY",
             "JRDB_AUTH_KEY": "SYNTHETIC_PRESTART_AUTH",
+            # Owner Render boots only with the production host; the free
+            # preflight must not count a blank/development host as ready.
+            "JRDB_API_BASE_URL": "https://api.bigtime.world/v1",
         })
         with (patch("private_service.fetch_race_program") as programme,
               patch("private_service.fetch_horse_entries") as entries,
