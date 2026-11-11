@@ -16,7 +16,7 @@ class PublicNightThemeTests(unittest.TestCase):
             self.assertIn(token,self.theme)
         self.assertNotIn('racecourse58.svg',self.theme)
         self.assertNotIn('#edf4ed',self.theme)
-    def test_grades_remain_distinct():
+    def test_grades_remain_distinct(self):
         self.assertIn('.s52-rank-S{--rank-ink:#e8bc5f',self.theme)
         self.assertIn('.s52-rank-A{--rank-ink:#f47881',self.theme)
         self.assertIn('.s52-rank-B{--rank-ink:#83c5d0',self.theme)
