@@ -93,12 +93,28 @@ def ten_factor_contract(two_factor_drafts):
             slots = {key: (raw[key] if key in PROVISIONAL else UNASSESSED)
                      for key in FACTORS}
             n_provisional = sum(slots[k] in GRADE for k in PROVISIONAL)
+            # Factor WEIGHT COVERAGE is not an earned ability score.
+            # Even a provisional 'S' here cannot count as verified points.
+            # Prioritize future evidence by the owner's 100-point policy,
+            # never silently fill the other eight factors with grade C.
+            provisional_weight = sum(
+                weight for key, weight in FACTORS.items()
+                if key in PROVISIONAL and slots[key] in GRADE
+            )
+            missing = [key for key in FACTORS if slots[key] == UNASSESSED]
+            priority_missing = sorted(
+                missing, key=lambda key: (-FACTORS[key], list(FACTORS).index(key))
+            )
             horses.append({
                 "number": raw["number"], "grades": slots,
                 "provisionalFactorCount": n_provisional,
+                "provisionalWeightCapacity": provisional_weight,
+                "unassessedWeightCapacity": 100 - provisional_weight,
+                "verifiedWeightCapacity": 0,
+                "priorityMissingFactors": priority_missing,
                 "verifiedFactorCount": 0, "score": None,
                 "overallGrade": UNASSESSED, "overallRank": None,
-                "missing": [key for key in FACTORS if slots[key] == UNASSESSED],
+                "missing": missing,
             })
         output.append({
             "track": race["track"], "race": race["race"],
