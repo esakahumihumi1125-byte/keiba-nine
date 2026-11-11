@@ -51,8 +51,11 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    outputs:
+      deploy_sent: ${{ steps.trigger.outputs.deploy_sent }}
     steps:
       - name: Trigger private JRDB owner service only if this exact main SHA passed
+        id: trigger
         env:
           GH_TOKEN: ${{ github.token }}
           PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -82,3 +85,39 @@ jobs:
           curl --fail --silent --show-error --max-time 25 --request POST \
             --output /dev/null "$RENDER_JRDB_DEPLOY_HOOK_URL"
           echo '### JRDB owner: DEPLOY REQUEST SENT (verify Live SHA separately)' >> "$GITHUB_STEP_SUMMARY"
+          echo 'deploy_sent=true' >> "$GITHUB_OUTPUT"
+
+  verify-jrdb-live:
+    needs: [deploy-jrdb]
+    if: >-
+      needs.deploy-jrdb.result == 'success' &&
+      needs.deploy-jrdb.outputs.deploy_sent == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Read only the tested main commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Verify live owner service is serving this exact code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          if [[ "$LATEST" != "$EXPECTED_SHA" ]]; then
+            echo '### JRDB owner live code: SKIPPED (superseded main)' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Only a safe anonymous GET on the public code-revision endpoint.
+          # No owner authentication, private APIs, paid JRDB reads or secrets.
+          if python scripts/owner_live_revision_probe.py; then
+            echo '### JRDB owner live code: VERIFIED (matching build SHA)' >> "$GITHUB_STEP_SUMMARY"
+            echo 'This does not verify JRDB real-data reads, JRA or predictions.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '### JRDB owner live code: NOT VERIFIED (outdated, inaccessible or invalid)' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Deployment hook success alone does not prove a running new revision.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

@@ -76,6 +76,19 @@ def main():
         status, login_html = _request(url, forwarded)
         assert status == 200 and b'name="password"' in login_html
         assert b'id="researchPanel"' not in login_html
+        # The public build ID is safe, but private pages and data stay gated.
+        status, raw_release = _request(url + "live-revision", forwarded)
+        assert status == 200, "Public code-only release probe must respond"
+        release = json.loads(raw_release)
+        assert release["version"] == "owner-live-revision-1"
+        assert release["revisionOnly"] is True
+        assert release["jrdbConnectionVerified"] is False
+        assert release["forecastExecutionVerified"] is False
+        assert release["ownerDataIncluded"] is False
+        assert release["renderCommit"] == "not-reported" or (
+            len(release["renderCommit"]) == 12)
+        status, _ = _request(url + "ui-version", forwarded)
+        assert status == 401, "Authenticated version info stays private"
         credentials = base64.b64encode(
             ("owner:" + env["KEIBA_OWNER_PASSWORD"]).encode()).decode()
         headers = {**forwarded, "Authorization": "Basic " + credentials}
