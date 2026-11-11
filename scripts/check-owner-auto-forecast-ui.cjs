@@ -1104,7 +1104,7 @@ function boot(){
   archiveReady=false,archiveCorrupt=false,
   autoDraftOk=true,officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
-  officialPdfOk=true;
+  officialPdfOk=true,preflightCorrupt=false;
  let now='2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
   return {
@@ -1134,6 +1134,28 @@ function boot(){
   requests.push({url,options});
   const pause=holdFetch;holdFetch=null;
   if(pause)await pause;
+  if(url.startsWith('/api/owner-saturday-preflight?date=')){
+   const date=new URL('http://localhost'+url).searchParams.get('date');
+   const obj={
+    version:'owner-saturday-config-preflight-1',
+    date,serverDate:'20990101',serverTimeJst:'09:00',
+    serverTimeZone:'Asia/Tokyo',
+    privateServiceConfigured:true,jrdbCredentialsPresent:true,
+    approvedProviderHostConfigured:true,configurationReady:true,
+    selectedDateAlreadyPast:date<'20990101',
+    selectedDateIsWeekend:[0,6].includes(
+     new Date(date.slice(0,4)+'-'+date.slice(4,6)+'-'+
+      date.slice(6,8)+'T12:00:00Z').getUTCDay()),
+    serverClockIndependentlyVerified:false,
+    providerConnectionVerified:false,liveRaceFeedVerified:false,
+    officialJraVerified:false,formalTenFactorsReady:false,
+    archivePersistenceVerified:false,sourceCallsMade:0,
+    researchOnly:true,privateOwnerOnly:true,bettingReady:false,
+    existingReceiptsChanged:false,existingRoiChanged:false
+   };
+   if(preflightCorrupt)obj.providerConnectionVerified=true;
+   return {ok:true,json:async()=>obj};
+  }
   if(url.startsWith('/api/jra/official-pdf-links?')){
    return {ok:officialPdfOk,json:async()=>({
     version:'jra-official-pdf-link-discovery-1',
@@ -1372,6 +1394,7 @@ function boot(){
   setArchiveCorrupt:x=>archiveCorrupt=x,
   setOfficialPdfLinks:x=>officialPdfLinks=x,
   setOfficialPdfOk:x=>officialPdfOk=x,
+  setPreflightCorrupt:x=>preflightCorrupt=x,
   setConnectionCount:x=>connectionCount=x,
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
@@ -3402,6 +3425,36 @@ function boot(){
  assert.match(allLate.get('autoSummary').textContent,/研究用自動案 0R/);
  assert.equal(allLate.get('autoRaces').children[0].children[0].children
   .filter(x=>x.className==='formation').length,0);
+ // Optional Saturday configuration check uses NO paid provider request.
+ const configView=boot();
+ await new Promise(r=>setImmediate(r));
+ const savedBeforeConfig=configView.storage.get(STORAGE);
+ const paidBeforeConfig=configView.requests.filter(x=>
+  x.url.startsWith('/api/jrdb/')).length;
+ const totalBeforeConfig=configView.requests.length;
+ await configView.get('autoPreflight').onclick();
+ assert.equal(configView.requests.length,totalBeforeConfig+1);
+ assert.equal(configView.requests.at(-1).url,
+  '/api/owner-saturday-preflight?date=20990101');
+ assert.match(configView.get('autoPreflightStatus').textContent,
+  /設定項目は揃っています/);
+ assert.match(configView.get('autoPreflightStatus').textContent,/有料照会0回/);
+ assert.match(configView.get('autoPreflightStatus').textContent,
+  /JRDB実データ接続.*未確認/);
+ assert.equal(configView.requests.filter(x=>
+  x.url.startsWith('/api/jrdb/')).length,paidBeforeConfig);
+ assert.equal(configView.storage.get(STORAGE),savedBeforeConfig);
+ configView.setPreflightCorrupt(true);
+ await configView.get('autoPreflight').onclick();
+ assert.match(configView.get('autoPreflightStatus').textContent,/完了できませんでした/);
+ assert.equal(configView.storage.get(STORAGE),savedBeforeConfig);
+ configView.get('autoDay').value='2099-01-03';
+ configView.get('autoDay').onchange();
+ assert.match(configView.get('autoPreflightStatus').textContent,/未実行/);
+ configView.setPreflightCorrupt(false);
+ await configView.get('autoPreflight').onclick();
+ assert.match(configView.get('autoPreflightStatus').textContent,/選択日は土日/);
+ assert.equal(configView.storage.get(STORAGE),savedBeforeConfig);
  assert.ok(!js.includes('innerHTML'),'no DOM HTML injection');
  assert.ok(!js.includes('owner-real-purchases-v1'),'do not write actual purchases');
  console.log('Owner auto forecast: 40-point signed save, idempotency, tamper block, no purchased writes PASS');
