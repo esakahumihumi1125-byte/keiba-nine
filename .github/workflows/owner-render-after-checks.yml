@@ -82,16 +82,27 @@ jobs:
             exit 0
           fi
           # Never print the hook, keys, race data, or private account details.
-          curl --fail --silent --show-error --max-time 25 --request POST \
-            --output /dev/null "$RENDER_JRDB_DEPLOY_HOOK_URL"
-          echo '### JRDB owner: DEPLOY REQUEST SENT (verify Live SHA separately)' >> "$GITHUB_STEP_SUMMARY"
-          echo 'deploy_sent=true' >> "$GITHUB_OUTPUT"
+          # A timed-out POST may have reached Render: DO NOT blindly retry.
+          # Instead make an independent read-only check of the live build.
+          if curl --fail --silent --show-error --max-time 25 --request POST \
+              --output /dev/null "$RENDER_JRDB_DEPLOY_HOOK_URL"; then
+            echo '### JRDB owner: DEPLOY REQUEST ACCEPTED (verify Live SHA separately)' >> "$GITHUB_STEP_SUMMARY"
+            echo 'deploy_sent=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '### JRDB owner: HOOK RESPONSE UNKNOWN (independent live check follows)' >> "$GITHUB_STEP_SUMMARY"
+            echo 'deploy_sent=unconfirmed' >> "$GITHUB_OUTPUT"
+          fi
 
   verify-jrdb-live:
     needs: [deploy-jrdb]
+    # Do the safe GET even if the hook timed out or was not configured.
+    # This can distinguish auto-deploy from a failed outgoing hook.
     if: >-
-      needs.deploy-jrdb.result == 'success' &&
-      needs.deploy-jrdb.outputs.deploy_sent == 'true'
+      always() &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
