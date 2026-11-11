@@ -3,7 +3,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#09172b">
 <title>ARC RACE｜本人用・研究予想</title>
-<link rel="stylesheet" href="/owner-auto-forecast.css"></head><body><main>
+<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261112"></head><body><main>
 <nav class="owner-nav">
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
 <a href="/">本人用ホーム</a>
@@ -214,7 +214,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 </main><script src="/owner-auto-forecast.js" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
-body{margin:0;background:#09172b;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
+body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
 main{max-width:780px;margin:auto;padding:16px 13px 46px}
 h1{font-size:24px;color:#f0d07e;margin:17px 0}
 h1 small{display:block;color:#c7d7e7;font-size:13px}
@@ -236,8 +236,8 @@ h2{font-size:19px;margin:0 0 10px}
 nav{display:flex;justify-content:space-between;gap:12px}a{color:#f0d185}
 .owner-nav{flex-wrap:wrap;gap:6px 12px;justify-content:flex-start}
 .owner-nav a{display:inline-flex;align-items:center;min-height:34px;font-size:13px}
-section{background:#142b43;border:1px solid #4d6b85;border-radius:14px;padding:14px;margin:14px 0}
-.daily-start{border-color:#8b764b}
+section{background:#173b5b;border:1px solid #517999;border-radius:14px;padding:14px;margin:14px 0}
+.daily-start{border-color:#9c895e}
 .acceptance-report{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #536d84;background:#0d2339;color:#dbe9f7;border-radius:10px;padding:10px;font-size:13px;line-height:1.65}
 .primary-cta{background:#e8c774;color:#182b41}
 .secondary-cta{background:#2b425b;color:#eff5ff;border:1px solid #7894af}
@@ -261,13 +261,13 @@ details{border:1px solid #45617e;background:#10263d;border-radius:11px;margin:8p
 summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
 .hold{color:#e9bfae;font-size:13px;margin:8px 0}
 .runner{display:flex;align-items:center;flex-wrap:wrap;gap:7px;
- background:#213a54;border-radius:9px;padding:8px;margin:6px 0}
+ background:#1e4567;border-radius:9px;padding:8px;margin:6px 0}
 .number{font-size:19px;font-weight:850;min-width:44px}
 .rank{font-size:12px;min-width:43px;color:#c6d5e7}
 .grade{padding:3px 7px;border-radius:6px;background:#3b5065;font-weight:800;font-size:12px}
 .S{color:#f3d475}.A{color:#ffa6b1}.B{color:#a4d8ff}.C{color:#dde2ed}
 .notes{font-size:12px;color:#c1d3e7;flex-basis:100%}
-.formation{background:#192f46;border:1px solid #456582;border-radius:10px;padding:12px;margin:10px 0}
+.formation{background:#173c5d;border:1px solid #456582;border-radius:10px;padding:12px;margin:10px 0}
 .formation strong{color:#e8ca81}
 .formation p{margin:6px 0}
 .picks{font-weight:850;font-size:18px;line-height:1.45;
