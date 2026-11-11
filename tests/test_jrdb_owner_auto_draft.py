@@ -591,12 +591,8 @@ class AutoDraftHTTPTests(unittest.TestCase):
                     side_effect=CoverageError("synthetic-unsafe-provider-value")),
               patch("private_service._now_in_jst",
                     return_value="2099-01-01T09:00:00+09:00")):
-            with self.assertLogs(level="WARNING") as captured:
-                result=call(self.app,"/api/jrdb/owner-auto-draft",
-                            QUERY_STRING="date="+DAY)
-        self.assertIn("KEIBA_AUTO_DRAFT_MATERIALS=unavailable reason=source_coverage",
-                      "\n".join(captured.output))
-        self.assertNotIn("synthetic-unsafe-provider-value", "\n".join(captured.output))
+            result=call(self.app,"/api/jrdb/owner-auto-draft",
+                        QUERY_STRING="date="+DAY)
         self.assertEqual(result["status"],"200 OK")
         body=json.loads(result["body"])
         self.assertEqual(body["draftCount"],1)
@@ -646,6 +642,52 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(body["tenFactorPreview"]["fullPredictionRaceCount"],0)
         self.assertNotIn("REDACT-ME",result["body"].decode())
 
+    def test_optional_tka_date_only_timestamp_keeps_going_without_time_proof(self):
+        # Actual provider updated_at may be calendar-only. An ambiguous
+        # last-modified date is not enough to verify historical availability,
+        # but must not discard the observed current going code altogether.
+        for stamp in ("20990101", "2099-01-01T07:30:00"):
+            self.mock_venue.reset_mock()
+            self.mock_venue.return_value=[{
+                "holdingkey":"0526ff", "racedate":DAY,
+                "turf_condition_cd":"3", "dirt_condition_cd":"01",
+                "updated_at":stamp, "private":"DO-NOT-LOG-LICENSED-TKA",
+            }]
+            p=programme()
+            p[0].update(surface="芝",distance_m=2000,turn="左")
+            with (patch("private_service.fetch_race_program",return_value=[]),
+                  patch("private_service.normalize_program_rows",return_value=p),
+                  patch("private_service.fetch_horse_entries",return_value=[]),
+                  patch("private_service.fetch_training_analysis",return_value=[]),
+                  patch("private_service.fetch_recent_runs",return_value=[]),
+                  patch("private_service.owner_day_research",return_value=research()),
+                  patch("private_service._now_in_jst",
+                        return_value="2099-01-01T09:00:00+09:00")):
+                with self.assertLogs(level="WARNING") as captured:
+                    response=call(self.app,"/api/jrdb/owner-auto-draft",
+                                  QUERY_STRING="date="+DAY)
+            with self.subTest(stamp=stamp):
+                self.assertEqual(response["status"],"200 OK")
+                data=json.loads(response["body"])
+                self.assertEqual(data["raceContext"]["conditionProviderReadCount"],1)
+                self.assertEqual(data["raceContext"]["conditionProviderFetchStatus"],
+                                 "received")
+                row=data["raceContext"]["races"][0]
+                self.assertEqual(row["going"],"重")
+                self.assertTrue(row["goingAvailable"])
+                self.assertFalse(row["conditionUpdateRecorded"])
+                self.assertFalse(data["raceContext"]["raceConditionsVerified"])
+                self.assertFalse(data["overallPredictionReady"])
+                self.assertEqual(data["researchReceiptCount"],1)
+                self.assertEqual(data["draftCount"],1)
+                self.assertNotIn("KEIBA_AUTO_DRAFT_CONTEXT=unavailable",
+                                 "\\n".join(captured.output))
+                self.assertNotIn("DO-NOT-LOG-LICENSED-TKA",
+                                 "\\n".join(captured.output))
+                self.assertNotIn("DO-NOT-LOG-LICENSED-TKA",
+                                 response["body"].decode())
+                self.mock_venue.assert_called_once_with(DAY)
+
     def test_optional_condition_api_failure_preserves_signed_research_receipt(self):
         from jrdb_private import JRDBError
         self.mock_venue.side_effect=JRDBError("SECRET-PAID-RESPONSE")
@@ -657,12 +699,8 @@ class AutoDraftHTTPTests(unittest.TestCase):
               patch("private_service.owner_day_research",return_value=research()),
               patch("private_service._now_in_jst",
                     return_value="2099-01-01T09:00:00+09:00")):
-            with self.assertLogs(level="WARNING") as captured:
-                result=call(self.app,"/api/jrdb/owner-auto-draft",
-                            QUERY_STRING="date="+DAY)
-        self.assertIn("KEIBA_AUTO_DRAFT_CONTEXT=unavailable reason=provider_other",
-                      "\n".join(captured.output))
-        self.assertNotIn("SECRET-PAID-RESPONSE", "\n".join(captured.output))
+            result=call(self.app,"/api/jrdb/owner-auto-draft",
+                        QUERY_STRING="date="+DAY)
         self.assertEqual(result["status"],"200 OK")
         body=json.loads(result["body"])
         self.assertEqual(body["researchReceiptCount"],1)
