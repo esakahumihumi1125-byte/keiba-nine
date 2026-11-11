@@ -63,6 +63,14 @@ def full_ten_day_research(day, race_snapshots, *, now):
         try:
             if not isinstance(assessment, dict):
                 raise CoverageError("Missing internal full-ten snapshot")
+            # A grade-set from another race must NEVER silently appear
+            # under this race's coordinates. Both a trusted full-ten
+            # snapshot and its batch row must explicitly identify the same
+            # race; absence is held, not inferred from array position.
+            if (assessment.get("track") != row["track"]
+                    or type(assessment.get("race")) is not int
+                    or assessment["race"] != row["race"]):
+                raise CoverageError("Full-ten source race identity mismatch")
             # Every snapshot must target this day's expected off, even when
             # the pre-race evidence was collected on an earlier day.
             off = timestamp(assessment.get("offAt"))
