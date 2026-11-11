@@ -1092,10 +1092,10 @@ function prestart(){
  result.bodyOneEvidencePreflight=gate;
  return result;
 }
-function boot({manualWeekday=true,initialClock=null}={}){
- const storage=new Map(),elements=new Map(),requests=[];
+function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedStorage=null}={}){
+ const storage=new Map(seedStorage||[]),elements=new Map(),requests=[];
  let storageWritable=true,writeMode='normal';
- let next=resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
+ let next=initialServerRaw||resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
   configured=true,connectionOK=true,connectionCount=1,
@@ -1126,6 +1126,7 @@ function boot({manualWeekday=true,initialClock=null}={}){
  };
  const localStorage={
   getItem:k=>storage.get(k)||null,
+  removeItem:k=>storage.delete(k),
   setItem(k,v){
    if(!storageWritable)throw Error('synthetic_quota_exceeded');
    if(writeMode==='silent-drop')return;
@@ -1638,6 +1639,62 @@ function boot({manualWeekday=true,initialClock=null}={}){
  assert.match(zeroQuick.get('autoStatus').textContent,
   /全場・全Rを再分析する/);
  assert.equal(zeroQuick.storage.get(STORAGE),zeroStored);
+ // A successful, zero-race weekend read must stop duplicate automatic
+ // /tra calls when the owner leaves and reopens the page within 30 min.
+ // No licensed body/rows or ticket contents enter the reload marker.
+ const emptyKey='keiba-nine-owner-empty-programme-read-v1';
+ const fridayLate='2099-01-02T15:00:00Z'; // JST Saturday midnight
+ const firstEmptyLoad=boot({manualWeekday:false,
+  initialClock:fridayLate,initialServerRaw:saturdayZero});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(firstEmptyLoad.requests.length,1);
+ assert.equal(firstEmptyLoad.requests[0].url,
+  '/api/jrdb/owner-auto-draft?date=20990103');
+ const marker=JSON.parse(firstEmptyLoad.storage.get(emptyKey));
+ assert.deepEqual(Object.keys(marker).sort(),['at','day']);
+ assert.equal(marker.day,'20990103');
+ assert.equal(typeof marker.at,'number');
+ assert.equal(firstEmptyLoad.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const reloadEmpty=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:04:00Z',
+  initialServerRaw:saturdayRaw,seedStorage:firstEmptyLoad.storage});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(reloadEmpty.requests.length,0,
+  'weekend reload inside 30 minutes must not re-bill 0R /tra');
+ assert.match(reloadEmpty.get('autoStatus').textContent,
+  /前回の番組0Rを確認済み.*30分以内/);
+ assert.match(reloadEmpty.get('autoOperationalNext').textContent,/追加照会0回/);
+ assert.equal(reloadEmpty.storage.has(STORAGE),true);
+ assert.equal(reloadEmpty.get('autoRaces').children.length,0,
+  '0R marker must not create or replay any unverified formation');
+ await reloadEmpty.get('autoRun').onclick();
+ assert.equal(reloadEmpty.requests.length,1,
+  'an explicit manual reanalysis still works after new JRDB publishing');
+ assert.equal(reloadEmpty.storage.has(emptyKey),false,
+  'populated programme clears the empty-day auto throttle');
+ assert.match(reloadEmpty.get('autoStatus').textContent,/研究用暫定案 1Rを確認/);
+ const afterUpdateReload=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:05:00Z',initialServerRaw:saturdayRaw,
+  seedStorage:reloadEmpty.storage});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(afterUpdateReload.requests.length,1,
+  'a successful 1R fetch must not be suppressed as 0R');
+ // 0R markers with wrong day, clock rollback, stale timestamp or
+ // corrupted JSON are never trusted as evidence of a prior read.
+ for(const corrupted of [
+  '{"day":"20990104","at":0}',
+  '{"day":"20990103","at":0}',
+  '{"day":"20990103","at":"not_time"}',
+  '{"day":"20990103","at":'+(marker.at+3600000)+'}',
+  '{"day":"20990103","at":',
+ ]){
+  const seeded=new Map([[emptyKey,corrupted]]);
+  const bad=boot({manualWeekday:false,
+   initialClock:'2099-01-02T15:03:00Z',initialServerRaw:saturdayRaw,
+   seedStorage:seeded});
+  await new Promise(r=>setImmediate(r));
+  assert.equal(bad.requests.length,1,'corrupt marker never blocks a read');
+ }
  // When JRDB really updates later, ONE deliberate manual reanalysis
  // can retrieve the populated Saturday report and seal the first-write.
  zeroQuick.setServerRaw(saturdayRaw);
