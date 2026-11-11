@@ -30,6 +30,14 @@ class RenderOwnerPrivateTests(unittest.TestCase):
         self.assertEqual(values["wsgi_app"], "private_service:create_app()")
         self.assertIsNone(values["accesslog"])
         self.assertIn("X-FORWARDED-PROTO", values["secure_scheme_headers"])
+        # The previous 60s sync-worker limit could kill a valid request
+        # during four sequential 30s core-source socket waits. A fifth
+        # optional current-going read has a 10s socket timeout.
+        self.assertEqual(values["workers"], 1)
+        self.assertEqual(values["timeout"], 150)
+        self.assertEqual(values["graceful_timeout"], 20)
+        self.assertGreater(values["timeout"], 4 * 30 + 10)
+        self.assertLessEqual(values["timeout"], 180)
 
     def test_profile_rejects_preview_and_insecure_or_unscoped_setup(self):
         cases = [
