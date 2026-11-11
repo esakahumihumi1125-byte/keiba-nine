@@ -3718,7 +3718,16 @@ $('autoSaturdayQuick').onclick=async()=>{
  // Repeat presses must not create extra paid reads. For an updated
  // provider snapshot the explicit "再分析" control remains available.
  if($('autoDay').value===selected&&latestDisplayedReport&&
-    latestDisplayedDay===selectedDay&&latestDisplayedReport.raceCount>0){
+    latestDisplayedDay===selectedDay){
+  if(latestDisplayedReport.raceCount===0){
+   // /tra=0 might mean the weekly feed has not been released yet.
+   // Repeated one-tap presses must not bill another provider lookup.
+   // The separate explicit "再分析" button can request a fresh snapshot.
+   $('autoStatus').textContent='【土曜番組0R・取得済み】この画面でJRDB番組0件を確認済み。'+
+    '押し直しによる追加のJRDB照会は0回。開催なしとは断定できません。'+
+    '木曜の配信更新後などに新しい情報を確認する場合は「全場・全Rを再分析する」を押してください。';
+   return;
+  }
   try{
    latestExpiredDraftCount=latestDisplayedReport.races.filter(r=>
     r.status==='provisional_draft'&&draftExpiredOnDevice(selectedDay,r.postTime)).length;

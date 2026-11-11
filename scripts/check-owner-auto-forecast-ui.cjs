@@ -1525,6 +1525,43 @@ function boot(){
  assert.match(successQuick.get('autoStatus').textContent,
   /土曜データ取得済み.*追加のJRDB照会は0回/);
  assert.equal(successQuick.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // One-tap response can legitimately contain zero JRDB programme races
+ // before the weekly feed. Repeat taps MUST NOT silently make a second
+ // potentially billed provider lookup, even for 0R, while the explicit
+ // reanalysis button remains available for when the real feed updates.
+ const zeroQuick=boot();
+ await new Promise(r=>setImmediate(r));
+ const saturdayZero=JSON.parse(JSON.stringify(noProgramme)
+  .replaceAll('20990101','20990103')
+  .replaceAll('2099-01-01','2099-01-03'));
+ zeroQuick.setServerRaw(saturdayZero);
+ const zeroBefore=zeroQuick.requests.length;
+ const zeroStored=zeroQuick.storage.get(STORAGE);
+ await zeroQuick.get('autoSaturdayQuick').onclick();
+ assert.equal(zeroQuick.get('autoDay').value,'2099-01-03');
+ assert.equal(zeroQuick.requests.length,zeroBefore+1);
+ assert.match(zeroQuick.get('autoStatus').textContent,
+  /番組0R・予想未作成/);
+ assert.equal(zeroQuick.storage.get(STORAGE),zeroStored);
+ await zeroQuick.get('autoSaturdayQuick').onclick();
+ assert.equal(zeroQuick.requests.length,zeroBefore+1,
+  'a repeated 0R one-tap must not re-query a possibly paid API');
+ assert.match(zeroQuick.get('autoStatus').textContent,
+  /土曜番組0R・取得済み.*追加のJRDB照会は0回/);
+ assert.match(zeroQuick.get('autoStatus').textContent,
+  /全場・全Rを再分析する/);
+ assert.equal(zeroQuick.storage.get(STORAGE),zeroStored);
+ // When JRDB really updates later, ONE deliberate manual reanalysis
+ // can retrieve the populated Saturday report and seal the first-write.
+ zeroQuick.setServerRaw(saturdayRaw);
+ await zeroQuick.get('autoRun').onclick();
+ assert.equal(zeroQuick.requests.length,zeroBefore+2);
+ assert.match(zeroQuick.get('autoStatus').textContent,
+  /発走前の研究用暫定案 1Rを確認/);
+ const storedAfterUpdate=JSON.parse(zeroQuick.storage.get(STORAGE));
+ assert.equal(storedAfterUpdate.length,2);
+ assert.equal(storedAfterUpdate.filter(x=>x.snapshot.date==='2099-01-03').length,1);
+ assert.equal(zeroQuick.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // If a regular request is already outstanding, no second billed
  // Saturday request is started or the existing date silently altered.
  const pendingView=boot();
