@@ -51,6 +51,9 @@ from owner_past_staff_sample import inspect_one_past_staff_sample
 from owner_past_staff_batch import inspect_three_past_staff_samples
 from owner_dse_update_diagnostic import audit_dse_update_fields
 from owner_saturday_preflight import owner_saturday_config_preflight
+from owner_optional_source_diagnostics import (
+    safe_material_error_code, safe_context_error_code,
+)
 from owner_rebound_receipts import (
     issue_rebound_watch_receipts, verify_rebound_watch_receipts,
     compare_watched_winners, WatchReceiptError
@@ -2282,11 +2285,26 @@ def create_app(settings=None):
                 # coverage to evaluate (and NOT zero graded horses).
                 report['sourceMaterials'] = unavailable_draft_materials()
                 if programme:
+                    # Diagnostic sink is ephemeral, contains only counters
+                    # and fixed codes, and is NEVER sent in the response.
+                    material_diag = {}
                     try:
                         report['sourceMaterials'] = observe_owner_draft_materials_isolated(
-                            programme, entries, training, recent, day)
-                    except (CoverageError, ValueError, TypeError, KeyError):
-                        logging.warning('KEIBA_AUTO_DRAFT_MATERIALS=unavailable')
+                            programme, entries, training, recent, day,
+                            diagnostics=material_diag)
+                    except (CoverageError, ValueError, TypeError, KeyError) as exc:
+                        logging.warning(
+                            'KEIBA_AUTO_DRAFT_MATERIALS=unavailable reason=%s',
+                            safe_material_error_code(exc))
+                    if report['sourceMaterials']['status'] != 'observed':
+                        logging.warning(
+                            'KEIBA_AUTO_DRAFT_MATERIALS status=%s '
+                            'whole_day=%s fallback=%s verified=%s rejected=%s',
+                            report['sourceMaterials']['status'],
+                            material_diag.get('wholeDayCode', 'not_attempted'),
+                            'yes' if material_diag.get('fallbackUsed') else 'no',
+                            material_diag.get('verifiedRaces', 0),
+                            material_diag.get('rejectedRaces', 0))
                 # Fifth, optional owner-private source read: current /tka
                 # ground condition context. Never derive a horse aptitude
                 # grade from a venue condition. A missing/invalid response
@@ -2305,9 +2323,12 @@ def create_app(settings=None):
                         checked['conditionProviderFetchStatus'] = 'received'
                         report['raceContext'] = checked
                     except (JRDBError, RaceContextError, ValueError,
-                            TypeError, KeyError):
-                        # Fixed label only; never log source data.
-                        logging.warning('KEIBA_AUTO_DRAFT_CONTEXT=unavailable')
+                            TypeError, KeyError) as exc:
+                        # Only a stable enum; NEVER the exception string,
+                        # which could contain licensed provider fields.
+                        logging.warning(
+                            'KEIBA_AUTO_DRAFT_CONTEXT=unavailable reason=%s',
+                            safe_context_error_code(exc))
                 # Optional /tka and source analysis can outlast a provisional
                 # start time. Re-check the SERVER clock immediately before
                 # return; suppress any newly late formation/receipt in this

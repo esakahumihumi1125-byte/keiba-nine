@@ -591,8 +591,12 @@ class AutoDraftHTTPTests(unittest.TestCase):
                     side_effect=CoverageError("synthetic-unsafe-provider-value")),
               patch("private_service._now_in_jst",
                     return_value="2099-01-01T09:00:00+09:00")):
-            result=call(self.app,"/api/jrdb/owner-auto-draft",
-                        QUERY_STRING="date="+DAY)
+            with self.assertLogs(level="WARNING") as captured:
+                result=call(self.app,"/api/jrdb/owner-auto-draft",
+                            QUERY_STRING="date="+DAY)
+        self.assertIn("KEIBA_AUTO_DRAFT_MATERIALS=unavailable reason=source_coverage",
+                      "\n".join(captured.output))
+        self.assertNotIn("synthetic-unsafe-provider-value", "\n".join(captured.output))
         self.assertEqual(result["status"],"200 OK")
         body=json.loads(result["body"])
         self.assertEqual(body["draftCount"],1)
@@ -653,8 +657,12 @@ class AutoDraftHTTPTests(unittest.TestCase):
               patch("private_service.owner_day_research",return_value=research()),
               patch("private_service._now_in_jst",
                     return_value="2099-01-01T09:00:00+09:00")):
-            result=call(self.app,"/api/jrdb/owner-auto-draft",
-                        QUERY_STRING="date="+DAY)
+            with self.assertLogs(level="WARNING") as captured:
+                result=call(self.app,"/api/jrdb/owner-auto-draft",
+                            QUERY_STRING="date="+DAY)
+        self.assertIn("KEIBA_AUTO_DRAFT_CONTEXT=unavailable reason=provider_other",
+                      "\n".join(captured.output))
+        self.assertNotIn("SECRET-PAID-RESPONSE", "\n".join(captured.output))
         self.assertEqual(result["status"],"200 OK")
         body=json.loads(result["body"])
         self.assertEqual(body["researchReceiptCount"],1)
