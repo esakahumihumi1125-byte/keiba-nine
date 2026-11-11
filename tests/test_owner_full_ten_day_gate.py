@@ -109,6 +109,18 @@ class FullTenDayGateTests(unittest.TestCase):
             for r in report["races"]
         ))
 
+    def test_one_incomplete_jra_starter_roster_holds_only_its_race(self):
+        rows = batch()
+        rows[3]["snapshot"]["independentJra"][
+            "confirmedStarterNumbers"] = [1, 2, 3, 4, 5, 6, 7]
+        report = full_ten_day_research(DATE, rows, now=NOW)
+        self.assertEqual(report["researchFormationRaces"], 35)
+        self.assertEqual(report["heldOrIncompleteRaces"], 1)
+        self.assertEqual(report["races"][3]["status"], "unverified_starter_roster")
+        self.assertEqual(report["races"][3]["reviewOnlyTicketCount"], 0)
+        self.assertEqual(report["races"][4]["reviewOnlyTicketCount"], 40)
+        self.assertFalse(report["officialJraVerified"])
+
     def test_unverified_official_checks_never_create_review_tickets(self):
         rows = batch()[:1]
         rows[0]["snapshot"]["independentJra"]["jra_scratches_verified"] = False
