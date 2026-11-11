@@ -1200,6 +1200,19 @@ def create_app(settings=None):
         # password. It is not a second password and never reaches JavaScript.
         valid_cookie = session_cookie_valid(environ.get('HTTP_COOKIE', ''), expected)
         valid = valid_basic or valid_cookie
+        if method == 'GET' and path == '/live-revision' and not environ.get('QUERY_STRING', ''):
+            # Public GitHub source is already readable. Return ONLY its 12-char
+            # build ID, never account status, provider keys, owner data, race
+            # material, auth state, predictions, timestamps or server settings.
+            # This verifies *deployed code identity*, not JRDB health.
+            return response('200 OK', {
+                'version': 'owner-live-revision-1',
+                'renderCommit': release_sha,
+                'revisionOnly': True,
+                'jrdbConnectionVerified': False,
+                'forecastExecutionVerified': False,
+                'ownerDataIncluded': False,
+            })
         if method == 'GET' and path == '/login.css':
             return response('200 OK', LOGIN_CSS, 'text/css; charset=utf-8')
         def login_page(error='', status='200 OK'):
