@@ -82,7 +82,7 @@ class TenFactorContractTests(unittest.TestCase):
         self.assertEqual(last["unassessedWeightCapacity"],70)
         self.assertEqual(last["verifiedWeightCapacity"],0)
         self.assertFalse(last["provisionalScoreReady"])
-        self.assertEqual(last["provisionalBreakdown"],{"training":0,"recent":None})
+        self.assertEqual(last["provisionalBreakdown"],{"training":None,"recent":None})
         self.assertIsNone(last["provisionalPoints33"])
         self.assertEqual(last["priorityMissingFactors"][:3],
                          ["course_distance","pace","ground"])
