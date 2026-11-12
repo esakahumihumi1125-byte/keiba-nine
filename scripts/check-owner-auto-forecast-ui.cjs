@@ -1412,7 +1412,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   context.__recordTimer=(stage,value)=>timerTrace.push([stage,value]);}
  const simulatedJs=simulateTimers?js
   .replace('function armAutomaticOffTimer(data,day){',
-   "function armAutomaticOffTimer(data,day){ __recordTimer('entry',{timer:typeof setTimeout,identity:latestDisplayedReport===data,dayMatch:latestDisplayedDay===day,input:$('autoDay').value,day,clock:new Date().toISOString()});")
+   "function armAutomaticOffTimer(data,day){ __recordTimer('entry',{timer:typeof setTimeout,identity:latestDisplayedReport===data,dayMatch:latestDisplayedDay===day,input:$('autoDay').value,normalizedInput:$('autoDay').value.replaceAll('-'),day,clock:new Date().toISOString(),clockMillis:new Date().getTime()});")
   .replace('if(!Number.isFinite(next))return;',
    "__recordTimer('next',{next,now,future:Number.isFinite(next),races:data.races.map(r=>({status:r.status,postTime:r.postTime,expired:draftExpiredOnDevice(day,r.postTime)}))}); if(!Number.isFinite(next))return;")
   .replace('automaticOffTimer=setTimeout(()=>{',

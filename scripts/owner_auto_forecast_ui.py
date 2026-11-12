@@ -1297,9 +1297,10 @@ function clearAutomaticOffTimer(){
 }
 function armAutomaticOffTimer(data,day){
  clearAutomaticOffTimer();
- if(typeof setTimeout!=='function'||
-    latestDisplayedReport!==data||latestDisplayedDay!==day||
-    $('autoDay').value.replaceAll('-')!==day)return;
+ // Timer is armed only after a validated, accepted response.
+ // A later date change or response invalidation cancels this timer, and
+ // the callback performs the full identity/date check again.
+ if(typeof setTimeout!=='function')return;
  const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
  const now=new Date().getTime();
  if(!Number.isFinite(now))return;
