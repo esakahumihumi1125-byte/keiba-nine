@@ -956,7 +956,7 @@ function renderTenHeader(p){
   const el=dom('div',undefined,'ten-weight');
   el.append(dom('span',f.label),dom('b',f.weight+'点'));host.append(el);
  }
- $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、残り8項目67点は未採点。これは正式総合点・勝率・総合順位ではありません。';
+ $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、残り8項目は未評価（配点67点）。これは正式総合点・勝率・総合順位ではありません。';
 }
 function formation(r){
  const block=dom('div',undefined,'formation');
