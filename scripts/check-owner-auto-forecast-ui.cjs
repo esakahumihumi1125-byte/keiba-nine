@@ -1481,6 +1481,28 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(a.get('autoReadProof').textContent,
   /番組あり・資料照会完了.*4回照会/);
  assert.match(a.get('autoReadProof').textContent,/研究用3連単 1R/);
+ // A valid same-day response shows ONLY this device's receipt time.
+ // Reopening the PWA updates the stale warning, never performs paid reads
+ // or rewrites the original prestart receipt.
+ const freshness=boot();
+ await new Promise(r=>setImmediate(r));
+ assert.match(freshness.get('autoSnapshotAge').textContent,
+  /受信時刻の目安.*09:00.*約0分前/);
+ const freshnessCalls=freshness.requests.length,
+  freshnessReceipt=freshness.storage.get(STORAGE);
+ freshness.advanceClock('2099-01-01T00:16:00Z');
+ freshness.resume();
+ assert.match(freshness.get('autoSnapshotAge').textContent,
+  /受信から15分以上・再確認推奨.*約16分前/);
+ assert.equal(freshness.requests.length,freshnessCalls);
+ assert.equal(freshness.storage.get(STORAGE),freshnessReceipt);
+ freshness.get('autoDay').value='2099-01-02';
+ freshness.get('autoDay').onchange();
+ assert.match(freshness.get('autoSnapshotAge').textContent,/受信時刻：未取得/);
+ assert.equal(freshness.requests.length,freshnessCalls);
+ assert.equal(freshness.storage.get(STORAGE),freshnessReceipt);
+ assert.match(fs.readFileSync('scripts/owner_auto_forecast_ui.py','utf8'),
+  /id="autoSnapshotAge"/);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
  const firstCard=a.get('autoRaces').children[0].children[0];
