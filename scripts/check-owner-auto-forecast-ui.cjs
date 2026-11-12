@@ -1802,7 +1802,13 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  // The timer only updates the rendered DOM; signed history is immutable.
  const autoExpiry=boot({simulateTimers:true});
  await new Promise(r=>setImmediate(r));
- assert.equal(autoExpiry.timerCount(),1);
+ assert.equal(autoExpiry.timerCount(),1,JSON.stringify({
+  date:autoExpiry.get('autoDay').value,
+  status:autoExpiry.get('autoStatus').textContent,
+  cards:autoExpiry.get('autoRaces').children.length,
+  requests:autoExpiry.requests.map(x=>x.url),
+  timerCount:autoExpiry.timerCount()
+ }));
  assert.equal(autoExpiry.get('autoRaces').children[0].children[0].children
    .filter(x=>x.className==='formation').length,1);
  const timerWrites=autoExpiry.storage.get(STORAGE);
