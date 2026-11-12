@@ -60,6 +60,10 @@ class TenFactorContractTests(unittest.TestCase):
             "pedigree", "draw_weight", "rotation", "body_condition"
         ])
         self.assertEqual(h["verifiedFactorCount"],0)
+        self.assertTrue(h["provisionalScoreReady"])
+        self.assertEqual(h["provisionalBreakdown"],{"training":30,"recent":3})
+        self.assertEqual(h["provisionalPoints33"],33)
+        self.assertEqual(h["provisionalMaxPoints"],33)
         self.assertIsNone(h["score"])
         self.assertIsNone(h["overallRank"])
         self.assertEqual(h["overallGrade"],"未評価")
@@ -77,11 +81,36 @@ class TenFactorContractTests(unittest.TestCase):
         self.assertEqual(last["provisionalWeightCapacity"],30)
         self.assertEqual(last["unassessedWeightCapacity"],70)
         self.assertEqual(last["verifiedWeightCapacity"],0)
+        self.assertFalse(last["provisionalScoreReady"])
+        self.assertEqual(last["provisionalBreakdown"],{"training":0,"recent":None})
+        self.assertIsNone(last["provisionalPoints33"])
         self.assertEqual(last["priorityMissingFactors"][:3],
                          ["course_distance","pace","ground"])
         self.assertIn("recent",last["priorityMissingFactors"])
         self.assertEqual(len(last["missing"]),9)
         self.assertEqual(converted["fullPredictionRaceCount"],0)
+
+    def test_four_grade_combinations_produce_weighted_provisional_points(self):
+        cases=[("S","S",33,30,3),("A","B",21,20,1),
+               ("B","A",12,10,2),("C","C",0,0,0)]
+        report=generate(r=research([(a,b) for a,b,*_ in cases]+[
+            ("B","C"),("B","B"),("C","A")]))
+        rows=ten_factor_contract(report)["races"][0]["horses"]
+        keyed={h["number"]:h for h in rows}
+        for number,(a,b,total,t,r) in enumerate(cases,1):
+            h=keyed[number]
+            self.assertEqual((h["grades"]["training"],h["grades"]["recent"]),(a,b))
+            self.assertEqual(h["provisionalBreakdown"],{"training":t,"recent":r})
+            self.assertEqual(h["provisionalPoints33"],total)
+            self.assertTrue(h["provisionalScoreReady"])
+            self.assertIsNone(h["score"])
+            self.assertEqual(h["overallGrade"],"未評価")
+
+    def test_tampered_two_factor_raw_points_fail_closed(self):
+        report=generate()
+        report["races"][0]["runners"][0]["weightedResearchPoints"]=0
+        with self.assertRaises(CoverageError):
+            ten_factor_contract(report)
 
     def test_high_training_low_recent_is_flagged_for_more_evidence_not_bet(self):
         report=generate(r=research([
