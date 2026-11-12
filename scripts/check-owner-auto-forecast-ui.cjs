@@ -1099,8 +1099,13 @@ function prestart(){
  result.bodyOneEvidencePreflight=gate;
  return result;
 }
-function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedStorage=null}={}){
+function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedStorage=null,simulateTimers=false}={}){
  const storage=new Map(seedStorage||[]),elements=new Map(),requests=[];
+ const scheduled=new Map();let nextTimerId=1;
+ const fakeWindow={
+  setTimeout(fn,delay){const id=nextTimerId++;scheduled.set(id,{fn,delay});return id;},
+  clearTimeout(id){scheduled.delete(id)}
+ };
  let storageWritable=true,writeMode='normal';
  let next=initialServerRaw||resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
   historyOk=true,providerCorrupt=false,holdFetch=null,
@@ -1401,6 +1406,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  }
  const context={document,localStorage,fetch,Intl,URL,Date:FakeDate,JSON,Set,Map,Number,
   String,Array,Error,Promise,Object};
+ if(simulateTimers)context.window=fakeWindow;
  vm.runInNewContext(js,context);
  if(!initialClock)get('autoDay').value=date;
  // Most legacy scenarios intentionally press the manual weekday action.
@@ -1431,7 +1437,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setConnectionCount:x=>connectionCount=x,
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
-  advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()}};
+  advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()},
+  timerCount:()=>scheduled.size,
+  fireTimer:()=>{const item=scheduled.entries().next().value;if(!item)return false;
+   scheduled.delete(item[0]);item[1].fn();return true}};
 }
 (async()=>{
  // Normal Saturdays and Sundays issue exactly one request on page entry.
@@ -1787,6 +1796,42 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
      jockey_stable:false,rotation:true,past_corner:false}
    }))}]
  };
+ // A foreground iPhone screen must stop showing a fresh formation at
+ // the provisional off without waiting for a tap or making another paid read.
+ // The timer only updates the rendered DOM; signed history is immutable.
+ const autoExpiry=boot({simulateTimers:true});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(autoExpiry.timerCount(),1);
+ assert.equal(autoExpiry.get('autoRaces').children[0].children[0].children
+   .filter(x=>x.className==='formation').length,1);
+ const timerWrites=autoExpiry.storage.get(STORAGE);
+ const timerRequests=autoExpiry.requests.length;
+ autoExpiry.advanceClock('2099-01-01T03:00:01Z'); // 12:00:01 JST, at/after off.
+ autoExpiry.fireTimer();
+ assert.equal(autoExpiry.requests.length,timerRequests,
+   'scheduled expiry must not make a JRDB or other network request');
+ assert.equal(autoExpiry.storage.get(STORAGE),timerWrites,
+   'scheduled expiry must not change the first signed receipt');
+ assert.equal(autoExpiry.timerCount(),0);
+ assert.equal(autoExpiry.get('autoRaces').children[0].children[0].children
+   .filter(x=>x.className==='formation').length,0);
+ assert.match(autoExpiry.get('autoMorningStatus').textContent,
+   /発走前の研究用3連単下書き 0R/);
+ assert.match(autoExpiry.get('autoStatus').textContent,/自動で非表示/);
+ assert.equal(autoExpiry.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // A date switch cancels the scheduled callback so it cannot bring back
+ // an old date or its prestart pick after the user has changed meetings.
+ const cancelExpiry=boot({simulateTimers:true});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(cancelExpiry.timerCount(),1);
+ const cancelWrites=cancelExpiry.storage.get(STORAGE);
+ cancelExpiry.get('autoDay').value='2099-01-03';
+ cancelExpiry.get('autoDay').onchange();
+ assert.equal(cancelExpiry.timerCount(),0);
+ assert.equal(cancelExpiry.fireTimer(),false);
+ assert.equal(cancelExpiry.get('autoRaces').children.length,0);
+ assert.equal(cancelExpiry.storage.get(STORAGE),cancelWrites);
+ assert.equal(cancelExpiry.requests.length,1);
  const evidenceView=boot({initialServerRaw:annotated});
  await new Promise(r=>setImmediate(r));
  assert.equal(evidenceView.requests.length,1);

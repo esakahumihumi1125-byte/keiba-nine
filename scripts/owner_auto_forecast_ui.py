@@ -1283,6 +1283,53 @@ function clearDraftShortcut(){
  shortcut.textContent='買い目あり：未取得';
  shortcut.onclick=null;
 }
+// iPhone Safari may stay on one race screen while the clock passes an off.
+// Hide fresh, unpurchased research formations at the earliest JRDB
+// PROVISIONAL off without a new API request or a storage mutation.
+// On wake from iOS suspension, the existing pageshow/visibility guard
+// also checks the current clock. Neither clock is JRA-official proof.
+let automaticOffTimer=null,automaticOffGeneration=0;
+function clearAutomaticOffTimer(){
+ automaticOffGeneration++;
+ if(automaticOffTimer!==null&&typeof window!=='undefined'&&
+    typeof window.clearTimeout==='function')
+  window.clearTimeout(automaticOffTimer);
+ automaticOffTimer=null;
+}
+function armAutomaticOffTimer(data,day){
+ clearAutomaticOffTimer();
+ if(typeof window==='undefined'||typeof window.setTimeout!=='function'||
+    latestDisplayedReport!==data||latestDisplayedDay!==day||
+    $('autoDay').value.replaceAll('-')!==day)return;
+ const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+ const now=new Date().getTime();
+ if(!Number.isFinite(now))return;
+ let next=Infinity;
+ for(const race of data.races){
+  if(race.status!=='provisional_draft'||draftExpiredOnDevice(day,race.postTime))
+   continue;
+  const off=Date.parse(iso+'T'+race.postTime+':00+09:00');
+  if(Number.isFinite(off)&&off>now&&off<next)next=off;
+ }
+ if(!Number.isFinite(next))return;
+ const generation=automaticOffGeneration;
+ const delay=Math.max(1000,Math.min(2147480000,next-now+100));
+ automaticOffTimer=window.setTimeout(()=>{
+  automaticOffTimer=null;
+  if(generation!==automaticOffGeneration||
+     latestDisplayedReport!==data||latestDisplayedDay!==day||
+     $('autoDay').value.replaceAll('-')!==day)return;
+  const expired=data.races.filter(r=>r.status==='provisional_draft'&&
+   draftExpiredOnDevice(day,r.postTime)).length;
+  if(expired>latestExpiredDraftCount){
+   latestExpiredDraftCount=expired;
+   render(data,day); // Purely read/display; never re-sign, buy or fetch.
+   $('autoStatus').textContent='発走予定時刻を過ぎた研究用の新しい買い目を自動で非表示にしました。発走前の固定履歴はそのままです。JRA公式の実際の発走時刻は別途確認してください。';
+  }
+  // Device clocks can jump backwards; schedule the next safe local check.
+  armAutomaticOffTimer(data,day);
+ },delay);
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const materialByRace=validatedRunnerSourceEvidence(data);
@@ -4052,7 +4099,7 @@ $('autoDay').onchange=()=>{
  $('autoPreflightStatus').textContent='選択日が変わりました。無料診断は未実行です。';
  // Preserve an explicitly selected day across subsequent app resumes.
  followingToday=false;
- latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+ latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
  clearDraftShortcut();
  // Invalidate the old response and unlock the button. A slow old request
  // must not leave the new day permanently disabled on iPhone.
@@ -4361,7 +4408,7 @@ $('autoRun').onclick=async()=>{
  const button=$('autoRun');
  if(button.disabled)return;
  const seq=++request,day=$('autoDay').value.replaceAll('-','');
- latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+ latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
  clearDraftShortcut();
  if(!/^20[0-9]{6}$/.test(day)){
   $('autoStatus').textContent='開催日を選択してください。';return;
@@ -4431,6 +4478,7 @@ $('autoRun').onclick=async()=>{
   latestDisplayedReport=body;latestDisplayedDay=day;
   latestExpiredDraftCount=body.races.filter(x=>
    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)).length;
+  armAutomaticOffTimer(body,day);
   historyDay=day;
   historyCoordinates=new Set(body.races.map(r=>r.track+'|'+r.race));
   historyRosters=new Map(body.races.map(r=>[
@@ -4485,7 +4533,7 @@ $('autoRun').onclick=async()=>{
     'Rを確認。正式10項目の予想・JRA公式照合は未完了です。';
   }
  }catch(error){if(seq===request){
-  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
  clearDraftShortcut();
   const storageFailure=error?.message==='receipt_storage_failed';
   const gatewayFailure=error?.message==='render_gateway_nonjson';
@@ -6124,7 +6172,7 @@ function resumeOwnerDay(){
   }
   return;
  }
- latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;
+ latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
  clearDraftShortcut();
  ++preflightSeq;
  $('autoPreflight').disabled=false;
