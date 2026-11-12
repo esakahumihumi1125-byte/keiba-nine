@@ -57,7 +57,19 @@ function withTenPreview(r){
     const missing=POLICY.map(([key])=>key).filter(key=>grades[key]==='未評価');
     const priorityMissingFactors=POLICY.filter(([key])=>missing.includes(key))
      .slice().sort((a,b)=>b[2]-a[2]).map(([key])=>key);
+    const units={S:3,A:2,B:1,C:0};
+    const active=row.status==='provisional_draft';
+    const provisionalBreakdown={
+     training:active&&grades.training!=='未評価'?units[grades.training]*10:null,
+     recent:active&&grades.recent!=='未評価'?units[grades.recent]:null,
+    };
+    const provisionalScoreReady=Object.values(provisionalBreakdown)
+     .every(value=>value!==null);
     return {number:h.number,grades,score:null,overallGrade:'未評価',
+     provisionalBreakdown,provisionalScoreReady,
+     provisionalPoints33:provisionalScoreReady
+      ?provisionalBreakdown.training+provisionalBreakdown.recent:null,
+     provisionalMaxPoints:33,
      overallRank:null,verifiedFactorCount:0,
      provisionalFactorCount:['training','recent'].filter(k=>grades[k]!=='未評価').length,
      provisionalWeightCapacity:provisionalWeight,
@@ -1505,6 +1517,19 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /id="autoSnapshotAge"/);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
+ assert.match(a.get('autoTenStatus').textContent,/最大33点.*67点は未採点/);
+ const scoreCard=a.get('autoRaces').children[0].children[0];
+ const scorePanel=scoreCard.children.find(x=>x.className==='ten-horse');
+ // Ten-factor horse details render beneath the synthetic race card.
+ const allScored=[];
+ function scanScored(node){
+  if(node.className==='ten-horse')allScored.push(node);
+  for(const child of node.children||[])scanScored(child);
+ }
+ scanScored(scoreCard);
+ assert.ok(allScored.length>=1,'provisional numeric score must render for the owner');
+ assert.match(allScored[0].children[0].textContent,/暫定 33\/33点.*総合 未評価/);
+ assert.match(allScored[0].children[2].textContent,/調教 30\/30点.*近走 3\/3点/);
  const firstCard=a.get('autoRaces').children[0].children[0];
  assert.match(firstCard.children[0].textContent,/1着候補 1・2番/);
  assert.equal(firstCard.children[2].className,'formation',
