@@ -4100,7 +4100,11 @@ function updateJraReleaseGuide(){
   '。'+earlyG1+'の馬番付き出馬表は '+earlyPrior+
    ' 9時すぎが発表目安（その他のレースは通常10時すぎ）':
   '。'+earlyG1+'の9時すぎの発表目安は経過（掲載・取消の確認は別）'):'';
- $('autoJraReleaseGuide').textContent=stage+g1Note+
+ // JRA also moves PRE-SALE weekend stakes to Friday 9am when a category-(2)
+ // G1 is in the same week. This does not apply to every weekend race.
+ const advanceStakes=(date==='2026-11-14'||date==='2026-11-15')
+  ?'。同週の特例GⅠに伴い、前日発売を行う土日重賞も金曜日9時すぎが発表目安（全レース共通ではありません）':'';
+ $('autoJraReleaseGuide').textContent=stage+g1Note+advanceStakes+
   '。GⅠ・一部重賞・変則開催は別時刻。公開目安は掲載保証ではありません。'+
   'JRA公式の馬番・取消・馬場・発走時刻は自動照合していません（0R）。';
 }
