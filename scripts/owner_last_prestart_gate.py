@@ -92,7 +92,10 @@ def _verify_delivery_alignment(report, current_time):
                                     re.ASCII)):
             raise CoverageError("Final prestart receipt structure invalid")
         snap = receipt["snapshot"]
-        key = (snap.get("track"), snap.get("race"))
+        if (not isinstance(snap.get("track"), str)
+                or type(snap.get("race")) is not int):
+            raise CoverageError("Final prestart receipt coordinate invalid")
+        key = (snap["track"], snap["race"])
         if (key not in draft_rows or key in receipts
                 or snap.get("date") != date_iso
                 or snap.get("sourceKind") != "prestart-locked"
