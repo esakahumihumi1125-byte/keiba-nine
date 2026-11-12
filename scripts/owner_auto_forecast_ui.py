@@ -451,6 +451,25 @@ function validateTen(data){
    const prioritized=TEN.filter(([k])=>missing.includes(k))
     .slice().sort((a,b)=>b[2]-a[2])
     .map(([key])=>key);
+   // Compare the provisional arithmetic with the independent, already
+   // validated original 2-factor grades. Never accept a browser score
+   // that silently treats an ungraded item as zero.
+   const gradeUnits={S:3,A:2,B:1,C:0};
+   const active=actual.status==='provisional_draft';
+   const breakdown=Object.fromEntries(['training','recent'].map(k=>[
+    k,active&&h.grades[k]!=='未評価'
+     ?gradeUnits[h.grades[k]]*(k==='training'?10:1):null
+   ]));
+   const scoreReady=Object.values(breakdown).every(v=>v!==null);
+   const earned=scoreReady?breakdown.training+breakdown.recent:null;
+   if(!h.provisionalBreakdown||
+      Object.keys(h.provisionalBreakdown).length!==2||
+      h.provisionalBreakdown.training!==breakdown.training||
+      h.provisionalBreakdown.recent!==breakdown.recent||
+      h.provisionalScoreReady!==scoreReady||
+      h.provisionalPoints33!==earned||
+      h.provisionalMaxPoints!==33)
+    throw Error('調教・近走の暫定自動採点に不整合');
    if(h.provisionalFactorCount!==count||h.missing.length!==10-count||
       h.missing.join('|')!==missing.join('|')||
       h.provisionalWeightCapacity!==provisionalWeight||
@@ -895,9 +914,10 @@ function runnerView(h,index){
 }
 function renderTenHorse(h,source){
  const details=dom('details',undefined,'ten-horse');
- details.append(dom('summary',h.number+'番：総合 未評価（仮評価'+
-   h.provisionalWeightCapacity+'点分の項目／未評価'+
-   h.unassessedWeightCapacity+'点分の項目）'));
+ details.append(dom('summary',h.number+'番：'+
+  (h.provisionalScoreReady?'暫定 '+h.provisionalPoints33+'/33点':'暫定点 未算出')+
+  '｜総合 未評価（評価項目'+h.provisionalWeightCapacity+
+  '点分／未評価'+h.unassessedWeightCapacity+'点分）'));
  const grid=dom('div',undefined,'ten-grid');
  for(const [key,label,weight] of TEN){
   const slot=dom('div',undefined,'ten-slot'),grade=h.grades[key];
@@ -906,6 +926,13 @@ function renderTenHorse(h,source){
   grid.append(slot);
  }
  details.append(grid);
+ details.append(dom('p',h.provisionalScoreReady
+  ?'自動算出（仮説）：調教 '+h.provisionalBreakdown.training+
+   '/30点 ＋ 近走 '+h.provisionalBreakdown.recent+
+   '/3点 ＝ '+h.provisionalPoints33+
+   '/33点。残り67点の採点なし。正式な100点総合点・評価順位ではありません。'
+  :'調教と近走の両方が揃わないか、見送り対象のため暫定得点を算出しません。'+
+   '不足を0点に置き換えません。','muted'));
  if(source){
   const labels=[['pedigree','血統（父・母父）'],['draw_weight','枠・負担重量'],
    ['jockey_stable','騎手・厩舎の名前'],
@@ -929,7 +956,7 @@ function renderTenHeader(p){
   const el=dom('div',undefined,'ten-weight');
   el.append(dom('span',f.label),dom('b',f.weight+'点'));host.append(el);
  }
- $('autoTenStatus').textContent='正式配点100点／10項目。調教30点・近走3点分は仮評価、残り8項目は未評価（配点67点分。資料が欠ける馬は仮評価項目も減る）。これは能力得点ではありません。正式な総合点・総合順位は未作成。';
+ $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、残り8項目67点は未採点。これは正式総合点・勝率・総合順位ではありません。';
 }
 function formation(r){
  const block=dom('div',undefined,'formation');
