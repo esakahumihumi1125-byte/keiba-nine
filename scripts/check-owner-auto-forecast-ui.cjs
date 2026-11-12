@@ -1517,7 +1517,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /id="autoSnapshotAge"/);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
- assert.match(a.get('autoTenStatus').textContent,/最大33点.*67点は未採点/);
+ assert.match(a.get('autoTenStatus').textContent,/最大33点.*残り8項目は未評価.*67点/);
  const scoreCard=a.get('autoRaces').children[0].children[0];
  const scorePanel=scoreCard.children.find(x=>x.className==='ten-horse');
  // Ten-factor horse details render beneath the synthetic race card.
