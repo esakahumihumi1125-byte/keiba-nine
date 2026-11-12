@@ -40,5 +40,15 @@ class SimpleForecastScreenTest(unittest.TestCase):
         self.assertIn("JRDBのAPI照会", HTML)
         self.assertIn("正式10項目", HTML)
 
+    def test_official_jra_link_is_visible_without_opening_advanced_panels(self):
+        link = ('<a id="autoOfficialQuickLink" '
+                'href="https://www.jra.go.jp/keiba/" '
+                'target="_blank" rel="noopener noreferrer">')
+        self.assertEqual(HTML.count('id="autoOfficialQuickLink"'), 1)
+        self.assertIn(link, HTML)
+        self.assertLess(HTML.index(link), HTML.index("<summary>取得・資料の詳しい状態</summary>"))
+        self.assertIn("手動確認・自動照合0R", HTML)
+        self.assertNotIn('onclick=', link)
+
 if __name__ == "__main__":
     unittest.main()
