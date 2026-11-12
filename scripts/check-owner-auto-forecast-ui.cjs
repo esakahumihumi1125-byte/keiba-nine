@@ -1556,6 +1556,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /その他のレースは通常10時すぎ/);
  assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
   /自動照合していません（0R）/);
+ assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
+  /前日発売を行う土日重賞も金曜日9時すぎが発表目安/);
  // Ordinary Sunday cards publish on the preceding Saturday; G1 is an exception.
  const usualSunday=boot({manualWeekday:false,
   initialClock:'2099-01-01T00:00:00Z'});
@@ -1583,6 +1585,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /エリザベス女王杯/);
  assert.match(regularSaturday.get('autoJraReleaseGuide').textContent,
   /2026-11-13 10時すぎが通常目安/);
+ assert.match(regularSaturday.get('autoJraReleaseGuide').textContent,
+  /前日発売を行う土日重賞も金曜日9時すぎが発表目安/);
+ assert.doesNotMatch(usualSunday.get('autoJraReleaseGuide').textContent,
+  /前日発売を行う土日重賞/);
  assert.match(guide.get('autoJraCrosscheck').textContent,/JRDBの開催場 0場/);
  assert.equal(guide.requests.length,guideRequests);
  guide.advanceClock('2099-01-02T06:00:00Z');
