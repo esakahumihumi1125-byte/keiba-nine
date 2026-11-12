@@ -100,6 +100,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <details id="autoEvidenceGapPanel"><summary>正式10項目の不足資料を確認（追加照会なし）</summary>
 <p class="muted">取得済みのJRDB資料がある頭数だけを集計。過去4角などの観測は今回の展開予測ではなく、資料の有無も正式な採点結果ではありません。発走前固定記録・買い目は変更しません。</p>
 <pre id="autoEvidenceGapReport" class="acceptance-report" role="status">まだ未取得です。発走前の研究用データを取得すると、追加照会なしで表示します。</pre>
+<p class="muted">10項目・合計100点の配点ごとに、取得済みの同じ資料から観測件数を表示します。資料ありでもS/A/B/Cの採点やJRA公式照合が済んだ意味ではありません。</p>
+<pre id="autoTenEvidenceMatrix" class="acceptance-report" role="status">10項目の資料確認はまだです。資料を再取得せず、すでに受信した内容のみ集計します。</pre>
 </details>
 <details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
 <p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
@@ -519,6 +521,76 @@ function evidenceGapSummary(data, sourceByRace){
   out.push('追加資料を照合できなかったR：'+report.unavailableRaceCount+
    'R（資料0頭とみなさず、別途確認）。');
  return out.join('\n');
+}
+// Same-snapshot, per-factor coverage: a diagnostic, NEVER an ability score.
+// Use already validated owner data, never trigger a paid source fetch.
+function tenEvidenceMatrix(data,sourceByRace){
+ const p=data.tenFactorPreview;
+ const output=['【10項目・100点｜実データ確認表】',
+  '※「仮評価」「記録あり」は正式な能力得点・適性・勝率ではありません。'];
+ if(!data.raceCount){
+  output.push('番組0R：未集計。開催なしとは判定しません。');
+  output.push('正式採点0/10｜JRA公式独立照合は未完了｜追加JRDB照会0回');
+  return output.join('\n');
+ }
+ const passport=data.sourcePassport?.sourceAuditAvailable
+  ?data.sourcePassport.races:null;
+ const rows=passport||[];
+ const draftRaces=p.races.filter(r=>r.runnerCount>0);
+ const provisionalDenominator=draftRaces.reduce((s,r)=>s+r.runnerCount,0);
+ const provisionalCount={training:0,recent:0};
+ for(const race of draftRaces){
+  for(const horse of race.horses)
+   for(const key of ['training','recent'])
+    provisionalCount[key]+=Number(horse.grades[key]!=='未評価');
+ }
+ const material={pace:0,pedigree:0,draw_weight:0,jockey_stable:0,rotation:0};
+ let materialDenominator=0,observedRaces=0;
+ if(data.runnerSourceEvidence){
+  for(const row of data.runnerSourceEvidence.races){
+   if(row.status!=='observed')continue;
+   const byNumber=sourceByRace.get(row.track+'|'+row.race);
+   if(!byNumber)throw Error('同一レース資料照合の不一致');
+   observedRaces++;
+   materialDenominator+=byNumber.size;
+   for(const flags of byNumber.values()){
+    material.pace+=Number(flags.past_corner);
+    for(const key of ['pedigree','draw_weight','jockey_stable','rotation'])
+     material[key]+=Number(flags[key]);
+   }
+  }
+ }
+ const materialLabel=(key,detail)=>{
+  if(!materialDenominator)return '元資料の馬別記録は未集計（取得なしを0頭扱いしない）';
+  return detail+' '+material[key]+'/'+materialDenominator+
+   '頭（照合済み'+observedRaces+'Rのみ。未確認Rは別）';
+ };
+ const sourceRaces=rows.length||data.raceCount;
+ const programCount=(key)=>
+  passport?rows.filter(r=>r[key]).length+'/'+sourceRaces+
+   'R（番組・開催場の資料。馬別適性は未評価）':
+   '番組・開催場の資料は未集計';
+ const summaries={
+  training:provisionalDenominator
+   ?'調教の仮ランク '+provisionalCount.training+'/'+provisionalDenominator+'頭'
+   :'仮ランク未集計（発走前対象馬なし）',
+  recent:provisionalDenominator
+   ?'近走の仮ランク '+provisionalCount.recent+'/'+provisionalDenominator+'頭'
+   :'仮ランク未集計（発走前対象馬なし）',
+  course_distance:programCount('courseContextPresent'),
+  pace:materialLabel('pace','過去4角位置の記録')+'。今回の展開は未評価',
+  ground:programCount('goingContextPresent'),
+  pedigree:materialLabel('pedigree','父・母父の記録'),
+  draw_weight:materialLabel('draw_weight','枠・斤量の記録'),
+  jockey_stable:materialLabel('jockey_stable','騎手・厩舎名の記録'),
+  rotation:materialLabel('rotation','前走間隔の記録'),
+  body_condition:'当日馬体重の実測値・前走比は未検証（馬体形状コードは代用不可）'
+ };
+ for(const [key,label,weight] of TEN)
+  output.push(label+' '+weight+'点｜'+summaries[key]+'｜正式採点は未評価');
+ output.push('正式採点0/10｜JRA公式の出走馬・取消・馬場・発走時刻は未照合');
+ output.push('既存買い目・署名済み発走前記録は変更なし｜追加JRDB照会0回');
+ return output.join('\n');
 }
 function validatedRunnerSourceEvidence(data){
  const report=data.runnerSourceEvidence, result=new Map();
@@ -1215,6 +1287,7 @@ function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const materialByRace=validatedRunnerSourceEvidence(data);
  $('autoEvidenceGapReport').textContent=evidenceGapSummary(data,materialByRace);
+ $('autoTenEvidenceMatrix').textContent=tenEvidenceMatrix(data,materialByRace);
  const deviceExpired=new Set(data.races.filter(x=>
    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)
  ).map(x=>x.track+'|'+x.race));

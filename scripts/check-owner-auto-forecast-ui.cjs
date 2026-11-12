@@ -1800,6 +1800,22 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /騎手・厩舎の名前 資料不足／前走からの間隔 資料あり／過去4角位置 資料不足/);
  assert.match(firstTenDetail.children.map(x=>x.textContent).join('|'),
   /資料ありは適性や能力の評価ではありません.*馬体重当日値は未確認/);
+ const matrix=evidenceView.get('autoTenEvidenceMatrix').textContent;
+ assert.match(matrix,/【10項目・100点｜実データ確認表】/);
+ assert.equal(matrix.split('\n').filter(line=>line.includes('｜正式採点は未評価')).length,10);
+ assert.match(matrix,/調教 30点｜調教の仮ランク 7\/7頭/);
+ assert.match(matrix,/近走 3点｜近走の仮ランク 7\/7頭/);
+ assert.match(matrix,/コース・距離 17点｜1\/1R/);
+ assert.match(matrix,/展開・脚質 17点｜過去4角位置の記録 0\/7頭/);
+ assert.match(matrix,/馬場 12点｜1\/1R/);
+ assert.match(matrix,/血統 6点｜父・母父の記録 1\/7頭/);
+ assert.match(matrix,/枠・斤量 3点｜枠・斤量の記録 7\/7頭/);
+ assert.match(matrix,/騎手・厩舎 10点｜騎手・厩舎名の記録 0\/7頭/);
+ assert.match(matrix,/ローテ 1点｜前走間隔の記録 7\/7頭/);
+ assert.match(matrix,/馬体重 1点｜当日馬体重の実測値・前走比は未検証/);
+ assert.match(matrix,/JRA公式の出走馬・取消・馬場・発走時刻は未照合/);
+ assert.match(matrix,/追加JRDB照会0回/);
+ assert.doesNotMatch(matrix,/PRIVATE-|racekey|test-original|[a-f0-9]{64}/);
  const evidenceGaps=evidenceView.get('autoEvidenceGapReport').textContent;
  assert.match(evidenceGaps,/発走前の下書き：1R／馬別資料の照合：7頭/);
  assert.match(evidenceGaps,/展開17点の参考：過去4角 0\/7頭/);
@@ -1851,6 +1867,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(zeroAcceptance,/JRDB番組：0R/);
  assert.match(firstEmptyLoad.get('autoEvidenceGapReport').textContent,
   /番組0R：資料を集計できません/);
+ const emptyMatrix=firstEmptyLoad.get('autoTenEvidenceMatrix').textContent;
+ assert.match(emptyMatrix,/番組0R：未集計。開催なしとは判定しません/);
+ assert.doesNotMatch(emptyMatrix,/仮ランク 0\/0頭|記録 0\/0頭/);
+ assert.match(emptyMatrix,/追加JRDB照会0回/);
  assert.match(zeroAcceptance,/今回のJRDB主要ソース照会：1回（番組のみ）/);
  assert.match(zeroAcceptance,/番組0Rは配信前・取得不備・開催なしを区別できません/);
  assert.match(zeroAcceptance,/研究用3連単下書き：0R／見送り：0R/);
