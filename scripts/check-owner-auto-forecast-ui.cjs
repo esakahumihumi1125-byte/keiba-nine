@@ -1534,14 +1534,14 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /その他のレースは通常10時すぎ/);
  assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
   /自動照合していません（0R）/);
- // Regular Sunday cards also publish on Friday, NOT the preceding Saturday.
+ // Ordinary Sunday cards publish on the preceding Saturday; G1 is an exception.
  const usualSunday=boot({manualWeekday:false,
   initialClock:'2099-01-01T00:00:00Z'});
  usualSunday.get('autoDay').value='2099-01-04';
  usualSunday.advanceClock('2099-01-01T08:00:00Z'); // Thu 17:00 JST.
  usualSunday.get('autoDay').onchange();
  assert.match(usualSunday.get('autoJraReleaseGuide').textContent,
-  /2099-01-02 10時すぎが通常目安/);
+  /2099-01-03 10時すぎが通常目安/);
  assert.equal(g1NoNetwork.requests.length,g1Before,
   'official release guide must never fetch JRDB or claim verified JRA');
  assert.match(fs.readFileSync('scripts/owner_auto_forecast_ui.py','utf8'),
@@ -1550,6 +1550,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  g1NoNetwork.get('autoDay').onchange();
  assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
   /9時すぎの発表目安は経過（掲載・取消の確認は別）/);
+ assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
+  /馬番付きは 2026-11-14 10時すぎが通常目安/);
  const regularSaturday=boot({manualWeekday:false,
   initialClock:'2026-11-12T04:50:00Z'});
  regularSaturday.get('autoDay').value='2026-11-14';
