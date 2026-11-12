@@ -1968,6 +1968,18 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(firstEmptyLoad.requests.length,1);
  assert.equal(firstEmptyLoad.requests[0].url,
   '/api/jrdb/owner-auto-draft?date=20990103');
+ assert.match(firstEmptyLoad.get('autoSnapshotAge').textContent,
+  /番組0R・配信状況未確認.*開催なしと断定できません/);
+ const initialEmptyCalls=firstEmptyLoad.requests.length;
+ const initialEmptyStore=firstEmptyLoad.storage.get(STORAGE);
+ firstEmptyLoad.advanceClock('2099-01-02T15:16:00Z');
+ firstEmptyLoad.resume();
+ assert.match(firstEmptyLoad.get('autoSnapshotAge').textContent,
+  /番組0R・受信15分以上.*約16分前/);
+ assert.equal(firstEmptyLoad.requests.length,initialEmptyCalls,
+  'zero-programme age check must make no second paid provider request');
+ assert.equal(firstEmptyLoad.storage.get(STORAGE),initialEmptyStore,
+  'zero-programme check must never modify earlier frozen tickets');
  const marker=JSON.parse(firstEmptyLoad.storage.get(emptyKey));
  assert.deepEqual(Object.keys(marker).sort(),['at','day']);
  assert.equal(marker.day,'20990103');
