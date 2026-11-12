@@ -1417,6 +1417,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    "__recordTimer('next',{next,now,future:Number.isFinite(next),races:data.races.map(r=>({status:r.status,postTime:r.postTime,expired:draftExpiredOnDevice(day,r.postTime)}))}); if(!Number.isFinite(next))return;")
   .replace('automaticOffTimer=setTimeout(()=>{',
    "__recordTimer('schedule',delay); automaticOffTimer=setTimeout(()=>{")
+  .replace('if(generation!==automaticOffGeneration||',
+   "__recordTimer('callback',{generation,currentGeneration:automaticOffGeneration,identity:latestDisplayedReport===data,dayMatch:latestDisplayedDay===day,input:$('autoDay').value.replaceAll('-'),day,clock:new Date().toISOString()}); if(generation!==automaticOffGeneration||")
   :js;
  vm.runInNewContext(simulatedJs,context);
  if(!initialClock)get('autoDay').value=date;
@@ -1837,7 +1839,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    .filter(x=>x.className==='formation').length
  }));
  assert.equal(autoExpiry.get('autoRaces').children[0].children[0].children
-   .filter(x=>x.className==='formation').length,0);
+   .filter(x=>x.className==='formation').length,0,JSON.stringify({
+    trace:autoExpiry.timerTrace(),
+    status:autoExpiry.get('autoStatus').textContent
+   }));
  assert.match(autoExpiry.get('autoMorningStatus').textContent,
    /発走前の研究用3連単下書き 0R/);
  assert.match(autoExpiry.get('autoStatus').textContent,/自動で非表示/);
