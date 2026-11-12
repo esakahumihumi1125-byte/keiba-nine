@@ -4059,7 +4059,7 @@ function updateJraReleaseGuide(){
   $('autoJraReleaseGuide').textContent='平日・変則開催は土日の通常発表時刻を適用しません。JRA公式で確認（照合0R）。';return;
  }
  const prev=n=>new Date(selected.valueOf()-n*86400000).toISOString().slice(0,10);
- const thursday=prev(weekday===6?2:3),prior=prev(weekday===6?1:2);
+ const thursday=prev(weekday===6?2:3),prior=prev(1);
  // 15 minutes is a UI buffer, not proof that the JRA has published.
  const unnamed=new Date(thursday+'T16:15:00+09:00').valueOf();
  const numbered=new Date(prior+'T10:15:00+09:00').valueOf();
@@ -4072,9 +4072,10 @@ function updateJraReleaseGuide(){
  // Nov 15. The class-(2) G1 card has an earlier Friday 9am release
  // target than regular cards. Do not apply that timing to all races.
  const earlyG1=date==='2026-11-15'?'エリザベス女王杯（GⅠ）':null;
- const earlyNumbered=new Date(prior+'T09:15:00+09:00').valueOf();
+ const earlyPrior=prev(2); // Nov 15 G1 (Friday 9am), not regular Sunday races.
+ const earlyNumbered=new Date(earlyPrior+'T09:15:00+09:00').valueOf();
  const g1Note=earlyG1?(now.valueOf()<earlyNumbered?
-  '。'+earlyG1+'の馬番付き出馬表は '+prior+
+  '。'+earlyG1+'の馬番付き出馬表は '+earlyPrior+
    ' 9時すぎが発表目安（その他のレースは通常10時すぎ）':
   '。'+earlyG1+'の9時すぎの発表目安は経過（掲載・取消の確認は別）'):'';
  $('autoJraReleaseGuide').textContent=stage+g1Note+
