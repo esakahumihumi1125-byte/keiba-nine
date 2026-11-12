@@ -1553,6 +1553,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const regularSaturday=boot({manualWeekday:false,
   initialClock:'2026-11-12T04:50:00Z'});
  regularSaturday.get('autoDay').value='2026-11-14';
+ regularSaturday.advanceClock('2026-11-12T08:00:00Z'); // Thu 17:00 JST.
  regularSaturday.get('autoDay').onchange();
  assert.doesNotMatch(regularSaturday.get('autoJraReleaseGuide').textContent,
   /エリザベス女王杯/);
