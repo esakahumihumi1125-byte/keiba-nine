@@ -1538,6 +1538,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const usualSunday=boot({manualWeekday:false,
   initialClock:'2099-01-01T00:00:00Z'});
  usualSunday.get('autoDay').value='2099-01-04';
+ usualSunday.advanceClock('2099-01-01T08:00:00Z'); // Thu 17:00 JST.
  usualSunday.get('autoDay').onchange();
  assert.match(usualSunday.get('autoJraReleaseGuide').textContent,
   /2099-01-02 10時すぎが通常目安/);
