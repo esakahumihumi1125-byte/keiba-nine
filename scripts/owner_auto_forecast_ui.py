@@ -57,6 +57,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>2. 今日の予想状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
+<p id="autoSnapshotAge" class="muted" role="status">JRDB受信時刻：未取得。以前の固定履歴とは別です。</p>
 <details id="autoAcceptancePanel"><summary>土日の動作チェック（追加のJRDB照会なし）</summary>
 <p class="muted">この画面で取得済みのデータと、このiPhoneの保存済み研究記録の件数だけを確認します。馬番・馬名・オッズ・認証キー・署名・買い目そのものは表示しません。</p>
 <button id="autoAcceptanceCheck" type="button">選択日の取得・保存状況を確認</button>
@@ -1128,6 +1129,26 @@ $('autoAcceptanceCheck').onclick=()=>{
  const day=$('autoDay').value.replaceAll('-','');
  $('autoAcceptanceReport').textContent=dayAcceptanceReport(day);
 };
+// A successful HTTP response is not proof that the provider has current
+// roster or cancellations. This is solely the iPhone receive clock for the
+// currently displayed, validated same-day response, never a JRA timestamp.
+function showSnapshotFreshness(){
+ const day=$('autoDay').value.replaceAll('-','');
+ if(!latestReadAtMs||!latestDisplayedReport||latestDisplayedDay!==day){
+  $('autoSnapshotAge').textContent='JRDB受信時刻：未取得（この画面の新しい資料なし）。固定履歴とは別です。';
+  return;
+ }
+ const elapsed=Math.max(0,new Date().valueOf()-latestReadAtMs);
+ const minutes=Math.floor(elapsed/60000),old=elapsed>=15*60000;
+ const jst=new Date(latestReadAtMs).toLocaleTimeString('ja-JP',{
+  timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit'
+ });
+ $('autoSnapshotAge').textContent=
+  (old?'【受信から15分以上・再確認推奨】':'【受信時刻の目安】')+
+  'このiPhoneがJRDB応答を '+jst+' に受信（約'+minutes+'分前）。'+
+  (old?'新しい取消・馬場・発走時刻を反映した保証はありません。':'これは提供元の最終更新時刻ではありません。')+
+  'JRA公式の独立照合は未実施。再取得は「全場・全Rを再分析する」を明示的に押した場合だけ。';
+}
 function sourceReadProof(data){
  // This reports *provider reads*, not actual verified runner records,
  // official JRA information, calibrated grades or purchase readiness.
@@ -1838,7 +1859,7 @@ const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
 let request=0,followingToday=true,preflightSeq=0,
- latestDisplayedDay='',latestDisplayedReport=null,
+ latestDisplayedDay='',latestDisplayedReport=null,latestReadAtMs=0,
  latestExpiredDraftCount=0,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
  r6VerifySeq=0,staffArchiveVerifySeq=0,
@@ -4115,6 +4136,7 @@ $('autoDay').onchange=()=>{
  // Preserve an explicitly selected day across subsequent app resumes.
  followingToday=false;
  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
+ latestReadAtMs=0;showSnapshotFreshness();
  clearDraftShortcut();
  // Invalidate the old response and unlock the button. A slow old request
  // must not leave the new day permanently disabled on iPhone.
@@ -4197,6 +4219,7 @@ async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
    latestExpiredDraftCount=latestDisplayedReport.races.filter(r=>
     r.status==='provisional_draft'&&draftExpiredOnDevice(selectedDay,r.postTime)).length;
    render(latestDisplayedReport,selectedDay);
+   showSnapshotFreshness();
    $('autoStatus').textContent='【'+label+'データ取得済み】この画面の取得済み研究結果を再表示しました。'+
     '追加のJRDB照会は0回。新しい資料を取得する場合は「全場・全Rを再分析する」を押してください。';
   }catch(_){
@@ -4424,6 +4447,7 @@ $('autoRun').onclick=async()=>{
  if(button.disabled)return;
  const seq=++request,day=$('autoDay').value.replaceAll('-','');
  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
+ latestReadAtMs=0;showSnapshotFreshness();
  clearDraftShortcut();
  if(!/^20[0-9]{6}$/.test(day)){
   $('autoStatus').textContent='開催日を選択してください。';return;
@@ -4491,6 +4515,7 @@ $('autoRun').onclick=async()=>{
   else clearWeekendEmptyRead();
   recordWeekendFixedRead(day,body);
   latestDisplayedReport=body;latestDisplayedDay=day;
+  latestReadAtMs=new Date().valueOf();showSnapshotFreshness();
   latestExpiredDraftCount=body.races.filter(x=>
    x.status==='provisional_draft'&&draftExpiredOnDevice(day,x.postTime)).length;
   armAutomaticOffTimer(body,day);
@@ -4549,6 +4574,7 @@ $('autoRun').onclick=async()=>{
   }
  }catch(error){if(seq===request){
   latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
+ latestReadAtMs=0;showSnapshotFreshness();
  clearDraftShortcut();
   const storageFailure=error?.message==='receipt_storage_failed';
   const gatewayFailure=error?.message==='render_gateway_nonjson';
@@ -6189,7 +6215,9 @@ updateReviewLink();
 // automatically selects the NEW JST calendar day and triggers once.
 // Never poll in background. Never override a user-selected historical date.
 function resumeOwnerDay(){
- if(document.visibilityState==='hidden'||!followingToday)return;
+ if(document.visibilityState==='hidden')return;
+ showSnapshotFreshness();
+ if(!followingToday)return;
  const today=jstToday();
  if(today===$('autoDay').value){
   const day=today.replaceAll('-','');
@@ -6206,6 +6234,7 @@ function resumeOwnerDay(){
   return;
  }
  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
+ latestReadAtMs=0;showSnapshotFreshness();
  clearDraftShortcut();
  ++preflightSeq;
  $('autoPreflight').disabled=false;
