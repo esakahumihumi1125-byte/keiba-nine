@@ -66,6 +66,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <nav class="quick-links" aria-label="画面内の移動">
 <a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
 <a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
+<p class="owner-official-shortcut"><a id="autoOfficialQuickLink" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式出馬表を開いて出走・取消・発走時刻を確認</a> <span class="muted">（手動確認・自動照合0R）</span></p>
 <details><summary>取得・資料の詳しい状態</summary>
 <p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
 <p id="autoReadProof" class="muted" role="status">JRDB資料の照会状況は未確認です。番組0Rと全資料取得は別です。</p>
