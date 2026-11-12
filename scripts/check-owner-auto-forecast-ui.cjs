@@ -1529,15 +1529,22 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  g1NoNetwork.get('autoDay').value='2026-11-15';
  g1NoNetwork.get('autoDay').onchange();
  assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
-  /エリザベス女王杯（GⅠ）.*2026-11-14 9時すぎが発表目安/);
+  /エリザベス女王杯（GⅠ）.*2026-11-13 9時すぎが発表目安/);
  assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
   /その他のレースは通常10時すぎ/);
  assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
   /自動照合していません（0R）/);
+ // Regular Sunday cards also publish on Friday, NOT the preceding Saturday.
+ const usualSunday=boot({manualWeekday:false,
+  initialClock:'2099-01-01T00:00:00Z'});
+ usualSunday.get('autoDay').value='2099-01-04';
+ usualSunday.get('autoDay').onchange();
+ assert.match(usualSunday.get('autoJraReleaseGuide').textContent,
+  /2099-01-02 10時すぎが通常目安/);
  assert.equal(g1NoNetwork.requests.length,g1Before,
   'official release guide must never fetch JRDB or claim verified JRA');
- const g1WebLink=g1NoNetwork.get('autoOfficialWebCard');
- assert.equal(g1WebLink.getAttribute('href'),'https://www.jra.go.jp/keiba/');
+ assert.match(fs.readFileSync('scripts/owner_auto_forecast_ui.py','utf8'),
+  /id="autoOfficialWebCard" href="https:\/\/www\.jra\.go\.jp\/keiba\/"/);
  g1NoNetwork.advanceClock('2026-11-13T00:16:00Z');
  g1NoNetwork.get('autoDay').onchange();
  assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,

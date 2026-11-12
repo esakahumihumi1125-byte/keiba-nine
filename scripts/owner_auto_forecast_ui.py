@@ -4059,7 +4059,7 @@ function updateJraReleaseGuide(){
   $('autoJraReleaseGuide').textContent='平日・変則開催は土日の通常発表時刻を適用しません。JRA公式で確認（照合0R）。';return;
  }
  const prev=n=>new Date(selected.valueOf()-n*86400000).toISOString().slice(0,10);
- const thursday=prev(weekday===6?2:3),prior=prev(1);
+ const thursday=prev(weekday===6?2:3),prior=prev(weekday===6?1:2);
  // 15 minutes is a UI buffer, not proof that the JRA has published.
  const unnamed=new Date(thursday+'T16:15:00+09:00').valueOf();
  const numbered=new Date(prior+'T10:15:00+09:00').valueOf();
