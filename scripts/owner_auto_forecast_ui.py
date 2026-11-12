@@ -196,10 +196,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 </section>
 
 <section><h2>10項目の配点と評価状況</h2>
-<details id="autoRequestedWeightReview"><summary>最新希望配点（105点）を100点換算で確認</summary>
-<p class="muted">指定の10項目は合計105点（調教30・近走3・コース距離17・展開脚質17・馬場15・血統6・枠斤量5・騎手厩舎10・ローテ1・馬体重1）。100点満点に見せかけず、比率を変えずに100÷105を掛ける正規化の試算式を追加しました。</p>
-<p class="muted">現行research-6の100点配点（馬場12・枠斤量3）は既存履歴との整合性を守るため変更していません。この105→100換算は<strong>正式採点には未反映</strong>で、現時点では調教・近走も研究用の暫定評価です。10項目の独立した根拠とJRA公式照合が揃うまで、正式予想・買い目には使いません。</p>
-</details>
+<p class="muted" id="autoPolicy100Notice">ARC RACEの評価配点は<strong>10項目・合計100点</strong>です。下に表示する内訳は現行research-6の100点方式です。調教・近走はまだ研究用の仮評価、残り8項目とJRA公式照合は未完成のため、正式な総合得点や買い目には反映しません。過去の署名済み記録・研究用の下書きは変更しません。</p>
 
 <p id="autoTenStatus" class="muted" role="status">予想資料の取得後に表示します。</p>
 <div id="autoTenWeights" class="ten-weights"></div>
