@@ -2379,10 +2379,12 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.ok(remainingPanel);
  assert.match(remainingPanel.children[1].textContent,/総合点・馬券は未確定/);
  assert.match(remainingPanel.children[2].textContent,
-  /1番｜血統 資料あり.*資料カバー配点相当 14\/15（実得点ではない）.*不足 当日馬体重/);
- assert.match(remainingPanel.children.at(-1).textContent,/資料カバーは最大14\/15/);
+  /1番｜血統 資料あり.*資料カバー配点相当 20\/21（実得点ではない）.*不足 当日馬体重/);
+ assert.match(remainingPanel.children.at(-1).textContent,/資料カバーは最大20\/21/);
  assert.match(remainingPanel.children.at(-1).textContent,
   /能力点・予想スコア・S\/A\/B\/Cではありません/);
+ assert.match(remainingPanel.children.at(-1).textContent,/正式100点の残り21点/);
+ assert.doesNotMatch(remainingPanel.children[2].textContent,/14\/15/);
 
  // Parentage completeness is not a validated eight-weight performance grade.
  const pedigreeBefore=a.requests.length;

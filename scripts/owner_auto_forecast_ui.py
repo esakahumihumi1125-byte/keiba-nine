@@ -5643,8 +5643,8 @@ $('autoHistoryAudit').onclick=async()=>{
     const s=details.threeFactorSourceGaps,p=dom('details'),
      labels={course_distance:'コース・距離',pace:'展開・脚質',ground:'馬場'};
     p.append(dom('summary','コース17・展開17・馬場12：採点前の資料不足を確認'));
-    p.append(dom('p','46点分の過去資料を照合。ただし資料があるだけでは'+
-     '能力点にはなりません。JRA公式照合、発走前時刻の確認、'+
+    p.append(dom('p','46点分の過去資料を照合。馬番別に資料の充足を配点相当で表示しますが、'+
+     'これは能力点・予想順位・1着候補ではありません。JRA公式照合、発走前時刻の確認、'+
      '時系列の未使用期間テスト、採点基準の校正が未完成です。','muted'));
     p.append(dom('p','3項目の資料がそろった馬 '+
      s.observed.allThreeSourcesObserved+'/'+s.runnerCount+
@@ -5666,11 +5666,24 @@ $('autoHistoryAudit').onclick=async()=>{
     for(const h0 of s.runners){
      const missing=h0.missingSourceFactors.length?
       h0.missingSourceFactors.map(k=>labels[k]).join('・'):'対象資料は確認済み';
+     const factorWeights={course_distance:17,pace:17,ground:12};
+     const sourceCovered=Object.keys(labels).reduce((sum,key)=>
+      sum+(h0.sourcePresent[key]?factorWeights[key]:0),0);
+     const sampleCovered=Object.keys(labels).reduce((sum,key)=>
+      sum+(h0.minimumStudySamples[key]?factorWeights[key]:0),0);
+     const priorityMissing=Object.keys(labels)
+      .filter(key=>!h0.minimumStudySamples[key])
+      .sort((a,b)=>factorWeights[b]-factorWeights[a])
+      .map(key=>labels[key]+factorWeights[key]+'点');
      p.append(dom('p',h0.number+'番｜コース・距離 '+
       (h0.sourcePresent.course_distance?'資料あり':'不足')+
       '／展開・脚質 '+(h0.sourcePresent.pace?'資料あり':'不足')+
       '／馬場 '+(h0.sourcePresent.ground?'資料あり':'不足')+
       '｜不足：'+missing+
+      '｜資料確認の配点相当 '+sourceCovered+'/46（能力点ではない）'+
+      '｜研究用最低サンプル確認相当 '+sampleCovered+'/46（採点ではない）'+
+      '｜次に確認：'+(priorityMissing.length?
+       priorityMissing.join('・'):'最低資料件数は確認済み（正式採点は未評価）')+
       '｜最低サンプル '+(h0.allThreeStudySamplesMet?'3項目達成':'未充足')+
       '｜追加確認：'+(h0.sampleGaps.length?
         h0.sampleGaps.map(k=>reasons[k]).join('・'):'比較件数は確認済み')+
@@ -5770,7 +5783,7 @@ $('autoHistoryAudit').onclick=async()=>{
      race_day_bodyweight_unavailable:'当日馬体重未取得'
     };
     const remainingWeights={
-     pedigree:8,draw_weight:3,jockey_stable:2,rotation:1,body_condition:1
+     pedigree:6,draw_weight:3,jockey_stable:10,rotation:1,body_condition:1
     };
     const shortNames={
      pedigree:'血統',draw_weight:'枠斤量',jockey_stable:'騎手厩舎',
@@ -5790,19 +5803,19 @@ $('autoHistoryAudit').onclick=async()=>{
       '／騎手厩舎 '+names[v.jockey_stable]+
       '／ローテ '+names[v.rotation]+
       '／馬体重 '+names[v.body_condition]+
-      '｜資料カバー配点相当 '+coveredWeight+'/15（実得点ではない）'+
+      '｜資料カバー配点相当 '+coveredWeight+'/21（実得点ではない）'+
       '｜不足 '+missing.map(k=>shortNames[k]).join('・')+
       '（正式採点0/10）','muted'));
     }
-    ten.append(dom('p','残り15点の資料準備：前日4分野の資料が全部そろう馬 '+
+    ten.append(dom('p','正式100点の残り21点の資料準備：前日4分野の資料が全部そろう馬 '+
      fourSourceReady+'/'+details.tenInventory.runnerCount+
-     '頭。当日馬体重は未取得なので資料カバーは最大14/15。'+
+     '頭。当日馬体重は未取得なので資料カバーは最大20/21。'+
      '資料カバー配点は能力点・予想スコア・S/A/B/Cではありません。','muted'));
     card.append(ten);
    }
    if(details.rosterVerified&&details.pedigreePreflight){
     const p=details.pedigreePreflight,panel=dom('details');
-    panel.append(dom('summary','血統8点の採点準備を見る（正式未評価）'));
+    panel.append(dom('summary','血統の資料確認（旧方式8点／現行100点配分は6点）'));
     panel.append(dom('p','父・母父が分かるだけではコース・距離・馬場適性は判定できません。血統別の独立した過去実績と未来情報を除いた期間検証が必要です。今は血統S/A/B/Cも8点の実得点も付けません。','muted'));
     panel.append(dom('p','父・母父の資料が両方ある馬 '+
      p.parentageCompleteCount+'/'+p.runnerCount+
@@ -5812,14 +5825,14 @@ $('autoHistoryAudit').onclick=async()=>{
       horse.parentageSourceState==='partial_fields_observed'?'一部不足':'両方不足';
      panel.append(dom('p',horse.number+'番｜父・母父 '+state+
       '／同条件の血統実績 未接続／時系列検証 未実施'+
-      '／血統8点 未評価（予想には反映しません）','muted'));
+      '／血統6点 未評価（予想には反映しません）','muted'));
     }
     card.append(panel);
    }
    if(details.rosterVerified&&details.supportSixPreflight){
     const p=details.supportSixPreflight,panel=dom('details');
-    panel.append(dom('summary','枠斤量・騎手厩舎・ローテ6点の採点準備（正式未評価）'));
-    panel.append(dom('p','枠斤量3・騎手厩舎2・ローテ1。今は資料があるかだけを確認。同条件の有利不利や成績差・休み明け適性の検証は未完成で、資料が全部あっても実得点は0点ではなく未評価です。','muted'));
+    panel.append(dom('summary','枠斤量・騎手厩舎・ローテの資料（旧6点／現行14点）'));
+    panel.append(dom('p','現行100点配分は枠斤量3・騎手厩舎10・ローテ1。旧方式の研究資料を使い、今は資料があるかだけを確認。同条件の有利不利や成績差・休み明け適性の検証は未完成で、資料が全部あっても実得点は0点ではなく未評価です。','muted'));
     panel.append(dom('p','3項目とも資料がそろう馬 '+
      p.allThreeFieldCompleteCount+'/'+p.runnerCount+
      '頭。能力評価を検証できた馬 0/'+p.runnerCount+'頭。','muted'));
