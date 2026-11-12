@@ -1522,6 +1522,34 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  guide.get('autoDay').value='2099-01-03'; // Saturday, fake now: Jan 1 (Thu morning JST).
  guide.get('autoDay').onchange();
  assert.match(guide.get('autoJraReleaseGuide').textContent,/2099-01-01 16時すぎ/);
+ // JRA official FAQ: Friday 9am for the 2026 Nov 15 G1, not all races.
+ const g1NoNetwork=boot({manualWeekday:false,
+  initialClock:'2026-11-12T04:50:00Z'});
+ const g1Before=g1NoNetwork.requests.length;
+ g1NoNetwork.get('autoDay').value='2026-11-15';
+ g1NoNetwork.get('autoDay').onchange();
+ assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
+  /エリザベス女王杯（GⅠ）.*2026-11-14 9時すぎが発表目安/);
+ assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
+  /その他のレースは通常10時すぎ/);
+ assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
+  /自動照合していません（0R）/);
+ assert.equal(g1NoNetwork.requests.length,g1Before,
+  'official release guide must never fetch JRDB or claim verified JRA');
+ const g1WebLink=g1NoNetwork.get('autoOfficialWebCard');
+ assert.equal(g1WebLink.getAttribute('href'),'https://www.jra.go.jp/keiba/');
+ g1NoNetwork.advanceClock('2026-11-13T00:16:00Z');
+ g1NoNetwork.get('autoDay').onchange();
+ assert.match(g1NoNetwork.get('autoJraReleaseGuide').textContent,
+  /9時すぎの発表目安は経過（掲載・取消の確認は別）/);
+ const regularSaturday=boot({manualWeekday:false,
+  initialClock:'2026-11-12T04:50:00Z'});
+ regularSaturday.get('autoDay').value='2026-11-14';
+ regularSaturday.get('autoDay').onchange();
+ assert.doesNotMatch(regularSaturday.get('autoJraReleaseGuide').textContent,
+  /エリザベス女王杯/);
+ assert.match(regularSaturday.get('autoJraReleaseGuide').textContent,
+  /2026-11-13 10時すぎが通常目安/);
  assert.match(guide.get('autoJraCrosscheck').textContent,/JRDBの開催場 0場/);
  assert.equal(guide.requests.length,guideRequests);
  guide.advanceClock('2099-01-02T06:00:00Z');

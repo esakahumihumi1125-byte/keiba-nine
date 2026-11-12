@@ -75,6 +75,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">本人が押した時だけJRA公式ページから開催場別の出馬表PDFリンクを探します。PDFの内容は自動解析しません。出走馬・取消・馬場・発走時刻を公式情報と自分で照合するための補助です。</p>
 <button id="autoOfficialPdf" type="button">選択日のJRA公式PDFリンクを探す</button>
 <p id="autoJraReleaseGuide" class="muted" role="status">選択日の出馬表公開目安を計算中。</p>
+<a id="autoOfficialWebCard" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式のWeb出馬表で馬番・出走馬を確認する</a>
+<p class="muted">Web出馬表はPDF一覧と公開時期が異なります。正式10項目予想に必要な出走馬・取消・馬場・発走時刻の自動照合は未接続。公式ページを開くだけで照合済みとはしません。</p>
 <p id="autoJraCrosscheck" class="muted" role="status">JRA公式照合：0R（未実施）。</p>
 <p id="autoOfficialPdfStatus" class="muted" role="status">未確認。PDFリンクの存在だけではJRA公式照合済みとは扱いません。</p>
 <div id="autoOfficialPdfLinks"></div>
@@ -4066,8 +4068,18 @@ function updateJraReleaseGuide(){
   now.valueOf()<numbered?
    '馬番なし出馬表の通常目安は経過。馬番付きは '+prior+' 10時すぎが通常目安':
    '馬番付き出馬表の通常公開目安は経過（実際の掲載は未確認）';
- $('autoJraReleaseGuide').textContent=stage+
-  '。GⅠ・一部重賞・変則開催は別時刻。公式の馬番・取消・馬場・発走時刻は未照合（0R）。';
+ // JRA's published 2026 schedule lists the Queen Elizabeth II Cup on
+ // Nov 15. The class-(2) G1 card has an earlier Friday 9am release
+ // target than regular cards. Do not apply that timing to all races.
+ const earlyG1=date==='2026-11-15'?'エリザベス女王杯（GⅠ）':null;
+ const earlyNumbered=new Date(prior+'T09:15:00+09:00').valueOf();
+ const g1Note=earlyG1?(now.valueOf()<earlyNumbered?
+  '。'+earlyG1+'の馬番付き出馬表は '+prior+
+   ' 9時すぎが発表目安（その他のレースは通常10時すぎ）':
+  '。'+earlyG1+'の9時すぎの発表目安は経過（掲載・取消の確認は別）'):'';
+ $('autoJraReleaseGuide').textContent=stage+g1Note+
+  '。GⅠ・一部重賞・変則開催は別時刻。公開目安は掲載保証ではありません。'+
+  'JRA公式の馬番・取消・馬場・発走時刻は自動照合していません（0R）。';
 }
 function updateJraCrosscheck(){
  const tracks=[...jraDraftTracks].sort(),linked=[...jraPdfTracks].sort();
