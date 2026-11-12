@@ -76,6 +76,10 @@ class FinalPrestartReceiptIdentityTests(unittest.TestCase):
                 "snapshot"].__setitem__("race", 3),
             "other_day_receipt": lambda x: x["researchReceipts"][1][
                 "snapshot"].__setitem__("date", "2099-01-02"),
+            "unhashable_track": lambda x: x["researchReceipts"][1][
+                "snapshot"].__setitem__("track", ["東京"]),
+            "wrong_type_race": lambda x: x["researchReceipts"][1][
+                "snapshot"].__setitem__("race", {"id": 2}),
             "wrong_off": lambda x: x["researchReceipts"][1][
                 "snapshot"].__setitem__("scheduledOffAt", "2099-01-01T11:01:00+09:00"),
             "wrong_ticket": lambda x: x["researchReceipts"][1][
