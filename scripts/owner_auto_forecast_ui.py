@@ -5816,7 +5816,7 @@ $('autoHistoryAudit').onclick=async()=>{
    if(details.rosterVerified&&details.pedigreePreflight){
     const p=details.pedigreePreflight,panel=dom('details');
     panel.append(dom('summary','血統の資料確認（旧方式8点／現行100点配分は6点）'));
-    panel.append(dom('p','父・母父が分かるだけではコース・距離・馬場適性は判定できません。血統別の独立した過去実績と未来情報を除いた期間検証が必要です。今は血統S/A/B/Cも8点の実得点も付けません。','muted'));
+    panel.append(dom('p','父・母父が分かるだけではコース・距離・馬場適性は判定できません。血統別の独立した過去実績と未来情報を除いた期間検証が必要です。今は血統S/A/B/Cも現行6点の実得点も付けません。','muted'));
     panel.append(dom('p','父・母父の資料が両方ある馬 '+
      p.parentageCompleteCount+'/'+p.runnerCount+
      '頭。血統の能力評価まで確認できた馬 0/'+p.runnerCount+'頭。','muted'));
@@ -5846,11 +5846,16 @@ $('autoHistoryAudit').onclick=async()=>{
      unknown:'間隔不明'
     };
     for(const h of p.horses){
+     const currentWeights={draw_weight:3,jockey_stable:10,rotation:1};
+     const currentCovered=Object.keys(currentWeights).reduce((sum,key)=>sum+
+      ((key==='rotation'?h.sourceStates[key]!=='unknown':
+       h.sourceStates[key]==='complete_fields_observed')?
+       currentWeights[key]:0),0);
      panel.append(dom('p',h.number+'番｜枠斤量 '+explain[h.sourceStates.draw_weight]+
       '／騎手厩舎 '+explain[h.sourceStates.jockey_stable]+
       '／ローテ '+explain[h.sourceStates.rotation]+
-      '｜資料カバー配点相当 '+h.fieldPresenceWeight+'/6（実得点ではない）'+
-      '｜正式6点 未評価（3項目とも能力判定なし）','muted'));
+      '｜現行配点の資料カバー相当 '+currentCovered+'/14（実得点ではない）'+
+      '｜正式14点 未評価（3項目とも能力判定なし）','muted'));
     }
     card.append(panel);
    }

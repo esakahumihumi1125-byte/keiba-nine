@@ -2391,12 +2391,12 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  a.setHistorical(withPedigreePreflight(historical()));
  await a.get('autoHistoryAudit').onclick();
  const pedigreePanel=a.get('autoHistoryAuditRaces').children[0].children.find(
-  x=>x.tag==='details'&&/血統8点の採点準備/.test(
+  x=>x.tag==='details'&&/血統の資料確認（旧方式8点／現行100点配分は6点）/.test(
    x.children[0]?.textContent||''));
  assert.ok(pedigreePanel);
- assert.match(pedigreePanel.children[1].textContent,/血統S\/A\/B\/Cも8点の実得点も付けません/);
+ assert.match(pedigreePanel.children[1].textContent,/血統S\/A\/B\/Cも現行6点の実得点も付けません/);
  assert.match(pedigreePanel.children[2].textContent,/血統の能力評価まで確認できた馬 0\/7頭/);
- assert.match(pedigreePanel.children[3].textContent,/1番｜父・母父 両方あり.*血統8点 未評価/);
+ assert.match(pedigreePanel.children[3].textContent,/1番｜父・母父 両方あり.*血統6点 未評価/);
  assert.equal(a.requests.slice(pedigreeBefore).filter(
   r=>r.url==='/api/jrdb/history').length,1);
  assert.equal(a.storage.get(STORAGE),oldRecord);
@@ -2477,6 +2477,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(threeText,/正式/);
  assert.match(threeText,/資料/);
  assert.match(threeText,/最低3走/);
+ assert.match(threeText,/資料確認の配点相当 [0-9]+\/46（能力点ではない）/);
+ assert.match(threeText,/研究用最低サンプル確認相当 [0-9]+\/46（採点ではない）/);
+ assert.match(threeText,/次に確認：/);
+ assert.doesNotMatch(threeText,/正式46点：S|正式46点：A/);
  assert.equal(a.requests.filter(r=>r.url==='/api/jrdb/history').length,
   beforeThreeSource+1,'only the explicit existing history lookup');
  assert.equal(a.storage.get(STORAGE),oldBeforeThreeSource);
@@ -2764,13 +2768,13 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  a.setHistorical(withSupportSix(historical()));
  await a.get('autoHistoryAudit').onclick();
  const supportPanel=a.get('autoHistoryAuditRaces').children[0].children.find(
-  x=>x.tag==='details'&&/枠斤量・騎手厩舎・ローテ6点/.test(
+  x=>x.tag==='details'&&/枠斤量・騎手厩舎・ローテの資料（旧6点／現行14点）/.test(
    x.children[0]?.textContent||''));
  assert.ok(supportPanel);
  assert.match(supportPanel.children[1].textContent,/実得点は0点ではなく未評価/);
  assert.match(supportPanel.children[2].textContent,/能力評価を検証できた馬 0\/7頭/);
  assert.match(supportPanel.children[3].textContent,
-  /1番｜枠斤量 資料あり.*資料カバー配点相当 6\/6（実得点ではない）.*正式6点 未評価/);
+  /1番｜枠斤量 資料あり.*現行配点の資料カバー相当 14\/14（実得点ではない）.*正式14点 未評価/);
  assert.equal(a.requests.slice(beforeSix).filter(
   x=>x.url==='/api/jrdb/history').length,1);
  assert.equal(a.storage.get(STORAGE),oldRecord);
