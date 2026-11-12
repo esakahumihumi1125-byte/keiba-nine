@@ -1406,21 +1406,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  }
  const context={document,localStorage,fetch,Intl,URL,Date:FakeDate,JSON,Set,Map,Number,
   String,Array,Error,Promise,Object};
- const timerTrace=[];
  if(simulateTimers){context.setTimeout=fakeWindow.setTimeout;
-  context.clearTimeout=fakeWindow.clearTimeout;
-  context.__recordTimer=(stage,value)=>timerTrace.push([stage,value]);}
- const simulatedJs=simulateTimers?js
-  .replace('function armAutomaticOffTimer(data,day){',
-   "function armAutomaticOffTimer(data,day){ __recordTimer('entry',{timer:typeof setTimeout,identity:latestDisplayedReport===data,dayMatch:latestDisplayedDay===day,input:$('autoDay').value,normalizedInput:$('autoDay').value.replaceAll('-'),day,clock:new Date().toISOString(),clockMillis:new Date().getTime()});")
-  .replace('if(!Number.isFinite(next))return;',
-   "__recordTimer('next',{next,now,future:Number.isFinite(next),races:data.races.map(r=>({status:r.status,postTime:r.postTime,expired:draftExpiredOnDevice(day,r.postTime)}))}); if(!Number.isFinite(next))return;")
-  .replace('automaticOffTimer=setTimeout(()=>{',
-   "__recordTimer('schedule',delay); automaticOffTimer=setTimeout(()=>{")
-  .replace('if(generation!==automaticOffGeneration||',
-   "__recordTimer('callback',{generation,currentGeneration:automaticOffGeneration,identity:latestDisplayedReport===data,dayMatch:latestDisplayedDay===day,input:$('autoDay').value.replaceAll('-'),day,clock:new Date().toISOString()}); if(generation!==automaticOffGeneration||")
-  :js;
- vm.runInNewContext(simulatedJs,context);
+  context.clearTimeout=fakeWindow.clearTimeout;}
+ vm.runInNewContext(js,context);
  if(!initialClock)get('autoDay').value=date;
  // Most legacy scenarios intentionally press the manual weekday action.
  // A separate regression below verifies that page load alone uses no paid API.
@@ -1451,7 +1439,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()},
-  timerCount:()=>scheduled.size,timerTrace:()=>timerTrace,
+  timerCount:()=>scheduled.size,
   fireTimer:()=>{const item=scheduled.entries().next().value;if(!item)return false;
    scheduled.delete(item[0]);item[1].fn();return true}};
 }
@@ -1814,13 +1802,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  // The timer only updates the rendered DOM; signed history is immutable.
  const autoExpiry=boot({simulateTimers:true});
  await new Promise(r=>setImmediate(r));
- assert.equal(autoExpiry.timerCount(),1,JSON.stringify({
-  date:autoExpiry.get('autoDay').value,
-  status:autoExpiry.get('autoStatus').textContent,
-  cards:autoExpiry.get('autoRaces').children.length,
-  requests:autoExpiry.requests.map(x=>x.url),
-  timerCount:autoExpiry.timerCount(),timerTrace:autoExpiry.timerTrace()
- }));
+ assert.equal(autoExpiry.timerCount(),1);
  assert.equal(autoExpiry.get('autoRaces').children[0].children[0].children
    .filter(x=>x.className==='formation').length,1);
  const timerWrites=autoExpiry.storage.get(STORAGE);
@@ -1831,18 +1813,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    'scheduled expiry must not make a JRDB or other network request');
  assert.equal(autoExpiry.storage.get(STORAGE),timerWrites,
    'scheduled expiry must not change the first signed receipt');
- assert.equal(autoExpiry.timerCount(),0,JSON.stringify({
-  timerTrace:autoExpiry.timerTrace(),
-  status:autoExpiry.get('autoStatus').textContent,
-  morning:autoExpiry.get('autoMorningStatus').textContent,
-  displayed:autoExpiry.get('autoRaces').children[0].children[0].children
-   .filter(x=>x.className==='formation').length
- }));
+ assert.equal(autoExpiry.timerCount(),0);
  assert.equal(autoExpiry.get('autoRaces').children[0].children[0].children
-   .filter(x=>x.className==='formation').length,0,JSON.stringify({
-    trace:autoExpiry.timerTrace(),
-    status:autoExpiry.get('autoStatus').textContent
-   }));
+   .filter(x=>x.className==='formation').length,0);
  assert.match(autoExpiry.get('autoMorningStatus').textContent,
    /発走前の研究用3連単下書き 0R/);
  assert.match(autoExpiry.get('autoStatus').textContent,/自動で非表示/);

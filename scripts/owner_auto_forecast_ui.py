@@ -1300,7 +1300,9 @@ function armAutomaticOffTimer(data,day){
  // Timer is armed only after a validated, accepted response.
  // A later date change or response invalidation cancels this timer, and
  // the callback performs the full identity/date check again.
- if(typeof setTimeout!=='function')return;
+ if(typeof setTimeout!=='function'||
+    latestDisplayedReport!==data||latestDisplayedDay!==day||
+    $('autoDay').value.replaceAll('-','')!==day)return;
  const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
  const now=new Date().getTime();
  if(!Number.isFinite(now))return;
@@ -1318,7 +1320,7 @@ function armAutomaticOffTimer(data,day){
   automaticOffTimer=null;
   if(generation!==automaticOffGeneration||
      latestDisplayedReport!==data||latestDisplayedDay!==day||
-     $('autoDay').value.replaceAll('-')!==day)return;
+     $('autoDay').value.replaceAll('-','')!==day)return;
   const expired=data.races.filter(r=>r.status==='provisional_draft'&&
    draftExpiredOnDevice(day,r.postTime)).length;
   if(expired>latestExpiredDraftCount){
