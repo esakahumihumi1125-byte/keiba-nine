@@ -1406,7 +1406,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  }
  const context={document,localStorage,fetch,Intl,URL,Date:FakeDate,JSON,Set,Map,Number,
   String,Array,Error,Promise,Object};
- if(simulateTimers)context.window=fakeWindow;
+ if(simulateTimers){context.setTimeout=fakeWindow.setTimeout;
+  context.clearTimeout=fakeWindow.clearTimeout;}
  vm.runInNewContext(js,context);
  if(!initialClock)get('autoDay').value=date;
  // Most legacy scenarios intentionally press the manual weekday action.

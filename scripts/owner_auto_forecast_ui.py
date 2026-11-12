@@ -1291,14 +1291,13 @@ function clearDraftShortcut(){
 let automaticOffTimer=null,automaticOffGeneration=0;
 function clearAutomaticOffTimer(){
  automaticOffGeneration++;
- if(automaticOffTimer!==null&&typeof window!=='undefined'&&
-    typeof window.clearTimeout==='function')
-  window.clearTimeout(automaticOffTimer);
+ if(automaticOffTimer!==null&&typeof clearTimeout==='function')
+  clearTimeout(automaticOffTimer);
  automaticOffTimer=null;
 }
 function armAutomaticOffTimer(data,day){
  clearAutomaticOffTimer();
- if(typeof window==='undefined'||typeof window.setTimeout!=='function'||
+ if(typeof setTimeout!=='function'||
     latestDisplayedReport!==data||latestDisplayedDay!==day||
     $('autoDay').value.replaceAll('-')!==day)return;
  const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
@@ -1314,7 +1313,7 @@ function armAutomaticOffTimer(data,day){
  if(!Number.isFinite(next))return;
  const generation=automaticOffGeneration;
  const delay=Math.max(1000,Math.min(2147480000,next-now+100));
- automaticOffTimer=window.setTimeout(()=>{
+ automaticOffTimer=setTimeout(()=>{
   automaticOffTimer=null;
   if(generation!==automaticOffGeneration||
      latestDisplayedReport!==data||latestDisplayedDay!==day||
