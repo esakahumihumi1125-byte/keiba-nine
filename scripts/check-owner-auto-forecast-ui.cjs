@@ -1829,7 +1829,13 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    'scheduled expiry must not make a JRDB or other network request');
  assert.equal(autoExpiry.storage.get(STORAGE),timerWrites,
    'scheduled expiry must not change the first signed receipt');
- assert.equal(autoExpiry.timerCount(),0);
+ assert.equal(autoExpiry.timerCount(),0,JSON.stringify({
+  timerTrace:autoExpiry.timerTrace(),
+  status:autoExpiry.get('autoStatus').textContent,
+  morning:autoExpiry.get('autoMorningStatus').textContent,
+  displayed:autoExpiry.get('autoRaces').children[0].children[0].children
+   .filter(x=>x.className==='formation').length
+ }));
  assert.equal(autoExpiry.get('autoRaces').children[0].children[0].children
    .filter(x=>x.className==='formation').length,0);
  assert.match(autoExpiry.get('autoMorningStatus').textContent,
