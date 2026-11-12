@@ -1406,9 +1406,19 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  }
  const context={document,localStorage,fetch,Intl,URL,Date:FakeDate,JSON,Set,Map,Number,
   String,Array,Error,Promise,Object};
+ const timerTrace=[];
  if(simulateTimers){context.setTimeout=fakeWindow.setTimeout;
-  context.clearTimeout=fakeWindow.clearTimeout;}
- vm.runInNewContext(js,context);
+  context.clearTimeout=fakeWindow.clearTimeout;
+  context.__recordTimer=(stage,value)=>timerTrace.push([stage,value]);}
+ const simulatedJs=simulateTimers?js
+  .replace('function armAutomaticOffTimer(data,day){',
+   "function armAutomaticOffTimer(data,day){ __recordTimer('entry',{timer:typeof setTimeout,identity:latestDisplayedReport===data,dayMatch:latestDisplayedDay===day,input:$('autoDay').value,day,clock:new Date().toISOString()});")
+  .replace('if(!Number.isFinite(next))return;',
+   "__recordTimer('next',{next,now,future:Number.isFinite(next),races:data.races.map(r=>({status:r.status,postTime:r.postTime,expired:draftExpiredOnDevice(day,r.postTime)}))}); if(!Number.isFinite(next))return;")
+  .replace('automaticOffTimer=setTimeout(()=>{',
+   "__recordTimer('schedule',delay); automaticOffTimer=setTimeout(()=>{")
+  :js;
+ vm.runInNewContext(simulatedJs,context);
  if(!initialClock)get('autoDay').value=date;
  // Most legacy scenarios intentionally press the manual weekday action.
  // A separate regression below verifies that page load alone uses no paid API.
@@ -1439,7 +1449,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setProviderCorrupt:x=>providerCorrupt=x,
   waitNextFetch:promise=>{holdFetch=promise},
   advanceClock:iso=>{now=iso},resume:()=>{if(onVisibility)onVisibility()},
-  timerCount:()=>scheduled.size,
+  timerCount:()=>scheduled.size,timerTrace:()=>timerTrace,
   fireTimer:()=>{const item=scheduled.entries().next().value;if(!item)return false;
    scheduled.delete(item[0]);item[1].fn();return true}};
 }
@@ -1807,7 +1817,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   status:autoExpiry.get('autoStatus').textContent,
   cards:autoExpiry.get('autoRaces').children.length,
   requests:autoExpiry.requests.map(x=>x.url),
-  timerCount:autoExpiry.timerCount()
+  timerCount:autoExpiry.timerCount(),timerTrace:autoExpiry.timerTrace()
  }));
  assert.equal(autoExpiry.get('autoRaces').children[0].children[0].children
    .filter(x=>x.className==='formation').length,1);
