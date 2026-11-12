@@ -14,6 +14,7 @@ from jrdb_coverage import CoverageError
 from jrdb_factor_preflight import FACTOR_LABELS
 from jrdb_owner_auto_draft import VERSION as DRAFT_VERSION
 from jrdb_owner_runner_research import VALUES
+from evaluation_policy import POINTS
 
 VERSION = "owner-ten-factor-contract-1"
 GRADE = frozenset(VALUES)
@@ -105,8 +106,26 @@ def ten_factor_contract(two_factor_drafts):
             priority_missing = sorted(
                 missing, key=lambda key: (-FACTORS[key], list(FACTORS).index(key))
             )
+            # Already computed provisional S/A/B/C -> integer contribution.
+            # Weight/3 converts ordinal thirds to the owner 100-point scale.
+            # Missing categories are NULL, not zero. Held/off-time races
+            # never receive a new numeric research score.
+            breakdown = {
+                key: (POINTS[slots[key]] * FACTORS[key] // 3
+                      if slots[key] in GRADE and race["status"] == "provisional_draft"
+                      else None)
+                for key in PROVISIONAL
+            }
+            partial_ready = all(value is not None for value in breakdown.values())
+            provisional_points = sum(breakdown.values()) if partial_ready else None
+            if partial_ready and raw.get("weightedResearchPoints") != provisional_points * 3:
+                raise CoverageError("Provisional grade and research order mismatch")
             horses.append({
                 "number": raw["number"], "grades": slots,
+                "provisionalBreakdown": breakdown,
+                "provisionalPoints33": provisional_points,
+                "provisionalScoreReady": partial_ready,
+                "provisionalMaxPoints": 33,
                 "provisionalFactorCount": n_provisional,
                 "provisionalWeightCapacity": provisional_weight,
                 "unassessedWeightCapacity": 100 - provisional_weight,
