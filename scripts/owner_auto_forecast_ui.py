@@ -1144,6 +1144,16 @@ function showSnapshotFreshness(){
  const jst=new Date(latestReadAtMs).toLocaleTimeString('ja-JP',{
   timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit'
  });
+ // A received EMPTY /tra response is not a completed card. Distinguish
+ // it from an aged successful draft without creating a second paid call.
+ if(latestDisplayedReport.raceCount===0){
+  $('autoSnapshotAge').textContent=
+   (old?'【番組0R・受信15分以上】':'【番組0R・配信状況未確認】')+
+   'このiPhoneがJRDBの番組0R応答を '+jst+' に受信（約'+minutes+'分前）。'+
+   '今週の資料がまだ配信されていない可能性があります。開催なしと断定できません。'+
+   '提供元の更新時刻もJRA公式の独立照合も未確認。自動で有料再照会しません。';
+  return;
+ }
  $('autoSnapshotAge').textContent=
   (old?'【受信から15分以上・再確認推奨】':'【受信時刻の目安】')+
   'このiPhoneがJRDB応答を '+jst+' に受信（約'+minutes+'分前）。'+
