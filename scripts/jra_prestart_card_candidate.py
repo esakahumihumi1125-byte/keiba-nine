@@ -114,10 +114,12 @@ def parse_prestart_card_candidate(html, url, requested_date, track, race):
                rf"[\s\S]{{0,100}}?{re.escape(track)}"
                rf"[\s\S]{{0,110}}?(?:\b0?{race}\s*レース|\b0?{race}\s*R\b)")
     marker = re.search(pattern, visible)
-    if not marker or marker.start() > 11000 or "出馬表" not in visible[:12000]:
+    if (not marker or marker.start() > 11000 or
+            not any(label in visible[:12000]
+                    for label in ("出馬表", "開催・レース選択"))):
         raise JraPrestartCardError("Dated JRA race header unavailable")
     # Limit time/course readings to the main race header, not past run rows.
-    local = visible[marker.end():marker.end()+650]
+    local = visible[max(0, marker.end()-130):marker.end()+650]
     times = set((int(h), int(mm)) for h, mm in TIME.findall(local))
     courses = set((int(distance.replace(",", "")), surface)
                   for distance, surface in COURSE.findall(local))
