@@ -4036,7 +4036,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   x.dataset.mode==='drafts')?.textContent,'下書きのみ 36R');
  const nextDraft=allDrafts.get('autoNextDraft');
  assert.equal(nextDraft.disabled,false);
- assert.match(nextDraft.textContent,/次の下書きRへ（一覧順）/);
+ assert.match(nextDraft.textContent,/次の下書きRへ（暫定発走時刻順）/);
  const beforeNextReads=allDrafts.requests.length;
  const beforeNextStore=allDrafts.storage.get(STORAGE);
  nextDraft.onclick();
@@ -4073,6 +4073,33 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(JSON.parse(allDrafts.storage.get(STORAGE)).length,36);
  assert.match(allDrafts.get('autoFixedConsistency').textContent,/一致 36R/);
  assert.equal(allDrafts.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // A real race day has different provisional off-times across venues.
+ // Navigation must use the earlier cross-venue time, not Tokyo/京都/福島
+ // programme listing order. No provider call, re-sign or purchase on tap.
+ const orderedDay=full36EligibleDrafts();
+ for(const [track,race,off] of [['京都',1,'10:00'],['福島',1,'11:00']]){
+  const entry=orderedDay.races.find(r=>r.track===track&&r.race===race);
+  const signed=orderedDay.researchReceipts.find(r=>
+   r.snapshot.track===track&&r.snapshot.race===race);
+  assert.ok(entry&&signed);
+  entry.postTime=off;
+  signed.snapshot.scheduledOffAt='2099-01-01T'+off+':00+09:00';
+ }
+ const timeNav=boot({manualWeekday:false,initialServerRaw:orderedDay});
+ await timeNav.get('autoRun').onclick();
+ const timeNavStore=timeNav.storage.get(STORAGE),timeNavReads=timeNav.requests.length;
+ const nextOff=timeNav.get('autoNextDraft');
+ assert.equal(nextOff.disabled,false);
+ assert.match(nextOff.textContent,/暫定発走時刻順/);
+ nextOff.onclick();
+ assert.equal(timeNav.get('autoRacePick').value,'京都|1');
+ nextOff.onclick();
+ assert.equal(timeNav.get('autoRacePick').value,'福島|1');
+ nextOff.onclick();
+ assert.equal(timeNav.get('autoRacePick').value,'東京|1');
+ assert.equal(timeNav.requests.length,timeNavReads);
+ assert.equal(timeNav.storage.get(STORAGE),timeNavStore);
+ assert.equal(timeNav.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // All 36R are already validated before UI filtering. Mixed holds should
  // be navigable with one tap and must never generate past-off tickets.
  // A missing JRDB row is an unconfirmed provider gap, NEVER an official
