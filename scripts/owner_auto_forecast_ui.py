@@ -1535,6 +1535,10 @@ function render(input,day){
   detail.append(dom('p','コース条件：'+(course.surface||'芝・ダート未確認')+
     '／'+(course.distance_m===null?'距離未確認':course.distance_m+'m')+
     '／'+(course.turn||'回り未確認')+'／'+condition,'muted'));
+  // Keep an eligible prestart formation as the very first racecard action.
+  // No formation can be recreated after the local provisional off-time.
+  if(race.status==='provisional_draft'&&!elapsed&&!changedLock)
+   detail.append(formation(race));
   if(race.runners.length)detail.append(researchRaceSpotlight(race));
   else detail.append(dom('p','馬番別の仮評価は未取得・照合保留。'+
    '発走後に研究用の買い目を作り直しません。','muted'));
@@ -1546,10 +1550,6 @@ function render(input,day){
    day.slice(4,6)+'-'+day.slice(6,8)+
    '&track='+encodeURIComponent(race.track)+'&race='+race.race;
   detail.append(manual);
-  // Display validated prestart picks before long analysis; never reveal
-  // new tickets after off-time or if a first-write receipt conflicts.
-  if(race.status==='provisional_draft'&&!elapsed&&!changedLock)
-   detail.append(formation(race));
   if(race.runners.length){
    const front=race.runners.filter(h=>h.pastFourthCorner==='frontObserved').length;
    const back=race.runners.filter(h=>h.pastFourthCorner==='backObserved').length;
