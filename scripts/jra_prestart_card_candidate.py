@@ -77,10 +77,11 @@ def validate_racecard_url(url, requested_date, track, race):
     try:
         u = urlsplit(url)
         query = parse_qs(u.query, keep_blank_values=True)
+        host, port, username, password = u.hostname, u.port, u.username, u.password
     except ValueError:
         raise JraPrestartCardError("Invalid official racecard URL") from None
-    if (u.scheme != "https" or u.hostname not in HOSTS
-            or u.port not in (None, 443) or u.username or u.password
+    if (u.scheme != "https" or host not in HOSTS
+            or port not in (None, 443) or username or password
             or u.path != "/JRADB/accessD.html" or u.fragment
             or set(query) != {"CNAME"} or len(query["CNAME"]) != 1
             or not CNAME.fullmatch(query["CNAME"][0])
