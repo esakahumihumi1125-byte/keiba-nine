@@ -1621,11 +1621,11 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(a.get('autoTrackWorkouts').textContent,
   /馬別の仮評価を表示できる 1\/1R/);
  const studyRace=a.get('autoRaces').children[0].children[0];
- const study=studyRace.children.find(node=>node.className==='race-study');
- assert.ok(study,'every race with runner evidence has S/A chips');
- assert.match(study.children[0].textContent,/調教S（仮）：1番・2番/);
- assert.match(study.children[1].textContent,/調教A（仮）：3番・4番/);
- assert.match(study.children[2].textContent,/近走未評価：0頭/);
+ const spot=studyRace.children.find(node=>node.className==='race-study');
+ assert.ok(spot,'every race with runner evidence has S/A chips');
+ assert.match(spot.children[0].textContent,/調教S（仮）：1番・2番/);
+ assert.match(spot.children[1].textContent,/調教A（仮）：3番・4番/);
+ assert.match(spot.children[2].textContent,/近走未評価：0頭/);
  const handoff=studyRace.children.find(node=>node.className==='manual-entry-link');
  assert.ok(handoff,'race-only manual 3連単 notebook link is present');
  assert.equal(handoff.href,
