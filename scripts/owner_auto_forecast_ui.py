@@ -101,6 +101,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>3. 競馬場・レースを選ぶ</h2>
 <p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
+<p id="autoTrackWorkouts" class="muted" role="status">調教S/Aの参考表示：JRDB資料の取得前です。</p>
 <details id="autoEvidenceGapPanel"><summary>正式10項目の不足資料を確認（追加照会なし）</summary>
 <p class="muted">取得済みのJRDB資料がある頭数だけを集計。過去4角などの観測は今回の展開予測ではなく、資料の有無も正式な採点結果ではありません。発走前固定記録・買い目は変更しません。</p>
 <pre id="autoEvidenceGapReport" class="acceptance-report" role="status">まだ未取得です。発走前の研究用データを取得すると、追加照会なしで表示します。</pre>
@@ -300,6 +301,12 @@ summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
 .ten-slot span{display:block;color:#b9cadc}
 .ten-slot b{display:inline-block;color:#e9efff;margin-top:4px}
 .ten-slot b.S{color:#f3d475}.ten-slot b.A{color:#ffa6b1}.ten-slot b.B{color:#a4d8ff}
+.race-study{display:flex;flex-wrap:wrap;gap:7px;padding:8px 9px;margin:9px 0;background:#193a58;border:1px solid #43617c;border-radius:9px}
+.race-study span{display:inline-block;padding:4px 6px;border-radius:5px;font-size:12px;font-weight:750}
+.race-study .workout-s{color:#f3d475;background:#564728}
+.race-study .workout-a{color:#ffa6b1;background:#513345}
+.race-study .study-neutral{color:#d9e8f7;background:#294560}
+.manual-entry-link{display:block;text-align:center;border:1px solid #8aa7c0;border-radius:9px;padding:11px 7px;margin:12px 0;color:#e9f2fd;text-decoration:none;background:#284866;font-weight:800}
 .history-coverage{border:1px solid #45617e;background:#182f48;border-radius:10px;margin:7px 0;padding:10px}
 .history-coverage strong{color:#f3d475}.history-coverage p{font-size:12px;margin:4px 0}
 @media(max-width:380px){.number{min-width:34px}.rank{min-width:35px}}
@@ -1017,6 +1024,21 @@ function renderTenHeader(p){
  }
  $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、残り8項目は未評価（配点67点）。これは正式総合点・勝率・総合順位ではありません。';
 }
+// Grades on a racecard are observations from the existing two-factor
+// source, not a horse ranking or a predicted winner. Never substitute 0 for
+// an unknown recent grade, infer official starters, or construct tickets.
+function researchRaceSpotlight(race){
+ const seen=(factor,grade)=>race.runners.filter(h=>h[factor]===grade)
+  .map(h=>h.number+'番');
+ const s=seen('training','S'),a=seen('training','A');
+ const recentMissing=race.runners.filter(h=>h.recent==='未評価').length;
+ const p=dom('div',undefined,'race-study');
+ p.append(dom('span','調教S（仮）：'+(s.length?s.join('・'):'該当なし'),'workout-s'),
+  dom('span','調教A（仮）：'+(a.length?a.join('・'):'該当なし'),'workout-a'),
+  dom('span','近走未評価：'+recentMissing+'頭','study-neutral'));
+ p.append(dom('span','※調教・近走の一部資料だけ。1着候補・正式順位ではありません。','study-neutral'));
+ return p;
+}
 function formation(r){
  const block=dom('div',undefined,'formation');
  const combinations=dom('details',undefined,'ticket-breakdown');
@@ -1483,6 +1505,11 @@ function render(input,day){
  $('autoFixedConsistency').textContent=fixedComparisonMessage(fixed);
  $('autoSourceSummary').textContent=summarizeDaySourcePassport(
   data.sourcePassport,data.raceCount);
+ const workoutRows=data.races.filter(r=>r.runners.length>0);
+ $('autoTrackWorkouts').textContent=
+  '【全Rの調教参考】馬別の仮評価を表示できる '+workoutRows.length+
+  '/'+data.raceCount+'R。調教S・A馬の馬番は各レースを開いて確認。'+
+  '資料が未評価の馬を低評価とは扱いません。正式順位・購入推奨ではありません。';
  const gaps=missingFactorHoldBreakdown(data);
  $('autoMissingFactorSummary').textContent=gaps.summary;
  const gapHost=$('autoMissingFactorRaces');gapHost.replaceChildren();
@@ -1499,13 +1526,26 @@ function render(input,day){
    (race.status==='provisional_draft'
     ?elapsed?'端末受信後に発走時刻経過・新案非表示':
       changedLock?'固定済みとの不一致・再分析案非表示':
-      '研究用自動案 '+race.points+'点｜1着候補 '+race.first.join('・')+'番':'見送り'));
+      '研究用自動案 '+race.points+'点｜1着候補 '+race.first.join('・')+'番'
+    :'見送り'+(race.runners.length?'｜調教S '+race.runners.filter(h=>h.training==='S').length+
+      '頭・A '+race.runners.filter(h=>h.training==='A').length+'頭（仮）':'')));
   detail.append(title);
   const course=courseRows.get(race.track+'|'+race.race);
   const condition=course.goingAvailable?course.going+'（JRDB資料）':'馬場未確認';
   detail.append(dom('p','コース条件：'+(course.surface||'芝・ダート未確認')+
     '／'+(course.distance_m===null?'距離未確認':course.distance_m+'m')+
     '／'+(course.turn||'回り未確認')+'／'+condition,'muted'));
+  if(race.runners.length)detail.append(researchRaceSpotlight(race));
+  else detail.append(dom('p','馬番別の仮評価は未取得・照合保留。'+
+   '発走後に研究用の買い目を作り直しません。','muted'));
+  // Race-only handoff: the recipient parses #select=v1 with a valid
+  // date/track/R and does NOT import horse numbers, save or buy tickets.
+  const manual=dom('a','このRの3連単を自分で作る（手動・未購入）');
+  manual.className='manual-entry-link';
+  manual.href='/my-tickets#select=v1&date='+day.slice(0,4)+'-'+
+   day.slice(4,6)+'-'+day.slice(6,8)+
+   '&track='+encodeURIComponent(race.track)+'&race='+race.race;
+  detail.append(manual);
   // Display validated prestart picks before long analysis; never reveal
   // new tickets after off-time or if a first-write receipt conflicts.
   if(race.status==='provisional_draft'&&!elapsed&&!changedLock)
