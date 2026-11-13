@@ -54,6 +54,33 @@ class UncertainRecentResearchTests(unittest.TestCase):
         self.assertNotIn("racekey", repr(preview))
         self.assertNotIn("horse_id", repr(preview))
 
+    def test_only_unsigned_48_point_preview_can_keep_ten_horse_group(self):
+        # S/S top two, A/A next two, B/B last six. With recent
+        # uniformly missing, the true score intervals are disjoint at
+        # every training-band boundary. Third-choice cutoff 4 yields only
+        # 12 triples, while 10 includes every tied B without splitting and
+        # produces 2*(4-1)*(10-2)=48. No formal or HMAC ticket is created.
+        horses = ([("S", "未評価")] * 2
+                  + [("A", "未評価")] * 2
+                  + [("B", "未評価")] * 6)
+        report = build(horses)
+        self.assertEqual(report["holdCount"], 1)
+        self.assertEqual(report["draftCount"], 0)
+        self.assertEqual(report["races"][0]["reason"], "missing_factors")
+        old = copy.deepcopy(report)
+        output = preview_missing_recent_holds(report, DAY, now=PRESTART)
+        self.assertEqual(output["safeResearchPreviewCount"], 1)
+        race = output["races"][0]
+        self.assertEqual(race["first"], [1, 2])
+        self.assertEqual(race["second"], [1, 2, 3, 4])
+        self.assertEqual(race["third"], list(range(1, 11)))
+        self.assertEqual(race["points"], 48)
+        self.assertTrue(race["eachCutoffProvenForAllRecentGrades"])
+        self.assertFalse(output["bettingReady"])
+        self.assertFalse(race["receiptIssued"])
+        self.assertEqual(output["ticketsIssued"], 0)
+        self.assertEqual(report, old)
+
     def test_overlapping_uncertainty_never_splits_top_group(self):
         pairs = [("A", "未評価")] * 8
         output = preview_missing_recent_holds(build(pairs), DAY, now=PRESTART)
