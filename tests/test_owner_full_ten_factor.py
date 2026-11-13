@@ -140,6 +140,48 @@ class FullTenFactorGateTests(unittest.TestCase):
         self.assertEqual(below_first["overallGrade"], "A")
         self.assertEqual(below_first["factorContributions"]["rotation"]["earned100"], 0.67)
 
+    def test_coverage_diagnostic_counts_known_c_but_not_missing_or_late(self):
+        source = fixture()
+        # C is a real, supported zero-point grade, never a missing factor.
+        source["horses"][0]["assessments"]["training"]["grade"] = "C"
+        del source["horses"][1]["assessments"]["recent"]
+        source["horses"][2]["assessments"]["pedigree"]["evidence"][0]["availableAt"] = (
+            "2099-01-01T09:01:00+09:00"
+        )
+        previous = copy.deepcopy(source)
+        report = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(source, previous)
+        self.assertEqual(report["status"], "missing_evidence")
+        self.assertEqual(report["ranking"], [])
+        self.assertEqual(report["trifecta"]["points"], 0)
+        self.assertEqual(report["missingByNumber"], {
+            2: ["recent"], 3: ["pedigree"]
+        })
+        readiness = report["factorReadinessByNumber"]
+        self.assertEqual(set(readiness), set(range(1, 9)))
+        expected = {1: (10, 100), 2: (9, 97), 3: (9, 94)}
+        for n, (count, weight) in expected.items():
+            item = readiness[n]
+            self.assertEqual(item["traceableFactorCount"], count)
+            self.assertEqual(item["traceableWeight"], weight)
+            self.assertEqual(item["unassessedFactorCount"], 10 - count)
+            self.assertEqual(item["unassessedWeight"], 100 - weight)
+            self.assertEqual(item["allTenEvidenceTraceable"], count == 10)
+            self.assertTrue(item["coverageIsNotAbilityScore"])
+        self.assertNotIn("factorContributions", repr(report))
+        self.assertNotIn("sourceId", repr(report))
+
+    def test_full_traceable_coverage_never_unlocks_unverified_jra(self):
+        source = fixture()
+        source["independentJra"]["jra_scratches_verified"] = False
+        source["independentJra"].pop("confirmedStarterNumbers")
+        report = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(report["status"], "unverified_starter_roster")
+        self.assertEqual(report["trifecta"]["points"], 0)
+        self.assertTrue(all(item["traceableWeight"] == 100
+                            and item["coverageIsNotAbilityScore"]
+                            for item in report["factorReadinessByNumber"].values()))
+
     def test_no_partial_score_ledger_when_evidence_is_missing(self):
         source = fixture()
         del source["horses"][0]["assessments"]["body_condition"]
