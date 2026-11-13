@@ -2476,8 +2476,8 @@ def create_app(settings=None):
                     'KEIBA_AUTO_DRAFT_PIPELINE status=complete '
                     'programme=%s source_reads=%s drafts=%s holds=%s receipts=%s '
                     'material=%s course=%s hold_causes=%s factor_gaps=%s '
-                    'factor_gap_causes=%s expired_on_return=%s '
-                    'jra=unverified formal=ungraded',
+                    'factor_gap_causes=%s unsigned_sparse_previews=%s '
+                    'expired_on_return=%s jra=unverified formal=ungraded',
                     'present' if report['raceCount'] else 'empty',
                     report['sourceReadCount'],
                     report['draftCount'], report['holdCount'],
@@ -2487,6 +2487,7 @@ def create_app(settings=None):
                     compact_hold_diagnostics(report),
                     compact_factor_shortage_diagnostics(report),
                     compact_missing_reason_diagnostics(report),
+                    report['uncertainRecentResearch']['safeResearchPreviewCount'],
                     expired_before_delivery,
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,
