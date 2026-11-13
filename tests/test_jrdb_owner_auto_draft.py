@@ -145,6 +145,54 @@ class AutoDraftTests(unittest.TestCase):
         self.assertEqual(race["reason"],"ambiguous_equal_grade_boundary")
         self.assertEqual(race["tickets"],[])
 
+    def test_second_six_boundary_rescues_only_previously_held_ties(self):
+        # All four horses 3..6 have the identical observed S+S? No.
+        # They instead all share A+S, so none may be chosen solely by
+        # numeric horse number. The old second<=5 rule held the whole R.
+        pairs = [("S", "S"), ("S", "A")] + [("A", "S")] * 4 + [
+            ("B", "B"), ("C", "C"),
+        ]
+        out = generate(programme(8), research(pairs))
+        self.assertEqual((out["draftCount"], out["holdCount"]), (1, 0))
+        row = out["races"][0]
+        self.assertEqual(row["status"], "provisional_draft")
+        self.assertEqual(row["first"], [1, 2])
+        self.assertEqual(row["second"], [1, 2, 3, 4, 5, 6])
+        self.assertEqual(row["third"], [1, 2, 3, 4, 5, 6])
+        self.assertEqual(row["points"], 40)
+        self.assertEqual(row["amountYen"], 4000)
+        self.assertEqual(len({tuple(t) for t in row["tickets"]}), 40)
+        self.assertFalse(row["overallPredictionReady"])
+        self.assertFalse(row["officialJraVerified"])
+        sealed = seal_auto_research_drafts(
+            out, SETTINGS["KEIBA_OWNER_PASSWORD"],
+            now=datetime(2099, 1, 1, 9, tzinfo=JST))
+        self.assertEqual(len(sealed), 1)
+        self.assertEqual(len(sealed[0]["snapshot"]["trifectaTickets"]), 40)
+        self.assertFalse(sealed[0]["snapshot"]["predictionVerified"])
+        # Race opening after its provisional off can never reconstruct this
+        # newly rescued formation or forge an after-time receipt.
+        past = generate(programme(8), research(pairs),
+                        now=datetime(2099, 1, 1, 12, 30, tzinfo=JST))
+        self.assertEqual(past["races"][0]["reason"], "after_provisional_off")
+        self.assertEqual(past["races"][0]["tickets"], [])
+        self.assertEqual(seal_auto_research_drafts(
+            past, SETTINGS["KEIBA_OWNER_PASSWORD"],
+            now=datetime(2099, 1, 1, 12, 30, tzinfo=JST)), [])
+
+    def test_no_arbitrary_first_four_when_2_or_3_boundary_tied(self):
+        # If the first four horses are exactly tied, the normal owner rule
+        # of two first candidates (or three in a close race) remains intact.
+        # Do not invent a rank to turn this into a 40-point bet.
+        pairs = [("S", "S")] * 4 + [("A", "S"), ("B", "B"),
+                                  ("C", "C"), ("C", "C")]
+        out = generate(programme(8), research(pairs))
+        self.assertEqual(out["draftCount"], 0)
+        self.assertEqual(out["holdReasons"], {
+            "ambiguous_equal_grade_boundary": 1})
+        self.assertEqual(out["races"][0]["tickets"], [])
+        self.assertEqual(out["races"][0]["first"], [])
+
     def test_training_overrides_bad_recent_form_in_provisional_ranking(self):
         # A horse with training S / recent C must outrank training A /
         # recent S, while no overall 10-factor grade is claimed.
