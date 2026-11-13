@@ -33,6 +33,8 @@ class New79FiveResearchTests(unittest.TestCase):
         self.assertEqual(report["observedWeightTotal"], 79)
         self.assertEqual(report["coursePaceEvidenceWeight"], 34)
         self.assertTrue(report["coursePaceEvidenceNotFormalGrade"])
+        self.assertEqual(report["goingEvidenceWeight"], 12)
+        self.assertTrue(report["goingEvidenceNotFormalGrade"])
         self.assertEqual(report["raceCount"], len(legacy["races"]))
         for race in report["races"]:
             self.assertEqual(race["runnerCount"], len(race["horses"]))
@@ -54,6 +56,12 @@ class New79FiveResearchTests(unittest.TestCase):
                 self.assertEqual(horse["coursePaceEvidenceRawThirdPoints"], expected_cp)
                 self.assertEqual(horse["coursePaceEvidenceScore34"],
                     None if expected_cp is None else round(expected_cp / 3, 2))
+                expected_g = (None if horse["bands"]["ground"] == "未評価"
+                              else 12 * POINTS[horse["bands"]["ground"]])
+                self.assertEqual(horse["goingEvidenceRawThirdPoints"], expected_g)
+                self.assertEqual(horse["goingEvidenceScore12"],
+                    None if expected_g is None else round(expected_g / 3, 2))
+                self.assertTrue(horse["goingEvidenceNotFormalGrade"])
                 if horse["missing"]:
                     self.assertIsNone(horse["rawThirdPoints"])
                     self.assertIsNone(horse["evidenceScore79"])
@@ -93,6 +101,8 @@ class New79FiveResearchTests(unittest.TestCase):
         self.assertEqual(h["rawThirdPoints"], 237)
         self.assertEqual(h["coursePaceEvidenceRawThirdPoints"], 102)
         self.assertEqual(h["coursePaceEvidenceScore34"], 34)
+        self.assertEqual(h["goingEvidenceRawThirdPoints"], 36)
+        self.assertEqual(h["goingEvidenceScore12"], 12)
         old["races"][0]["horses"][0]["bands"]["recent"] = "C"
         old["races"][0]["horses"][0]["rawThirdPoints"] = 246
         old["races"][0]["horses"][0]["evidenceScore85"] = 82.0
@@ -140,6 +150,32 @@ class New79FiveResearchTests(unittest.TestCase):
         output = new_weight_five_research(baseline)
         for h in output["races"][0]["horses"]:
             self.assertEqual(h["coursePaceEvidenceScore34"], 34.0)
+            self.assertIsNone(h["evidenceScore79"])
+            self.assertIsNone(h["formalScore100"])
+            self.assertFalse(h["bettingReady"])
+
+    def test_ground_12_stays_separate_from_missing_other_four_factors(self):
+        legacy = old_source()
+        r = legacy["races"][0]
+        grades = ("S", "A", "B", "C")
+        for i, h in enumerate(r["horses"]):
+            ground_grade = grades[i % len(grades)]
+            h["bands"] = {**dict.fromkeys(KEYS, "未評価"),
+                          "ground": ground_grade}
+            h["missing"] = [k for k in KEYS if k != "ground"]
+            h["observedFactorCount"] = 1
+            h["rawThirdPoints"] = None
+            h["evidenceScore85"] = None
+        r["missingByFactor"] = {
+            k: (0 if k == "ground" else r["runnerCount"]) for k in KEYS
+        }
+        r["completeObserved"] = 0
+        r["unassessedNumbers"] = sorted(h["number"] for h in r["horses"])
+        r["comparisonGroups"] = []
+        result = new_weight_five_research(legacy)
+        for i, h in enumerate(result["races"][0]["horses"]):
+            self.assertEqual(h["goingEvidenceScore12"], (12, 8, 4, 0)[i % 4])
+            self.assertIsNone(h["coursePaceEvidenceScore34"])
             self.assertIsNone(h["evidenceScore79"])
             self.assertIsNone(h["formalScore100"])
             self.assertFalse(h["bettingReady"])
