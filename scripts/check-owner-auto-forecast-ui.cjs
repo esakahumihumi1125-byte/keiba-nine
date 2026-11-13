@@ -743,12 +743,17 @@ function withNewWeightFive(report){
     h.bands[k]==='未評価');
    const cpRaw=cpUnassessed?null:
     17*points[h.bands.course_distance]+17*points[h.bands.pace];
+   const goingRaw=h.bands.ground==='未評価'?null:
+    12*points[h.bands.ground];
    return {number:h.number,bands:{...h.bands},missing:[...h.missing],
     observedFactorCount:h.observedFactorCount,rawThirdPoints:raw,
     evidenceScore79:raw===null?null:Math.round(raw*100/3)/100,
     coursePaceEvidenceRawThirdPoints:cpRaw,
     coursePaceEvidenceScore34:cpRaw===null?null:Math.round(cpRaw*100/3)/100,
     coursePaceEvidenceNotFormalGrade:true,
+    goingEvidenceRawThirdPoints:goingRaw,
+    goingEvidenceScore12:goingRaw===null?null:Math.round(goingRaw*100/3)/100,
+    goingEvidenceNotFormalGrade:true,
     formalScore100:null,formalGrade:'未評価',formalRank:null,
     scoreIsCalibrated:false,bettingReady:false};
   });
@@ -778,6 +783,7 @@ function withNewWeightFive(report){
   officialJraVerified:false,bettingReady:false,autoPurchase:false,
   researchOnly:true,privateOwnerOnly:true,historicalBandsNotCalibrated:true,
   coursePaceEvidenceNotFormalGrade:true,coursePaceEvidenceWeight:34,
+  goingEvidenceNotFormalGrade:true,goingEvidenceWeight:12,
   resultVerified:false,changesExistingTickets:false,
   changesExistingCoreReceipts:false,changesExistingFiveReceipts:false,
   extraProviderCalls:0
@@ -2547,11 +2553,12 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const panel79=new79Card.children.find(x=>x.tag==='details'&&
   /新配点5項目79点の研究比較/.test(x.children[0]?.textContent||''));
  assert.ok(panel79);
- assert.match(panel79.children[1].textContent,/コース17点＋展開17点の参考得点/);
+ assert.match(panel79.children[1].textContent,/コース17点＋展開17点、馬場12点の研究参考得点/);
  assert.match(panel79.children[2].textContent,/コース距離17／展開脚質17/);
  assert.match(panel79.children[3].textContent,/残り21点分の評価/);
  assert.match(panel79.children[4].textContent,/1番｜調教 S／近走 S／コース 未評価/);
  assert.match(panel79.children[4].textContent,/研究参考値 未算出/);
+ assert.match(panel79.children[4].textContent,/馬場の研究参考値 未算出/);
  assert.match(panel79.children[4].textContent,/5項目研究用未評価/);
  assert.equal(a.requests.slice(reqBefore79).filter(x=>
   x.url==='/api/jrdb/history').length,1);
@@ -2562,6 +2569,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   h=>h.newWeightFiveResearch.races[0].horses[0].evidenceScore79=79,
   h=>h.newWeightFiveResearch.races[0].horses[0].coursePaceEvidenceScore34=34,
   h=>h.newWeightFiveResearch.coursePaceEvidenceWeight=79,
+  h=>h.newWeightFiveResearch.races[0].horses[0].goingEvidenceScore12=12,
+  h=>h.newWeightFiveResearch.goingEvidenceWeight=34,
   h=>h.newWeightFiveResearch.factorWeights.pace=20,
   h=>h.newWeightFiveResearch.races[0].horses[0].formalScore100=79,
   h=>h.newWeightFiveResearch.races[0].comparisonGroups=[{rawThirdPoints:237,numbers:[1]}],
