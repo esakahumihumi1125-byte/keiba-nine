@@ -1597,9 +1597,13 @@ function render(input,day){
   button.setAttribute('aria-pressed','false');
   button.onclick=()=>{select.value='';show(track);};tabs.append(button);
  }
- const safeDraftCount=nodes.filter(item=>item.draft).length;
+ const displayableDrafts=nodes.filter(item=>item.draft);
+ const safeDraftCount=displayableDrafts.length;
+ const singleDraft=safeDraftCount===1?displayableDrafts[0]:null;
  const shortcut=$('autoDraftShortcut');
- shortcut.textContent=safeDraftCount?'買い目あり '+safeDraftCount+'Rだけ見る':
+ shortcut.textContent=singleDraft
+  ?'買い目あり 1Rだけ見る（'+singleDraft.key.replace('|',' ')+'R）'
+  :safeDraftCount?'買い目あり '+safeDraftCount+'Rだけ見る':
   '買い目あり 0R（未作成・見送り）';
  shortcut.onclick=()=>{
   // A held HTTP response, date change, or error must not reopen old
@@ -1609,8 +1613,11 @@ function render(input,day){
    $('autoViewingStatus').textContent='この開催日の予想は未取得です。日付を確認してください。';
    return;
   }
-  select.value='';
-  show('','',safeDraftCount>0);
+  select.value=singleDraft?singleDraft.key:'';
+  // One available race: show the existing verified racecard already open,
+  // without rerunning paid sources or recalculating any betting formation.
+  if(singleDraft)show(singleDraft.track,singleDraft.key);
+  else show('','',safeDraftCount>0);
  };
  const hiddenByFixed=Math.max(0,data.draftCount-deviceExpired.size-safeDraftCount);
  $('autoOperationalNext').textContent=operationalNextStep(
