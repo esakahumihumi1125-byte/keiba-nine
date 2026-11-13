@@ -13,7 +13,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <link rel="stylesheet" href="/owner-scorecard.css">
 </head><body><main><a href="/">← 本人用ホーム</a> <a href="/owner-races">全開催R一覧へ</a>
 <h1>旧5項目の手動評価</h1>
-<p class="warning">これは<b>旧式の手入力5項目を計算する画面</b>です。正式仕様の<b>10項目・合計100点</b>とは配点が異なり、ここで算出される100点は正式な10項目予想ではありません。保存済みの手入力メモや買い目を遡って書き換えません。JRA・JRDBの実データ自動採点もこの画面では行いません。</p><p class="hint"><a href="/owner-auto-forecast">本人用・10項目100点の資料進捗と研究用予想を開く（正式10項目採点は未完成）</a></p>
+<p class="warning">これは<b>旧式の手入力5項目を計算する画面</b>です。正式仕様の<b>10項目・合計100点</b>とは配点が異なり、ここで算出される100点は正式な10項目予想ではありません。保存済みの手入力メモや買い目を遡って書き換えません。JRA・JRDBの実データ自動採点やAIによる調教分析もこの画面では行いません。</p><p class="hint"><a href="/owner-auto-forecast">本人用・10項目100点の資料進捗と研究用予想を開く（正式10項目採点は未完成）</a></p>
 <section><h2>① 開催日・競馬場・レース</h2><div class="fields">
 <label for="scoreDate">日付</label><input type="date" id="scoreDate">
 <label for="scoreTrack">競馬場</label><select id="scoreTrack">
