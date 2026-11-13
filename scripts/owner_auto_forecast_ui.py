@@ -3612,6 +3612,8 @@ function validateHistory(h){
      fresh.bettingReady!==false||fresh.autoPurchase!==false||
      fresh.researchOnly!==true||fresh.privateOwnerOnly!==true||
      fresh.historicalBandsNotCalibrated!==true||
+     fresh.coursePaceEvidenceNotFormalGrade!==true||
+     fresh.coursePaceEvidenceWeight!==34||
      fresh.resultVerified!==false||
      fresh.changesExistingTickets!==false||
      fresh.changesExistingCoreReceipts!==false||
@@ -3659,6 +3661,17 @@ function validateHistory(h){
     }
     const expected=missing.length?null:keys.reduce(
      (sum,k)=>sum+weights[k]*pts[horse.bands[k]],0);
+    // Validate course + pace 34-weight diagnostic independently of
+    // the other three bands. Missing evidence is NULL, never a C grade.
+    const pairMissing=['course_distance','pace'].some(k=>
+     horse.bands[k]==='未評価');
+    const pairRaw=pairMissing?null:
+     17*pts[horse.bands.course_distance]+17*pts[horse.bands.pace];
+    const pairScore=pairRaw===null?null:Math.round(pairRaw*100/3)/100;
+    if(horse.coursePaceEvidenceNotFormalGrade!==true||
+       horse.coursePaceEvidenceRawThirdPoints!==pairRaw||
+       horse.coursePaceEvidenceScore34!==pairScore)
+     throw Error('コース・展開の34点研究算術不一致');
     if(horse.missing.join('|')!==missing.join('|')||
        horse.observedFactorCount!==5-missing.length||
        horse.rawThirdPoints!==expected||
@@ -5704,6 +5717,8 @@ $('autoHistoryAudit').onclick=async()=>{
       '正式100点の総合評価・予想順位・買い目ではありません。','muted'));
     const panel=dom('details');
     panel.append(dom('summary','新配点5項目79点の研究比較（正式100点とは別）'));
+    panel.append(dom('p','コース17点＋展開17点の参考得点を同じ履歴から機械計算。'+
+      '履歴が足りない馬は未算出のまま。適性の正式評価でも人気・勝率でもありません。','muted'));
     panel.append(dom('p','調教30／近走3／コース距離17／展開脚質17／馬場12＝79。'+
       '未確認項目は0点やCにしません。旧70・82・85点の署名記録、'+
       '3連単、回収率は変更しません。','muted'));
@@ -5714,9 +5729,12 @@ $('autoHistoryAudit').onclick=async()=>{
      panel.append(dom('p',horse.number+'番｜調教 '+b.training+
       '／近走 '+b.recent+'／コース '+b.course_distance+
       '／展開 '+b.pace+'／馬場 '+b.ground+
-      '｜研究用'+(horse.evidenceScore79===null?'未評価':
+      '｜コース17＋展開17の研究参考値 '+
+      (horse.coursePaceEvidenceScore34===null?'未算出':
+       horse.coursePaceEvidenceScore34.toFixed(2)+'/34点')+
+      '｜5項目研究用'+(horse.evidenceScore79===null?'未評価':
       ' '+horse.evidenceScore79.toFixed(2)+'/79点')+
-      '（正式得点ではありません）','muted'));
+      '（いずれも未検証の歴史的仮説で、正式な適性・予想得点ではありません）','muted'));
     }
     card.append(panel);
    }
