@@ -158,6 +158,8 @@ function resultWith(signature){
 }
 function heldReasonBreakdownFixture(){
  const result=resultWith('d'.repeat(64)),row=result.races[0];
+ // Do not modify shared synthetic runner fixture used by other tests.
+ row.runners=structuredClone(row.runners);
  Object.assign(row,{status:'hold',reason:'missing_factors',
   first:[],second:[],third:[],tickets:[],points:0,amountYen:0});
  result.draftCount=0;result.holdCount=1;
