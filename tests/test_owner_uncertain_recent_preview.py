@@ -40,7 +40,7 @@ class UncertainRecentResearchTests(unittest.TestCase):
         self.assertEqual(preview["reviewedPrestartMissingFactorRaces"], 1)
         race = preview["races"][0]
         self.assertEqual(race["first"], [1, 2])
-        self.assertEqual(race["second"], [2, 1, 4, 3])
+        self.assertEqual(race["second"], [1, 2, 4, 3])
         self.assertEqual(set(race["third"]), set(range(1, 8)))
         self.assertEqual(race["points"], 30)
         self.assertEqual(race["missingRecentCount"], 4)
