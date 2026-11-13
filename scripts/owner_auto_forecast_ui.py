@@ -3614,6 +3614,8 @@ function validateHistory(h){
      fresh.historicalBandsNotCalibrated!==true||
      fresh.coursePaceEvidenceNotFormalGrade!==true||
      fresh.coursePaceEvidenceWeight!==34||
+     fresh.goingEvidenceNotFormalGrade!==true||
+     fresh.goingEvidenceWeight!==12||
      fresh.resultVerified!==false||
      fresh.changesExistingTickets!==false||
      fresh.changesExistingCoreReceipts!==false||
@@ -3672,6 +3674,13 @@ function validateHistory(h){
        horse.coursePaceEvidenceRawThirdPoints!==pairRaw||
        horse.coursePaceEvidenceScore34!==pairScore)
      throw Error('コース・展開の34点研究算術不一致');
+    const goingRaw=horse.bands.ground==='未評価'?null:
+     12*pts[horse.bands.ground];
+    const goingScore=goingRaw===null?null:Math.round(goingRaw*100/3)/100;
+    if(horse.goingEvidenceNotFormalGrade!==true||
+       horse.goingEvidenceRawThirdPoints!==goingRaw||
+       horse.goingEvidenceScore12!==goingScore)
+     throw Error('馬場12点研究の算術不一致');
     if(horse.missing.join('|')!==missing.join('|')||
        horse.observedFactorCount!==5-missing.length||
        horse.rawThirdPoints!==expected||
@@ -5717,8 +5726,8 @@ $('autoHistoryAudit').onclick=async()=>{
       '正式100点の総合評価・予想順位・買い目ではありません。','muted'));
     const panel=dom('details');
     panel.append(dom('summary','新配点5項目79点の研究比較（正式100点とは別）'));
-    panel.append(dom('p','コース17点＋展開17点の参考得点を同じ履歴から機械計算。'+
-      '履歴が足りない馬は未算出のまま。適性の正式評価でも人気・勝率でもありません。','muted'));
+    panel.append(dom('p','コース17点＋展開17点、馬場12点の研究参考得点を同じ履歴から機械計算。'+
+      '資料が足りない馬は未算出。現在のJRA公式馬場の適性を実証した得点ではありません。','muted'));
     panel.append(dom('p','調教30／近走3／コース距離17／展開脚質17／馬場12＝79。'+
       '未確認項目は0点やCにしません。旧70・82・85点の署名記録、'+
       '3連単、回収率は変更しません。','muted'));
@@ -5732,6 +5741,9 @@ $('autoHistoryAudit').onclick=async()=>{
       '｜コース17＋展開17の研究参考値 '+
       (horse.coursePaceEvidenceScore34===null?'未算出':
        horse.coursePaceEvidenceScore34.toFixed(2)+'/34点')+
+      '｜馬場の研究参考値 '+
+      (horse.goingEvidenceScore12===null?'未算出':
+       horse.goingEvidenceScore12.toFixed(2)+'/12点')+
       '｜5項目研究用'+(horse.evidenceScore79===null?'未評価':
       ' '+horse.evidenceScore79.toFixed(2)+'/79点')+
       '（いずれも未検証の歴史的仮説で、正式な適性・予想得点ではありません）','muted'));
