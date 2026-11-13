@@ -9,11 +9,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="theme-color" content="#09172b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="競馬ナイン本人用">
-<title>競馬ナイン｜5項目の手動評価</title>
+<title>アークレース｜旧5項目の手動評価</title>
 <link rel="stylesheet" href="/owner-scorecard.css">
 </head><body><main><a href="/">← 本人用ホーム</a> <a href="/owner-races">全開催R一覧へ</a>
-<h1>5項目の手動評価</h1>
-<p class="warning">これは<b>本人が入力する仮評価の計算表</b>です。JRA・JRDBの実データ取得、AIによる調教分析、実馬の予想はまだ行っていません。実戦で使う前に公式出馬表・取消を確認してください。</p>
+<h1>旧5項目の手動評価</h1>
+<p class="warning">これは<b>旧式の手入力5項目を計算する画面</b>です。正式仕様の<b>10項目・合計100点</b>とは配点が異なり、ここで算出される100点は正式な10項目予想ではありません。保存済みの手入力メモや買い目を遡って書き換えません。JRA・JRDBの実データ自動採点もこの画面では行いません。</p><p class="hint"><a href="/owner-auto-forecast">本人用・10項目100点の資料進捗と研究用予想を開く（正式10項目採点は未完成）</a></p>
 <section><h2>① 開催日・競馬場・レース</h2><div class="fields">
 <label for="scoreDate">日付</label><input type="date" id="scoreDate">
 <label for="scoreTrack">競馬場</label><select id="scoreTrack">
@@ -29,7 +29,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button type="button" id="scoreSeedPredayDay" class="memo-load">JRDB前日情報から選択日の全Rを一括仮登録（既存評価は上書きしない）</button>
 <p id="scorePredayStatus" class="hint" role="status">「前日情報」を本人用メール取り込み画面で登録してから使えます。馬番・馬名はJRDB前日資料、JRA公式の出走確定ではありません。5項目は未評価で開始します。</p><p id="scoreMemoStatus" role="status" class="hint">JRDBの想定メールと一致する本人転記メモがある場合だけ、馬番・馬名を引き継げます。JRA公式の独立照合ではありません。</p><p id="scoreDraftStatus" role="status" class="hint">途中の評価はこの端末内に自動保存します。購入記録には入りません。</p><button type="button" id="scoreRetryDraft" class="memo-load">このRの途中評価をもう一度保存</button><p id="scoreNavigationStatus" role="status" class="hint">保存されていない評価がある場合は、別Rへの移動を止めます。</p><p id="scorePaceStatus" class="hint" role="status">脚質情報は、JRDB前日情報を取り込んだレースだけ表示します。予測された展開・能力ランクではありません。</p>
 <div id="scoreMemoGrid" aria-label="本人入力の5項目採点"></div><textarea id="scoreInput" rows="10" maxlength="4000" spellcheck="false" placeholder="① 架空馬A S A A B S&#10;② 架空馬B A A S B A&#10;③ 架空馬C A B A A B&#10;④ 架空馬D B A B S A"></textarea>
-<p class="hint">重み：調教25%／近走25%／適性20%／血統10%／展開20%。各項目をS=4、A=3、B=2、C=1として100点換算。人気やオッズは使わない。これは実績ある予測モデルではありません。</p>
+<p class="hint">【旧5項目・手入力メモ専用】重み：調教25%／近走25%／適性20%／血統10%／展開20%。各項目をS=4、A=3、B=2、C=1として100点換算。正式10項目100点（調教30・近走3・コース距離17・展開17・馬場12・血統6・枠斤量3・騎手厩舎10・ローテ1・馬体重1）とは別計算です。人気やオッズは使わず、実績ある予測モデルでもありません。</p>
 <button type="button" id="scoreReview">総合評価と3連単候補を計算</button><button type="button" id="scoreClearDraft" class="clear-note">このRの途中評価を削除</button>
 <p id="scoreStatus" role="status" class="hint">途中評価は本人用の端末内に自動保存します。サーバー送信・馬券購入・正式な予想確定はしません。</p></section>
 <section><h2>③ 総合評価順と買い目候補</h2>
