@@ -4611,6 +4611,74 @@ $('autoOfficialPdf').onclick=async()=>{
    'JRA公式PDFリンクを確認できませんでした。JRA公式一覧から手動で確認してください。';
  }}finally{if(seq===officialPdfSeq)button.disabled=false;}
 };
+// Explicit one-race JRA Web card candidate, never an official certification.
+// No paid JRDB read, no rank or sealed receipt write. Only a user-selected URL.
+$('autoOfficialCardCheck').onclick=async()=>{
+ const button=$('autoOfficialCardCheck'),status=$('autoOfficialCardStatus');
+ if(button.disabled)return;
+ const date=$('autoDay').value,key=$('autoRacePick').value;
+ const url=$('autoOfficialCardUrl').value.trim();
+ const day=date.replaceAll('-','');
+ const current=latestDisplayedReport&&latestDisplayedDay===day&&
+  latestDisplayedReport.races.find(row=>row.track+'|'+row.race===key);
+ if(!current||!/^20\d{2}-\d{2}-\d{2}$/.test(date)||
+    typeof url!=='string'||url.length<50||url.length>250){
+  status.textContent='先に開催日の予想から1Rを選び、JRA公式Web出馬表のURLを入力してください。';
+  return;
+ }
+ const race=current.race,track=current.track;
+ button.disabled=true;
+ status.textContent=date+' '+track+' '+race+'R｜JRAの公開ページを確認中（買い目は変更なし）…';
+ try{
+  const requestUrl='/api/jra/prestart-card-candidate?date='+
+   encodeURIComponent(date)+'&track='+encodeURIComponent(track)+
+   '&race='+encodeURIComponent(String(race))+'&url='+encodeURIComponent(url);
+  const response=await fetch(requestUrl,{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  if(date!==$('autoDay').value||key!==$('autoRacePick').value||
+     latestDisplayedDay!==day)return;
+  if(!response.ok)throw Error('official_header_unavailable');
+  const info=await response.json();
+  if(date!==$('autoDay').value||key!==$('autoRacePick').value||
+     latestDisplayedDay!==day)return;
+  if(!info||info.version!=='owner-jra-prestart-card-candidate-1'||
+     info.date!==date||info.track!==track||info.race!==race||
+     info.officialHostAllowlisted!==true||info.visibleRaceHeaderMatched!==true||
+     info.pageContentsParsed!==true||info.researchOnly!==true||
+     info.independentSourceAuthenticated!==false||
+     info.officialStartersVerified!==false||
+     info.officialScratchesVerified!==false||
+     info.officialGoingVerified!==false||info.officialPostTimeVerified!==false||
+     info.formalTenFactorReady!==false||info.bettingReady!==false||
+     info.changesExistingReceipts!==false||info.changesExistingTickets!==false||
+     info.newJrdbProviderRequests!==0||
+     typeof info.postTimeCandidate!=='string'||
+     !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(info.postTimeCandidate)||
+     !['芝','ダート','障害'].includes(info.courseSurfaceCandidate)||
+     !Number.isInteger(info.distanceMCandidate)||
+     info.distanceMCandidate<600||info.distanceMCandidate>5000)
+    throw Error('untrusted_jra_header');
+  const ctx=latestDisplayedReport.raceContext.races.find(row=>
+   row.track===track&&row.race===race);
+  if(!ctx)throw Error('missing_local_race_context');
+  const timeStatus=info.postTimeCandidate===current.postTime
+   ?'発走時刻候補は一致':'発走時刻候補に差あり（要確認）';
+  const courseStatus=ctx.surface===info.courseSurfaceCandidate&&
+   ctx.distance_m===info.distanceMCandidate
+   ?'コース条件候補は一致':'コース条件候補に差あり（要確認）';
+  status.textContent=date+' '+track+' '+race+'R｜JRAページ候補：'+
+   info.postTimeCandidate+'・'+info.courseSurfaceCandidate+
+   info.distanceMCandidate+'m。'+timeStatus+'／'+courseStatus+
+   '。出走馬・取消・馬場・公式データの真正性と最新性は未照合。'+
+   '既存の研究用下書きと固定買い目は変更しません。';
+ }catch(_){
+  if(date===$('autoDay').value&&key===$('autoRacePick').value)
+   status.textContent=date+' '+track+' '+race+
+    'R｜JRA公式ページの候補を照合できませんでした。JRA公式で直接確認してください。買い目は変更なし。';
+ }finally{button.disabled=false;}
+};
 // Owner-requested, configuration-only check. No paid provider reads.
 $('autoPreflight').onclick=async()=>{
  const button=$('autoPreflight'),status=$('autoPreflightStatus');
