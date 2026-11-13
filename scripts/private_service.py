@@ -34,8 +34,10 @@ from owner_body_one_evidence_preflight import body_one_evidence_preflight
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
 from jrdb_owner_day_research import owner_day_research
-from jrdb_owner_auto_draft import (build_owner_auto_drafts, DAY_DRAFT_ISSUES,
-                                   compact_hold_diagnostics)
+from jrdb_owner_auto_draft import (
+    build_owner_auto_drafts, DAY_DRAFT_ISSUES,
+    compact_hold_diagnostics, compact_factor_shortage_diagnostics,
+)
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_ten_factor_contract import ten_factor_contract
 from owner_runner_source_hints import observe_owner_runner_sources
@@ -2413,7 +2415,7 @@ def create_app(settings=None):
                 logging.warning(
                     'KEIBA_AUTO_DRAFT_PIPELINE status=complete '
                     'programme=%s source_reads=%s drafts=%s holds=%s receipts=%s '
-                    'material=%s course=%s hold_causes=%s expired_on_return=%s '
+                    'material=%s course=%s hold_causes=%s factor_gaps=%s expired_on_return=%s '
                     'jra=unverified formal=ungraded',
                     'present' if report['raceCount'] else 'empty',
                     report['sourceReadCount'],
@@ -2422,6 +2424,7 @@ def create_app(settings=None):
                     report['sourceMaterials']['status'],
                     report['raceContext']['conditionProviderFetchStatus'],
                     compact_hold_diagnostics(report),
+                    compact_factor_shortage_diagnostics(report),
                     expired_before_delivery,
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,
