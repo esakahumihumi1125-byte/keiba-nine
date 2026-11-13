@@ -1673,15 +1673,22 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.ok(missingHorsePanel);
  const rows=missingHorsePanel.children.filter(x=>x.className==='runner');
  assert.equal(rows.length,7);
- assert.match(rows[0].children.map(x=>x.textContent).join('|'),
+ // Only the held-race DISPLAY changes; compare by exact horse number
+ // and assert workout bands S,A,B,C,unknown appear in that order.
+ assert.deepEqual(rows.map(x=>x.children[0].textContent),
+  ['1番','2番','3番','6番','7番','4番','5番']);
+ const shown=(n)=>rows.find(x=>x.children[0].textContent===n+'番');
+ assert.match(shown(1).children.map(x=>x.textContent).join('|'),
   /2項目研究の推定可能範囲 90〜99\/99/);
- assert.match(rows[2].children.map(x=>x.textContent).join('|'),
+ assert.match(shown(3).children.map(x=>x.textContent).join('|'),
   /2項目研究の推定可能範囲 60〜69\/99/);
- assert.match(rows[3].children.map(x=>x.textContent).join('|'),
+ assert.match(shown(4).children.map(x=>x.textContent).join('|'),
   /2項目研究の推定可能範囲 0〜99\/99/);
- assert.match(rows[4].children.map(x=>x.textContent).join('|'),
+ assert.match(shown(5).children.map(x=>x.textContent).join('|'),
   /2項目研究の推定可能範囲 3〜93\/99/);
- assert.equal(rows[5].children.some(x=>/研究の推定可能範囲/.test(x.textContent)),false);
+ assert.equal(shown(6).children.some(x=>/研究の推定可能範囲/.test(x.textContent)),false);
+ assert.match(missingHorsePanel.children[1].textContent,
+  /見送りRは調教S→A→B→C→未評価の順に参考表示/);
  assert.equal(gapsView.requests.length,1);
  assert.equal(gapsView.storage.has(STORAGE),false);
  gapsView.get('autoDay').value='2099-01-02';
