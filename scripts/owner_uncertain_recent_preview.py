@@ -77,17 +77,23 @@ def _formation(race):
         for second in range(first + 1, min(count, 5) + 1):
             if not _cutoff_proven(ranked, second):
                 continue
-            for third in range(second, min(count, 9) + 1):
+            for third in range(second, min(count, 10) + 1):
                 if not _cutoff_proven(ranked, third):
                     continue
                 n = first * (second - 1) * (third - 2)
-                if 12 <= n <= 40:
+                if 12 <= n <= 48:
                     options.append((first, second, third, n))
     if not options:
         return None
-    # Prefer a 30-40 point researcher preview, then the usual two first
-    # horses; never split a tied or overlapping interval to reach 40.
-    options.sort(key=lambda x: (x[3] >= 30, x[0] == 2, x[3]), reverse=True)
+    # Prefer the usual 30-40 point research shape. If there is NO
+    # mathematically stable 30-40 point option, a bounded 41-48 point
+    # unsigned preview may retain a whole tied group; never fabricate
+    # missing recent grades, and NEVER sign these formations as tickets.
+    # A 48-point example is not a purchase recommendation.
+    options.sort(key=lambda x: (
+        30 <= x[3] <= 40,
+        41 <= x[3] <= 48,
+        x[0] == 2, x[3]), reverse=True)
     a, b, c, points = options[0]
     return {
         "track": race["track"], "race": race["race"],
