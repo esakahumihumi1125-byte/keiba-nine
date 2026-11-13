@@ -810,8 +810,20 @@ function withRemaining21(report){
    const present=Object.fromEntries(keys.map(k=>[k,
     k==='body_condition'?false:k==='rotation'?
      states[k]!=='unknown':states[k]==='complete_fields_observed']));
+   const parent=present.pedigree,staff=present.jockey_stable;
    return {
-    number:h.number,research79Observed:h.evidenceScore79!==null,
+    number:h.number,
+    pedigreeStaffSourceCoverage16:6*Number(parent)+10*Number(staff),
+    pedigreeStaffMissingEvidence:{
+     pedigree:[...(parent?[]:['parentage_fields_incomplete']),
+      'independent_condition_cohort_unavailable','temporal_holdout_not_validated'],
+     jockey_stable:[...(staff?[]:['jockey_or_trainer_fields_incomplete']),
+      'condition_matched_staff_results_unvalidated','temporal_holdout_not_validated']
+    },
+    pedigreeStaffGrades:{pedigree:'未評価',jockey_stable:'未評価'},
+    pedigreeStaffScores:{pedigree:null,jockey_stable:null},
+    pedigreeStaffScoreReady:false,
+    research79Observed:h.evidenceScore79!==null,
     research79:h.evidenceScore79,sourceStates:{...states},
     sourceFieldsPresent:present,
     sourceFieldCoverageEquivalent21:keys.reduce((sum,k)=>
@@ -826,6 +838,11 @@ function withRemaining21(report){
     keys.slice(0,4).every(k=>h.sourceFieldsPresent[k])).length,
    research79ObservedCount:horses.filter(h=>h.research79Observed).length,
    sourceCoverageByFactor:{...inv.remainingFieldCoverage},
+   pedigreeParentageCompleteCount:horses.filter(x=>x.sourceFieldsPresent.pedigree).length,
+   staffIdentityCompleteCount:horses.filter(x=>x.sourceFieldsPresent.jockey_stable).length,
+   bothPedigreeStaffCompleteCount:horses.filter(x=>
+    x.sourceFieldsPresent.pedigree&&x.sourceFieldsPresent.jockey_stable).length,
+   pedigreeStaffVerifiedGrades:0,
    gradeReady:false,trifectaReady:false};
  });
  report.remaining21SourceGaps={
@@ -833,6 +850,10 @@ function withRemaining21(report){
   policyVersion:'research-6',sourcePolicyVersion:'research-5',
   raceCount:races.length,races,factorWeights:weights,
   remainingWeight:21,initialResearchWeight:79,totalWeight:100,
+  pedigreeStaffWeight:16,pedigreeStaffGradesVerified:0,
+  independentPedigreeCohortValidated:false,
+  conditionMatchedStaffResultsValidated:false,
+  outOfTimePerformanceValidated:false,
   priorSourceFourCompleteCount:races.reduce(
    (sum,x)=>sum+x.priorSourceFourCompleteCount,0),
   verifiedFactorCount:0,formallyEvaluatedHorseCount:0,
