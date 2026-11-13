@@ -1598,7 +1598,7 @@ function renderUncertainRecent(data,day){
   for(const row of p.races){
    if(!row||!Number.isInteger(row.race)||
       typeof row.track!=='string'||row.status!=='bounded_recent_uncertainty_only'||
-      !Number.isInteger(row.points)||row.points<12||row.points>40||
+      !Number.isInteger(row.points)||row.points<12||row.points>48||
       !Number.isInteger(row.missingRecentCount)||row.missingRecentCount<1||
       !Number.isInteger(row.assessedTrainingCount)||row.assessedTrainingCount<4||
       row.assessedTrainingCount>18||
@@ -1620,7 +1620,7 @@ function renderUncertainRecent(data,day){
    const groups=[row.first,row.second,row.third];
    if(groups.some((g,j)=>!Array.isArray(g)||
        g.length<(j===0?2:j===1?3:4)||
-       g.length>(j===0?3:j===1?5:9)||
+       g.length>(j===0?3:j===1?5:10)||
        new Set(g).size!==g.length||
        g.some(n=>!Number.isInteger(n)||!setRoster.has(n)))||
       groups.some((g,j)=>j>0&&groups[j-1].some(n=>!g.includes(n)))||
