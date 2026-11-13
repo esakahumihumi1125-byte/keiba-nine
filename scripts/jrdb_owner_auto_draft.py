@@ -127,6 +127,64 @@ def compact_factor_shortage_diagnostics(report):
             (affected, training_missing, recent_missing, both_missing))
 
 
+# Fixed, anonymized reasons are safe for developer logs. Never include race,
+# horse, source row, timestamp or provider error text in this diagnostic.
+MISSING_LOG_CODES = (
+    "no_linked_recent_record", "no_usable_history",
+    "only_one_usable_run", "insufficient_scored_runs",
+    "recent_unassessed", "no_linked_training_record",
+    "missing_training_indices", "training_unassessed",
+)
+
+
+def compact_missing_reason_diagnostics(report):
+    """Count WHY missing factors held races, from already loaded data.
+
+    This cannot distinguish a JRDB beta publication gap from a truly
+    inapplicable record. It is a no-cost debugging summary, not new evidence
+    or permission to fabricate missing grades.
+    """
+    if (not isinstance(report, dict)
+            or not isinstance(report.get("races"), list)
+            or len(report["races"]) > MAX_RACES):
+        return "invalid"
+    tally = dict.fromkeys(MISSING_LOG_CODES, 0)
+    count = 0
+    for race in report["races"]:
+        if not isinstance(race, dict):
+            return "invalid"
+        if race.get("status") != "hold" or race.get("reason") != "missing_factors":
+            continue
+        rows = race.get("runners")
+        if not isinstance(rows, list) or len(rows) > 18:
+            return "invalid"
+        for horse in rows:
+            if (not isinstance(horse, dict)
+                    or horse.get("training") not in (*GRADES, "未評価")
+                    or horse.get("recent") not in (*GRADES, "未評価")
+                    or not isinstance(horse.get("missingReasons"), list)
+                    or len(horse["missingReasons"]) > 4):
+                return "invalid"
+            reasons = horse["missingReasons"]
+            if any(type(label) is not str or label not in MISSING_LOG_CODES
+                   for label in reasons):
+                return "invalid"
+            for factor, candidates, fallback in (
+                ("recent", MISSING_LOG_CODES[:4], "recent_unassessed"),
+                ("training", MISSING_LOG_CODES[5:7], "training_unassessed"),
+            ):
+                if horse[factor] != "未評価":
+                    continue
+                found = [label for label in candidates if label in reasons]
+                label = found[0] if len(found) == 1 else fallback
+                tally[label] += 1
+                count += 1
+    if not count:
+        return "none"
+    return ",".join(f"{code}:{tally[code]}" for code in MISSING_LOG_CODES
+                    if tally[code])
+
+
 RUNNER_ISSUES = {
     "Bad two-factor research contract": "contract",
     "Invalid research runner": "runner_shape",
