@@ -89,6 +89,44 @@ def compact_hold_diagnostics(report):
     return ",".join(f"{key}:{count}" for key, count in known) if known else "none"
 
 
+def compact_factor_shortage_diagnostics(report):
+    """Log-safe training/recent availability counts from the SAME 4 reads.
+
+    Only aggregate runner counts from prestart missing-factor holds. No
+    horse numbers, provider values or source text, and no additional reads.
+    A malformed report becomes a fixed error marker, never a log leak.
+    """
+    if (not isinstance(report, dict)
+            or not isinstance(report.get("races"), list)
+            or len(report["races"]) > MAX_RACES):
+        return "invalid"
+    affected = training_missing = recent_missing = both_missing = 0
+    for race in report["races"]:
+        if not isinstance(race, dict):
+            return "invalid"
+        if race.get("status") != "hold" or race.get("reason") != "missing_factors":
+            continue
+        runners = race.get("runners")
+        if (not isinstance(runners, list) or len(runners) > 18):
+            return "invalid"
+        for horse in runners:
+            if (not isinstance(horse, dict)
+                    or horse.get("training") not in (*GRADES, "未評価")
+                    or horse.get("recent") not in (*GRADES, "未評価")):
+                return "invalid"
+            t = horse["training"] == "未評価"
+            r = horse["recent"] == "未評価"
+            if t or r:
+                affected += 1
+                training_missing += int(t)
+                recent_missing += int(r)
+                both_missing += int(t and r)
+    if not affected:
+        return "none"
+    return ("horses:%d,training:%d,recent:%d,both:%d" %
+            (affected, training_missing, recent_missing, both_missing))
+
+
 RUNNER_ISSUES = {
     "Bad two-factor research contract": "contract",
     "Invalid research runner": "runner_shape",
