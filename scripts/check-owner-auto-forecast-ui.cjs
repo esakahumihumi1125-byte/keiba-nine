@@ -3834,7 +3834,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(c.get('autoDay').value,'2099-01-02');
  assert.equal(c.requests.length,1,
   'weekday midnight resume does not trigger a paid query');
- assert.match(c.get('autoStatus').textContent,/平日はJRDBの自動照会を控えています/);
+ // Jan 2 in the fixture is Friday, when the next day's Saturday preview
+ // is now advertised without any hidden provider read.
+ assert.match(c.get('autoStatus').textContent,/金曜・明日 2099-01-03/);
  await c.get('autoRun').onclick();
  assert.equal(c.requests.length,2,'manual weekday race query still works');
  assert.equal(c.get('autoHistory').children.length,1);
