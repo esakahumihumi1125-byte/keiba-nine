@@ -2001,8 +2001,15 @@ function render(input,day){
  show('');
  const breakdown=Object.entries(data.holdReasons).sort((a,b)=>b[1]-a[1])
   .map(([reason,count])=>SHORT_HOLDS[reason]+' '+count+'R').join('／');
+ const expandedTies=data.races.filter(r=>
+  r.status==='provisional_draft'&&
+  r.first.length===2&&r.second.length===6&&r.third.length===6&&
+  r.points===40&&!deviceExpired.has(r.track+'|'+r.race)&&
+  !fixed.blocked.has(r.track+'|'+r.race)).length;
  $('autoSummary').textContent=data.raceCount+'R中、研究用自動案 '+
   safeDraftCount+'R／見送り '+data.holdCount+'R。'+
+  (expandedTies?'同点を切らず2着候補を6頭に拡張 '+expandedTies+
+   'R（研究用・40点）。':'')+
   (deviceExpired.size?'端末受信後に発走時刻経過で新案非表示 '+
    deviceExpired.size+'R。':'')+
   (breakdown?'内訳：'+breakdown+'。':'')+
