@@ -1539,17 +1539,6 @@ function render(input,day){
   // No formation can be recreated after the local provisional off-time.
   if(race.status==='provisional_draft'&&!elapsed&&!changedLock)
    detail.append(formation(race));
-  if(race.runners.length)detail.append(researchRaceSpotlight(race));
-  else detail.append(dom('p','馬番別の仮評価は未取得・照合保留。'+
-   '発走後に研究用の買い目を作り直しません。','muted'));
-  // Race-only handoff: the recipient parses #select=v1 with a valid
-  // date/track/R and does NOT import horse numbers, save or buy tickets.
-  const manual=dom('a','このRの3連単を自分で作る（手動・未購入）');
-  manual.className='manual-entry-link';
-  manual.href='/my-tickets#select=v1&date='+day.slice(0,4)+'-'+
-   day.slice(4,6)+'-'+day.slice(6,8)+
-   '&track='+encodeURIComponent(race.track)+'&race='+race.race;
-  detail.append(manual);
   if(race.runners.length){
    const front=race.runners.filter(h=>h.pastFourthCorner==='frontObserved').length;
    const back=race.runners.filter(h=>h.pastFourthCorner==='backObserved').length;
@@ -1639,6 +1628,19 @@ function render(input,day){
      :'【以前の固定買い目と不一致】新しい下書きの3連単を非表示にしました。下の発走前固定履歴を確認してな。',
      'hold'));
   }
+  // Append optional study and manual-entry actions AFTER the old
+  // racecard: preserve all established content and first-view order.
+  if(race.runners.length)detail.append(researchRaceSpotlight(race));
+  else detail.append(dom('p','馬番別の仮評価は未取得・照合保留。'+
+   '発走後に研究用の買い目を作り直しません。','muted'));
+  // Race-only handoff: the recipient parses #select=v1 with a valid
+  // date/track/R and does NOT import horse numbers, save or buy tickets.
+  const manual=dom('a','このRの3連単を自分で作る（手動・未購入）');
+  manual.className='manual-entry-link';
+  manual.href='/my-tickets#select=v1&date='+day.slice(0,4)+'-'+
+   day.slice(4,6)+'-'+day.slice(6,8)+
+   '&track='+encodeURIComponent(race.track)+'&race='+race.race;
+  detail.append(manual);
   const raceKey=race.track+'|'+race.race;
   nodes.push({key:raceKey,track:race.track,
    draft:race.status==='provisional_draft'&&!changedLock&&!elapsed,
