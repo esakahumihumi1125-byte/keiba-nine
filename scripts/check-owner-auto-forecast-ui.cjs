@@ -1191,7 +1191,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   autoDraftOk=true,autoDraftNonJson=null,autoDraftNetworkFailure=false,
   officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
-  officialPdfOk=true,preflightCorrupt=false,preflightBadKey=false,
+  officialPdfOk=true,officialCardOffTime='12:00',
+  preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
  let now=initialClock||'2099-01-01T00:00:00Z',onVisibility=null;
  function node(tag){
@@ -1255,6 +1256,22 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    };
    if(preflightCorrupt)obj.providerConnectionVerified=true;
    return {ok:true,json:async()=>obj};
+  }
+  if(url.startsWith('/api/jra/prestart-card-candidate?')){
+   const q=new URL('http://localhost'+url).searchParams;
+   return {ok:true,json:async()=>({
+    version:'owner-jra-prestart-card-candidate-1',
+    date:q.get('date'),track:q.get('track'),race:Number(q.get('race')),
+    postTimeCandidate:officialCardOffTime,
+    courseSurfaceCandidate:'芝',distanceMCandidate:2000,
+    officialHostAllowlisted:true,visibleRaceHeaderMatched:true,
+    pageContentsParsed:true,independentSourceAuthenticated:false,
+    officialStartersVerified:false,officialScratchesVerified:false,
+    officialGoingVerified:false,officialPostTimeVerified:false,
+    formalTenFactorReady:false,bettingReady:false,
+    changesExistingReceipts:false,changesExistingTickets:false,
+    newJrdbProviderRequests:0,researchOnly:true
+   })};
   }
   if(url.startsWith('/api/jra/official-pdf-links?')){
    return {ok:officialPdfOk,json:async()=>({
@@ -1506,6 +1523,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setArchiveCorrupt:x=>archiveCorrupt=x,
   setOfficialPdfLinks:x=>officialPdfLinks=x,
   setOfficialPdfOk:x=>officialPdfOk=x,
+  setOfficialCardOffTime:x=>officialCardOffTime=x,
   setPreflightCorrupt:x=>preflightCorrupt=x,
   setPreflightBadKey:x=>preflightBadKey=x,
   setPreflightServerDate:x=>preflightServerDate=x,
@@ -2066,6 +2084,32 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(cancelExpiry.get('autoRaces').children.length,0);
  assert.equal(cancelExpiry.storage.get(STORAGE),cancelWrites);
  assert.equal(cancelExpiry.requests.length,1);
+ // Public JRA URL candidates are one explicit owner gesture only.
+ // Comparing time/course never writes receipts or changes owner wagers.
+ const cardView=boot();
+ await new Promise(r=>setImmediate(r));
+ const cardButton=cardView.get('autoOfficialCardCheck');
+ const cardBefore=cardView.requests.length;
+ await cardButton.onclick(); // No selected R: never fetch.
+ assert.equal(cardView.requests.length,cardBefore);
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/先に開催日の予想から1Rを選び/);
+ const cardSelect=cardView.get('autoRacePick');
+ cardSelect.value='東京|1';cardSelect.onchange();
+ cardView.get('autoOfficialCardUrl').value=
+  'https://sp.jra.jp/JRADB/accessD.html?CNAME=sw01ddd0108209901010120990101%2F91';
+ const frozenCard=cardView.storage.get(STORAGE);
+ await cardButton.onclick();
+ assert.equal(cardView.requests.length,cardBefore+1);
+ assert.match(cardView.requests.at(-1).url,/^\/api\/jra\/prestart-card-candidate\?/);
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/発走時刻候補は一致/);
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/コース条件候補は一致/);
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/出走馬・取消・馬場・公式データの真正性と最新性は未照合/);
+ assert.equal(cardView.storage.get(STORAGE),frozenCard);
+ cardView.setOfficialCardOffTime('13:00');
+ await cardButton.onclick();
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/発走時刻候補に差あり/);
+ assert.equal(cardView.storage.get(STORAGE),frozenCard);
+ assert.equal(cardView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const evidenceView=boot({initialServerRaw:annotated});
  await new Promise(r=>setImmediate(r));
  assert.equal(evidenceView.requests.length,1);
