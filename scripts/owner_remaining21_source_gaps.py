@@ -164,8 +164,27 @@ def remaining21_source_gaps(study, inventory):
             weight_present = sum(WEIGHTS[k] for k in KEYS if present[k])
             prior_ready += int(all(present[k] for k in KEYS[:-1]))
             bodies_missing += 1
+            # Source fields are NOT conditional performance evidence.
+            # 6pt pedigree and 10pt jockey/trainer need separate historical
+            # cohorts, verified publication cutoffs, and out-of-time tests.
+            family_present = present["pedigree"]
+            staff_present = present["jockey_stable"]
+            sixteen_gaps = {
+                "pedigree": (["parentage_fields_incomplete"] if not family_present else [])
+                + ["independent_condition_cohort_unavailable",
+                   "temporal_holdout_not_validated"],
+                "jockey_stable": (["jockey_or_trainer_fields_incomplete"] if not staff_present else [])
+                + ["condition_matched_staff_results_unvalidated",
+                   "temporal_holdout_not_validated"],
+            }
             horses.append({
                 "number": n,
+                "pedigreeStaffSourceCoverage16": (
+                    6 * int(family_present) + 10 * int(staff_present)),
+                "pedigreeStaffMissingEvidence": sixteen_gaps,
+                "pedigreeStaffGrades": {"pedigree": "未評価", "jockey_stable": "未評価"},
+                "pedigreeStaffScores": {"pedigree": None, "jockey_stable": None},
+                "pedigreeStaffScoreReady": False,
                 "research79Observed": exact is not None,
                 "research79": h["evidenceScore79"],
                 "sourceStates": dict(statuses),
@@ -188,6 +207,11 @@ def remaining21_source_gaps(study, inventory):
             "research79ObservedCount": sum(
                 h["research79Observed"] for h in horses),
             "sourceCoverageByFactor": coverage,
+            "pedigreeParentageCompleteCount": coverage["pedigree"],
+            "staffIdentityCompleteCount": coverage["jockey_stable"],
+            "bothPedigreeStaffCompleteCount": sum(
+                h["pedigreeStaffSourceCoverage16"] == 16 for h in horses),
+            "pedigreeStaffVerifiedGrades": 0,
             "gradeReady": False, "trifectaReady": False,
         })
         ready_prior_total += result[-1]["priorSourceFourCompleteCount"]
@@ -198,6 +222,10 @@ def remaining21_source_gaps(study, inventory):
         "factorWeights": dict(WEIGHTS),
         "remainingWeight": 21, "initialResearchWeight": 79,
         "totalWeight": 100,
+        "pedigreeStaffWeight": 16, "pedigreeStaffGradesVerified": 0,
+        "independentPedigreeCohortValidated": False,
+        "conditionMatchedStaffResultsValidated": False,
+        "outOfTimePerformanceValidated": False,
         "priorSourceFourCompleteCount": ready_prior_total,
         "verifiedFactorCount": 0, "formallyEvaluatedHorseCount": 0,
         "officialJraVerified": False,
@@ -210,6 +238,8 @@ def remaining21_source_gaps(study, inventory):
         "changesExistingTickets": False, "changesExistingRoi": False,
         "note": (
             "新配点の残り21点に必要な資料の有無だけを馬番別に照合。"
+            "血統6と騎手厩舎10は名前の存在を確認しても能力評価は不可。"
+            "別の条件一致実績・公表時刻・時系列検証が必要。"
             "資料カバー配点相当は能力点ではなく、馬体重は全頭未確認。"
             "JRA独立照合・条件別効果・時系列検証は未完了。"
         ),
