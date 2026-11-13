@@ -1755,10 +1755,9 @@ function render(input,day){
   button.setAttribute('aria-pressed','false');
   button.onclick=()=>{select.value='';show(track);};tabs.append(button);
  }
+ // A stable sort keeps original programme order for equal HH:MM values.
  const displayableDrafts=nodes.filter(item=>item.draft)
-  .sort((a,b)=>a.postTime.localeCompare(b.postTime)||
-   a.track.localeCompare(b.track,'ja')||
-   Number(a.key.split('|')[1])-Number(b.key.split('|')[1]));
+  .sort((a,b)=>a.postTime.localeCompare(b.postTime));
  const nextDraft=$('autoNextDraft');
  function updateNextDraft(){
   // JRDB provisional post-time order only, NEVER an official JRA schedule.
