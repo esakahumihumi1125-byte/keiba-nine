@@ -83,6 +83,13 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoOfficialPdfStatus" class="muted" role="status">未確認。PDFリンクの存在だけではJRA公式照合済みとは扱いません。</p>
 <div id="autoOfficialPdfLinks"></div>
 <a href="https://www.jra.go.jp/keiba/rpdf/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く</a>
+<details><summary>選択中の1RでJRA Web出馬表の時刻・コース候補を確認（任意）</summary>
+<p class="muted">下のレース一覧から対象Rを選んだあと、JRA公式のWeb出馬表ページURLを貼り付けて確認できます。本人が押すまで外部ページへ追加照会しません。馬番・取消・馬場は照合せず、正式なJRA認証や100点採点にも使いません。</p>
+<label for="autoOfficialCardUrl">JRA公式Web出馬表のURL</label>
+<input id="autoOfficialCardUrl" type="url" maxlength="250" autocomplete="off" placeholder="https://sp.jra.jp/JRADB/accessD.html?CNAME=...">
+<button id="autoOfficialCardCheck" type="button">選択中の1Rの時刻・コース候補を比較</button>
+<p id="autoOfficialCardStatus" class="muted" role="status">未確認。JRDBの有料再取得や買い目更新は行いません。</p>
+</details>
 </details>
 <details><summary>開催日朝の使い方（3ステップ）</summary>
 <p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
