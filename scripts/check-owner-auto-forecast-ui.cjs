@@ -1584,10 +1584,19 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(gapsView.get('autoRaces').children[0].children.length,1);
  assert.equal(gapsView.requests.length,1);
  assert.equal(gapsView.storage.has(STORAGE),false);
+ assert.match(gapsView.get('autoTrackWorkouts').textContent,
+  /馬別の仮評価を表示できる 1\/1R/);
+ const gapRace=gapsView.get('autoRaces').children[0].children[0];
+ const gapStudy=gapRace.children.find(x=>x.className==='race-study');
+ assert.ok(gapStudy);
+ assert.match(gapStudy.children[2].textContent,/近走未評価：4頭/);
+ assert.match(gapRace.children[0].textContent,/見送り｜調教S 2頭・A 2頭/);
+ assert.equal(gapRace.children.some(x=>x.className==='formation'),false);
  gapsView.get('autoDay').value='2099-01-02';
  gapsView.get('autoDay').onchange();
  assert.match(gapsView.get('autoMissingFactorSummary').textContent,/開催日を取得すると/);
  assert.equal(gapsView.get('autoMissingFactorRaces').children.length,0);
+ assert.match(gapsView.get('autoTrackWorkouts').textContent,/未取得/);
  assert.equal(gapsView.requests.length,1);
 
  // Ordinary weekdays now render without triggering a possibly billed JRDB
@@ -1609,6 +1618,19 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(a.get('autoReadProof').textContent,
   /番組あり・資料照会完了.*4回照会/);
  assert.match(a.get('autoReadProof').textContent,/研究用3連単 1R/);
+ assert.match(a.get('autoTrackWorkouts').textContent,
+  /馬別の仮評価を表示できる 1\/1R/);
+ const studyRace=a.get('autoRaces').children[0].children[0];
+ const study=studyRace.children.find(node=>node.className==='race-study');
+ assert.ok(study,'every race with runner evidence has S/A chips');
+ assert.match(study.children[0].textContent,/調教S（仮）：1番・2番/);
+ assert.match(study.children[1].textContent,/調教A（仮）：3番・4番/);
+ assert.match(study.children[2].textContent,/近走未評価：0頭/);
+ const handoff=studyRace.children.find(node=>node.className==='manual-entry-link');
+ assert.ok(handoff,'race-only manual 3連単 notebook link is present');
+ assert.equal(handoff.href,
+  '/my-tickets#select=v1&date=2099-01-01&track=%E6%9D%B1%E4%BA%AC&race=1');
+ assert.equal(a.requests.length,1,'study chips and manual link incur no JRDB read');
  // A valid same-day response shows ONLY this device's receipt time.
  // Reopening the PWA updates the stale warning, never performs paid reads
  // or rewrites the original prestart receipt.
@@ -3921,6 +3943,14 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await full.get('autoRun').onclick();
  assert.match(full.get('autoSummary').textContent,/36R中、研究用自動案 1R／見送り 35R/);
  assert.equal(full.get('autoRaces').children[0].children.length,36);
+ assert.match(full.get('autoTrackWorkouts').textContent,
+  /馬別の仮評価を表示できる 1\/36R/);
+ const heldRace=full.get('autoRaces').children[0].children[1];
+ const heldManual=heldRace.children.find(node=>node.className==='manual-entry-link');
+ assert.equal(heldManual.href,
+  '/my-tickets#select=v1&date=2099-01-01&track=%E6%9D%B1%E4%BA%AC&race=2');
+ assert.match(heldRace.children[0].textContent,/見送り/);
+ assert.equal(heldRace.children.some(x=>x.className==='formation'),false);
  const fullBeforeShortcut=full.requests.length;
  const fullBeforeStore=full.storage.get(STORAGE);
  assert.match(full.get('autoDraftShortcut').textContent,/買い目あり 1Rだけ見る（東京 1R）/);
