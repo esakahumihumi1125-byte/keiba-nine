@@ -125,6 +125,10 @@ def new_weight_five_research(legacy):
             course_pace = ("course_distance", "pace")
             course_pace_raw = (None if any(bands[k] == UNKNOWN for k in course_pace)
                 else sum(WEIGHTS[k] * POINTS[bands[k]] for k in course_pace))
+            # The current-going historical band is a separate descriptive
+            # study, never an assessment of the verified JRA race-day ground.
+            going_raw = (None if bands["ground"] == UNKNOWN else
+                         WEIGHTS["ground"] * POINTS[bands["ground"]])
             new_horses.append({
                 "number": horse["number"], "bands": dict(bands),
                 "missing": missing, "observedFactorCount": len(KEYS) - len(missing),
@@ -136,6 +140,10 @@ def new_weight_five_research(legacy):
                     None if course_pace_raw is None
                     else round(course_pace_raw / 3, 2)),
                 "coursePaceEvidenceNotFormalGrade": True,
+                "goingEvidenceRawThirdPoints": going_raw,
+                "goingEvidenceScore12": (
+                    None if going_raw is None else round(going_raw / 3, 2)),
+                "goingEvidenceNotFormalGrade": True,
                 "formalScore100": None, "formalGrade": UNKNOWN,
                 "formalRank": None, "scoreIsCalibrated": False,
                 "bettingReady": False,
@@ -168,6 +176,8 @@ def new_weight_five_research(legacy):
         "historicalBandsNotCalibrated": True,
         "coursePaceEvidenceNotFormalGrade": True,
         "coursePaceEvidenceWeight": 34,
+        "goingEvidenceNotFormalGrade": True,
+        "goingEvidenceWeight": 12,
         "resultVerified": False, "changesExistingTickets": False,
         "changesExistingCoreReceipts": False,
         "changesExistingFiveReceipts": False,
