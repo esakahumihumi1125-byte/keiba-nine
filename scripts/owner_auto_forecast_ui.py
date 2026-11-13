@@ -112,6 +112,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
 <p id="autoHoldStatus" class="muted" role="status">開催日を取得すると見送り理由を確認できます。</p>
 </details>
+<details id="autoMissingFactorPanel"><summary>調教・近走不足の内訳（追加照会なし）</summary>
+<p class="muted">既に取得したレース別の資料だけで未評価理由を集計します。過去走が少ない馬を0点扱いしたり、固定買い目を変えたりしません。</p>
+<p id="autoMissingFactorSummary" class="muted" role="status">開催日を取得すると未評価の内訳を確認できます。</p>
+<details><summary>資料不足のレース別内訳を見る</summary>
+<div id="autoMissingFactorRaces"></div>
+</details></details>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
 <select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
@@ -321,6 +327,59 @@ const MISSING={
 };
 function missingText(h){return (Array.isArray(h.missingReasons)?h.missingReasons:[])
  .filter(k=>Object.hasOwn(MISSING,k)).map(k=>MISSING[k]).join('／');}
+// Read-only classification of already-redacted runner reason codes.
+// No provider identities, paid fields, extra HTTP reads, or new rankings.
+const RECENT_GAPS=[
+ ['no_linked_recent_record','近走資料の馬別照合なし'],
+ ['no_usable_history','評価に使える過去走なし'],
+ ['only_one_usable_run','評価可能な過去走1走のみ'],
+ ['insufficient_scored_runs','着順・指数ペア不足'],
+ ['recent_unassessed','理由の再確認が必要']
+];
+const TRAINING_GAPS=[
+ ['no_linked_training_record','調教資料の馬別照合なし'],
+ ['missing_training_indices','追切・仕上指数不足'],
+ ['training_unassessed','理由の再確認が必要']
+];
+function missingFactorHoldBreakdown(data){
+ const held=data.races.filter(row=>row.status==='hold'&&row.reason==='missing_factors');
+ const rec=Object.fromEntries(RECENT_GAPS.map(([k])=>[k,0]));
+ const tr=Object.fromEntries(TRAINING_GAPS.map(([k])=>[k,0]));
+ let recTotal=0,trTotal=0,both=0,unknownRaces=0;
+ const races=[];
+ for(const race of held){
+  let recent=0,training=0,pairs=0;
+  for(const h of race.runners){
+   const t=h.training==='未評価',r=h.recent==='未評価';
+   const reasons=Array.isArray(h.missingReasons)?h.missingReasons:[];
+   if(t){
+    const found=TRAINING_GAPS.map(([key])=>key).filter(key=>reasons.includes(key));
+    tr[found.length===1?found[0]:'training_unassessed']++;
+    trTotal++;training++;
+   }
+   if(r){
+    const found=RECENT_GAPS.map(([key])=>key).filter(key=>reasons.includes(key));
+    rec[found.length===1?found[0]:'recent_unassessed']++;
+    recTotal++;recent++;
+   }
+   if(t&&r){both++;pairs++;}
+  }
+  const available=race.runners.length>0&&(training+recent)>0;
+  if(!available)unknownRaces++;
+  races.push({track:race.track,race:race.race,training,recent,pairs,available});
+ }
+ const describe=(types,counts)=>types.filter(([key])=>counts[key]>0)
+  .map(([key,label])=>label+' '+counts[key]+'頭').join('／');
+ const summary=!held.length
+  ?'調教・近走不足による見送りは0R。資料不足を勝手に推測しません。'
+  :'調教・近走不足で見送り '+held.length+'R。近走未評価 '+recTotal+
+   '頭（'+(describe(RECENT_GAPS,rec)||'内訳未確認')+'）。調教未評価 '+
+   trTotal+'頭（'+(describe(TRAINING_GAPS,tr)||'内訳未確認')+
+   '）。両方未評価 '+both+'頭。'+
+   (unknownRaces?'馬別内訳が確認できないレース '+unknownRaces+'R。':'')+
+   '未評価の件数は能力0点ではなく、正式10項目予想や購入推奨でもありません。';
+ return {summary,races};
+}
 const RECEIPTS_KEY='keiba-nine-owner-server-receipts-v1';
 // Safe, fixed server diagnostics. Do not display raw provider error text.
 const FAILURE_STAGE={
@@ -1424,6 +1483,14 @@ function render(input,day){
  $('autoFixedConsistency').textContent=fixedComparisonMessage(fixed);
  $('autoSourceSummary').textContent=summarizeDaySourcePassport(
   data.sourcePassport,data.raceCount);
+ const gaps=missingFactorHoldBreakdown(data);
+ $('autoMissingFactorSummary').textContent=gaps.summary;
+ const gapHost=$('autoMissingFactorRaces');gapHost.replaceChildren();
+ for(const row of gaps.races)
+  gapHost.append(dom('p',row.track+' '+row.race+'R｜'+
+   (row.available?'調教未評価 '+row.training+'頭／近走未評価 '+
+    row.recent+'頭／両方 '+row.pairs+'頭':
+    '馬別内訳は未確認（0頭という意味ではありません）'),'muted'));
  for(const race of data.races){
   const key=race.track+'|'+race.race,
    changedLock=fixed.blocked.has(key),elapsed=deviceExpired.has(key);
@@ -4249,6 +4316,8 @@ $('autoDay').onchange=()=>{
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
  $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
+ $('autoMissingFactorSummary').textContent='開催日を取得すると未評価の内訳を確認できます。';
+ $('autoMissingFactorRaces').replaceChildren();
  $('autoRacePick').disabled=true;
  $('autoRacePick').replaceChildren();
  $('autoRacePick').value='';
@@ -4563,6 +4632,8 @@ $('autoRun').onclick=async()=>{
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
  $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
+ $('autoMissingFactorSummary').textContent='開催日を取得すると未評価の内訳を確認できます。';
+ $('autoMissingFactorRaces').replaceChildren();
  $('autoRacePick').disabled=true;
  $('autoRacePick').replaceChildren();
  $('autoRacePick').value='';
@@ -4699,6 +4770,8 @@ $('autoRun').onclick=async()=>{
   $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
  $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
+ $('autoMissingFactorSummary').textContent='開催日を取得すると未評価の内訳を確認できます。';
+ $('autoMissingFactorRaces').replaceChildren();
   $('autoRacePick').disabled=true;
   $('autoRacePick').replaceChildren();
   $('autoRacePick').value='';
@@ -6364,6 +6437,8 @@ function resumeOwnerDay(){
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
  $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
+ $('autoMissingFactorSummary').textContent='開催日を取得すると未評価の内訳を確認できます。';
+ $('autoMissingFactorRaces').replaceChildren();
  $('autoRacePick').disabled=true;
  $('autoRacePick').replaceChildren();
  $('autoRacePick').value='';
