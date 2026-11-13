@@ -1509,6 +1509,25 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   assert.equal(view.storage.has(STORAGE),false,
    'mismatched old provider data must not become a new signed record');
  }
+ // Friday must NOT claim tomorrow's provisional forecast is ready,
+ // nor perform a paid read until the owner taps the single Saturday action.
+ const friday=boot({manualWeekday:false,
+  initialClock:'2099-01-02T08:15:00Z'}); // Fri 17:15 JST
+ await new Promise(r=>setImmediate(r));
+ assert.equal(friday.get('autoDay').value,'2099-01-02');
+ assert.equal(friday.requests.length,0);
+ assert.match(friday.get('autoStatus').textContent,
+  /明日 2099-01-03.*まだ取得していません/);
+ assert.match(friday.get('autoOperationalNext').textContent,/有料照会0回/);
+ assert.equal(friday.get('autoSaturdayQuick').textContent,
+  '土曜の予想を取得・表示（1回）');
+ await friday.get('autoSaturdayQuick').onclick();
+ assert.equal(friday.get('autoDay').value,'2099-01-03');
+ assert.equal(friday.requests.length,1);
+ assert.equal(friday.requests[0].url,
+  '/api/jrdb/owner-auto-draft?date=20990103');
+ assert.equal(friday.storage.has(STORAGE),false);
+
  // Ordinary weekdays now render without triggering a possibly billed JRDB
  // request. An explicit user press still works for a holiday race meeting.
  const weekday=boot({manualWeekday:false});
