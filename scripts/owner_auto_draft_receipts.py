@@ -81,7 +81,7 @@ def seal_auto_research_drafts(report, password, now=None):
         first, second, third = row.get("first"), row.get("second"), row.get("third")
         if (not all(isinstance(x, list) for x in (first, second, third))
                 or len(first) not in (2, 3)
-                or not len(first) < len(second) <= 5
+                or not len(first) < len(second) <= 6
                 or not len(second) <= len(third) <= 9):
             raise ReceiptError("Invalid automatic formation")
         expected = sorted({(x, y, z) for x in first for y in second for z in third
