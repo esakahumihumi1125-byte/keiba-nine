@@ -4034,6 +4034,19 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(allDrafts.get('autoRacePick').children.length,37);
  assert.equal(allDrafts.get('autoVenues').children.find(x=>
   x.dataset.mode==='drafts')?.textContent,'下書きのみ 36R');
+ const nextDraft=allDrafts.get('autoNextDraft');
+ assert.equal(nextDraft.disabled,false);
+ assert.match(nextDraft.textContent,/次の下書きRへ（一覧順）/);
+ const beforeNextReads=allDrafts.requests.length;
+ const beforeNextStore=allDrafts.storage.get(STORAGE);
+ nextDraft.onclick();
+ assert.equal(allDrafts.get('autoRacePick').value,'東京|1');
+ assert.equal(allDrafts.get('autoRaces').children[0].children.length,1);
+ assert.match(allDrafts.get('autoViewingStatus').textContent,/東京 1R/);
+ nextDraft.onclick();
+ assert.equal(allDrafts.get('autoRacePick').value,'東京|2');
+ assert.equal(allDrafts.requests.length,beforeNextReads);
+ assert.equal(allDrafts.storage.get(STORAGE),beforeNextStore);
  const frozen36=allDrafts.storage.get(STORAGE);
  const saved36=JSON.parse(frozen36);
  assert.equal(saved36.length,36);
@@ -4047,6 +4060,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  allDrafts.get('autoRacePick').value='福島|12';
  allDrafts.get('autoRacePick').onchange();
  assert.match(allDrafts.get('autoViewingStatus').textContent,/福島 12R/);
+ assert.equal(nextDraft.disabled,true,'last eligible draft has no next race');
+ assert.match(nextDraft.textContent,/最後の下書きRです/);
+ assert.equal(allDrafts.requests.length,beforeNextReads);
+ assert.equal(allDrafts.storage.get(STORAGE),frozen36);
  const selectedCard=allDrafts.get('autoRaces').children[0].children[0];
  assert.ok(selectedCard.children.some(x=>x.className==='formation'));
  assert.equal(allDrafts.storage.get(STORAGE),frozen36);
@@ -4062,6 +4079,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  // cancelled race. The view cannot create, backfill or alter tickets.
  const gap=boot();
  await new Promise(r=>setImmediate(r));
+ assert.equal(gap.get('autoNextDraft').disabled,false);
  const beforeGapStore=gap.storage.get(STORAGE),beforeGapReq=gap.requests.length;
  gap.setServerRaw(full35WithGap());
  await gap.get('autoRun').onclick();
@@ -4080,6 +4098,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(reasonButtons.length,3);
  assert.equal(reasonButtons[0].dataset.reason,'after_provisional_off');
  assert.match(mixed.get('autoOperationalNext').textContent,/主な見送り：発走済み 33R／候補同点 1R/);
+ assert.equal(mixed.get('autoNextDraft').disabled,false,
+  'only eligible study drafts may be navigated, never held races');
  assert.match(reasonButtons[0].textContent,/発走済み 33R/);
  assert.equal(reasonButtons[1].dataset.reason,'missing_factors');
  assert.match(reasonButtons[1].textContent,/調教・近走不足 1R/);
