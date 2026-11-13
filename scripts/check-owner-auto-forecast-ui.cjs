@@ -2666,9 +2666,12 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.ok(gapPanel);
  assert.match(gapPanel.children[1].textContent,/騎手厩舎10/);
  assert.match(gapPanel.children[2].textContent,/正式能力評価は未完了/);
- assert.match(gapPanel.children[3].textContent,
+ assert.match(gapPanel.children[3].textContent,/血統6点・騎手厩舎10点の採点前チェック/);
+ assert.match(gapPanel.children[3].textContent,/16点の正式採点は0点分（未評価）/);
+ assert.match(gapPanel.children[4].textContent,
   /1番｜新79点研究 未評価｜残り21点の資料カバー配点相当 20\/21（得点ではない）/);
- assert.match(gapPanel.children[3].textContent,/資料不足：当日馬体重/);
+ assert.match(gapPanel.children[4].textContent,/基本資料 16\/16（能力点ではない）/);
+ assert.match(gapPanel.children[4].textContent,/資料不足：当日馬体重/);
  assert.match(gapPanel.children.at(-1).textContent,/JRA公式出走/);
  assert.equal(a.requests.slice(beforeGap).filter(x=>
   x.url==='/api/jrdb/history').length,1);
@@ -2676,6 +2679,11 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(a.storage.get(STORAGE),oldRecord);
  for(const mutate of [
   h=>h.remaining21SourceGaps.factorWeights.jockey_stable=2,
+  h=>h.remaining21SourceGaps.pedigreeStaffGradesVerified=1,
+  h=>h.remaining21SourceGaps.races[0].horses[0].pedigreeStaffScores.jockey_stable=10,
+  h=>h.remaining21SourceGaps.races[0].horses[0].pedigreeStaffSourceCoverage16=6,
+  h=>h.remaining21SourceGaps.races[0].bothPedigreeStaffCompleteCount=0,
+  h=>h.remaining21SourceGaps.races[0].horses[0].pedigreeStaffMissingEvidence.pedigree=[],
   h=>h.remaining21SourceGaps.races[0].horses[0].formalScore100=80,
   h=>h.remaining21SourceGaps.races[0].horses[0].sourceFieldCoverageEquivalent21=21,
   h=>h.remaining21SourceGaps.races[0].horses[0].sourceFieldsPresent.body_condition=true,
