@@ -4365,6 +4365,7 @@ $('autoDay').onchange=()=>{
  clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
+ $('autoTrackWorkouts').textContent='調教S/Aの参考表示：開催日のデータは未取得です。';
  $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
  $('autoOperationalNext').textContent='開催日の次の操作：当日の取得結果を確認中。';
@@ -4841,6 +4842,7 @@ $('autoRun').onclick=async()=>{
    ?'【端末への新規固定失敗】新しい買い目は非表示。既存の固定記録は削除・上書きしていません。バックアップ・署名確認を優先してください。'
    :'新規記録なし。以前の固定記録は下の履歴で確認してください（署名は別操作）。';
   $('autoSourceSummary').textContent='資料進捗の取得に失敗しました。以前の集計は表示しません。';
+  $('autoTrackWorkouts').textContent='取得失敗：調教S/Aの新しい参考表示はありません。';
   $('autoTenWeights').replaceChildren();
   $('autoTenStatus').textContent='10項目の評価を確認できません。';}}
  finally{if(seq===request)button.disabled=false;}
@@ -6486,6 +6488,7 @@ function resumeOwnerDay(){
  clearHistory();
  $('autoSummary').textContent='未取得';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
+ $('autoTrackWorkouts').textContent='調教S/Aの参考表示：開催日のデータは未取得です。';
  $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
  $('autoOperationalNext').textContent='開催日の次の操作：当日の取得結果を確認中。';
@@ -6574,6 +6577,7 @@ function showRecentlyFixedWithoutProvider(day,label){
  showFixedHistory(day);
  $('autoSavedStatus').textContent=localReceiptStatus(day);
  $('autoSummary').textContent='新規未取得｜端末内の発走前固定 '+count+'R';
+ $('autoTrackWorkouts').textContent='今回は馬番別調教資料を取得していません。固定済み研究記録のみ表示。';
  $('autoStatus').textContent='【'+label+'・固定履歴を表示】この端末に保存済みの発走前研究用3連単 '+count+
   'Rを表示しています。20分以内に確認済みのため自動JRDB再照会0回。今回の新しい出走資料・予想は取得していません。'+
   '署名の真正性とJRA公式出走・取消・馬場・発走時刻は未検証。';
