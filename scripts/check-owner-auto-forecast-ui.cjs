@@ -183,6 +183,39 @@ function heldReasonBreakdownFixture(){
  // Intact supported C/C is NOT a missing-grade or source shortage.
  return withSourcePassport(withTenPreview(result));
 }
+function boundedRecentFixture(){
+ // One prestart race has enough training bands to prove the membership
+ // groups, even though four recent grades are missing. It MUST remain a
+ // held two-factor forecast with zero signed tickets.
+ const data=resultWith('a'.repeat(64)),race=data.races[0];
+ const bands=[['S','未評価'],['S','C'],['A','未評価'],['A','S'],
+              ['B','未評価'],['B','C'],['C','未評価']];
+ race.runners=structuredClone(race.runners).map((h,i)=>{
+  const [training,recent]=bands[i];
+  return {...h,training,recent,twoFactorGrade:'未評価',
+   twoFactorPoints:null,weightedResearchPoints:null,comparisonRank:null,
+   missingReasons:recent==='未評価'?['no_linked_recent_record']:[]};
+ });
+ Object.assign(race,{status:'hold',reason:'missing_factors',
+  first:[],second:[],third:[],tickets:[],points:0,amountYen:0});
+ data.draftCount=0;data.holdCount=1;data.holdReasons={missing_factors:1};
+ data.researchReceipts=[];data.researchReceiptCount=0;
+ data.uncertainRecentResearch={
+  version:'owner-uncertain-recent-preview-1',date:day,raceCount:1,
+  reviewedPrestartMissingFactorRaces:1,safeResearchPreviewCount:1,
+  races:[{track:'東京',race:1,status:'bounded_recent_uncertainty_only',
+   first:[1,2],second:[1,2,4,3],third:[1,2,4,3,5,6,7],
+   points:30,missingRecentCount:4,assessedTrainingCount:7,
+   eachCutoffProvenForAllRecentGrades:true,
+   officialJraVerified:false,formalScoreReady:false,predictionReady:false,
+   bettingReady:false,receiptIssued:false,actualPurchase:false}],
+  researchOnly:true,privateOwnerOnly:true,independentJraVerified:false,
+  officialJraVerified:false,formalTenFactorReady:false,predictionReady:false,
+  bettingReady:false,changesExistingDrafts:false,
+  changesExistingReceipts:false,newProviderRequests:0,ticketsIssued:0
+ };
+ return withSourcePassport(withTenPreview(data));
+}
 function full36RaceDraft(){
  // Three-venue, 36R fixture: 1 prestart signed draft and 35 later holds.
  // Never fabricate historical rankings for post-off races.
@@ -4148,6 +4181,36 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(timeNav.requests.length,timeNavReads);
  assert.equal(timeNav.storage.get(STORAGE),timeNavStore);
  assert.equal(timeNav.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Sparse recent research is strictly a *separate* unsigned display.
+ // Never promote held candidates to a draft, sign them or fetch a source.
+ const sparse=boot({manualWeekday:false});
+ await new Promise(r=>setImmediate(r));
+ const sparseResult=boundedRecentFixture();
+ sparse.setServerRaw(sparseResult);
+ const sparseStore=sparse.storage.get(STORAGE),sparseBefore=sparse.requests.length;
+ await sparse.get('autoRun').onclick();
+ assert.equal(sparse.requests.length,sparseBefore+1);
+ assert.match(sparse.get('autoSummary').textContent,/研究用自動案 0R／見送り 1R/);
+ assert.match(sparse.get('autoUncertainRecentStatus').textContent,/参考グループ 1R/);
+ const boundedCard=sparse.get('autoUncertainRecentRaces').children;
+ assert.equal(boundedCard.length,1);
+ assert.match(boundedCard[0].children[0].textContent,/参考30通り/);
+ assert.match(boundedCard[0].children[1].textContent,/1着候補 1・2/);
+ assert.equal(sparse.storage.get(STORAGE),sparseStore);
+ assert.equal(sparse.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ sparse.get('autoDay').value='2099-01-02';
+ sparse.get('autoDay').onchange();
+ assert.equal(sparse.get('autoUncertainRecentRaces').children.length,0);
+ assert.match(sparse.get('autoUncertainRecentStatus').textContent,/取得前/);
+ const corrupt=boot({manualWeekday:false});
+ await new Promise(r=>setImmediate(r));
+ const invalidSparse=boundedRecentFixture();
+ invalidSparse.uncertainRecentResearch.races[0].points=40; // 30 is true.
+ corrupt.setServerRaw(invalidSparse);
+ await corrupt.get('autoRun').onclick();
+ assert.match(corrupt.get('autoUncertainRecentStatus').textContent,/安全に確認できません/);
+ assert.equal(corrupt.get('autoUncertainRecentRaces').children.length,0);
+ assert.equal(corrupt.storage.has(STORAGE),false);
  // All 36R are already validated before UI filtering. Mixed holds should
  // be navigable with one tap and must never generate past-off tickets.
  // A missing JRDB row is an unconfirmed provider gap, NEVER an official
