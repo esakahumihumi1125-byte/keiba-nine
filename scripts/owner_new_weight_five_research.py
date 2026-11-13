@@ -119,12 +119,23 @@ def new_weight_five_research(legacy):
                         None if old_raw is None else round(old_raw / 3, 2))):
                 raise CoverageError("Legacy 85-weight score mismatch")
             old_horses.append({"number": horse["number"], "rawThirdPoints": old_raw})
+            # A *separate* 17+17 research subtotal can exist even if the
+            # other three uncalibrated historical bands are missing. This
+            # is arithmetic on descriptive bands, NOT a suitability grade.
+            course_pace = ("course_distance", "pace")
+            course_pace_raw = (None if any(bands[k] == UNKNOWN for k in course_pace)
+                else sum(WEIGHTS[k] * POINTS[bands[k]] for k in course_pace))
             new_horses.append({
                 "number": horse["number"], "bands": dict(bands),
                 "missing": missing, "observedFactorCount": len(KEYS) - len(missing),
                 "rawThirdPoints": new_raw,
                 "evidenceScore79": (
                     None if new_raw is None else round(new_raw / 3, 2)),
+                "coursePaceEvidenceRawThirdPoints": course_pace_raw,
+                "coursePaceEvidenceScore34": (
+                    None if course_pace_raw is None
+                    else round(course_pace_raw / 3, 2)),
+                "coursePaceEvidenceNotFormalGrade": True,
                 "formalScore100": None, "formalGrade": UNKNOWN,
                 "formalRank": None, "scoreIsCalibrated": False,
                 "bettingReady": False,
@@ -155,6 +166,8 @@ def new_weight_five_research(legacy):
         "bettingReady": False, "autoPurchase": False,
         "researchOnly": True, "privateOwnerOnly": True,
         "historicalBandsNotCalibrated": True,
+        "coursePaceEvidenceNotFormalGrade": True,
+        "coursePaceEvidenceWeight": 34,
         "resultVerified": False, "changesExistingTickets": False,
         "changesExistingCoreReceipts": False,
         "changesExistingFiveReceipts": False,
