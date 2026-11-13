@@ -122,6 +122,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
 <select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
+<button id="autoNextDraft" type="button" class="secondary-cta" disabled>次の下書きRへ（未取得）</button>
 <p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
 <div id="autoRaces"></div>
 </section>
@@ -1466,6 +1467,10 @@ function clearDraftShortcut(){
  const shortcut=$('autoDraftShortcut');
  shortcut.textContent='買い目あり：未取得';
  shortcut.onclick=null;
+ const next=$('autoNextDraft');
+ next.disabled=true;
+ next.textContent='次の下書きRへ（未取得）';
+ next.onclick=null;
 }
 // iPhone Safari may stay on one race screen while the clock passes an off.
 // Hide fresh, unpurchased research formations at the earliest JRDB
@@ -1732,6 +1737,7 @@ function render(input,day){
      !draftsOnly&&b.dataset.track===track)));
   for(const b of holdTabs.querySelectorAll('button'))
    b.setAttribute('aria-pressed',String(!key&&b.dataset.reason===holdReason));
+  updateNextDraft();
  }
  select.disabled=nodes.length===0;
  select.onchange=()=>{
@@ -1749,6 +1755,32 @@ function render(input,day){
   button.onclick=()=>{select.value='';show(track);};tabs.append(button);
  }
  const displayableDrafts=nodes.filter(item=>item.draft);
+ const nextDraft=$('autoNextDraft');
+ function updateNextDraft(){
+  // Display order only; not a claim about JRA's official start order.
+  // A held, locally expired or frozen-conflict R is never a navigation target.
+  const current=displayableDrafts.findIndex(item=>item.key===select.value);
+  const available=displayableDrafts.length>0&&current<displayableDrafts.length-1;
+  nextDraft.disabled=!available;
+  nextDraft.textContent=!displayableDrafts.length
+   ?'次の下書きRはありません（見送り・未取得）'
+   :available?'次の下書きRへ（一覧順）':'最後の下書きRです';
+ }
+ nextDraft.onclick=()=>{
+  if(latestDisplayedReport!==data||latestDisplayedDay!==day||
+     $('autoDay').value.replaceAll('-','')!==day){
+   nextDraft.disabled=true;
+   $('autoViewingStatus').textContent=
+    '古い開催日の下書きは開けません。開催日を確認してください。';
+   return;
+  }
+  if(nextDraft.disabled)return;
+  const position=displayableDrafts.findIndex(item=>item.key===select.value);
+  const target=displayableDrafts[position+1];
+  if(!target){updateNextDraft();return;}
+  select.value=target.key;
+  show(target.track,target.key); // Local clock rechecked by show(), no provider call.
+ };
  const safeDraftCount=displayableDrafts.length;
  const singleDraft=safeDraftCount===1?displayableDrafts[0]:null;
  const shortcut=$('autoDraftShortcut');
