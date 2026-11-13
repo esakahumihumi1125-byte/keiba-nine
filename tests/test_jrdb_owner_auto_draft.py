@@ -9,7 +9,10 @@ from unittest.mock import patch, call as mock_call
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_coverage import CoverageError
-from jrdb_owner_auto_draft import build_owner_auto_drafts, compact_hold_diagnostics, VERSION
+from jrdb_owner_auto_draft import (
+    build_owner_auto_drafts, compact_hold_diagnostics,
+    compact_factor_shortage_diagnostics, VERSION,
+)
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_prestart_receipt import verify_preview_receipts, ReceiptError
 from keiba_100yen_review import review_100yen
@@ -369,6 +372,25 @@ class AutoDraftTests(unittest.TestCase):
             now=datetime(2099,1,1,9,0,tzinfo=JST))
         self.assertEqual(len(signed), 1)
         self.assertEqual(signed[0]["snapshot"]["track"], "東京")
+
+    def test_redacted_factor_shortage_summary_distinguishes_training_and_recent(self):
+        complete = generate()
+        self.assertEqual(compact_factor_shortage_diagnostics(complete), "none")
+        pairs = PAIRS[:-3] + [
+            ("未評価", "C"), ("C", "未評価"), ("未評価", "未評価")
+        ]
+        held = generate(programme(7), research(pairs))
+        self.assertEqual(held["holdReasons"], {"missing_factors": 1})
+        self.assertEqual(compact_factor_shortage_diagnostics(held),
+                         "horses:3,training:2,recent:2,both:1")
+        past = generate(programme(7), research(pairs),
+                        now=datetime(2099, 1, 1, 12, 30, tzinfo=JST))
+        self.assertEqual(compact_factor_shortage_diagnostics(past), "none")
+        corrupted = copy.deepcopy(held)
+        corrupted["races"][0]["runners"][0]["training"] = "SECRET_HORSE_NAME"
+        self.assertEqual(compact_factor_shortage_diagnostics(corrupted), "invalid")
+        self.assertNotIn("SECRET", compact_factor_shortage_diagnostics(corrupted))
+        self.assertEqual(compact_factor_shortage_diagnostics({}), "invalid")
 
     def test_redacted_operator_hold_summary_counts_only_fixed_categories(self):
         base=generate()
