@@ -112,6 +112,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p><p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
 <p id="autoTrackWorkouts" class="muted" role="status">調教S/Aの参考表示：JRDB資料の取得前です。</p>
+<details id="autoWorkoutQuickPanel"><summary>全場の調教S/A馬番を発走順に見る（見送りRも）</summary>
+<p class="muted">JRDB調教の未検証S/Aだけを馬番で一覧表示します。近走・展開・馬場・JRA最終出走確認を含めた総合順位や1着候補ではありません。行を押すと該当レースを表示するだけで、追加の有料通信や馬券購入は行いません。</p>
+<p id="autoWorkoutQuickStatus" class="muted" role="status">未取得。開催日を読み込むと追加照会なしで一覧が作られます。</p>
+<div id="autoWorkoutQuickRows" class="day-shortcuts"></div>
+</details>
 <details id="autoEvidenceGapPanel"><summary>正式10項目の不足資料を確認（追加照会なし）</summary>
 <p class="muted">取得済みのJRDB資料がある頭数だけを集計。過去4角などの観測は今回の展開予測ではなく、資料の有無も正式な採点結果ではありません。発走前固定記録・買い目は変更しません。</p>
 <pre id="autoEvidenceGapReport" class="acceptance-report" role="status">まだ未取得です。発走前の研究用データを取得すると、追加照会なしで表示します。</pre>
@@ -1484,6 +1489,8 @@ function clearDraftShortcut(){
  shortcut.textContent='買い目あり：未取得';
  shortcut.onclick=null;
  $('autoUncertainRecentRaces').replaceChildren();
+ $('autoWorkoutQuickRows').replaceChildren();
+ $('autoWorkoutQuickStatus').textContent='未取得。追加照会なしで一覧を作ります。';
  $('autoUncertainRecentHint').textContent='近走不足の追加研究：未取得。';
  $('autoUncertainRecentStatus').textContent='レース取得前。追加資料を勝手に補完しません。';
  const next=$('autoNextDraft');
@@ -1630,9 +1637,56 @@ function renderUncertainRecent(data,day){
   status.textContent='追加の参考候補を安全に確認できません。元の研究用予想と固定記録は無変更です。';
  }
 }
+// Read-only training S/A digest for the owner: never an overall horse
+// grade, winner pick, or permission to revive expired provisional tickets.
+function renderWorkoutQuick(data,day){
+ const host=$('autoWorkoutQuickRows'),status=$('autoWorkoutQuickStatus');
+ host.replaceChildren();
+ const rows=data.races.filter(r=>r.runners.length>0&&
+  !draftExpiredOnDevice(day,r.postTime))
+  .sort((a,b)=>a.postTime.localeCompare(b.postTime));
+ const picks=[];
+ for(const race of rows){
+  const s=race.runners.filter(h=>h.training==='S').map(h=>h.number);
+  const a=race.runners.filter(h=>h.training==='A').map(h=>h.number);
+  if(!s.length&&!a.length)continue;
+  const no=race.race,track=race.track,post=race.postTime;
+  const key=track+'|'+no;
+  const button=dom('button',post+' '+track+no+'R｜調教S '+
+   (s.length?s.join('・')+'番':'なし')+'／A '+
+   (a.length?a.join('・')+'番':'なし')+
+   '｜'+(race.status==='hold'?'研究用下書きは見送り':'研究用下書きあり'));
+  button.type='button';
+  button.onclick=()=>{
+   // Check the device clock on tap; a stale open accordion must never
+   // advertise a post-off race as an actionable opportunity.
+   if($('autoDay').value.replaceAll('-','')!==day||
+      draftExpiredOnDevice(day,post)){
+    status.textContent='選択日または暫定発走時刻が変わりました。'+
+     '発走済みの研究案は再表示しません。';
+    return;
+   }
+   const target=$('autoRacePick');
+   if(target.disabled)return;
+   target.value=key;
+   if(typeof target.onchange==='function')target.onchange();
+   const section=$('forecastRacesSection');
+   if(typeof section?.scrollIntoView==='function')
+    section.scrollIntoView({behavior:'smooth',block:'start'});
+  };
+  picks.push(button);
+ }
+ host.replaceChildren(...picks);
+ status.textContent=picks.length
+  ?'発走予定時刻前の調教S/A参考 '+picks.length+'R。'+
+   '表示は調教だけの仮評価で、総合予想の買い目や勝負度ではありません。'
+  :'発走前に表示できる調教S/A参考Rは0R。'+
+   '資料未取得・発走済み・S/Aなしを区別して確認してください。';
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  renderUncertainRecent(data,day);
+ renderWorkoutQuick(data,day);
  const materialByRace=validatedRunnerSourceEvidence(data);
  $('autoEvidenceGapReport').textContent=evidenceGapSummary(data,materialByRace);
  $('autoTenEvidenceMatrix').textContent=tenEvidenceMatrix(data,materialByRace);
