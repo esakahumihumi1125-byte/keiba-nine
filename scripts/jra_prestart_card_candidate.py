@@ -173,7 +173,8 @@ def probe_prestart_card(url, requested_date, track, race, *,
             html = body.decode(encoding)
     except JraPrestartCardError:
         raise
-    except (OSError, ValueError, UnicodeError):
+    except Exception:
+        # Never serialize remote exceptions, URLs or HTML to the owner UI.
         raise JraPrestartCardError("JRA racecard could not be read") from None
     return parse_prestart_card_candidate(
         html, url, requested_date, track, race)
