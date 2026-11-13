@@ -99,13 +99,15 @@ def _evidence_blocker(item, cutoff):
     return "evidence_unverified"
 
 
-def _empty(status, *, missing=None, missing_reasons=None, evidence=None):
+def _empty(status, *, missing=None, missing_reasons=None, evidence=None,
+           factor_readiness=None):
     return {
         "version": VERSION, "policyVersion": POLICY_VERSION,
         "status": status, "researchOnly": True, "publishable": False,
         "bettingReady": False, "autoPurchase": False, "overallReady": False,
         "ranking": [], "missingByNumber": missing or {},
         "missingReasonCodesByNumber": missing_reasons or {},
+        "factorReadinessByNumber": factor_readiness or {},
         "winnerRecheck": _empty_recheck(),
         "upsetAlternative": hold_upset("full_ten_not_ready"),
         "trifecta": build_trifecta([1, 2, 3, 4], evidence=evidence),
@@ -137,6 +139,7 @@ def full_ten_factor_preview(snapshot, *, now):
         official = {}
     valid_official = {k: official.get(k) is True for k in OFFICIAL}
     numbers, ranking, missing, missing_reasons, support_by_number = set(), [], {}, {}, {}
+    readiness_by_number = {}
     blocked_numbers = set()
     for horse in horses:
         if not isinstance(horse, dict):
@@ -175,6 +178,19 @@ def full_ten_factor_preview(snapshot, *, now):
         if absent:
             missing[n] = absent
             missing_reasons[n] = reason_codes
+        # An *evidence coverage* indicator, NOT a partial ability score.
+        # C is an observed grade with zero earned points and MUST count
+        # toward coverage. Unassessed/late inputs never count. No grade,
+        # score or provider reference is emitted in this diagnostic.
+        traced_weight = sum(FACTORS[k] for k in contributions)
+        readiness_by_number[n] = {
+            "traceableFactorCount": len(contributions),
+            "traceableWeight": traced_weight,
+            "unassessedFactorCount": len(FACTORS) - len(contributions),
+            "unassessedWeight": 100 - traced_weight,
+            "allTenEvidenceTraceable": not absent,
+            "coverageIsNotAbilityScore": True,
+        }
 
         # These flags do NOT create a win pick. They only make a horse
         # eligible for a separate, explicitly reviewed lower-rank hypothesis.
@@ -216,7 +232,8 @@ def full_ten_factor_preview(snapshot, *, now):
     # Do not extrapolate or sort partial 2-factor material into a full ranking.
     if missing:
         return _empty("missing_evidence", missing=missing,
-                      missing_reasons=missing_reasons)
+                      missing_reasons=missing_reasons,
+                      factor_readiness=readiness_by_number)
 
     # Official starter/scratch *flags* cannot prove that the right horses
     # were graded. A trusted future JRA adapter must supply its exact
@@ -231,7 +248,8 @@ def full_ten_factor_preview(snapshot, *, now):
                     and len(set(confirmed)) == len(confirmed)
                     and set(confirmed) == numbers)
     if not roster_valid:
-        return _empty("unverified_starter_roster")
+        return _empty("unverified_starter_roster",
+                      factor_readiness=readiness_by_number)
 
     ranking.sort(key=lambda h: (-h["weightedPoints"], h["number"]))
     for pos, horse in enumerate(ranking):
@@ -285,6 +303,7 @@ def full_ten_factor_preview(snapshot, *, now):
         "autoPurchase": False, "overallReady": True,
         "ranking": ranking, "missingByNumber": {},
         "missingReasonCodesByNumber": {},
+        "factorReadinessByNumber": readiness_by_number,
         "winnerRecheck": recheck,
         "independentJraVerified": all(valid_official.values()),
         "blockedRunnerCount": len(blocked_numbers),
