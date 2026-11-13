@@ -105,7 +105,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <details id="autoEvidenceGapPanel"><summary>正式10項目の不足資料を確認（追加照会なし）</summary>
 <p class="muted">取得済みのJRDB資料がある頭数だけを集計。過去4角などの観測は今回の展開予測ではなく、資料の有無も正式な採点結果ではありません。発走前固定記録・買い目は変更しません。</p>
 <pre id="autoEvidenceGapReport" class="acceptance-report" role="status">まだ未取得です。発走前の研究用データを取得すると、追加照会なしで表示します。</pre>
-<p class="muted">10項目・合計100点の配点ごとに、取得済みの同じ資料から観測件数を表示します。資料ありでもS/A/B/Cの採点やJRA公式照合が済んだ意味ではありません。</p>
+<p class="muted">10項目・合計100点の配点ごとに、取得済みの同じ資料から観測件数と、不足している資料の確認優先順を表示します。資料ありでもS/A/B/Cの採点やJRA公式照合が済んだ意味ではありません。追加の有料照会や保存・購入操作は行いません。</p>
 <pre id="autoTenEvidenceMatrix" class="acceptance-report" role="status">10項目の資料確認はまだです。資料を再取得せず、すでに受信した内容のみ集計します。</pre>
 </details>
 <details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
@@ -677,6 +677,48 @@ function tenEvidenceMatrix(data,sourceByRace){
  };
  for(const [key,label,weight] of TEN)
   output.push(label+' '+weight+'点｜'+summaries[key]+'｜正式採点は未評価');
+ // Data-readiness priorities are derived from the already validated
+ // SAME-snapshot counters. They never become earned points or grades.
+ const gaps=[];
+ const addGap=(key,covered,total,unit)=>{
+  if(!Number.isInteger(covered)||!Number.isInteger(total)||
+     total<=0||covered<0||covered>total)throw Error('項目別資料件数の不整合');
+  if(covered===total)return;
+  const entry=TEN.find(([name])=>name===key);
+  if(!entry)throw Error('不明な評価項目');
+  gaps.push({key,label:entry[1],weight:entry[2],missing:total-covered,
+   total,unit});
+ };
+ if(provisionalDenominator){
+  for(const key of ['training','recent'])
+   addGap(key,provisionalCount[key],provisionalDenominator,'頭');
+ }
+ if(passport){
+  addGap('course_distance',rows.filter(r=>r.courseContextPresent).length,
+   sourceRaces,'R');
+  addGap('ground',rows.filter(r=>r.goingContextPresent).length,sourceRaces,'R');
+ }
+ if(materialDenominator){
+  for(const key of ['pace','pedigree','draw_weight','jockey_stable','rotation'])
+   addGap(key,material[key],materialDenominator,'頭');
+ }
+ gaps.sort((a,b)=>b.weight-a.weight||
+  b.missing/b.total-a.missing/a.total||a.label.localeCompare(b.label,'ja'));
+ output.push('【次に確認する資料（配点が大きい順・能力得点ではない）】');
+ if(gaps.length){
+  for(const gap of gaps.slice(0,3))
+   output.push(gap.label+' '+gap.weight+'点：記録未確認 '+
+    gap.missing+'/'+gap.total+gap.unit+'（観測対象内のみ）');
+  if(gaps.length>3)output.push('ほか '+(gaps.length-3)+
+   '項目にも記録未確認あり。上の10項目の内訳を確認。');
+ }else if(!provisionalDenominator&&!materialDenominator){
+  output.push('馬別の観測資料は未集計。未取得を0頭・0点扱いしません。');
+ }else{
+  output.push('今回の観測対象内に明確な件数不足はありません。ただし、資料ありは正式採点済みを意味しません。');
+ }
+ if(!materialDenominator)
+  output.push('血統・枠斤量・騎手厩舎・ローテ・過去4角：馬別資料の確認は保留中。');
+ output.push('別途必須：当日馬体重の実測確認・JRA公式4点の独立照合・10項目の評価基準検証。');
  output.push('正式採点0/10｜JRA公式の出走馬・取消・馬場・発走時刻は未照合');
  output.push('既存買い目・署名済み発走前記録は変更なし｜追加JRDB照会0回');
  return output.join('\n');
