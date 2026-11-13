@@ -3762,7 +3762,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(a.get('autoSummary').textContent,/研究用自動案 0R/);
  const changedCard=a.get('autoRaces').children[0].children[0];
  assert.equal(changedCard.children.some(x=>x.className==='formation'),false);
- assert.match(changedCard.children.at(-1).textContent,/以前の固定買い目と不一致/);
+ assert.ok(changedCard.children.some(x=>
+  /以前の固定買い目と不一致/.test(x.textContent)),
+  'manual entry link does not conceal the immutable original receipt warning');
  assert.equal(a.get('autoHistory').children.length,1);
  assert.match(a.get('autoHistory').children[0].children[5].textContent,/1→2→3/);
  a.setServer(resultWith('b'.repeat(64)));
