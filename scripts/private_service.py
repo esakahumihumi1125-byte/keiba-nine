@@ -39,6 +39,7 @@ from jrdb_owner_auto_draft import (
     compact_hold_diagnostics, compact_factor_shortage_diagnostics,
 )
 from owner_last_prestart_gate import expire_undelivered_drafts
+from owner_uncertain_recent_preview import preview_missing_recent_holds
 from owner_ten_factor_contract import ten_factor_contract
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
@@ -2436,6 +2437,33 @@ def create_app(settings=None):
                 # Re-audit the FINAL response, which may now hold newly
                 # started races. No additional provider reads and no grades.
                 report['sourcePassport'] = safe_owner_day_source_passport(report)
+                # The missing 3-point recent factor may be bounded without
+                # assigning any imaginary grade. Only race groups invariant
+                # under ALL possible recent grades get a separate read-only
+                # research example. Keep ordinary sealed 2-factor drafts,
+                # archive and official gates exactly as they were.
+                stage = 'uncertain_recent_preview'
+                try:
+                    report['uncertainRecentResearch'] = preview_missing_recent_holds(
+                        report, day, now=datetime.fromisoformat(_now_in_jst()))
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    # Optional experiment must not fail a signed forecast.
+                    logging.warning('KEIBA_UNCERTAIN_RECENT=unavailable')
+                    report['uncertainRecentResearch'] = {
+                        'version': 'owner-uncertain-recent-preview-1',
+                        'date': day, 'raceCount': report['raceCount'],
+                        'reviewedPrestartMissingFactorRaces': 0,
+                        'safeResearchPreviewCount': 0, 'races': [],
+                        'researchOnly': True, 'privateOwnerOnly': True,
+                        'independentJraVerified': False,
+                        'officialJraVerified': False,
+                        'formalTenFactorReady': False,
+                        'predictionReady': False, 'bettingReady': False,
+                        'changesExistingDrafts': False,
+                        'changesExistingReceipts': False,
+                        'newProviderRequests': 0, 'ticketsIssued': 0,
+                        'note': '追加の研究用候補は確認できません。',
+                    }
                 # Operator-only one-line evidence of finishing a private
                 # request: one /tra read for empty days or four core reads
                 # plus optional /tka for a populated programme.
