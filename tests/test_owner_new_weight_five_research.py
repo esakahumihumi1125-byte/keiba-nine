@@ -31,6 +31,8 @@ class New79FiveResearchTests(unittest.TestCase):
             "training": 30, "course_distance": 17,
             "pace": 17, "ground": 12, "recent": 3})
         self.assertEqual(report["observedWeightTotal"], 79)
+        self.assertEqual(report["coursePaceEvidenceWeight"], 34)
+        self.assertTrue(report["coursePaceEvidenceNotFormalGrade"])
         self.assertEqual(report["raceCount"], len(legacy["races"]))
         for race in report["races"]:
             self.assertEqual(race["runnerCount"], len(race["horses"]))
@@ -43,6 +45,15 @@ class New79FiveResearchTests(unittest.TestCase):
                 self.assertFalse(horse["bettingReady"])
                 self.assertEqual(horse["missing"],
                                  [k for k in KEYS if horse["bands"][k] == "未評価"])
+                expected_cp = (None if any(
+                    horse["bands"][k] == "未評価"
+                    for k in ("course_distance", "pace")) else
+                    17 * (POINTS[horse["bands"]["course_distance"]] +
+                          POINTS[horse["bands"]["pace"]]))
+                self.assertTrue(horse["coursePaceEvidenceNotFormalGrade"])
+                self.assertEqual(horse["coursePaceEvidenceRawThirdPoints"], expected_cp)
+                self.assertEqual(horse["coursePaceEvidenceScore34"],
+                    None if expected_cp is None else round(expected_cp / 3, 2))
                 if horse["missing"]:
                     self.assertIsNone(horse["rawThirdPoints"])
                     self.assertIsNone(horse["evidenceScore79"])
@@ -80,6 +91,8 @@ class New79FiveResearchTests(unittest.TestCase):
         h = all_s["races"][0]["horses"][0]
         self.assertEqual(h["evidenceScore79"], 79)
         self.assertEqual(h["rawThirdPoints"], 237)
+        self.assertEqual(h["coursePaceEvidenceRawThirdPoints"], 102)
+        self.assertEqual(h["coursePaceEvidenceScore34"], 34)
         old["races"][0]["horses"][0]["bands"]["recent"] = "C"
         old["races"][0]["horses"][0]["rawThirdPoints"] = 246
         old["races"][0]["horses"][0]["evidenceScore85"] = 82.0
@@ -105,6 +118,31 @@ class New79FiveResearchTests(unittest.TestCase):
                     self.assertNotIn(h["number"], [
                         n for g in race["comparisonGroups"] for n in g["numbers"]])
         self.assertFalse(report["resultVerified"])
+
+    def test_course_pace_subtotal_exists_when_other_three_bands_unassessed(self):
+        baseline = old_source()
+        r = baseline["races"][0]
+        for h in r["horses"]:
+            h["bands"] = {**dict.fromkeys(KEYS, "S"), "training": "未評価",
+                          "recent": "未評価", "ground": "未評価"}
+            h["missing"] = ["training", "ground", "recent"]
+            h["observedFactorCount"] = 2
+            h["rawThirdPoints"] = None
+            h["evidenceScore85"] = None
+        r["missingByFactor"] = {
+            "training": r["runnerCount"], "course_distance": 0,
+            "pace": 0, "ground": r["runnerCount"],
+            "recent": r["runnerCount"],
+        }
+        r["completeObserved"] = 0
+        r["unassessedNumbers"] = sorted(h["number"] for h in r["horses"])
+        r["comparisonGroups"] = []
+        output = new_weight_five_research(baseline)
+        for h in output["races"][0]["horses"]:
+            self.assertEqual(h["coursePaceEvidenceScore34"], 34.0)
+            self.assertIsNone(h["evidenceScore79"])
+            self.assertIsNone(h["formalScore100"])
+            self.assertFalse(h["bettingReady"])
 
     def test_invalid_legacy_values_cannot_create_new_79_research(self):
         edits = [
