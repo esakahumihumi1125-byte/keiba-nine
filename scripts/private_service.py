@@ -108,6 +108,7 @@ from jra_official_pdf_discovery import discover_official_pdf_links, JRAIndexErro
 from jra_prestart_card_candidate import (
     probe_prestart_card, validate_racecard_url, JraPrestartCardError
 )
+from jra_card_link_resolver import resolve_racecard_link, JraLinkResolutionError
 from owner_ticket_handoff import JS as TICKET_HANDOFF_JS
 from manual_purchase_book import HTML as PURCHASE_HTML, JS as PURCHASE_JS, CSS as PURCHASE_CSS
 from owner_backup import HTML as BACKUP_HTML, JS as BACKUP_JS, CSS as BACKUP_CSS
@@ -1847,6 +1848,30 @@ def create_app(settings=None):
                 if 'Date' in str(exc) or 'date' in str(exc):
                     return response('400 Bad Request', {'error': '開催日の形式・掲載期間を確認してください。'})
                 return response('502 Bad Gateway', {'error': 'JRA公式PDF一覧へ接続・解析できませんでした。後ほどJRA公式ページで確認してください。'})
+            return response('200 OK', result)
+        if method == 'GET' and path == '/api/jra/selected-race-card-link':
+            # Explicit owner opt-in: JRA homepage + one identified card page
+            # at most, NEVER a JRDB API call, receipt mutation, or official
+            # verification. The result is just a public official-site link.
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date', 'track', 'race'}
+                    or any(len(values) != 1 for values in query.values())):
+                return response('400 Bad Request', {
+                    'error': 'JRA参照用の開催日・競馬場・Rを1つずつ指定してください。'})
+            date, track, number = (
+                query['date'][0], query['track'][0], query['race'][0]
+            )
+            if (not re.fullmatch(r'20\\d{2}-\\d{2}-\\d{2}', date)
+                    or not re.fullmatch(r'(?:[1-9]|1[0-2])', number)
+                    or track not in ('札幌', '函館', '福島', '新潟', '東京',
+                                    '中山', '中京', '京都', '阪神', '小倉')):
+                return response('400 Bad Request', {
+                    'error': '開催日・競馬場・レース番号の形式を確認してください。'})
+            try:
+                result = resolve_racecard_link(date, track, int(number))
+            except JraLinkResolutionError:
+                return response('502 Bad Gateway', {
+                    'error': '公式サイトのリンクを安全に特定できませんでした。JRA出馬表を直接確認してください。'})
             return response('200 OK', result)
         if method == 'GET' and path == '/api/jra/prestart-card-candidate':
             # One opt-in HTTPS JRA racecard page, exact date/venue/R.
