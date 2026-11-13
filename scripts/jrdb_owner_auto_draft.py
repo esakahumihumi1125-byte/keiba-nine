@@ -310,6 +310,21 @@ def _safe_formation_sizes(runners):
                 points = first_count * (second_count - 1) * (third_count - 2)
                 if 1 <= points <= 40:
                     candidates.append((points, first_count, second_count, third_count))
+        if not candidates and first_count == 2 and count >= 6:
+            # Safe exceptional rescue for an otherwise HELD race.
+            # Example: ranks 3..6 have the SAME 2-factor score, so the
+            # old second<=5 cutoff would arbitrarily exclude one runner.
+            # Expanding second and third to SIX keeps every tied horse and
+            # produces exactly 2*(6-1)*(6-2)=40 distinct tickets.
+            # This branch is *only* considered when the existing <=5
+            # formation produces no candidate; previously emitted tickets
+            # are not reordered or replaced.
+            second_count = 6
+            if not _cutoff_tied(runners, second_count):
+                third_count = 6
+                points = first_count * (second_count - 1) * (third_count - 2)
+                if points <= 40:
+                    candidates.append((points, first_count, second_count, third_count))
         if candidates:
             options[first_count] = max(candidates)
     pair = options.get(2)
