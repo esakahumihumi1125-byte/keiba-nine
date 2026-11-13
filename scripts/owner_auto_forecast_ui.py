@@ -106,7 +106,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 <section id="forecastRacesSection">
 <h2>3. 競馬場・レースを選ぶ</h2>
-<p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p>
+<p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p><p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
 <p id="autoTrackWorkouts" class="muted" role="status">調教S/Aの参考表示：JRDB資料の取得前です。</p>
 <details id="autoEvidenceGapPanel"><summary>正式10項目の不足資料を確認（追加照会なし）</summary>
@@ -1481,6 +1481,7 @@ function clearDraftShortcut(){
  shortcut.textContent='買い目あり：未取得';
  shortcut.onclick=null;
  $('autoUncertainRecentRaces').replaceChildren();
+ $('autoUncertainRecentHint').textContent='近走不足の追加研究：未取得。';
  $('autoUncertainRecentStatus').textContent='レース取得前。追加資料を勝手に補完しません。';
  const next=$('autoNextDraft');
  next.disabled=true;
@@ -1539,9 +1540,11 @@ function armAutomaticOffTimer(data,day){
 function renderUncertainRecent(data,day){
  const host=$('autoUncertainRecentRaces');
  const status=$('autoUncertainRecentStatus');
+ const hint=$('autoUncertainRecentHint');
  host.replaceChildren();
  const p=data.uncertainRecentResearch;
  if(p===undefined){
+  hint.textContent='近走不足の追加研究：未取得。';
   status.textContent='この日の資料不足を補う参考処理は未取得です。見送りを維持します。';
   return;
  }
@@ -1608,6 +1611,9 @@ function renderUncertainRecent(data,day){
    cards.push(card);
   }
   host.replaceChildren(...cards);
+  hint.textContent=cards.length?
+   '近走不足からの追加参考 '+cards.length+'R（署名なし）。下の詳細に表示。':
+   '近走不足からの追加参考0R。条件を満たさないレースは見送り。';
   status.textContent=p.races.length
    ?'近走不足の'+p.reviewedPrestartMissingFactorRaces+
     'Rを検討。参考グループ '+cards.length+'R'+
@@ -1617,6 +1623,7 @@ function renderUncertainRecent(data,day){
     '無理な補完をせず、見送りを維持します。';
  }catch(_){
   host.replaceChildren();
+  hint.textContent='近走不足の追加研究は形式確認ができないため非表示。';
   status.textContent='追加の参考候補を安全に確認できません。元の研究用予想と固定記録は無変更です。';
  }
 }
