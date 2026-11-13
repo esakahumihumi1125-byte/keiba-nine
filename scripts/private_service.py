@@ -37,6 +37,7 @@ from jrdb_owner_day_research import owner_day_research
 from jrdb_owner_auto_draft import (
     build_owner_auto_drafts, DAY_DRAFT_ISSUES,
     compact_hold_diagnostics, compact_factor_shortage_diagnostics,
+    compact_missing_reason_diagnostics,
 )
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_uncertain_recent_preview import preview_missing_recent_holds
@@ -2474,7 +2475,8 @@ def create_app(settings=None):
                 logging.warning(
                     'KEIBA_AUTO_DRAFT_PIPELINE status=complete '
                     'programme=%s source_reads=%s drafts=%s holds=%s receipts=%s '
-                    'material=%s course=%s hold_causes=%s factor_gaps=%s expired_on_return=%s '
+                    'material=%s course=%s hold_causes=%s factor_gaps=%s '
+                    'factor_gap_causes=%s expired_on_return=%s '
                     'jra=unverified formal=ungraded',
                     'present' if report['raceCount'] else 'empty',
                     report['sourceReadCount'],
@@ -2484,6 +2486,7 @@ def create_app(settings=None):
                     report['raceContext']['conditionProviderFetchStatus'],
                     compact_hold_diagnostics(report),
                     compact_factor_shortage_diagnostics(report),
+                    compact_missing_reason_diagnostics(report),
                     expired_before_delivery,
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,
