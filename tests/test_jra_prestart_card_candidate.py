@@ -90,6 +90,55 @@ class JraPrestartCardCandidateTests(unittest.TestCase):
         self.assertEqual(result["courseSurfaceCandidate"], "障害")
         self.assertEqual(result["distanceMCandidate"], 3110)
 
+    def test_actual_mobile_style_off_time_and_metres(self):
+        # Current JRA iPhone pages use "コース 1400m 芝・右 外 発走16:25",
+        # rather than the long desktop labels. The marker must bind to this
+        # race and never use navigation or last-run rows.
+        mobile = """<!doctype html><html><body><h1>出馬表</h1>
+        <p>11月14日(土曜) 東京 京都 福島</p>
+        <h2>2026年11月14日(土曜) 5回京都3日</h2>
+        <h3>1R 2歳未勝利</h3>
+        <p>コース 1400m ダート・右 発走10:00</p>
+        <p>前4走 2026年11月3日 芝1800 発走16:25</p>
+        </body></html>"""
+        result = parse_prestart_card_candidate(
+            mobile, MOBILE, DAY, "京都", 1)
+        self.assertEqual(result["postTimeCandidate"], "10:00")
+        self.assertEqual(result["courseSurfaceCandidate"], "ダート")
+        self.assertEqual(result["distanceMCandidate"], 1400)
+        self.assertFalse(result["officialPostTimeVerified"])
+        self.assertFalse(result["formalTenFactorReady"])
+
+    def test_desktop_race_number_in_strict_alt_attribute_only(self):
+        desktop = """<html><body><h1>出馬表</h1>
+        2026年11月14日（土曜） 5回東京3日
+        発走時刻：13時45分 <img alt="8レース" src="race.png">
+        <h2>秋陽ジャンプステークス</h2>
+        コース：3,110メートル（障害）
+        <script>発走時刻：09時99分</script>
+        </body></html>"""
+        out = parse_prestart_card_candidate(
+            desktop, DESKTOP, DAY, "東京", 8)
+        self.assertEqual(out["postTimeCandidate"], "13:45")
+        self.assertEqual(out["distanceMCandidate"], 3110)
+        # Arbitrary alt attributes must not be allowed to forge a race.
+        alt = desktop.replace('alt="8レース"', 'alt="8レース：外部の広告"')
+        with self.assertRaises(JraPrestartCardError):
+            parse_prestart_card_candidate(alt, DESKTOP, DAY, "東京", 8)
+
+    def test_ambiguous_mobile_headers_are_rejected(self):
+        original = """<html><body><h1>出馬表</h1>
+        <p>2026年11月14日（土曜）5回京都3日</p><h2>1R</h2>
+        <p>コース 1400m ダート・右 発走10:00</p>
+        </body></html>"""
+        for modified in (
+            original.replace("</body>", "<p>発走10:10</p></body>"),
+            original.replace("</body>", "<p>コース 1200m 芝・右</p></body>"),
+            original.replace("発走10:00", "時刻不詳"),
+        ):
+            with self.subTest(modified=modified), self.assertRaises(JraPrestartCardError):
+                parse_prestart_card_candidate(modified, MOBILE, DAY, "京都", 1)
+
     def test_identity_and_ssrf_hosts_fail_closed(self):
         for changed in (
             "http://sp.jra.jp/JRADB/accessD.html?CNAME=sw01ddd0108202605030120261114%2F91",
