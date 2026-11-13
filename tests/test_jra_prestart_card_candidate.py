@@ -159,13 +159,26 @@ class JraPrestartCardCandidateTests(unittest.TestCase):
         with self.assertRaises(JraPrestartCardError):
             validate_racecard_url(MOBILE, DAY, "京都", True)
 
+    def test_mobile_official_app_hosts_are_explicitly_allowed(self):
+        for official_host in ("sp.jra.jp", "app.jra.jp", "jra.jp"):
+            link = MOBILE.replace("sp.jra.jp", official_host)
+            result = parse_prestart_card_candidate(
+                MOBILE_HTML, link, DAY, "京都", 1)
+            self.assertEqual(result["postTimeCandidate"], "10:00")
+            self.assertFalse(result["officialStartersVerified"])
+        for injected_host in ("app.jra.jp.evil.example", "untrusted.jra.jp"):
+            with self.assertRaises(JraPrestartCardError):
+                validate_racecard_url(MOBILE.replace("sp.jra.jp", injected_host),
+                                      DAY, "京都", 1)
+
     def test_wrong_day_venue_race_or_ambiguous_time_hold(self):
         for day, track, race in ((DAY, "東京", 1), (DAY, "京都", 2)):
             with self.subTest(track=track, race=race):
                 with self.assertRaises(JraPrestartCardError):
                     parse_prestart_card_candidate(MOBILE_HTML, MOBILE, day, track, race)
         duplicate = MOBILE_HTML.replace(
-            "</body>", "<p>発走時刻：11時00分</p></body>")
+            "<h3>2歳未勝利</h3>",
+            "<h3>2歳未勝利</h3><p>発走時刻：11時00分</p>")
         # Duplicates in the same header window are not arbitrary choices.
         with self.assertRaises(JraPrestartCardError):
             parse_prestart_card_candidate(duplicate, MOBILE, DAY, "京都", 1)
