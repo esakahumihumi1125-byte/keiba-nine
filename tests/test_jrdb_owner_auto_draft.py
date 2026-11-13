@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_coverage import CoverageError
 from jrdb_owner_auto_draft import (
     build_owner_auto_drafts, compact_hold_diagnostics,
-    compact_factor_shortage_diagnostics, VERSION,
+    compact_factor_shortage_diagnostics, compact_missing_reason_diagnostics, VERSION,
 )
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_prestart_receipt import verify_preview_receipts, ReceiptError
@@ -391,6 +391,31 @@ class AutoDraftTests(unittest.TestCase):
         self.assertEqual(compact_factor_shortage_diagnostics(corrupted), "invalid")
         self.assertNotIn("SECRET", compact_factor_shortage_diagnostics(corrupted))
         self.assertEqual(compact_factor_shortage_diagnostics({}), "invalid")
+
+    def test_missing_recent_reason_debug_is_redacted_and_read_only(self):
+        report=generate(programme(7),research(PAIRS[:-2]+[
+            ("B","未評価"),("未評価","未評価")
+        ]))
+        self.assertEqual(report["races"][0]["reason"],"missing_factors")
+        original=copy.deepcopy(report)
+        report["races"][0]["runners"][-2]["missingReasons"]=[
+            "no_linked_recent_record"]
+        report["races"][0]["runners"][-1]["missingReasons"]=[
+            "only_one_usable_run","missing_training_indices"]
+        msg=compact_missing_reason_diagnostics(report)
+        self.assertEqual(msg,("no_linked_recent_record:1,"
+                              "only_one_usable_run:1,missing_training_indices:1"))
+        self.assertNotIn("horse",msg)
+        self.assertNotIn("race",msg)
+        self.assertEqual(compact_missing_reason_diagnostics(generate()),"none")
+        broken=copy.deepcopy(report)
+        broken["races"][0]["runners"][-1]["missingReasons"]=[
+            "UNTRUSTED_HORSE_NAME"]
+        self.assertEqual(compact_missing_reason_diagnostics(broken),"invalid")
+        self.assertNotIn("UNTRUSTED",compact_missing_reason_diagnostics(broken))
+        self.assertEqual(compact_missing_reason_diagnostics({}),"invalid")
+        self.assertEqual(original["draftCount"],report["draftCount"])
+        self.assertEqual(original["races"][0]["tickets"],report["races"][0]["tickets"])
 
     def test_redacted_operator_hold_summary_counts_only_fixed_categories(self):
         base=generate()
