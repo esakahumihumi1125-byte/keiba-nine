@@ -126,6 +126,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <details><summary>資料不足のレース別内訳を見る</summary>
 <div id="autoMissingFactorRaces"></div>
 </details></details>
+<details id="autoUncertainRecentPanel"><summary>近走資料が少ないRの研究候補（署名・購入なし）</summary>
+<p class="muted">近走3点の不足をC・0点扱いせず、欠けている評価がどんなS/A/B/Cでも、調教30点による1/2/3着の候補グループが変わらない場合に限り、参考のフォーメーションを表示します。正式10項目採点でもJRA公式出走確認でもなく、実際の購入・固定記録・仮想収支に入れません。</p>
+<p id="autoUncertainRecentStatus" class="muted" role="status">レース取得前。追加資料を勝手に補完しません。</p>
+<div id="autoUncertainRecentRaces"></div>
+</details>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
 <select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
@@ -1475,6 +1480,8 @@ function clearDraftShortcut(){
  const shortcut=$('autoDraftShortcut');
  shortcut.textContent='買い目あり：未取得';
  shortcut.onclick=null;
+ $('autoUncertainRecentRaces').replaceChildren();
+ $('autoUncertainRecentStatus').textContent='レース取得前。追加資料を勝手に補完しません。';
  const next=$('autoNextDraft');
  next.disabled=true;
  next.textContent='次の下書きRへ（未取得）';
@@ -1529,8 +1536,93 @@ function armAutomaticOffTimer(data,day){
   armAutomaticOffTimer(data,day);
  },delay);
 }
+function renderUncertainRecent(data,day){
+ const host=$('autoUncertainRecentRaces');
+ const status=$('autoUncertainRecentStatus');
+ host.replaceChildren();
+ const p=data.uncertainRecentResearch;
+ if(p===undefined){
+  status.textContent='この日の資料不足を補う参考処理は未取得です。見送りを維持します。';
+  return;
+ }
+ try{
+  if(!p||p.version!=='owner-uncertain-recent-preview-1'||
+     p.date!==day||p.raceCount!==data.raceCount||
+     p.researchOnly!==true||p.privateOwnerOnly!==true||
+     p.independentJraVerified!==false||
+     p.officialJraVerified!==false||p.formalTenFactorReady!==false||
+     p.predictionReady!==false||p.bettingReady!==false||
+     p.changesExistingDrafts!==false||p.changesExistingReceipts!==false||
+     p.newProviderRequests!==0||p.ticketsIssued!==0||
+     !Number.isInteger(p.reviewedPrestartMissingFactorRaces)||
+     p.reviewedPrestartMissingFactorRaces<0||
+     p.reviewedPrestartMissingFactorRaces>data.holdCount||
+     !Array.isArray(p.races)||p.races.length>data.holdCount||
+     p.safeResearchPreviewCount!==p.races.length)
+   throw Error('unknown_recent_contract');
+  const original=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+  const seen=new Set(),cards=[];
+  for(const row of p.races){
+   if(!row||!Number.isInteger(row.race)||
+      typeof row.track!=='string'||row.status!=='bounded_recent_uncertainty_only'||
+      !Number.isInteger(row.points)||row.points<12||row.points>40||
+      !Number.isInteger(row.missingRecentCount)||row.missingRecentCount<1||
+      !Number.isInteger(row.assessedTrainingCount)||row.assessedTrainingCount<4||
+      row.assessedTrainingCount>18||
+      row.eachCutoffProvenForAllRecentGrades!==true||
+      row.officialJraVerified!==false||row.formalScoreReady!==false||
+      row.predictionReady!==false||row.bettingReady!==false||
+      row.receiptIssued!==false||row.actualPurchase!==false)
+    throw Error('unknown_recent_race');
+   const key=row.track+'|'+row.race;
+   const base=original.get(key);
+   if(seen.has(key)||!base||base.status!=='hold'||
+      base.reason!=='missing_factors'||!Array.isArray(base.runners)||
+      base.runners.length!==row.assessedTrainingCount||
+      base.runners.some(h=>!['S','A','B','C'].includes(h.training))||
+      base.runners.filter(h=>h.recent==='未評価').length!==row.missingRecentCount)
+    throw Error('unknown_recent_roster');
+   seen.add(key);
+   const setRoster=new Set(base.runners.map(h=>h.number));
+   const groups=[row.first,row.second,row.third];
+   if(groups.some((g,j)=>!Array.isArray(g)||
+       g.length<(j===0?2:j===1?3:4)||
+       g.length>(j===0?3:j===1?5:9)||
+       new Set(g).size!==g.length||
+       g.some(n=>!Number.isInteger(n)||!setRoster.has(n)))||
+      groups.some((g,j)=>j>0&&groups[j-1].some(n=>!g.includes(n)))||
+      row.points!==groups[0].length*(groups[1].length-1)*
+       (groups[2].length-2))
+    throw Error('unknown_recent_formation');
+   if(draftExpiredOnDevice(day,base.postTime))continue;
+   const card=dom('details');
+   card.append(dom('summary',row.track+' '+row.race+
+    'R｜不足近走でも候補範囲が不変・参考'+row.points+'通り'));
+   card.append(dom('p','1着候補 '+row.first.join('・')+
+    '／2着候補 '+row.second.join('・')+
+    '／3着候補 '+row.third.join('・'),'picks'));
+   card.append(dom('p','近走未評価 '+row.missingRecentCount+
+    '頭。JRDB暫定発走 '+base.postTime+
+    '。これは署名なし研究例で、正式100点予想・購入可能な馬券ではありません。'+
+    'JRA公式出走・取消・馬場・時刻は未検証。','muted'));
+   cards.push(card);
+  }
+  host.replaceChildren(...cards);
+  status.textContent=p.races.length
+   ?'近走不足の'+p.reviewedPrestartMissingFactorRaces+
+    'Rを検討。参考グループ '+cards.length+'R'+
+    (cards.length<p.races.length?'（発走予定時刻経過分は非表示）':'')+
+    '。本来の見送り数と固定済み買い目は変えません。'
+   :'近走不足でも確実に分けられる候補グループは0R。'+
+    '無理な補完をせず、見送りを維持します。';
+ }catch(_){
+  host.replaceChildren();
+  status.textContent='追加の参考候補を安全に確認できません。元の研究用予想と固定記録は無変更です。';
+ }
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
+ renderUncertainRecent(data,day);
  const materialByRace=validatedRunnerSourceEvidence(data);
  $('autoEvidenceGapReport').textContent=evidenceGapSummary(data,materialByRace);
  $('autoTenEvidenceMatrix').textContent=tenEvidenceMatrix(data,materialByRace);
