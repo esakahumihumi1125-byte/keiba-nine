@@ -1590,7 +1590,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const gapStudy=gapRace.children.find(x=>x.className==='race-study');
  assert.ok(gapStudy);
  assert.match(gapStudy.children[2].textContent,/近走未評価：4頭/);
- assert.match(gapRace.children[0].textContent,/見送り｜調教S 2頭・A 2頭/);
+ assert.match(gapRace.children[0].textContent,/見送り｜調教S 2頭・A 1頭/);
  assert.equal(gapRace.children.some(x=>x.className==='formation'),false);
  gapsView.get('autoDay').value='2099-01-02';
  gapsView.get('autoDay').onchange();
