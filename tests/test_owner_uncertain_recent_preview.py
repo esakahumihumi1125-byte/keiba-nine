@@ -41,8 +41,8 @@ class UncertainRecentResearchTests(unittest.TestCase):
         race = preview["races"][0]
         self.assertEqual(race["first"], [1, 2])
         self.assertEqual(race["second"], [1, 2, 4, 3])
-        self.assertEqual(set(race["third"]), set(range(1, 8)))
-        self.assertEqual(race["points"], 30)
+        self.assertEqual(set(race["third"]), set(range(1, 9)))
+        self.assertEqual(race["points"], 36)
         self.assertEqual(race["missingRecentCount"], 4)
         self.assertTrue(race["eachCutoffProvenForAllRecentGrades"])
         self.assertFalse(race["officialJraVerified"])
