@@ -84,8 +84,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoOfficialPdfLinks"></div>
 <a href="https://www.jra.go.jp/keiba/rpdf/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く</a>
 <details><summary>選択中の1RでJRA Web出馬表の時刻・コース候補を確認（任意）</summary>
-<p class="muted">下のレース一覧から対象Rを選んだあと、JRA公式のWeb出馬表ページURLを貼り付けて確認できます。本人が押すまで外部ページへ追加照会しません。馬番・取消・馬場は照合せず、正式なJRA認証や100点採点にも使いません。</p>
-<label for="autoOfficialCardUrl">JRA公式Web出馬表のURL</label>
+<p class="muted">下の一覧で対象Rを選び、「JRA公式URLを探して比較」を押してください。JRA公式の公開ページへ最大3回アクセス（JRDBの有料照会0回）します。公式ページの構造が変わった場合は見つからないことがあります。その場合は下のURL欄に手入力もできます。出走・取消・馬場は未照合で、正式採点や固定買い目には反映しません。</p>
+<button id="autoOfficialCardDiscover" type="button" class="secondary-cta">選択RのJRA公式URLを探して比較（追加JRDB 0回）</button>
+<p id="autoOfficialCardLinkStatus" class="muted" role="status">未検索。公式出馬表へのリンクを探しただけでは照合済みにはなりません。</p>
+<a id="autoOfficialCardResolved" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く（選択Rのリンクは未特定）</a>
+<label for="autoOfficialCardUrl">JRA公式Web出馬表のURL（自動で見つからない場合）</label>
 <input id="autoOfficialCardUrl" type="url" maxlength="250" autocomplete="off" placeholder="https://sp.jra.jp/JRADB/accessD.html?CNAME=...">
 <button id="autoOfficialCardCheck" type="button">選択中の1Rの時刻・コース候補を比較</button>
 <p id="autoOfficialCardStatus" class="muted" role="status">未確認。JRDBの有料再取得や買い目更新は行いません。</p>
@@ -1811,6 +1814,8 @@ function render(input,day){
  // no prediction reconstruction, no receipt or purchase write.
  function show(track,key='',draftsOnly=false,holdReason=''){
   // Invalidate previous JRA single-R candidate when race selection changes.
+  resetResolvedJraCard();
+  $('autoOfficialCardUrl').value='';
   $('autoOfficialCardStatus').textContent='選択中のレースではJRA Web出馬表の候補比較は未確認。買い目は無変更です。';
   // A tab or race-selection tap may happen long after the first render.
   // Re-evaluate the local clock before exposing any on-screen formation.
@@ -4528,6 +4533,8 @@ function updateReviewLink(){
   (valid?'?date='+encodeURIComponent(day):'');
 }
 $('autoDay').onchange=()=>{
+ resetResolvedJraCard();
+ $('autoOfficialCardUrl').value='';
  $('autoOfficialCardStatus').textContent='開催日を変更しました。JRA公式Web出馬表の候補は未確認です。';
  ++preflightSeq;
  $('autoPreflight').disabled=false;
@@ -4712,6 +4719,91 @@ $('autoOfficialPdf').onclick=async()=>{
   $('autoOfficialPdfStatus').textContent=
    'JRA公式PDFリンクを確認できませんでした。JRA公式一覧から手動で確認してください。';
  }}finally{if(seq===officialPdfSeq)button.disabled=false;}
+};
+// Owner opt-in link discovery from JRA's current public homepage.
+// This is separate from the independent official four-way verification gate.
+function resetResolvedJraCard(){
+ $('autoOfficialCardLinkStatus').textContent='未検索。選択中のレースの公式リンクは未特定です。';
+ const link=$('autoOfficialCardResolved');
+ link.href='https://www.jra.go.jp/keiba/';
+ link.textContent='JRA公式の出馬表一覧を開く（選択Rのリンクは未特定）';
+}
+$('autoOfficialCardDiscover').onclick=async()=>{
+ const btn=$('autoOfficialCardDiscover');
+ if(btn.disabled)return;
+ const status=$('autoOfficialCardLinkStatus');
+ const date=$('autoDay').value,key=$('autoRacePick').value;
+ const day=date.replaceAll('-','');
+ const current=latestDisplayedReport&&latestDisplayedDay===day&&
+  latestDisplayedReport.races.find(r=>r.track+'|'+r.race===key);
+ if(!current||!/^20\d{2}-\d{2}-\d{2}$/.test(date)){
+  status.textContent='先に開催日のレースを1R選んでください。JRAの追加アクセスは0回。';
+  return;
+ }
+ const track=current.track,race=current.race;
+ resetResolvedJraCard();
+ status.textContent=date+' '+track+' '+race+'R｜JRA公開出馬表リンクを検索中…';
+ btn.disabled=true;
+ try{
+  const resp=await fetch('/api/jra/selected-race-card-link?date='+
+   encodeURIComponent(date)+'&track='+encodeURIComponent(track)+
+   '&race='+encodeURIComponent(String(race)),{
+    credentials:'same-origin',cache:'no-store',
+    headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+   });
+  if(date!==$('autoDay').value||key!==$('autoRacePick').value||
+     latestDisplayedDay!==day)return;
+  if(!resp.ok)throw Error('official_link_not_found');
+  const data=await resp.json();
+  if(date!==$('autoDay').value||key!==$('autoRacePick').value||
+     latestDisplayedDay!==day)return;
+  if(!data||data.version!=='owner-jra-race-link-resolver-1'||
+     data.date!==date||data.track!==track||data.race!==race||
+     data.officialLinkFound!==true||
+     data.officialLinkTargetVerified!==false||
+     data.officialRacecardContentsVerified!==false||
+     data.officialStartersVerified!==false||
+     data.officialScratchesVerified!==false||
+     data.officialGoingVerified!==false||
+     data.officialPostTimeVerified!==false||
+     data.formalTenFactorReady!==false||data.bettingReady!==false||
+     data.researchOnly!==true||
+     data.existingReceiptsChanged!==false||
+     data.existingTicketsChanged!==false||data.newJrdbRequests!==0||
+     typeof data.officialRacecardUrl!=='string'||
+     data.officialRacecardUrl.length>250)
+    throw Error('untrusted_jra_link');
+  const u=new URL(data.officialRacecardUrl);
+  const codes={札幌:'01',函館:'02',福島:'03',新潟:'04',東京:'05',
+   中山:'06',中京:'07',京都:'08',阪神:'09',小倉:'10'};
+  const token=u.searchParams.get('CNAME');
+  const pattern=/^(?:sw|pw)01dde01(\d{2})(\d{8})(\d{2})(\d{8})\/[a-f0-9]{2}$/i;
+  const parsed=typeof token==='string'?pattern.exec(token):null;
+  if(u.protocol!=='https:'||
+     !['www.jra.go.jp','jra.jp','sp.jra.jp','app.jra.jp','own.jra.jp'].includes(u.hostname)||
+     u.port!==''||u.username||u.password||u.hash||
+     u.pathname!=='/JRADB/accessD.html'||
+     [...u.searchParams.keys()].length!==1||!parsed||
+     parsed[1]!==codes[track]||parsed[2].slice(0,4)!==date.slice(0,4)||
+     parsed[3]!==String(race).padStart(2,'0')||
+     parsed[4]!==day)
+    throw Error('untrusted_jra_link_identity');
+  const url=u.href;
+  $('autoOfficialCardUrl').value=url;
+  const link=$('autoOfficialCardResolved');
+  link.href=url;link.textContent=date+' '+track+' '+race+'R｜JRA公式出馬表を開く';
+  status.textContent='JRA公式サイト内の選択Rリンクを発見。リンク先の内容はまだ未照合。'+
+   '続けて時刻・コース候補を比較します（追加JRDB 0回）。';
+  // Explicit tap is the authority for BOTH public-only calls; the
+  // following existing handler still checks exact day/venue/race and
+  // does not mark JRA independently verified or write any tickets.
+  await $('autoOfficialCardCheck').onclick();
+ }catch(_){
+  if(date===$('autoDay').value&&key===$('autoRacePick').value)
+   status.textContent='選択RのJRA公式リンクを安全に特定できませんでした。'+
+    '下のURL欄で手動照合するか、JRA公式出馬表で直接確認してください。'+
+    '買い目は変更していません。';
+ }finally{btn.disabled=false;}
 };
 // Explicit one-race JRA Web card candidate, never an official certification.
 // No paid JRDB read, no rank or sealed receipt write. Only a user-selected URL.
