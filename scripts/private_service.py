@@ -1861,7 +1861,7 @@ def create_app(settings=None):
             date, track, number = (
                 query['date'][0], query['track'][0], query['race'][0]
             )
-            if (not re.fullmatch(r'20\\d{2}-\\d{2}-\\d{2}', date)
+            if (not re.fullmatch(r'20\d{2}-\d{2}-\d{2}', date)
                     or not re.fullmatch(r'(?:[1-9]|1[0-2])', number)
                     or track not in ('札幌', '函館', '福島', '新潟', '東京',
                                     '中山', '中京', '京都', '阪神', '小倉')):
