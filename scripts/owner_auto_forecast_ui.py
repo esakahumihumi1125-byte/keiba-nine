@@ -27,8 +27,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section class="daily-start">
 <h2>1. 予想を見る</h2>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
-<button id="autoSaturdayQuick" class="primary-cta" type="button">次の土曜の予想を見る</button>
-<button id="autoSundayQuick" class="secondary-cta" type="button">次の日曜の予想を見る</button>
+<button id="autoSaturdayQuick" class="primary-cta" type="button">土曜の予想を取得・表示（1回）</button>
+<button id="autoSundayQuick" class="secondary-cta" type="button">日曜の予想を取得・表示（1回）</button>
 <button id="autoRun" class="secondary-cta" type="button">全場・全Rを再分析する</button>
 <p class="muted">土日の1タップ取得は直前の木曜以降。取得済みデータは開いている画面で再利用します。また、発走前固定済みの研究記録がある日は20分以内の再訪問でその履歴を表示し、再照会を控えます。新しい配信資料を見たい場合は「全場・全Rを再分析する」を押してください。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
 <details><summary>日付だけを切り替える（追加照会なし）</summary>
@@ -6478,6 +6478,20 @@ function autoFetchOnRegularRaceDay(){
    return;
   }
   $('autoRun').onclick();
+  return;
+ }
+ // Friday is the usual publication day for Saturday's race cards.
+ // This is a no-cost, honest availability guide, NOT proof JRDB has
+ // published programme/entries or that any forecast has been created.
+ if(dt.getUTCDay()===5){
+  const nextSaturday=nearestJstWeekday(6);
+  $('autoStatus').textContent='【金曜・明日 '+nextSaturday+'】明日のJRDB予想はこの画面ではまだ取得していません。'+
+   '上の「土曜の予想を取得・表示（1回）」を押すと、本人認証で1回だけ取得・研究用暫定案を作成します。'+
+   '取得に成功したR数が出るまでは予想完成と扱いません。';
+  $('autoMorningStatus').textContent='明日のJRA公式出馬表が公開済みでも、JRDBの予想作成完了とは別です。'+
+   '現在は研究用の調教・近走2項目。正式10項目は未完成。';
+  $('autoOperationalNext').textContent='次の操作：土曜の予想を取得・表示（1回）。'+
+   '本人操作前のJRDB有料照会0回。0Rの場合は配信状況を確認し、開催なしとは断定しません。';
   return;
  }
  $('autoStatus').textContent='平日はJRDBの自動照会を控えています。土曜日・日曜日は上のボタンで選択。祝日の変則開催は日付を選んで「全場・全Rを再分析する」を押してください。';
