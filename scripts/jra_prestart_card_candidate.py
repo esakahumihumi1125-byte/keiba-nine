@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 VERSION = "owner-jra-prestart-card-candidate-1"
-HOSTS = frozenset(("www.jra.go.jp", "jra.jp", "sp.jra.jp", "app.jra.jp"))
+HOSTS = frozenset(("www.jra.go.jp", "jra.jp", "sp.jra.jp", "app.jra.jp", "own.jra.jp"))
 VENUES = frozenset(("札幌", "函館", "福島", "新潟", "東京", "中山",
                     "中京", "京都", "阪神", "小倉"))
 MAX_BYTES = 480_000
