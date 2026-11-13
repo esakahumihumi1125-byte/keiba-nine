@@ -1032,6 +1032,21 @@ function validate(data,day){
  validateSourcePassport(data);
  return data;
 }
+function boundedTwoFactorResearchRange(h){
+ // /99 is the scale of provisional ordinal TRAINING (30x0..3) plus
+ // RECENT (3x0..3), NOT a score out of the formal 100-point scale.
+ // An absent beta grade occupies its full possible contribution:
+ // never impute it as C, zero, or a low-ranked horse.
+ const ordinal={S:3,A:2,B:1,C:0};
+ const knownTraining=Object.hasOwn(ordinal,h.training);
+ const knownRecent=Object.hasOwn(ordinal,h.recent);
+ if(knownTraining&&knownRecent)return '';
+ const low=(knownTraining?ordinal[h.training]*30:0)+
+  (knownRecent?ordinal[h.recent]*3:0);
+ const high=low+(knownTraining?0:90)+(knownRecent?0:9);
+ return '2項目研究の推定可能範囲 '+low+'〜'+high+
+  '/99（未評価分は0点扱いせず、最良〜最低の可能性を残す）';
+}
 function runnerView(h,index){
  const p=dom('div',undefined,'runner');
  p.append(dom('span',h.number+'番','number'),
@@ -1039,6 +1054,8 @@ function runnerView(h,index){
   dom('span','調教 '+h.training,'grade '+h.training),
   dom('span','近走 '+h.recent,'grade '+h.recent),
   dom('span',POS[h.pastFourthCorner]+' ※脚質確定ではない','notes'));
+ const range=boundedTwoFactorResearchRange(h);
+ if(range)p.append(dom('span',range,'notes'));
  if(missingText(h))p.append(dom('span',missingText(h),'notes'));
  return p;
 }
