@@ -25,6 +25,11 @@ class Remaining21SourceGapsTests(unittest.TestCase):
         self.assertEqual(report["sourcePolicyVersion"], "research-5")
         self.assertEqual(report["remainingWeight"], 21)
         self.assertEqual(report["initialResearchWeight"], 79)
+        self.assertEqual(report["pedigreeStaffWeight"], 16)
+        self.assertEqual(report["pedigreeStaffGradesVerified"], 0)
+        self.assertFalse(report["independentPedigreeCohortValidated"])
+        self.assertFalse(report["conditionMatchedStaffResultsValidated"])
+        self.assertFalse(report["outOfTimePerformanceValidated"])
         self.assertEqual(report["factorWeights"], {
             "pedigree": 6, "draw_weight": 3, "jockey_stable": 10,
             "rotation": 1, "body_condition": 1,
@@ -35,9 +40,30 @@ class Remaining21SourceGapsTests(unittest.TestCase):
             self.assertFalse(item["gradeReady"])
             self.assertFalse(item["trifectaReady"])
             self.assertEqual(len(item["horses"]), item["runnerCount"])
+            self.assertEqual(item["pedigreeParentageCompleteCount"],
+                item["sourceCoverageByFactor"]["pedigree"])
+            self.assertEqual(item["staffIdentityCompleteCount"],
+                item["sourceCoverageByFactor"]["jockey_stable"])
+            self.assertEqual(item["bothPedigreeStaffCompleteCount"],
+                sum(h["pedigreeStaffSourceCoverage16"] == 16
+                    for h in item["horses"]))
+            self.assertEqual(item["pedigreeStaffVerifiedGrades"], 0)
             for horse in item["horses"]:
                 self.assertIsNone(horse["formalScore100"])
                 self.assertEqual(horse["formalGrade"], "未評価")
+                p = horse["sourceFieldsPresent"]
+                self.assertEqual(horse["pedigreeStaffSourceCoverage16"],
+                                 int(p["pedigree"]) * 6 +
+                                 int(p["jockey_stable"]) * 10)
+                self.assertFalse(horse["pedigreeStaffScoreReady"])
+                self.assertEqual(horse["pedigreeStaffGrades"],
+                                 {"pedigree": "未評価",
+                                  "jockey_stable": "未評価"})
+                self.assertEqual(horse["pedigreeStaffScores"],
+                                 {"pedigree": None, "jockey_stable": None})
+                for key in ("pedigree", "jockey_stable"):
+                    self.assertIn("temporal_holdout_not_validated",
+                                  horse["pedigreeStaffMissingEvidence"][key])
                 self.assertFalse(horse["bettingReady"])
                 self.assertFalse(horse["sourceFieldsPresent"]["body_condition"])
                 self.assertIn("body_condition", horse["missingSourceFields"])
@@ -71,6 +97,26 @@ class Remaining21SourceGapsTests(unittest.TestCase):
                 self.assertIn("pedigree", horse["missingSourceFields"])
                 self.assertEqual(horse["formalGrade"], "未評価")
                 self.assertIsNone(horse["formalScore100"])
+
+    def test_missing_staff_and_parentage_remain_unassessed_without_spoofed_points(self):
+        five, inventory = original()
+        for row in inventory["races"]:
+            for horse in row["runners"]:
+                horse["sourceStates"]["pedigree"] = "partial_fields_observed"
+                horse["sourceStates"]["jockey_stable"] = "no_fields_observed"
+            row["remainingFieldCoverage"]["pedigree"] = 0
+            row["remainingFieldCoverage"]["jockey_stable"] = 0
+        report = remaining21_source_gaps(five, inventory)
+        for race in report["races"]:
+            self.assertEqual(race["bothPedigreeStaffCompleteCount"], 0)
+            for horse in race["horses"]:
+                self.assertEqual(horse["pedigreeStaffSourceCoverage16"], 0)
+                self.assertIn("parentage_fields_incomplete",
+                    horse["pedigreeStaffMissingEvidence"]["pedigree"])
+                self.assertIn("jockey_or_trainer_fields_incomplete",
+                    horse["pedigreeStaffMissingEvidence"]["jockey_stable"])
+                self.assertEqual(horse["pedigreeStaffScores"],
+                                 {"pedigree": None, "jockey_stable": None})
 
     def test_mismatch_and_forged_formal_grade_fail_closed(self):
         edits = [
