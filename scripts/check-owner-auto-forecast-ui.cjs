@@ -156,6 +156,31 @@ function resultWith(signature){
  }];
  return withSourcePassport(withTenPreview(result));
 }
+function heldReasonBreakdownFixture(){
+ const result=resultWith('d'.repeat(64)),row=result.races[0];
+ Object.assign(row,{status:'hold',reason:'missing_factors',
+  first:[],second:[],third:[],tickets:[],points:0,amountYen:0});
+ result.draftCount=0;result.holdCount=1;
+ result.holdReasons={missing_factors:1};
+ result.researchReceipts=[];result.researchReceiptCount=0;
+ const update=(index,missingTraining,missingRecent,reasons)=>{
+  const horse=row.runners[index];
+  if(missingTraining)horse.training='未評価';
+  if(missingRecent)horse.recent='未評価';
+  horse.missingReasons=reasons;
+  horse.twoFactorGrade='未評価';
+  horse.twoFactorPoints=null;
+  horse.weightedResearchPoints=null;
+  horse.comparisonRank=null;
+ };
+ update(0,false,true,['only_one_usable_run']);
+ update(1,false,true,['no_linked_recent_record']);
+ update(2,false,true,['insufficient_scored_runs']);
+ update(3,true,true,['missing_training_indices','no_usable_history']);
+ update(4,true,false,['no_linked_training_record']);
+ // Intact supported C/C is NOT a missing-grade or source shortage.
+ return withSourcePassport(withTenPreview(result));
+}
 function full36RaceDraft(){
  // Three-venue, 36R fixture: 1 prestart signed draft and 35 later holds.
  // Never fabricate historical rankings for post-off races.
@@ -1528,6 +1553,40 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(friday.requests[0].url,
   '/api/jrdb/owner-auto-draft?date=20990103');
  assert.equal(friday.storage.has(STORAGE),false);
+
+ // Explain the existing missing-factor hold by fixed source reason codes,
+ // never by inventing a zero grade or running more billed provider queries.
+ const gapsView=boot({manualWeekday:false});
+ await new Promise(r=>setImmediate(r));
+ const already=heldReasonBreakdownFixture();
+ gapsView.setServerRaw(already);
+ await gapsView.get('autoRun').onclick();
+ assert.match(gapsView.get('autoSummary').textContent,/研究用自動案 0R／見送り 1R/);
+ assert.match(gapsView.get('autoMissingFactorSummary').textContent,
+  /近走未評価 4頭/);
+ assert.match(gapsView.get('autoMissingFactorSummary').textContent,
+  /評価可能な過去走1走のみ 1頭/);
+ assert.match(gapsView.get('autoMissingFactorSummary').textContent,
+  /近走資料の馬別照合なし 1頭/);
+ assert.match(gapsView.get('autoMissingFactorSummary').textContent,
+  /着順・指数ペア不足 1頭/);
+ assert.match(gapsView.get('autoMissingFactorSummary').textContent,
+  /評価に使える過去走なし 1頭/);
+ assert.match(gapsView.get('autoMissingFactorSummary').textContent,
+  /調教未評価 2頭/);
+ assert.match(gapsView.get('autoMissingFactorSummary').textContent,
+  /両方未評価 1頭/);
+ assert.equal(gapsView.get('autoMissingFactorRaces').children.length,1);
+ assert.match(gapsView.get('autoMissingFactorRaces').children[0].textContent,
+  /東京 1R｜調教未評価 2頭／近走未評価 4頭／両方 1頭/);
+ assert.equal(gapsView.get('autoRaces').children[0].children.length,1);
+ assert.equal(gapsView.requests.length,1);
+ assert.equal(gapsView.storage.has(STORAGE),false);
+ gapsView.get('autoDay').value='2099-01-02';
+ gapsView.get('autoDay').onchange();
+ assert.match(gapsView.get('autoMissingFactorSummary').textContent,/開催日を取得すると/);
+ assert.equal(gapsView.get('autoMissingFactorRaces').children.length,0);
+ assert.equal(gapsView.requests.length,1);
 
  // Ordinary weekdays now render without triggering a possibly billed JRDB
  // request. An explicit user press still works for a holiday race meeting.
