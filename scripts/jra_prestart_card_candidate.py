@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 VERSION = "owner-jra-prestart-card-candidate-1"
-HOSTS = frozenset(("www.jra.go.jp", "sp.jra.jp"))
+HOSTS = frozenset(("www.jra.go.jp", "jra.jp", "sp.jra.jp", "app.jra.jp"))
 VENUES = frozenset(("札幌", "函館", "福島", "新潟", "東京", "中山",
                     "中京", "京都", "阪神", "小倉"))
 MAX_BYTES = 480_000
@@ -136,6 +136,12 @@ def parse_prestart_card_candidate(html, url, requested_date, track, race):
         raise JraPrestartCardError("Dated JRA race header unavailable")
     # Limit time/course readings to the main race header, not past run rows.
     local = visible[max(0, marker.end()-130):marker.end()+650]
+    # The source can include previous-run panels below the current header.
+    # Do not misinterpret their off-times/courses as today's schedule. A
+    # header with multiple *header* values remains ambiguous and fails shut.
+    ending = re.search(r"(?:本賞金|詳細出馬表|前[4４]走|枠\s*馬番)", local)
+    if ending:
+        local = local[:ending.start()]
     times = {(int(h), int(mm)) for pattern in (TIME, MOBILE_TIME)
              for h, mm in pattern.findall(local)}
     courses = {(int(distance.replace(",", "")), surface)
