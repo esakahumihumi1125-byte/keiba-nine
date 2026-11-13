@@ -2110,6 +2110,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/発走時刻候補に差あり/);
  assert.equal(cardView.storage.get(STORAGE),frozenCard);
  assert.equal(cardView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ cardView.get('autoDay').value='2099-01-02';
+ cardView.get('autoDay').onchange();
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/開催日を変更しました.*未確認/);
+ assert.equal(cardView.storage.get(STORAGE),frozenCard);
  const evidenceView=boot({initialServerRaw:annotated});
  await new Promise(r=>setImmediate(r));
  assert.equal(evidenceView.requests.length,1);
