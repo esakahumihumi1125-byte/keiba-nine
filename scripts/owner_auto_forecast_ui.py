@@ -123,6 +123,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
 <select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
 <button id="autoNextDraft" type="button" class="secondary-cta" disabled>次の下書きRへ（未取得）</button>
+<p class="muted">このボタンはJRDBの暫定発走時刻順です。JRA公式の発走時刻・取消を確認してください。</p>
 <p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
 <div id="autoRaces"></div>
 </section>
@@ -1689,7 +1690,7 @@ function render(input,day){
    '&track='+encodeURIComponent(race.track)+'&race='+race.race;
   detail.append(manual);
   const raceKey=race.track+'|'+race.race;
-  nodes.push({key:raceKey,track:race.track,
+  nodes.push({key:raceKey,track:race.track,postTime:race.postTime,
    draft:race.status==='provisional_draft'&&!changedLock&&!elapsed,
    holdReason:race.status==='hold'?race.reason:null,node:detail});
   const option=dom('option',race.track+' '+race.race+'R｜'+
@@ -1754,17 +1755,20 @@ function render(input,day){
   button.setAttribute('aria-pressed','false');
   button.onclick=()=>{select.value='';show(track);};tabs.append(button);
  }
- const displayableDrafts=nodes.filter(item=>item.draft);
+ const displayableDrafts=nodes.filter(item=>item.draft)
+  .sort((a,b)=>a.postTime.localeCompare(b.postTime)||
+   a.track.localeCompare(b.track,'ja')||
+   Number(a.key.split('|')[1])-Number(b.key.split('|')[1]));
  const nextDraft=$('autoNextDraft');
  function updateNextDraft(){
-  // Display order only; not a claim about JRA's official start order.
+  // JRDB provisional post-time order only, NEVER an official JRA schedule.
   // A held, locally expired or frozen-conflict R is never a navigation target.
   const current=displayableDrafts.findIndex(item=>item.key===select.value);
   const available=displayableDrafts.length>0&&current<displayableDrafts.length-1;
   nextDraft.disabled=!available;
   nextDraft.textContent=!displayableDrafts.length
    ?'次の下書きRはありません（見送り・未取得）'
-   :available?'次の下書きRへ（一覧順）':'最後の下書きRです';
+   :available?'次の下書きRへ（暫定発走時刻順）':'最後の下書きRです';
  }
  nextDraft.onclick=()=>{
   if(latestDisplayedReport!==data||latestDisplayedDay!==day||
