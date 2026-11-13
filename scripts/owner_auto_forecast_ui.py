@@ -3856,7 +3856,12 @@ function validateHistory(h){
      v.policyVersion!=='research-6'||v.sourcePolicyVersion!=='research-5'||
      v.raceCount!==historyCoordinates.size||
      v.initialResearchWeight!==79||v.remainingWeight!==21||
-     v.totalWeight!==100||!v.factorWeights||
+     v.totalWeight!==100||
+     v.pedigreeStaffWeight!==16||v.pedigreeStaffGradesVerified!==0||
+     v.independentPedigreeCohortValidated!==false||
+     v.conditionMatchedStaffResultsValidated!==false||
+     v.outOfTimePerformanceValidated!==false||
+     !v.factorWeights||
      Object.keys(v.factorWeights).length!==5||
      keys.some(k=>v.factorWeights[k]!==weights[k])||
      v.verifiedFactorCount!==0||v.formallyEvaluatedHorseCount!==0||
@@ -3880,7 +3885,11 @@ function validateHistory(h){
       !race.sourceCoverageByFactor||
       Object.keys(race.sourceCoverageByFactor).length!==5||
       !Number.isInteger(race.priorSourceFourCompleteCount)||
-      !Number.isInteger(race.research79ObservedCount))
+      !Number.isInteger(race.research79ObservedCount)||
+      !Number.isInteger(race.pedigreeParentageCompleteCount)||
+      !Number.isInteger(race.staffIdentityCompleteCount)||
+      !Number.isInteger(race.bothPedigreeStaffCompleteCount)||
+      race.pedigreeStaffVerifiedGrades!==0)
     throw Error('新配点21点のレースと研究値が不一致');
    seenRaces.add(id);
    const old=new Map(detail.newWeightFive.horses.map(x=>[x.number,x])),
@@ -3919,12 +3928,36 @@ function validateHistory(h){
     if(horse.sourceFieldCoverageEquivalent21!==coverage||
        JSON.stringify(horse.missingSourceFields)!==JSON.stringify(missing))
      throw Error('新配点21点の資料カバー計算不一致');
+    const parent=horse.sourceFieldsPresent.pedigree,
+     staff=horse.sourceFieldsPresent.jockey_stable;
+    const expectedGaps={
+     pedigree:[...(parent?[]:['parentage_fields_incomplete']),
+      'independent_condition_cohort_unavailable','temporal_holdout_not_validated'],
+     jockey_stable:[...(staff?[]:['jockey_or_trainer_fields_incomplete']),
+      'condition_matched_staff_results_unvalidated','temporal_holdout_not_validated'],
+    };
+    if(horse.pedigreeStaffSourceCoverage16!==6*Number(parent)+10*Number(staff)||
+       horse.pedigreeStaffScoreReady!==false||
+       JSON.stringify(horse.pedigreeStaffMissingEvidence)!==
+        JSON.stringify(expectedGaps)||
+       JSON.stringify(horse.pedigreeStaffGrades)!==
+        JSON.stringify({pedigree:'未評価',jockey_stable:'未評価'})||
+       !horse.pedigreeStaffScores||
+       Object.keys(horse.pedigreeStaffScores).length!==2||
+       horse.pedigreeStaffScores.pedigree!==null||
+       horse.pedigreeStaffScores.jockey_stable!==null)
+     throw Error('血統6・騎手厩舎10の採点前根拠に不整合');
     priorComplete+=Number(fields===4);
     observed79+=Number(horse.research79Observed);
    }
    if(seen.size!==old.size||seen.size!==source.size||
       race.priorSourceFourCompleteCount!==priorComplete||
       race.research79ObservedCount!==observed79||
+      race.pedigreeParentageCompleteCount!==count.pedigree||
+      race.staffIdentityCompleteCount!==count.jockey_stable||
+      race.bothPedigreeStaffCompleteCount!==race.horses.filter(h=>
+       h.sourceFieldsPresent.pedigree&&
+       h.sourceFieldsPresent.jockey_stable).length||
       keys.some(k=>race.sourceCoverageByFactor[k]!==count[k]||
        count[k]!==detail.tenInventory.remainingFieldCoverage[k]))
     throw Error('新配点21点の件数不一致');
@@ -5812,6 +5845,11 @@ $('autoHistoryAudit').onclick=async()=>{
      r.priorSourceFourCompleteCount+'/'+r.runnerCount+
      '頭。新79点研究がそろう馬 '+r.research79ObservedCount+'/'+r.runnerCount+
      '頭。馬体重1点と全10項目の正式能力評価は未完了。','muted'));
+    panel.append(dom('p','血統6点・騎手厩舎10点の採点前チェック：父と母父の基本資料 '+
+     r.pedigreeParentageCompleteCount+'/'+r.runnerCount+
+     '頭、騎手・厩舎の基本資料 '+r.staffIdentityCompleteCount+'/'+r.runnerCount+
+     '頭、両方そろう馬 '+r.bothPedigreeStaffCompleteCount+'/'+r.runnerCount+
+     '頭。16点の正式採点は0点分（未評価）。名前だけでは評価しません。','muted'));
     const names={pedigree:'血統',draw_weight:'枠斤量',
      jockey_stable:'騎手厩舎',rotation:'ローテ',body_condition:'当日馬体重'};
     for(const horse of r.horses){
@@ -5819,6 +5857,8 @@ $('autoHistoryAudit').onclick=async()=>{
       (horse.research79Observed?horse.research79.toFixed(2)+'/79':'未評価')+
       '｜残り21点の資料カバー配点相当 '+
       horse.sourceFieldCoverageEquivalent21+'/21（得点ではない）'+
+      '｜血統＋騎手厩舎の基本資料 '+
+      horse.pedigreeStaffSourceCoverage16+'/16（能力点ではない）'+
       '｜資料不足：'+horse.missingSourceFields.map(k=>names[k]).join('・')+
       '｜全10項目の正式採点は未評価','muted'));
     }
