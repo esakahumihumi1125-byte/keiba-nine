@@ -19,11 +19,19 @@ MAX_BYTES = 480_000
 MAX_VISIBLE = 130_000
 JST = timezone(timedelta(hours=9))
 CNAME = re.compile(r"[A-Za-z0-9/_-]{16,90}\Z", re.ASCII)
+# Both JRA official templates must be handled. The desktop format uses
+# 「発走時刻：13時45分」 and 「コース：1,400メートル（芝・左）」;
+# the mobile template uses 「発走13:45」 and 「コース 1400m 芝・左」.
 TIME = re.compile(r"発走時刻\s*[：:]\s*([01]?\d|2[0-3])時([0-5]\d)分")
+MOBILE_TIME = re.compile(r"発走\s*([01]?\d|2[0-3]):([0-5]\d)(?!\d)")
 COURSE = re.compile(
     r"コース\s*[：:]\s*([1-9][0-9,]{2,5})\s*メートル\s*"
     r"[（(]\s*(芝|ダート|障害)(?:[・/][^）)]{1,18})?[）)]"
 )
+MOBILE_COURSE = re.compile(
+    r"コース\s*([1-9][0-9]{2,4})\s*[mｍ]\s*(芝|ダート|障害)(?![一-龯])"
+)
+RACE_ICON_ALT = re.compile(r"(?:[1-9]|1[0-2])\s*(?:レース|R)\Z")
 
 
 class JraPrestartCardError(ValueError):
@@ -45,6 +53,13 @@ class _Visible(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag in ("script", "style", "noscript", "svg"):
             self.skipped.append(tag)
+        elif not self.skipped and tag == "img":
+            # Desktop race number is sometimes an image alt such as
+            # "8レース"; accept ONLY this very narrow marker, never
+            # arbitrary HTML attributes, horse names or tracking data.
+            alt = dict(attrs).get("alt")
+            if isinstance(alt, str) and RACE_ICON_ALT.fullmatch(alt.strip()):
+                self.parts.append(" " + alt.strip() + " ")
         elif not self.skipped and tag in ("br", "tr", "td", "th", "li",
                                           "h1", "h2", "h3", "h4", "p"):
             self.parts.append("\n")
@@ -121,9 +136,11 @@ def parse_prestart_card_candidate(html, url, requested_date, track, race):
         raise JraPrestartCardError("Dated JRA race header unavailable")
     # Limit time/course readings to the main race header, not past run rows.
     local = visible[max(0, marker.end()-130):marker.end()+650]
-    times = set((int(h), int(mm)) for h, mm in TIME.findall(local))
-    courses = set((int(distance.replace(",", "")), surface)
-                  for distance, surface in COURSE.findall(local))
+    times = {(int(h), int(mm)) for pattern in (TIME, MOBILE_TIME)
+             for h, mm in pattern.findall(local)}
+    courses = {(int(distance.replace(",", "")), surface)
+               for pattern in (COURSE, MOBILE_COURSE)
+               for distance, surface in pattern.findall(local)}
     if len(times) != 1 or len(courses) != 1:
         raise JraPrestartCardError("Ambiguous JRA start time or course")
     hour, minute = next(iter(times))
