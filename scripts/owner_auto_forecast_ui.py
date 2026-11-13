@@ -1114,6 +1114,9 @@ function formation(r){
   dom('p','2着：'+r.second.join('・')+'番','picks'),
   dom('p','3着：'+r.third.join('・')+'番','picks'),
   dom('p',r.points+'点／1点100円なら'+r.amountYen.toLocaleString('ja-JP')+'円（仮計算・未購入）'),
+  ...(r.second.length===6?[dom('p',
+   '同点の候補馬を馬番順で切らず、2着6頭・3着6頭まで拡張した研究例。'+
+   '1着2頭×2着6頭×3着6頭＝重複除外40点。正式10項目の完成予想ではありません。','muted')]:[]),
   combinations);
  return block;
 }
