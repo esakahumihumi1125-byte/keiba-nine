@@ -1800,8 +1800,22 @@ function render(input,day){
    const horses=dom('details',undefined,'horse-research');
    horses.append(dom('summary','馬ごとの調教・近走の仮評価を見る（'+
     race.runners.length+'頭）'));
-   horses.append(dom('p','調教30：近走3での仮順位（10項目総合評価ではない）','muted'));
-   for(const [i,h] of race.runners.entries()){
+   horses.append(dom('p',race.status==='hold'
+    ?'見送りRは調教S→A→B→C→未評価の順に参考表示。'+
+     '馬番や同ランク内の順序は強さ・総合順位を意味しません。'+
+     '近走3点の欠損を推測補完せず、研究用の買い目は作成しません。'
+    :'調教30：近走3での仮順位（10項目総合評価ではない）','muted'));
+   // Missing recent grades leave nearly every held runner unranked.
+   // Display those held horses by the OBSERVED TRAINING BAND only, so
+   // stronger workout evidence is visible without inventing recent or
+   // a 100-point score. This is a copied display list; the source
+   // report, signatures, receipts, and draft formations remain untouched.
+   const heldBands={S:0,A:1,B:2,C:3,'未評価':4};
+   const displayed=race.status==='hold'
+    ?race.runners.slice().sort((a,b)=>
+      heldBands[a.training]-heldBands[b.training]||a.number-b.number)
+    :race.runners;
+   for(const [i,h] of displayed.entries()){
     horses.append(runnerView(h,i));
     const ten=tenRows.get(race.track+'|'+race.race).horses.find(x=>x.number===h.number);
     horses.append(renderTenHorse(ten,materialByRace.get(key)?.get(h.number)));
