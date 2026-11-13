@@ -2094,6 +2094,13 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(matrix,/馬体重 1点｜当日馬体重の実測値・前走比は未検証/);
  assert.match(matrix,/JRA公式の出走馬・取消・馬場・発走時刻は未照合/);
  assert.match(matrix,/追加JRDB照会0回/);
+ assert.match(matrix,/【次に確認する資料（配点が大きい順・能力得点ではない）】/);
+ const priorityRows=matrix.split('\n').filter(line=>/：記録未確認/.test(line));
+ assert.equal(priorityRows.length,3,'show only three source gaps in the prioritized quick list');
+ assert.match(priorityRows[0],/展開・脚質 17点：記録未確認 7\/7頭/);
+ assert.match(priorityRows[1],/騎手・厩舎 10点：記録未確認 7\/7頭/);
+ assert.match(priorityRows[2],/血統 6点：記録未確認 6\/7頭/);
+ assert.match(matrix,/別途必須：当日馬体重の実測確認・JRA公式4点の独立照合/);
  assert.doesNotMatch(matrix,/PRIVATE-|racekey|test-original|[a-f0-9]{64}/);
  const evidenceGaps=evidenceView.get('autoEvidenceGapReport').textContent;
  assert.match(evidenceGaps,/発走前の下書き：1R／馬別資料の照合：7頭/);
@@ -2162,6 +2169,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(emptyMatrix,/番組0R：未集計。開催なしとは判定しません/);
  assert.doesNotMatch(emptyMatrix,/仮ランク 0\/0頭|記録 0\/0頭/);
  assert.match(emptyMatrix,/追加JRDB照会0回/);
+ assert.doesNotMatch(emptyMatrix,/記録未確認 0\/0頭|：記録未確認 0\/0R/);
  assert.match(zeroAcceptance,/今回のJRDB主要ソース照会：1回（番組のみ）/);
  assert.match(zeroAcceptance,/番組0Rは配信前・取得不備・開催なしを区別できません/);
  assert.match(zeroAcceptance,/研究用3連単下書き：0R／見送り：0R/);
