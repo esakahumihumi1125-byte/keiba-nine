@@ -4192,6 +4192,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(sparse.requests.length,sparseBefore+1);
  assert.match(sparse.get('autoSummary').textContent,/研究用自動案 0R／見送り 1R/);
  assert.match(sparse.get('autoUncertainRecentStatus').textContent,/参考グループ 1R/);
+ assert.match(sparse.get('autoUncertainRecentHint').textContent,/追加参考 1R/);
  const boundedCard=sparse.get('autoUncertainRecentRaces').children;
  assert.equal(boundedCard.length,1);
  assert.match(boundedCard[0].children[0].textContent,/参考30通り/);
@@ -4202,6 +4203,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  sparse.get('autoDay').onchange();
  assert.equal(sparse.get('autoUncertainRecentRaces').children.length,0);
  assert.match(sparse.get('autoUncertainRecentStatus').textContent,/取得前/);
+ assert.match(sparse.get('autoUncertainRecentHint').textContent,/未取得/);
  const corrupt=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  const invalidSparse=boundedRecentFixture();
@@ -4209,6 +4211,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  corrupt.setServerRaw(invalidSparse);
  await corrupt.get('autoRun').onclick();
  assert.match(corrupt.get('autoUncertainRecentStatus').textContent,/安全に確認できません/);
+ assert.match(corrupt.get('autoUncertainRecentHint').textContent,/形式確認ができないため非表示/);
  assert.equal(corrupt.get('autoUncertainRecentRaces').children.length,0);
  assert.equal(corrupt.storage.has(STORAGE),false);
  // All 36R are already validated before UI filtering. Mixed holds should
