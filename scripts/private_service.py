@@ -103,6 +103,9 @@ from jrdb_final_numbers_manual import HTML as NUMBERS_HTML, JS as NUMBERS_JS, CS
 from jra_official_pdf_ui import HTML as JRA_PDF_HTML, JS as JRA_PDF_JS, CSS as JRA_PDF_CSS
 from jra_web_card_workflow import HTML as WEB_CARD_HTML, JS as WEB_CARD_JS, CSS as WEB_CARD_CSS
 from jra_official_pdf_discovery import discover_official_pdf_links, JRAIndexError
+from jra_prestart_card_candidate import (
+    probe_prestart_card, validate_racecard_url, JraPrestartCardError
+)
 from owner_ticket_handoff import JS as TICKET_HANDOFF_JS
 from manual_purchase_book import HTML as PURCHASE_HTML, JS as PURCHASE_JS, CSS as PURCHASE_CSS
 from owner_backup import HTML as BACKUP_HTML, JS as BACKUP_JS, CSS as BACKUP_CSS
@@ -1842,6 +1845,33 @@ def create_app(settings=None):
                 if 'Date' in str(exc) or 'date' in str(exc):
                     return response('400 Bad Request', {'error': '開催日の形式・掲載期間を確認してください。'})
                 return response('502 Bad Gateway', {'error': 'JRA公式PDF一覧へ接続・解析できませんでした。後ほどJRA公式ページで確認してください。'})
+            return response('200 OK', result)
+        if method == 'GET' and path == '/api/jra/prestart-card-candidate':
+            # One opt-in HTTPS JRA racecard page, exact date/venue/R.
+            # This has NO JRDB reads and CANNOT independently authenticate
+            # the official source or approve any ten-factor prediction.
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date', 'track', 'race', 'url'}
+                    or any(len(values) != 1 for values in query.values())):
+                return response('400 Bad Request', {
+                    'error': 'JRA出馬表の開催日・競馬場・R・URLを1つずつ指定してください。'})
+            try:
+                date = query['date'][0]
+                track = query['track'][0]
+                number = query['race'][0]
+                url = query['url'][0]
+                if not re.fullmatch(r'(?:[1-9]|1[0-2])', number):
+                    raise JraPrestartCardError('Invalid race number')
+                race = int(number)
+                validate_racecard_url(url, date, track, race)
+            except (ValueError, TypeError, JraPrestartCardError):
+                return response('400 Bad Request', {
+                    'error': 'JRA公式出馬表のURL・開催日・競馬場・レース番号を確認してください。'})
+            try:
+                result = probe_prestart_card(url, date, track, race)
+            except JraPrestartCardError:
+                return response('502 Bad Gateway', {
+                    'error': 'JRA出馬表の候補情報を安全に読み取れませんでした。公式ページを直接確認してください。'})
             return response('200 OK', result)
         if method == 'GET' and path == '/api/jrdb/connection-test':
             # Owner-initiated single /tra request. No paid ROWS or dates are
