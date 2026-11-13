@@ -1225,6 +1225,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true,officialCardOffTime='12:00',
+  officialLinkOk=true,officialLinkCorrupt=false,
   preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
  let now=initialClock||'2099-01-01T00:00:00Z',onVisibility=null;
@@ -1289,6 +1290,26 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    };
    if(preflightCorrupt)obj.providerConnectionVerified=true;
    return {ok:true,json:async()=>obj};
+  }
+  if(url.startsWith('/api/jra/selected-race-card-link?')){
+   const q=new URL('http://localhost'+url).searchParams;
+   const requested=q.get('date'),track=q.get('track'),race=Number(q.get('race'));
+   const venue={札幌:'01',函館:'02',福島:'03',新潟:'04',東京:'05',
+    中山:'06',中京:'07',京都:'08',阪神:'09',小倉:'10'}[track];
+   const token='sw01dde01'+venue+'20990503'+String(race).padStart(2,'0')+
+    requested.replaceAll('-','')+'/AB';
+   return {ok:officialLinkOk,json:async()=>({
+    version:'owner-jra-race-link-resolver-1',date:requested,track,race,
+    officialRacecardUrl:officialLinkCorrupt
+     ?'https://untrusted.example/JRADB/accessD.html?CNAME='+token
+     :'https://app.jra.jp/JRADB/accessD.html?CNAME='+token,
+    officialLinkFound:true,officialLinkTargetVerified:false,
+    officialRacecardContentsVerified:false,officialStartersVerified:false,
+    officialScratchesVerified:false,officialGoingVerified:false,
+    officialPostTimeVerified:false,formalTenFactorReady:false,
+    bettingReady:false,researchOnly:true,existingReceiptsChanged:false,
+    existingTicketsChanged:false,newJrdbRequests:0
+   })};
   }
   if(url.startsWith('/api/jra/prestart-card-candidate?')){
    const q=new URL('http://localhost'+url).searchParams;
@@ -1557,6 +1578,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setOfficialPdfLinks:x=>officialPdfLinks=x,
   setOfficialPdfOk:x=>officialPdfOk=x,
   setOfficialCardOffTime:x=>officialCardOffTime=x,
+  setOfficialLinkOk:x=>officialLinkOk=x,
+  setOfficialLinkCorrupt:x=>officialLinkCorrupt=x,
   setPreflightCorrupt:x=>preflightCorrupt=x,
   setPreflightBadKey:x=>preflightBadKey=x,
   setPreflightServerDate:x=>preflightServerDate=x,
@@ -2147,6 +2170,51 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  cardView.get('autoDay').onchange();
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/開催日を変更しました.*未確認/);
  assert.equal(cardView.storage.get(STORAGE),frozenCard);
+ // One iPhone tap discovers a JRA official link and compares the
+ // already-loaded JRDB time/course. Zero new paid /jrdb calls or writes.
+ const discover=boot();
+ await new Promise(r=>setImmediate(r));
+ const discoverBtn=discover.get('autoOfficialCardDiscover');
+ const discoveryBefore=discover.requests.length;
+ await discoverBtn.onclick();
+ assert.equal(discover.requests.length,discoveryBefore);
+ assert.match(discover.get('autoOfficialCardLinkStatus').textContent,
+  /先に開催日のレースを1R選んでください/);
+ const target=discover.get('autoRacePick');
+ target.value='東京|1';target.onchange();
+ const frozen=discover.storage.get(STORAGE);
+ await discoverBtn.onclick();
+ assert.equal(discover.requests.length,discoveryBefore+2);
+ assert.match(discover.requests.at(-2).url,
+  /^\/api\/jra\/selected-race-card-link\?/);
+ assert.match(discover.requests.at(-1).url,
+  /^\/api\/jra\/prestart-card-candidate\?/);
+ assert.match(discover.get('autoOfficialCardLinkStatus').textContent,
+  /JRA公式サイト内の選択Rリンクを発見/);
+ assert.match(discover.get('autoOfficialCardStatus').textContent,
+  /発走時刻候補は一致/);
+ assert.match(discover.get('autoOfficialCardResolved').href,
+  /^https:\/\/app\.jra\.jp\/JRADB\/accessD\.html\?/);
+ assert.equal(discover.get('autoOfficialCardUrl').value,
+  discover.get('autoOfficialCardResolved').href);
+ assert.equal(discover.storage.get(STORAGE),frozen);
+ assert.equal(discover.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // An untrusted link must never open or trigger the candidate comparison.
+ discover.setOfficialLinkCorrupt(true);
+ const beforeCorrupt=discover.requests.length;
+ await discoverBtn.onclick();
+ assert.equal(discover.requests.length,beforeCorrupt+1);
+ assert.match(discover.get('autoOfficialCardLinkStatus').textContent,
+  /安全に特定できませんでした/);
+ assert.equal(discover.get('autoOfficialCardResolved').href,
+  'https://www.jra.go.jp/keiba/');
+ assert.equal(discover.storage.get(STORAGE),frozen);
+ // Changing day discards a previously discovered link.
+ discover.get('autoDay').value='2099-01-02';
+ discover.get('autoDay').onchange();
+ assert.match(discover.get('autoOfficialCardLinkStatus').textContent,/未検索/);
+ assert.equal(discover.get('autoOfficialCardUrl').value,'');
+ assert.equal(discover.requests.length,beforeCorrupt+1);
  const evidenceView=boot({initialServerRaw:annotated});
  await new Promise(r=>setImmediate(r));
  assert.equal(evidenceView.requests.length,1);
