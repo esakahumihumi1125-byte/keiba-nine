@@ -1711,6 +1711,8 @@ function render(input,day){
  // Selection uses an already verified day snapshot. No extra JRDB calls,
  // no prediction reconstruction, no receipt or purchase write.
  function show(track,key='',draftsOnly=false,holdReason=''){
+  // Invalidate previous JRA single-R candidate when race selection changes.
+  $('autoOfficialCardStatus').textContent='選択中のレースではJRA Web出馬表の候補比較は未確認。買い目は無変更です。';
   // A tab or race-selection tap may happen long after the first render.
   // Re-evaluate the local clock before exposing any on-screen formation.
   const expiredNow=data.races.filter(x=>x.status==='provisional_draft'&&
@@ -4427,6 +4429,7 @@ function updateReviewLink(){
   (valid?'?date='+encodeURIComponent(day):'');
 }
 $('autoDay').onchange=()=>{
+ $('autoOfficialCardStatus').textContent='開催日を変更しました。JRA公式Web出馬表の候補は未確認です。';
  ++preflightSeq;
  $('autoPreflight').disabled=false;
  $('autoPreflightStatus').textContent='選択日が変わりました。無料診断は未実行です。';
@@ -4811,6 +4814,7 @@ $('autoConnectionCheck').onclick=async()=>{
  }}finally{if(seq===connectionSeq)button.disabled=false;}
 };
 $('autoRun').onclick=async()=>{
+ $('autoOfficialCardStatus').textContent='JRDB再分析後はJRA出馬表の候補をもう一度確認してください。';
  const button=$('autoRun');
  if(button.disabled)return;
  const seq=++request,day=$('autoDay').value.replaceAll('-','');
