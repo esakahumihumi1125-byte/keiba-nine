@@ -1,6 +1,8 @@
 """Synthetic single-page JRA prestart candidate: no live fetch or JRDB charges."""
 import sys
 import unittest
+from unittest.mock import patch
+from urllib.parse import urlencode
 from datetime import date
 from email.message import Message
 from pathlib import Path
@@ -143,6 +145,47 @@ class JraPrestartCardCandidateTests(unittest.TestCase):
             probe_prestart_card(MOBILE, DAY, "京都", 1,
                                 now=date(2026, 12, 1), opener=opener)
         self.assertEqual(len(opener.calls), 1)
+
+    def test_owner_route_is_read_only_single_official_page(self):
+        from private_service import create_app
+        from test_private_service import SETTINGS, call
+        app = create_app(SETTINGS)
+        query = urlencode({"date": DAY, "track": "京都", "race": "1",
+                           "url": MOBILE})
+        candidate = parse_prestart_card_candidate(
+            MOBILE_HTML, MOBILE, DAY, "京都", 1)
+        with patch("private_service.probe_prestart_card",
+                   return_value=candidate) as probe, \
+             patch("private_service.fetch_race_program") as jrdb:
+            result = call(app, "/api/jra/prestart-card-candidate",
+                          QUERY_STRING=query)
+            self.assertEqual(result["status"], "200 OK")
+            self.assertIn(b'"officialStartersVerified": false', result["body"])
+            self.assertIn(b'"postTimeCandidate": "10:00"', result["body"])
+            probe.assert_called_once_with(MOBILE, DAY, "京都", 1)
+            jrdb.assert_not_called()
+            unauth = call(app, "/api/jra/prestart-card-candidate",
+                          QUERY_STRING=query, auth="")
+            self.assertEqual(unauth["status"], "401 Unauthorized")
+            blocked = call(app, "/api/jra/prestart-card-candidate",
+                           QUERY_STRING=query, HTTP_X_KEIBA_REQUEST="")
+            self.assertEqual(blocked["status"], "403 Forbidden")
+            self.assertEqual(probe.call_count, 1)
+            for malformed in (
+                "", "date=" + DAY,
+                query + "&race=2",
+                query + "&token=unsafe",
+                urlencode({"date": DAY, "track": "京都", "race": "1",
+                           "url": MOBILE.replace("sp.jra.jp", "evil.test")}),
+                urlencode({"date": DAY, "track": "京都", "race": "01",
+                           "url": MOBILE}),
+            ):
+                with self.subTest(query=malformed):
+                    response = call(app, "/api/jra/prestart-card-candidate",
+                                    QUERY_STRING=malformed)
+                    self.assertEqual(response["status"], "400 Bad Request")
+            self.assertEqual(probe.call_count, 1)
+            jrdb.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
