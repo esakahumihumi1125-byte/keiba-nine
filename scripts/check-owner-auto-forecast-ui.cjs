@@ -2215,6 +2215,34 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(discover.get('autoOfficialCardLinkStatus').textContent,/未検索/);
  assert.equal(discover.get('autoOfficialCardUrl').value,'');
  assert.equal(discover.requests.length,beforeCorrupt+1);
+ // Already-loaded private JRDB data: surface every prestart workout S/A
+ // in a compact tap-to-open list without treating holds as bettable picks.
+ const workoutDigest=boot();
+ await new Promise(r=>setImmediate(r));
+ const workoutRows=workoutDigest.get('autoWorkoutQuickRows').children;
+ assert.equal(workoutRows.length,1);
+ assert.match(workoutRows[0].textContent,/東京1R｜調教S 1・2番／A 3・4番/);
+ assert.match(workoutDigest.get('autoWorkoutQuickStatus').textContent,
+  /発走予定時刻前の調教S\/A参考 1R/);
+ const workoutRequests=workoutDigest.requests.length;
+ const workoutStore=workoutDigest.storage.get(STORAGE);
+ workoutRows[0].onclick();
+ assert.equal(workoutDigest.get('autoRacePick').value,'東京|1');
+ assert.equal(workoutDigest.requests.length,workoutRequests);
+ assert.equal(workoutDigest.storage.get(STORAGE),workoutStore);
+ assert.equal(workoutDigest.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Stale still-open buttons fail closed when local provisional off passes.
+ workoutDigest.get('autoRacePick').value='';
+ workoutDigest.advanceClock('2099-01-01T04:00:00Z'); // JST 13:00
+ workoutRows[0].onclick();
+ assert.equal(workoutDigest.get('autoRacePick').value,'');
+ assert.match(workoutDigest.get('autoWorkoutQuickStatus').textContent,
+  /発走済みの研究案は再表示しません/);
+ assert.equal(workoutDigest.requests.length,workoutRequests);
+ workoutDigest.get('autoDay').value='2099-01-02';
+ workoutDigest.get('autoDay').onchange();
+ assert.equal(workoutDigest.get('autoWorkoutQuickRows').children.length,0);
+ assert.match(workoutDigest.get('autoWorkoutQuickStatus').textContent,/未取得/);
  const evidenceView=boot({initialServerRaw:annotated});
  await new Promise(r=>setImmediate(r));
  assert.equal(evidenceView.requests.length,1);
