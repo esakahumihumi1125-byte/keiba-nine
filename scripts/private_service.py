@@ -2403,8 +2403,9 @@ def create_app(settings=None):
                 # response without touching an earlier archived HMAC record.
                 # Never reuse browser time or create post-off betting evidence.
                 stage = 'final_prestart_gate'
+                final_prestart_checked_at = datetime.fromisoformat(_now_in_jst())
                 expired_before_delivery = expire_undelivered_drafts(
-                    report, datetime.fromisoformat(_now_in_jst()))
+                    report, final_prestart_checked_at)
                 if expired_before_delivery:
                     report['tenFactorPreview'] = ten_factor_contract(report)
                 # Source-presence per horse: derive from the SAME four
@@ -2445,7 +2446,7 @@ def create_app(settings=None):
                 stage = 'uncertain_recent_preview'
                 try:
                     report['uncertainRecentResearch'] = preview_missing_recent_holds(
-                        report, day, now=datetime.fromisoformat(_now_in_jst()))
+                        report, day, now=final_prestart_checked_at)
                 except (CoverageError, ValueError, TypeError, KeyError):
                     # Optional experiment must not fail a signed forecast.
                     logging.warning('KEIBA_UNCERTAIN_RECENT=unavailable')
