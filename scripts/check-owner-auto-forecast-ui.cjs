@@ -1666,6 +1666,24 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(gapStudy.children[2].textContent,/近走未評価：4頭/);
  assert.match(gapRace.children[0].textContent,/見送り｜調教S 2頭・A 1頭/);
  assert.equal(gapRace.children.some(x=>x.className==='formation'),false);
+ // Missing 3-point recent form is a FULL possible interval, not C/0.
+ // This makes the training signal readable without inventing official
+ // scores, issuing new tickets, or leaking paid runner histories.
+ const missingHorsePanel=gapRace.children.find(x=>x.className==='horse-research');
+ assert.ok(missingHorsePanel);
+ const rows=missingHorsePanel.children.filter(x=>x.className==='runner');
+ assert.equal(rows.length,7);
+ assert.match(rows[0].children.map(x=>x.textContent).join('|'),
+  /2項目研究の推定可能範囲 90〜99\/99/);
+ assert.match(rows[2].children.map(x=>x.textContent).join('|'),
+  /2項目研究の推定可能範囲 60〜69\/99/);
+ assert.match(rows[3].children.map(x=>x.textContent).join('|'),
+  /2項目研究の推定可能範囲 0〜99\/99/);
+ assert.match(rows[4].children.map(x=>x.textContent).join('|'),
+  /2項目研究の推定可能範囲 3〜93\/99/);
+ assert.equal(rows[5].children.some(x=>/研究の推定可能範囲/.test(x.textContent)),false);
+ assert.equal(gapsView.requests.length,1);
+ assert.equal(gapsView.storage.has(STORAGE),false);
  gapsView.get('autoDay').value='2099-01-02';
  gapsView.get('autoDay').onchange();
  assert.match(gapsView.get('autoMissingFactorSummary').textContent,/開催日を取得すると/);
