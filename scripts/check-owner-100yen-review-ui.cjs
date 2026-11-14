@@ -107,7 +107,7 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.match(observed.get('jraResultCandidates').children[1].textContent,
   /3連単 7－8－2：100円あたり 26,050円（候補）/);
  assert.match(observed.get('jraResultStatus').textContent,
-  /正式的中・収支には反映していません/);
+  /正式的中・実購入・仮想収支には反映していません/);
  assert.equal(observed.storage.size,0,'official candidate never writes storage');
  // For a real record, compare only after the existing server endpoint
  // has verified the original prestart HMAC receipt (no paid JRDB calls).
