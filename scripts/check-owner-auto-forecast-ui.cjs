@@ -4489,7 +4489,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await new Promise(r=>setImmediate(r));
  const tied48Rows=tied48.get('autoHeldTie48Races').children;
  assert.equal(tied48Rows.length,1);
- assert.match(tied48Rows[0].children[0].textContent,/東京 1R.*参考/);
+ assert.match(tied48Rows[0].children[0].textContent,/東京 1R.*研究用 32通り/);
  assert.match(tied48Rows[0].children[1].textContent,
   /1着候補 1／2着候補 1・2・3・4・5／3着候補 1・2・3・4・5・6・7・8・9・10/);
  assert.match(tied48.get('autoHeldTie48Hint').textContent,/追加参考 1R/);
