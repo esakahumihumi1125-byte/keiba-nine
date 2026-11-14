@@ -44,6 +44,29 @@ class WorkoutOrderProviderRouteTests(unittest.TestCase):
         self.assertFalse(parsed["accuracyVerified"])
         self.assertFalse(parsed["calibrationReady"])
         self.assertIsNone(parsed["roiPercent"])
+        self.assertEqual(parsed["pairObservationReceiptCount"], 1)
+        self.assertEqual(len(parsed["pairObservationReceipts"]), 1)
+        stored = parsed["pairObservationReceipts"]
+        with patch("private_service.fetch_finished_race_results") as fetched:
+            verified=call(app,"/api/owner-workout-pair-verify",
+                          method="POST",data={
+                "date":DAY,"prestartReceipts":data["receipts"],
+                "receipts":stored,
+            })
+            fetched.assert_not_called()
+        self.assertEqual(verified["status"],"200 OK")
+        self.assertEqual(json.loads(verified["body"])["verifiedRaceCount"],1)
+        self.assertEqual(json.loads(verified["body"])["providerCalls"],0)
+        altered=json.loads(json.dumps(stored))
+        altered[0]["snapshot"]["pairCounts"]["S"]["concordant"]=100
+        with patch("private_service.fetch_finished_race_results") as fetched:
+            forbidden=call(app,"/api/owner-workout-pair-verify",
+                           method="POST",data={
+               "date":DAY,"prestartReceipts":data["receipts"],
+               "receipts":altered,
+            })
+            fetched.assert_not_called()
+        self.assertEqual(forbidden["status"],"400 Bad Request")
         self.assertNotIn("horse_number",repr(parsed))
         self.assertNotIn("oikirisisu",repr(parsed))
 
@@ -61,6 +84,8 @@ class WorkoutOrderProviderRouteTests(unittest.TestCase):
         self.assertEqual(parsed["sourceReadCount"],0)
         self.assertEqual(parsed["studiedRaceCount"],0)
         self.assertEqual(parsed["races"][0]["providerStatus"],"pending")
+        self.assertEqual(parsed["pairObservationReceiptCount"],0)
+        self.assertEqual(parsed["pairObservationReceipts"],[])
 
     def test_invalid_receipt_or_injected_result_does_not_call_provider(self):
         app=authorized()
