@@ -56,6 +56,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <h2>2. 今日の予想状況</h2>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
+<p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
 <p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
 <p id="autoSnapshotAge" class="muted" role="status">JRDB受信時刻：未取得。以前の固定履歴とは別です。</p>
 <details id="autoAcceptancePanel"><summary>土日の動作チェック（追加のJRDB照会なし）</summary>
@@ -1230,6 +1231,31 @@ function sourceNextChecks(row){
  items.push('JRA公式の出走馬・取消・馬場・発走時刻を独立照合');
  return items;
 }
+// Group validated hold codes near the top without another paid read.
+// A provisional off-time hold must not be misreported as missing data.
+function holdBreakdownSummary(data){
+ if(data.raceCount===0)
+  return '【見送り内訳】番組0R。開催なし・資料未配信・取得不備は未確認。';
+ if(data.holdCount===0)
+  return '【見送り内訳】取得時点では0R（JRA公式の独立照合は未完了）。';
+ const priority=[
+  ['missing_factors','調教・近走不足'],
+  ['ambiguous_equal_grade_boundary','候補同点'],
+  ['after_provisional_off','暫定発走時刻経過']
+ ];
+ const known=new Set(priority.map(([key])=>key));
+ const reasons=[
+  ...priority.filter(([key])=>data.holdReasons[key]>0)
+   .map(([key,label])=>label+' '+data.holdReasons[key]+'R'),
+  ...Object.entries(data.holdReasons)
+   .filter(([key,count])=>count>0&&!known.has(key))
+   .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))
+   .map(([key,count])=>(SHORT_HOLDS[key]||'要確認')+' '+count+'R')
+ ];
+ return '【見送り '+data.holdCount+'Rの内訳】'+reasons.join('／')+
+  '。取得時点の暫定判定。発走時刻経過は資料不足ではありません。'+
+  'JRA公式の出走・取消・発走時刻は未照合です。';
+}
 function morningStatus(data,day,localStatus,expiredCount=0,displayableCount=null){
  const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
  if(data.raceCount===0)
@@ -2035,6 +2061,7 @@ function render(input,day){
   else show('','',safeDraftCount>0);
  };
  const hiddenByFixed=Math.max(0,data.draftCount-deviceExpired.size-safeDraftCount);
+ $('autoHoldBreakdown').textContent=holdBreakdownSummary(data);
  $('autoOperationalNext').textContent=operationalNextStep(
   data,fixed,deviceExpired.size,safeDraftCount);
  $('autoMorningStatus').textContent=morningStatus(
@@ -4686,6 +4713,7 @@ $('autoDay').onchange=()=>{
  $('autoTrackWorkouts').textContent='調教S/Aの参考表示：開催日のデータは未取得です。';
  $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
+ $('autoHoldBreakdown').textContent='見送り理由の内訳はJRDB資料を取得すると表示します。';
  $('autoOperationalNext').textContent='開催日の次の操作：当日の取得結果を確認中。';
  $('autoProgrammeCoverage').textContent='開催場別の取得R数：まだ確認していません。';
  $('autoRecordSafety').textContent='固定記録の保管状態：まだ確認していません。';
@@ -5301,6 +5329,7 @@ $('autoRun').onclick=async()=>{
   $('autoMorningStatus').textContent=storageFailure
    ?'JRDBの暫定案を取得しましたが、端末への新規固定保存に失敗。新しい3連単は非表示。以前の固定記録は変更していません。'
    :'JRDB資料を安全に取得できず、新しい暫定予想は表示していません。以前の固定済み研究記録は変更していません。';
+  $('autoHoldBreakdown').textContent='取得・保存に失敗したため、見送り内訳は確認できません。以前の固定記録は変更していません。';
   $('autoOperationalNext').textContent=storageFailure
    ?'【端末保存失敗・新規下書きなし】既存の固定履歴を先に確認して、同じiPhoneのバックアップを安全に保管してください。保存できる状態になってから発走前に再取得してください。'
    :networkFailure
@@ -6963,6 +6992,7 @@ function resumeOwnerDay(){
  $('autoTrackWorkouts').textContent='調教S/Aの参考表示：開催日のデータは未取得です。';
  $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
  $('autoMorningStatus').textContent='開催日の取得結果を確認中です。正式な10項目予想ではありません。';
+ $('autoHoldBreakdown').textContent='見送り理由の内訳はJRDB資料を取得すると表示します。';
  $('autoOperationalNext').textContent='開催日の次の操作：当日の取得結果を確認中。';
  $('autoProgrammeCoverage').textContent='開催場別の取得R数：まだ確認していません。';
  $('autoRecordSafety').textContent='固定記録の保管状態：まだ確認していません。';
@@ -7055,6 +7085,7 @@ function showRecentlyFixedWithoutProvider(day,label){
   '署名の真正性とJRA公式出走・取消・馬場・発走時刻は未検証。';
  $('autoMorningStatus').textContent='以前に発走前固定した研究記録 '+count+
   'R（この画面では新規予想0R）。発走時刻経過後も後付け買い目は作成しません。';
+ $('autoHoldBreakdown').textContent='今回は新規JRDB資料を取得していないため、見送り内訳は未確認。';
  $('autoOperationalNext').textContent='新しいJRDB配信を確認したい場合のみ「全場・全Rを再分析する」。'+
   '追加照会を行わず固定履歴を確認するには下の「発走前に固定した買い目の履歴」を開いてください。';
  $('autoReadProof').textContent='以前の端末保存記録を表示。今回のJRDB資料取得・JRA公式照合は未実施。';
@@ -7069,6 +7100,7 @@ function autoFetchOnRegularRaceDay(){
   if(recentWeekendEmptyRead(day.replaceAll('-',''))){
    $('autoStatus').textContent='【前回の番組0Rを確認済み】同じ端末で30分以内に番組0件を取得したため、画面を開き直した際の自動JRDB照会は控えました。開催なしとは断定していません。配信更新後の再確認は「全場・全Rを再分析する」を押してください。';
    $('autoMorningStatus').textContent='この画面では新しい番組・買い目は未取得。前回の番組0Rにより再照会を控えています（予想生成成功ではありません）。';
+   $('autoHoldBreakdown').textContent='番組0Rの再取得を控えているため、今回の見送り内訳は未確認。';
    $('autoOperationalNext').textContent='【追加照会0回】配信更新を確認したい場合は「全場・全Rを再分析する」。以前の固定買い目は下で確認できます。';
    return;
   }
@@ -7088,12 +7120,14 @@ function autoFetchOnRegularRaceDay(){
    '取得に成功したR数が出るまでは予想完成と扱いません。';
   $('autoMorningStatus').textContent='明日のJRA公式出馬表が公開済みでも、JRDBの予想作成完了とは別です。'+
    '現在は研究用の調教・近走2項目。正式10項目は未完成。';
+  $('autoHoldBreakdown').textContent='土曜日の資料を未取得。見送り内訳はまだ確認できません。';
   $('autoOperationalNext').textContent='次の操作：土曜の予想を取得・表示（1回）。'+
    '本人操作前のJRDB有料照会0回。0Rの場合は配信状況を確認し、開催なしとは断定しません。';
   return;
  }
  $('autoStatus').textContent='平日はJRDBの自動照会を控えています。土曜日・日曜日は上のボタンで選択。祝日の変則開催は日付を選んで「全場・全Rを再分析する」を押してください。';
  $('autoMorningStatus').textContent='平日・変則開催の自動取得は停止中（有料照会0回）。取得するには手動で再分析してください。';
+ $('autoHoldBreakdown').textContent='平日の新規資料を取得していないため、見送り内訳は未確認。';
  $('autoOperationalNext').textContent='次の通常開催：土曜日・日曜日を選ぶ。平日の特別開催はJRA公式で確認後に手動取得。';
 }
 if(typeof document.addEventListener==='function')
