@@ -55,6 +55,44 @@ class OwnerRunnerResearchTests(unittest.TestCase):
         doc = owner_runner_research(a, b, "東京", 1)
         self.assertEqual([r["researchOrder"] for r in doc["runners"]], [1, 1])
 
+    def test_single_scored_run_is_observed_but_never_invents_recent_grade(self):
+        a, b = self.selected()
+        record = b[0]["byNumber"]["02"]
+        record.update({
+            "grade": "未評価", "assessmentStatus": "only_one_usable_run",
+            "datedRuns": 1, "completedRuns": 1, "topThree": 1,
+            "fourthObserved": 1, "frontAtFourth": 1,
+            "late3fObserved": 1,
+        })
+        source = copy.deepcopy((a, b))
+        out = owner_runner_research(a, b, "東京", 1)
+        horse = next(h for h in out["runners"] if h["number"] == 2)
+        self.assertEqual(horse["recent"], "未評価")
+        self.assertIsNone(horse["researchOrder"])
+        self.assertEqual(horse["recentObserved"], {
+            "datedRuns": 1, "completedRuns": 1,
+            "topThreeObserved": 1, "fourthCornerObserved": 1,
+            "late3fObserved": 1,
+        })
+        self.assertFalse(out["bettingReady"])
+        self.assertEqual((a, b), source)
+        for forbidden in ("race_back_", "order_of_finish", "idm",
+                          "horse_id", "horse_name", "racedate"):
+            self.assertNotIn(forbidden, repr(out))
+
+    def test_bad_redacted_evidence_fails_one_race_instead_of_guessing(self):
+        for key, bad in (("datedRuns", -1), ("completedRuns", 6),
+                         ("topThree", 2), ("late3fObserved", 3),
+                         ("fourthObserved", True)):
+            a, b = self.selected()
+            row = b[0]["byNumber"]["02"]
+            row.update({"datedRuns": 1, "completedRuns": 1,
+                        "topThree": 1, "fourthObserved": 1,
+                        "frontAtFourth": 1, "late3fObserved": 1})
+            row[key] = bad
+            with self.subTest(key=key), self.assertRaises(CoverageError):
+                owner_runner_research(a, b, "東京", 1)
+
     def test_inconsistent_identity_or_values_rejected(self):
         for change in ("race", "runners", "grade", "corner", "number"):
             with self.subTest(change=change):
