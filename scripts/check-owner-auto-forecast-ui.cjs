@@ -4690,7 +4690,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const expertView=boot({initialServerRaw:fullArrow});
  await new Promise(r=>setImmediate(r));
  const expertCards=expertView.get('autoTkyArrowFormationRows').children;
- assert.equal(expertCards.length,1);
+ assert.equal(expertCards.length,1,
+  expertView.get('autoTkyArrowFormationStatus').textContent);
  assert.match(expertCards[0].children[0].textContent,/40点の署名なし参考/);
  assert.match(expertCards[0].children[1].textContent,/1着 1番・2番/);
  assert.match(expertCards[0].children[2].textContent,
