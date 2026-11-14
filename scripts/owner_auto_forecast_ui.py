@@ -4,12 +4,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="theme-color" content="#09172b">
 <title>ARC RACE｜本人用・研究予想</title>
 <link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261112"></head><body><main>
-<nav class="owner-nav">
+<details class="owner-menu"><summary>関連ページ・WIN5</summary><nav class="owner-nav">
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
 <a href="/">本人用ホーム</a>
 <a href="/owner-jrdb-day-research">2項目の根拠</a>
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html#win5" rel="noopener noreferrer">WIN5（別画面）</a>
-</nav>
+</nav></details>
 <header class="arc-brand" aria-label="ARC RACE アークレース">
 <svg class="arc-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 100" role="img" aria-label="円弧と競走馬の横顔">
 <defs><linearGradient id="arc-brand-gold" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#fff1bc"/><stop offset=".48" stop-color="#d8ac55"/><stop offset="1" stop-color="#99702d"/></linearGradient></defs>
@@ -22,14 +22,22 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div class="arc-brand-copy"><h1>ARC RACE</h1><p class="arc-brand-jp">アークレース</p><p class="arc-brand-sub">AI競馬予想・データ分析</p><p class="arc-brand-engine">Powered by <strong>UMETRIC</strong></p></div>
 </header>
 <p class="arc-legacy-context">本人用・研究予想（従来のKEIBA NINEと保存記録・接続先は共通）</p>
+<nav class="arc-main-tabs" aria-label="アークレースの主な画面">
+<a href="#autoDailyStart">予想を取得</a>
+<a href="#forecastRacesSection">レース一覧</a>
+<a href="#fixedHistorySection">結果・記録</a>
+</nav>
 <p class="warning"><strong>現在は研究用の暫定予想です。</strong>調教・近走の2項目で3連単を試算しています。
 正式10項目の予想とJRA公式照合は未完成。自動購入はしません。</p>
-<section class="daily-start">
+<section class="daily-start" id="autoDailyStart">
 <h2>1. 予想を見る</h2>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
+<div class="owner-weekend-actions">
 <button id="autoSaturdayQuick" class="primary-cta" type="button">土曜の予想を取得・表示（1回）</button>
 <button id="autoSundayQuick" class="secondary-cta" type="button">日曜の予想を取得・表示（1回）</button>
+</div>
 <button id="autoRun" class="secondary-cta" type="button">全場・全Rを再分析する</button>
+<details class="owner-instructions"><summary>取得方法・通信設定の説明</summary>
 <p class="muted">土日の1タップ取得は直前の木曜以降。取得済みデータは開いている画面で再利用します。また、発走前固定済みの研究記録がある日は20分以内の再訪問でその履歴を表示し、再照会を控えます。新しい配信資料を見たい場合は「全場・全Rを再分析する」を押してください。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
 <details><summary>日付だけを切り替える（追加照会なし）</summary>
 <div class="day-shortcuts" role="group" aria-label="週末の開催日を選ぶ">
@@ -53,8 +61,14 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 再分析ボタンを押した場合は番組・出走馬・調教・近走を各1回取得し、
 馬場情報の追加取得も最大1回だけ試みます。取得できなくても既存の発走前記録は維持します。
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
+</details>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
+<p id="autoEasyPulse" class="auto-easy-pulse" role="status">開催日を取得すると、予想あり・見送りの件数を表示します。</p>
+<nav class="quick-links" aria-label="画面内の移動">
+<a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
+<a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
 <h2>2. 今日の予想状況</h2>
+<details id="autoDayDiagnostics"><summary>取得状況・見送り内訳を詳しく見る</summary>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
 <p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
@@ -64,9 +78,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="autoAcceptanceCheck" type="button">選択日の取得・保存状況を確認</button>
 <pre id="autoAcceptanceReport" class="acceptance-report" role="status">未確認。押した時だけ端末内の既存情報を集計します。</pre>
 </details>
-<nav class="quick-links" aria-label="画面内の移動">
-<a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
-<a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
+</details>
 <p class="owner-official-shortcut"><a id="autoOfficialQuickLink" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式出馬表を開いて出走・取消・発走時刻を確認</a> <span class="muted">（手動確認・自動照合0R）</span></p>
 <details><summary>取得・資料の詳しい状態</summary>
 <p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
