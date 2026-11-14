@@ -71,7 +71,7 @@ def _formation(race):
     ranked.sort(key=lambda h: (-h["floor"], -h["ceiling"], h["number"]))
     count = len(ranked)
     options = []
-    for first in (2, 3):
+    for first in (1, 2, 3):
         if not _cutoff_proven(ranked, first):
             continue
         for second in range(first + 1, min(count, 5) + 1):
@@ -85,6 +85,9 @@ def _formation(race):
                     options.append((first, second, third, n))
     if not options:
         return None
+    # A ONE-horse first tier is permitted only when its minimum score
+    # exceeds every other candidate's maximum possible score, including
+    # unknown recent form. This remains an UNSIGNED, ungraded hypothesis.
     # Prefer the usual 30-40 point research shape. If there is NO
     # mathematically stable 30-40 point option, a bounded 41-48 point
     # unsigned preview may retain a whole tied group; never fabricate
@@ -93,7 +96,7 @@ def _formation(race):
     options.sort(key=lambda x: (
         30 <= x[3] <= 40,
         41 <= x[3] <= 48,
-        x[0] == 2, x[3]), reverse=True)
+        x[0] == 2, x[0] == 1, x[3]), reverse=True)
     a, b, c, points = options[0]
     return {
         "track": race["track"], "race": race["race"],
