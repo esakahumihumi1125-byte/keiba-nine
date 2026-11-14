@@ -2486,6 +2486,123 @@ function saveAutoReceipts(data,day){
   '保存先はこのiPhone内のみ（Safariとホーム画面で別の場合あり）。';
 }
 
+// Separate, signed, read-only research record. Unlike bet receipts this
+// contains only training bands and within-band index ranks. The server does
+// cryptographic verification before EVER using it with postrace /tse rows.
+function validateWorkoutLockReceipt(receipt){
+ const p=receipt?.snapshot;
+ if(!p||typeof receipt.signature!=='string'||
+    !/^[a-f0-9]{64}$/.test(receipt.signature)||
+    p.version!=='owner-workout-order-lock-1'||
+    p.sourceKind!=='prestart-workout-index-order'||
+    p.researchOnly!==true||p.officialJraVerified!==false||
+    p.modelCalibrated!==false||p.predictionReady!==false||
+    p.actualPurchase!==false||typeof p.date!=='string'||
+    !/^20\d{6}$/.test(p.date)||
+    !['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'].includes(p.track)||
+    !Number.isInteger(p.race)||p.race<1||p.race>12||
+    !Number.isInteger(p.raceRunnerCount)||p.raceRunnerCount<2||
+    p.raceRunnerCount>18||!Array.isArray(p.horses)||
+    p.horses.length!==p.raceRunnerCount||
+    typeof p.capturedAt!=='string'||typeof p.scheduledOffAt!=='string'||
+    !Number.isFinite(Date.parse(p.capturedAt))||
+    !Number.isFinite(Date.parse(p.scheduledOffAt))||
+    Date.parse(p.capturedAt)>=Date.parse(p.scheduledOffAt))
+  throw Error('調教順位の固定記録が不正');
+ const off=new Date(p.scheduledOffAt).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'}).replaceAll('-','');
+ if(off!==p.date)throw Error('発走日付不一致');
+ let last=0;
+ const groups={S:[],A:[],B:[],C:[]};
+ for(const h of p.horses){
+  if(!h||Object.keys(h).sort().join(',')!=='number,trainingBand,withinBandRank'||
+     !Number.isInteger(h.number)||h.number<=last||h.number>18||
+     !Object.hasOwn(groups,h.trainingBand)||
+     !Number.isInteger(h.withinBandRank)||h.withinBandRank<1||
+     h.withinBandRank>18)
+   throw Error('調教順位の馬番データ不一致');
+  groups[h.trainingBand].push(h.withinBandRank);
+  last=h.number;
+ }
+ for(const ranks of Object.values(groups)){
+  const unique=[...new Set(ranks)].sort((a,b)=>a-b);
+  if(unique.length&&unique[0]!==1)throw Error('調教指数内順位が不正');
+  for(let i=1;i<unique.length;i++)
+   if(unique[i]!==ranks.filter(x=>x<=unique[i-1]).length+1)
+    throw Error('調教指数内の同順位が不正');
+ }
+ return p;
+}
+function savedWorkoutLocksDay(day){
+ if(!/^20\d{6}$/.test(day))throw Error('開催日不正');
+ const raw=localStorage.getItem(WORKOUT_LOCK_STORAGE);
+ if(raw&&raw.length>450000)throw Error('固定調教記録の保存上限');
+ const all=JSON.parse(raw||'[]');
+ if(!Array.isArray(all)||all.length>360)throw Error('固定調教記録の形式不正');
+ const ids=new Set(),selected=[];
+ for(const row of all){
+  const p=validateWorkoutLockReceipt(row),id=p.date+'|'+p.track+'|'+p.race;
+  if(ids.has(id))throw Error('固定調教記録の重複');
+  ids.add(id);
+  if(p.date===day)selected.push(row);
+ }
+ if(selected.length>36)throw Error('選択日の固定調教記録が多すぎます');
+ return {all,selected,ids};
+}
+function showSavedWorkoutLocks(day){
+ try{
+  const {selected}=savedWorkoutLocksDay(day);
+  $('autoWorkoutProviderCheck').disabled=!selected.length;
+  $('autoWorkoutLockStatus').textContent=selected.length?
+   'この端末に初回固定した発走前調教指数内順位 '+selected.length+
+   'R。署名の暗号学的確認は結果比較時に実施。正式採点・買い目・収支は変更しません。':
+   'この日の発走前調教指数順位は未保存。開催日の発走前取得から記録します。';
+ }catch(_){
+  $('autoWorkoutProviderCheck').disabled=true;
+  $('autoWorkoutLockStatus').textContent=
+   '調教指数の固定記録を読み取れません。保存済みデータを消さずに確認してください。';
+ }
+}
+function saveWorkoutLocks(data,day){
+ if(!Object.hasOwn(data,'workoutOrderReceipts')){
+  showSavedWorkoutLocks(day);return;
+ }
+ if(!Array.isArray(data.workoutOrderReceipts)||
+    data.workoutOrderReceipts.length>36||
+    data.workoutOrderReceiptCount!==data.workoutOrderReceipts.length)
+  throw Error('調教研究記録の件数不正');
+ const study=validateWorkoutIndexOrder(data,day),drafts=new Map(
+  data.races.map(r=>[r.track+'|'+r.race,r]));
+ const fresh=new Set();
+ for(const receipt of data.workoutOrderReceipts){
+  const p=validateWorkoutLockReceipt(receipt),id=p.track+'|'+p.race,
+        group=study.get(id),race=drafts.get(id);
+  if(p.date!==day||fresh.has(id)||!group||!race||
+     race.postTime!==new Date(p.scheduledOffAt).toLocaleTimeString('en-GB',{
+       timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit',hour12:false
+     })||
+     JSON.stringify(group.runners.slice().sort((a,b)=>a.number-b.number))!==
+     JSON.stringify(p.horses))
+   throw Error('調教研究記録と取得資料が不一致');
+  fresh.add(id);
+ }
+ const {all,ids}=savedWorkoutLocksDay(day),next=all.slice();
+ let added=0,unchanged=0;
+ for(const receipt of data.workoutOrderReceipts){
+  const p=receipt.snapshot,id=p.date+'|'+p.track+'|'+p.race;
+  if(ids.has(id)){unchanged++;continue;} // immutable first-write wins
+  ids.add(id);next.push(receipt);added++;
+ }
+ if(next.length>360)throw Error('調教研究記録の保存上限');
+ if(added){
+  const data=JSON.stringify(next);
+  if(data.length>450000)throw Error('調教研究記録の容量上限');
+  localStorage.setItem(WORKOUT_LOCK_STORAGE,data);
+  if(localStorage.getItem(WORKOUT_LOCK_STORAGE)!==data)
+   throw Error('調教研究記録の保存確認失敗');
+ }
+ showSavedWorkoutLocks(day);
+ $('autoWorkoutLockStatus').textContent+=' 今回新規 '+added+'R／初回記録を維持 '+unchanged+'R。';
+}
 const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
