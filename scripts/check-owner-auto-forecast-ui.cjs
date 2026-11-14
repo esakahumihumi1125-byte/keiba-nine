@@ -1501,7 +1501,24 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
      comparedRunnerCount:p.raceRunnerCount,pairCounts:counts,
      officialJraVerified:false,predictionVerified:false};
    });
+   const pairObservationReceipts=req.receipts.map((entry,i)=>({
+    signature:'9'.repeat(64),snapshot:{
+     version:'owner-workout-pair-observation-receipt-1',
+     date:req.date,track:entry.snapshot.track,race:entry.snapshot.race,
+     sourceKind:'jrdb-tse-provisional-workout-pairs',
+     observedAt:'2099-01-01T13:00:00+09:00',
+     scheduledOffAt:entry.snapshot.scheduledOffAt,
+     prestartSignature:entry.signature,
+     runnerCount:entry.snapshot.raceRunnerCount,
+     pairCounts:structuredClone(races[i].pairCounts),
+     researchOnly:true,officialJraVerified:false,
+     resultSourceComplete:true,sourcePublicationVerified:false,
+     modelCalibrated:false,predictionReady:false,actualPurchase:false
+    }
+   }));
    return {ok:true,json:async()=>({
+    pairObservationReceipts,
+    pairObservationReceiptCount:pairObservationReceipts.length,
     version:'owner-workout-order-provider-pairs-1',date:req.date,
     sourceKind:'jrdb-tse-provisional-workout-order-pair-review',
     sourceReadCount:1,raceCount:races.length,races,
@@ -1512,6 +1529,22 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     actualPurchase:false,roiPercent:null,payoutVerified:false,
     researchOnly:true,privateOwnerOnly:true
    })};
+  }
+  if(url==='/api/owner-workout-pair-verify'){
+   const req=JSON.parse(options.body||'{}');
+   const ok=req.prestartReceipts?.length===req.receipts?.length&&
+    req.receipts?.every(row=>req.prestartReceipts.some(p=>
+     p.signature===row.snapshot.prestartSignature&&
+     p.snapshot.track===row.snapshot.track&&
+     p.snapshot.race===row.snapshot.race));
+   return {ok,json:async()=>ok?{
+    version:'owner-workout-pair-verify-1',date:req.date,
+    verifiedRaceCount:req.receipts.length,serverSigned:true,
+    researchOnly:true,privateOwnerOnly:true,providerCalls:0,
+    officialJraVerified:false,calibrationReady:false,
+    formalPredictionReady:false,bettingReady:false,
+    changesExistingReceipts:false
+   }:{error:'invalid synthetic signature'}};
   }
   if(url==='/api/owner-five-core-provider-check'){
    const args=JSON.parse(options.body);
@@ -4500,6 +4533,24 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(lockedView.get('autoWorkoutProviderSummary').children[0].textContent,
   /指数順と暫定着順が一致 2組／不一致 0組／元の指数同点で判定対象外 1組/);
  assert.equal(lockedView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const PAIR_KEY='keiba-nine-owner-workout-pair-observations-v1';
+ const firstPairs=JSON.parse(lockedView.storage.get(PAIR_KEY));
+ assert.equal(firstPairs.length,1);
+ assert.equal(firstPairs[0].snapshot.prestartSignature,lockedRows[0].signature);
+ assert.match(lockedView.get('autoWorkoutPairHistory').textContent,
+  /1開催日・1R／同ランク内の指数順と着順が一致 2組、不一致 0組、指数同点 1組/);
+ assert.equal(lockedView.get('autoWorkoutPairVerify').disabled,false);
+ const readsBeforeVerify=lockedView.requests.filter(r=>
+  r.url==='/api/owner-workout-order-provider-check').length;
+ await lockedView.get('autoWorkoutPairVerify').onclick();
+ assert.match(lockedView.get('autoWorkoutPairVerifyStatus').textContent,/追加取得0回/);
+ assert.equal(lockedView.requests.filter(r=>
+  r.url==='/api/owner-workout-order-provider-check').length,readsBeforeVerify,
+  'signature verification may not fetch provider outcomes');
+ await lockedView.get('autoWorkoutProviderCheck').onclick();
+ assert.equal(lockedView.storage.get(PAIR_KEY),JSON.stringify(firstPairs),
+  'same race re-read must not overwrite signed first provisional result');
+ assert.match(lockedView.get('autoWorkoutProviderStatus').textContent,/前回の記録を保持 1R/);
  const secondStudy=structuredClone(lockedStudy);
  secondStudy.workoutOrderReceipts[0].signature='c'.repeat(64);
  const rerun=boot({initialServerRaw:secondStudy,
