@@ -192,6 +192,7 @@ RUNNER_ISSUES = {
     "Invalid research order": "rank_order",
     "Unassessed runner must not be ranked": "incomplete_rank",
     "Invalid missing-factor reasons": "missing_reasons",
+    "Invalid redacted recent evidence": "recent_evidence",
     "Complete runner count mismatch": "summary_count",
 }
 
