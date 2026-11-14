@@ -93,7 +93,7 @@ class WorkoutOrderLockTests(unittest.TestCase):
         snap["horses"][1]["withinBandRank"]=1
         from owner_workout_order_receipts import _validate
         self.assertEqual(_validate(snap),(DAY,"東京",1))
-        snap["horses"][2]["withinBandRank"]=2
+        snap["horses"][3]["withinBandRank"]=3
         with self.assertRaises(WorkoutLockError):
             _validate(snap)
 
