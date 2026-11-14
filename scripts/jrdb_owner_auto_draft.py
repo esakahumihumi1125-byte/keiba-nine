@@ -206,6 +206,30 @@ def _grade(score):
     return "C"
 
 
+def _safe_recent_observations(raw):
+    """Validate public count-only fields before returning owner draft JSON.
+
+    This optional (backward-compatible) observation gives no ability score
+    and may never affect the weighted two-factor sort or signed tickets.
+    """
+    if raw is None:
+        return None
+    fields = ("datedRuns", "completedRuns", "topThreeObserved",
+              "fourthCornerObserved", "late3fObserved")
+    if not isinstance(raw, dict) or set(raw) != set(fields):
+        raise CoverageError("Invalid redacted recent evidence")
+    dated, complete, top, corner, late = (raw[k] for k in fields)
+    if (any(type(v) is not int for v in
+            (dated, complete, top, corner, late))
+            or not 0 <= dated <= 5
+            or not 0 <= complete <= dated
+            or not 0 <= top <= min(3, complete)
+            or not 0 <= corner <= min(3, dated)
+            or not 0 <= late <= min(3, dated)):
+        raise CoverageError("Invalid redacted recent evidence")
+    return dict(raw)
+
+
 def _normalize_runners(research):
     runners = research.get("runners")
     if (research.get("version") != RUNNER_VERSION
@@ -254,12 +278,14 @@ def _normalize_runners(research):
                 not isinstance(v, str) or v not in TRAINING | RECENT | {"training_unassessed", "recent_unassessed"}
                 for v in reasons):
             raise CoverageError("Invalid missing-factor reasons")
+        recent_observed = _safe_recent_observations(r.get("recentObserved"))
         normalized.append({
             "missingReasons": reasons,
             "number": r["number"], "training": r["training"],
             "recent": r["recent"], "twoFactorGrade": _grade(score) if score is not None else "未評価",
             "pastFourthCorner": r["pastFourthCorner"], "twoFactorPoints": score,
             "weightedResearchPoints": weighted,
+            "recentObserved": recent_observed,
         })
     normalized.sort(key=lambda x: (x["weightedResearchPoints"] is None,
                                    -(x["weightedResearchPoints"] or 0),
