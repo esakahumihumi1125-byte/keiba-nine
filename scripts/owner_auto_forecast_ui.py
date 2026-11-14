@@ -1719,8 +1719,14 @@ function armAutomaticOffTimer(data,day){
  const now=new Date().getTime();
  if(!Number.isFinite(now))return;
  let next=Infinity;
+ const referenced=new Set([
+  ...(data.uncertainRecentResearch?.races||[]),
+  ...(data.heldTie48Research?.races||[])
+ ].map(r=>r.track+'|'+r.race));
  for(const race of data.races){
-  if(race.status!=='provisional_draft'||draftExpiredOnDevice(day,race.postTime))
+  if(!(race.status==='provisional_draft'||
+       (race.status==='hold'&&referenced.has(race.track+'|'+race.race)))||
+     draftExpiredOnDevice(day,race.postTime))
    continue;
   const off=Date.parse(iso+'T'+race.postTime+':00+09:00');
   if(Number.isFinite(off)&&off>now&&off<next)next=off;
@@ -1735,7 +1741,10 @@ function armAutomaticOffTimer(data,day){
      $('autoDay').value.replaceAll('-','')!==day)return;
   const expired=data.races.filter(r=>r.status==='provisional_draft'&&
    draftExpiredOnDevice(day,r.postTime)).length;
-  if(expired>latestExpiredDraftCount){
+  const expiredResearch=data.races.some(r=>
+   r.status==='hold'&&referenced.has(r.track+'|'+r.race)&&
+   draftExpiredOnDevice(day,r.postTime));
+  if(expired>latestExpiredDraftCount||expiredResearch){
    latestExpiredDraftCount=expired;
    render(data,day); // Purely read/display; never re-sign, buy or fetch.
    $('autoStatus').textContent='発走予定時刻を過ぎた研究用の新しい買い目を自動で非表示にしました。発走前の固定履歴はそのままです。JRA公式の実際の発走時刻は別途確認してください。';
