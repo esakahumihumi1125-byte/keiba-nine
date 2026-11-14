@@ -135,7 +135,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoMissingFactorRaces"></div>
 </details></details>
 <details id="autoUncertainRecentPanel"><summary>近走資料が少ないRの研究候補（署名・購入なし）</summary>
-<p class="muted">近走3点の不足をC・0点扱いせず、欠けている評価がどんなS/A/B/Cでも、調教30点による1/2/3着の候補グループが変わらない場合に限り、参考のフォーメーションを表示します。正式10項目採点でもJRA公式出走確認でもなく、実際の購入・固定記録・仮想収支に入れません。</p>
+<p class="muted">近走3点の不足をC・0点扱いせず、欠けている評価がどんなS/A/B/Cでも、調教30点による候補グループが変わらない場合に限り、参考のフォーメーションを表示します。単独の調教最上位馬が明確な場合のみ1頭軸の研究例も扱いますが、勝ち馬の保証ではありません。正式10項目採点でもJRA公式出走確認でもなく、実際の購入・固定記録・仮想収支に入れません。</p>
 <p id="autoUncertainRecentStatus" class="muted" role="status">レース取得前。追加資料を勝手に補完しません。</p>
 <div id="autoUncertainRecentRaces"></div>
 </details>
@@ -1645,7 +1645,7 @@ function renderUncertainRecent(data,day){
    const setRoster=new Set(base.runners.map(h=>h.number));
    const groups=[row.first,row.second,row.third];
    if(groups.some((g,j)=>!Array.isArray(g)||
-       g.length<(j===0?2:j===1?3:4)||
+       g.length<(j===0?1:j===1?2:3)||
        g.length>(j===0?3:j===1?5:10)||
        new Set(g).size!==g.length||
        g.some(n=>!Number.isInteger(n)||!setRoster.has(n)))||
@@ -1664,6 +1664,8 @@ function renderUncertainRecent(data,day){
     '頭。JRDB暫定発走 '+base.postTime+
     '。これは署名なし研究例で、正式100点予想・購入可能な馬券ではありません。'+
     'JRA公式出走・取消・馬場・時刻は未検証。','muted'));
+   if(row.first.length===1)card.append(dom('p',
+    '調教の暫定評価で単独トップが、近走の未評価S〜Cのどの場合でも入れ替わらないため、1頭軸の参考例を表示。正式な1着予想・購入指示ではありません。','muted'));
    cards.push(card);
   }
   host.replaceChildren(...cards);
