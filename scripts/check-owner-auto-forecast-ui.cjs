@@ -3484,6 +3484,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     body:0,pastCorner:6}
   }))
  };
+ sourceReport.sourceMaterials.races[0].sourceSignals={
+  runningStyle:7,surfaceAptitude:6,distanceAptitude:5,
+  goingAptitude:4,paceIndices:3
+ };
  withSourcePassport(sourceReport);
  sourceDay.setServerRaw(sourceReport);
  const callsBeforeSource=sourceDay.requests.length;
@@ -3497,6 +3501,11 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(sourceDay.get('autoSourceSummary').textContent,/過去4角の記録 36R/);
  assert.match(sourceDay.get('autoSourceSummary').textContent,/当日馬体重は別の直前情報が必要/);
  assert.match(sourceDay.get('autoSourceSummary').textContent,/正式得点ではありません/);
+ const firstSourceRace=sourceDay.get('autoRaces').children[0].children[0];
+ assert.ok(firstSourceRace.children.some(x=>
+  /JRDBの追加指標の有無.*脚質コード 7\/7頭.*テン・ペース・上がり・位置指数の4項目 3\/7頭/.test(x.textContent)),
+  'supplemental pace/aptitude counts appear only as ungraded source availability');
+
  assert.equal(JSON.parse(sourceDay.storage.get(STORAGE)).length,36);
  assert.equal(sourceDay.storage.has('keiba-nine-owner-real-purchases-v1'),false);
 
