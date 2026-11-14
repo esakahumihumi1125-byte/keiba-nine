@@ -3729,6 +3729,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   flagged.setServerRaw(d);
   const signedBefore=flagged.storage.get(STORAGE);
   await flagged.get('autoRun').onclick();
+  flagged.get('autoVenues').children[0].onclick(); // Explicitly show all 36.
   const tokyoGroup=flagged.get('autoRaces').children[0];
   const heldSecond=tokyoGroup.children[1];
   assert.match(heldSecond.children.map(x=>x.textContent||'').join(' '),
@@ -3753,6 +3754,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  scratched.setServerRaw(scratchDay);
  const originalHmac=scratched.storage.get(STORAGE);
  await scratched.get('autoRun').onclick();
+ scratched.get('autoVenues').children[0].onclick(); // Inspect held R.
  const scratchDetail=scratched.get('autoRaces').children[0].children[1];
  const scratchText=scratchDetail.children.map(x=>x.textContent||'').join(' ');
  assert.match(scratchText,/出走取消の報告あり/);
@@ -3771,6 +3773,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  noRoster.setServerRaw(rosterDay);
  const oldRosterReceipt=noRoster.storage.get(STORAGE);
  await noRoster.get('autoRun').onclick();
+ noRoster.get('autoVenues').children[0].onclick(); // Inspect held R.
  const rosterDetail=noRoster.get('autoRaces').children[0].children[1];
  const rosterText=rosterDetail.children.map(x=>x.textContent||'').join(' ');
  assert.match(rosterText,/JRDB番組の登録頭数が未確認/);
@@ -3793,6 +3796,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  partialView.setServerRaw(partialDay);
  const earlierPartial=partialView.storage.get(STORAGE);
  await partialView.get('autoRun').onclick();
+ partialView.get('autoVenues').children[0].onclick(); // Inspect held R.
  assert.match(partialView.get('autoSummary').textContent,/1\/36Rを確認/);
  const firstPartial=partialView.get('autoRaces').children[0].children[0];
  const secondPartial=partialView.get('autoRaces').children[0].children[1];
