@@ -1478,6 +1478,41 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     sourceIncompleteCouldChange:true,researchOnly:true,privateOwnerOnly:true
    })};
   }
+  if(url==='/api/owner-workout-order-provider-check'){
+   const req=JSON.parse(options.body||'{}'),bands=['S','A','B','C'];
+   const total=Object.fromEntries(bands.map(b=>[b,{
+    concordant:0,discordant:0,equalIndexExcluded:0
+   }]));
+   const races=req.receipts.map(entry=>{
+    const p=entry.snapshot;
+    const counts=Object.fromEntries(bands.map(b=>[b,{
+     concordant:0,discordant:0,equalIndexExcluded:0
+    }]));
+    for(const b of bands){
+     const peers=p.horses.filter(h=>h.trainingBand===b);
+     for(let i=0;i<peers.length;i++)for(let j=i+1;j<peers.length;j++){
+      const key=peers[i].withinBandRank===peers[j].withinBandRank?
+       'equalIndexExcluded':'concordant';
+      counts[b][key]++;total[b][key]++;
+     }
+    }
+    return {track:p.track,race:p.race,
+     providerStatus:'complete_provisional_order',
+     comparedRunnerCount:p.raceRunnerCount,pairCounts:counts,
+     officialJraVerified:false,predictionVerified:false};
+   });
+   return {ok:true,json:async()=>({
+    version:'owner-workout-order-provider-pairs-1',date:req.date,
+    sourceKind:'jrdb-tse-provisional-workout-order-pair-review',
+    sourceReadCount:1,raceCount:races.length,races,
+    studiedRaceCount:races.length,observedPairsByTrainingBand:total,
+    officialJraVerified:false,accuracyVerified:false,
+    calibrationReady:false,scoreReady:false,newScoringRubric:false,
+    bettingReady:false,predictionReady:false,
+    actualPurchase:false,roiPercent:null,payoutVerified:false,
+    researchOnly:true,privateOwnerOnly:true
+   })};
+  }
   if(url==='/api/owner-five-core-provider-check'){
    const args=JSON.parse(options.body);
    const snap=args.receipts[0].snapshot,first=snap.horses[0];
@@ -4424,6 +4459,65 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(invalidIndex.get('autoRaces').children.length,0,
   'an inconsistent index band must fail validation before render');
  assert.equal(invalidIndex.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Server-signed prestart workout ranks are first-written separately,
+ // never inserted into wager receipts. Only an explicit button may ask
+ // for one provider-result read after the owner's original data fetch.
+ const lockedStudy=structuredClone(indexOrder);
+ const lockedSnapshot={
+  version:'owner-workout-order-lock-1',date:day,track:'東京',race:1,
+  sourceKind:'prestart-workout-index-order',
+  capturedAt:'2099-01-01T09:00:00+09:00',
+  scheduledOffAt:'2099-01-01T12:00:00+09:00',raceRunnerCount:7,
+  horses:indexOrder.workoutIndexOrder.races[0].runners
+   .map(h=>({...h})).sort((a,b)=>a.number-b.number),
+  researchOnly:true,officialJraVerified:false,
+  modelCalibrated:false,predictionReady:false,actualPurchase:false
+ };
+ lockedStudy.workoutOrderReceiptCount=1;
+ lockedStudy.workoutOrderReceipts=[{
+  snapshot:lockedSnapshot,signature:'b'.repeat(64)
+ }];
+ const LOCK_KEY='keiba-nine-owner-workout-order-locks-v1';
+ const lockedView=boot({initialServerRaw:lockedStudy});
+ await new Promise(r=>setImmediate(r));
+ await lockedView.get('autoRun').onclick();
+ const lockedRows=JSON.parse(lockedView.storage.get(LOCK_KEY));
+ assert.equal(lockedRows.length,1);
+ assert.deepEqual(lockedRows[0].snapshot.horses,lockedSnapshot.horses);
+ assert.equal(lockedView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(lockedView.get('autoWorkoutProviderCheck').disabled,false);
+ assert.match(lockedView.get('autoWorkoutLockStatus').textContent,
+  /初回記録を維持 1R/,
+  'the prestart auto-read fixed the original research rank, and a second tap cannot replace it');
+ assert.equal(lockedView.requests.filter(x=>
+  x.url==='/api/owner-workout-order-provider-check').length,0,
+  'normal forecast display may not auto-request paid results');
+ await lockedView.get('autoWorkoutProviderCheck').onclick();
+ assert.equal(lockedView.requests.filter(x=>
+  x.url==='/api/owner-workout-order-provider-check').length,1);
+ assert.match(lockedView.get('autoWorkoutProviderStatus').textContent,
+  /JRDB暫定着順の全頭照合 1\/1R/);
+ assert.match(lockedView.get('autoWorkoutProviderSummary').children[0].textContent,
+  /指数順と暫定着順が一致 2組／不一致 0組／元の指数同点で判定対象外 1組/);
+ assert.equal(lockedView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const secondStudy=structuredClone(lockedStudy);
+ secondStudy.workoutOrderReceipts[0].signature='c'.repeat(64);
+ const rerun=boot({initialServerRaw:secondStudy,
+  seedStorage:[[LOCK_KEY,JSON.stringify(lockedRows)]]});
+ await new Promise(r=>setImmediate(r));
+ await rerun.get('autoRun').onclick();
+ assert.equal(rerun.storage.get(LOCK_KEY),JSON.stringify(lockedRows),
+  'a later reanalysis must never overwrite an earlier prestart rank lock');
+ assert.match(rerun.get('autoWorkoutLockStatus').textContent,/初回記録を維持 1R/);
+ const wrongLock=structuredClone(lockedStudy);
+ wrongLock.workoutOrderReceipts[0].snapshot.horses[0].trainingBand='C';
+ const badLockView=boot({initialServerRaw:wrongLock});
+ await new Promise(r=>setImmediate(r));
+ await badLockView.get('autoRun').onclick();
+ assert.equal(badLockView.storage.has(LOCK_KEY),false);
+ assert.equal(badLockView.get('autoWorkoutProviderCheck').disabled,true);
+ assert.match(badLockView.get('autoWorkoutLockStatus').textContent,
+  /初回固定に失敗/);
  // Sparse recent research is strictly a *separate* unsigned display.
  // Never promote held candidates to a draft, sign them or fetch a source.
  const sparse=boot({manualWeekday:false});

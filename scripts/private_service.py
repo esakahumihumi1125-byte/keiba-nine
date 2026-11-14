@@ -42,6 +42,9 @@ from jrdb_owner_auto_draft import (
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_uncertain_recent_preview import preview_missing_recent_holds
 from owner_workout_index_order import workout_index_order, unavailable as unavailable_workout_order
+from owner_workout_order_receipts import (issue_workout_locks, verify_workout_locks,
+                                         WorkoutLockError)
+from owner_workout_order_provider_pairs import compare_workout_order_with_provider
 from owner_ten_factor_contract import ten_factor_contract
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
@@ -2505,6 +2508,19 @@ def create_app(settings=None):
                     report['workoutIndexOrder'] = unavailable_workout_order(
                         day, report['raceCount'])
                     logging.warning('KEIBA_WORKOUT_ORDER=unavailable')
+                # Freeze ONLY originally observed prestart rank-order groups
+                # with a separate HMAC domain. This makes future out-of-time
+                # provider study possible without revising existing bet slips
+                # or retaining raw licensed /tcy index numbers.
+                report['workoutOrderReceipts'] = []
+                stage = 'workout_order_locks'
+                try:
+                    report['workoutOrderReceipts'] = issue_workout_locks(
+                        report, signing_secret, final_prestart_checked_at)
+                except (WorkoutLockError, ValueError, TypeError, KeyError):
+                    logging.warning('KEIBA_WORKOUT_LOCK=unavailable')
+                report['workoutOrderReceiptCount'] = len(
+                    report['workoutOrderReceipts'])
                 # Operator-only one-line evidence of finishing a private
                 # request: one /tra read for empty days or four core reads
                 # plus optional /tka for a populated programme.
@@ -3041,6 +3057,56 @@ def create_app(settings=None):
                 return response('502 Bad Gateway', {
                     'error': 'JRDB暫定着順を安全に照合できません。元の記録は変更しません。'})
             return response('200 OK', comparison)
+        if method == 'POST' and path == '/api/owner-workout-order-provider-check':
+            # A separate opt-in result lookup, NEVER part of the prestart
+            # forecast call. Verify every owner HMAC before any paid /tse read.
+            # No results, predicted ranks, odds, or point values from browser.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人用サービスのみで利用できます。'})
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or not all(settings.get(k) for k in
+                        ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': 'JRDB暫定結果の利用設定が未完了です。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '調教順位の研究記録形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < size <= 170000:
+                    raise WorkoutLockError('Invalid request length')
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise WorkoutLockError('Incomplete request')
+                args = json.loads(raw)
+                if not isinstance(args, dict) or set(args) != {'date', 'receipts'}:
+                    raise WorkoutLockError('Only signed prestart receipts accepted')
+                day = args['date']
+                from owner_rebound_receipts import _timestamp
+                original = verify_workout_locks(
+                    args['receipts'],
+                    archive_signing_secret(settings) if archive_enabled(settings) else password,
+                    day)
+                stamp = datetime.fromisoformat(_now_in_jst())
+                if not any(stamp >= _timestamp(x['scheduledOffAt']) for x in original):
+                    return response('200 OK', compare_workout_order_with_provider(
+                        original, [], day, now=stamp, source_read_count=0))
+            except (WorkoutLockError, ValueError, TypeError, KeyError, OverflowError):
+                return response('400 Bad Request', {
+                    'error': '発走前の署名付き調教順位を検証できません。'})
+            try:
+                source = fetch_finished_race_results(day)
+                report = compare_workout_order_with_provider(
+                    original, source, day, now=stamp)
+            except (JRDBError, WorkoutLockError, ValueError, TypeError, KeyError):
+                return response('502 Bad Gateway', {
+                    'error': 'JRDB暫定結果との比較に失敗しました。発走前記録は無変更です。'})
+            return response('200 OK', report)
         if method == 'POST' and path == '/api/owner-five-core-provider-check':
             # Only after authenticated HMAC verification. Single opt-in
             # JRDB /tse read; never official JRA validation or ROI.
