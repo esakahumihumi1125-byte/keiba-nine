@@ -151,6 +151,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoTkyTrainingStatus" class="muted" role="status">発走前の資料が未取得です。</p>
 <div id="autoTkyTrainingRows"></div>
 </details>
+<details id="autoTkyArrowFormationPanel"><summary>調教矢印が全頭そろうRの署名なし3連単参考（最大48点）</summary>
+<p class="muted">JRDB /tkyの調教矢印を第一優先、全頭の別指数も揃う場合だけ同じ矢印内の指数順を使う研究用の組み合わせです。指数が一部欠けた場合は全指数を無視。矢印が1頭でも欠けたRや同点を切らないと組めないRは表示しません。<strong>正式10項目予想・JRA公式確認・馬券購入や保存記録ではありません。</strong></p>
+<p id="autoTkyArrowFormationStatus" class="muted" role="status">発走前の調教矢印を確認していません。</p>
+<div id="autoTkyArrowFormationRows"></div>
+</details>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
 <select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
@@ -1814,7 +1819,8 @@ function armAutomaticOffTimer(data,day){
  const referenced=new Set([
   ...(data.uncertainRecentResearch?.races||[]),
   ...(data.heldTie48Research?.races||[]),
-  ...(data.tkyTrainingStudy?.races||[])
+  ...(data.tkyTrainingStudy?.races||[]),
+  ...(data.tkyArrowFormationPreview?.races||[])
  ].map(r=>r.track+'|'+r.race));
  for(const race of data.races){
   if(!(race.status==='provisional_draft'||
@@ -2055,7 +2061,7 @@ function renderTkyTrainingStudy(data,day){
     (item.arrowUnobservedCount?'矢印不明 '+item.arrowUnobservedCount+'頭。':'')+
     (item.unassessedCount?'指数不明 '+item.unassessedCount+'頭。':'')+
     '欠測はデキ落ちの意味ではありません。/tcyの追切・仕上指数とは別で、'+
-    '正式調教30点・総合順位・3連単には使用しません。','muted'));
+    '正式調教30点・総合順位・正式3連単には使用しません。','muted'));
    cards.push(card);
   }
   host.replaceChildren(...cards);
@@ -2066,6 +2072,153 @@ function renderTkyTrainingStudy(data,day){
  }catch(_){
   host.replaceChildren();
   status.textContent='別系統の調教指数の照合が一致せず非表示。既存予想・記録は無変更。';
+ }
+}
+function renderTkyArrowFormations(data,day){
+ const host=$('autoTkyArrowFormationRows'),status=$('autoTkyArrowFormationStatus');
+ host.replaceChildren();
+ const p=data.tkyArrowFormationPreview;
+ if(p===undefined){
+  status.textContent='調教矢印の参考グループは未取得。元の見送りを維持します。';
+  return;
+ }
+ try{
+  const study=data.tkyTrainingStudy;
+  if(!p||p.version!=='owner-tky-arrow-formation-preview-1'||
+     p.date!==day||p.raceCount!==data.raceCount||
+     !Array.isArray(p.races)||p.races.length>data.raceCount||
+     p.safeReferenceCount!==p.races.length||
+     !Number.isInteger(p.reviewedPrestartStudies)||
+     !study||study.version!=='owner-tky-training-index-study-2'||
+     study.date!==day||study.raceCount!==data.raceCount||
+     !Array.isArray(study.races)||
+     p.reviewedPrestartStudies!==study.races.length||
+     p.researchOnly!==true||p.privateOwnerOnly!==true||
+     p.officialJraVerified!==false||p.formalTenFactorReady!==false||
+     p.predictionReady!==false||p.bettingReady!==false||
+     p.newProviderRequests!==0||p.ticketsIssued!==0||
+     p.changesExistingDrafts!==false||p.changesExistingReceipts!==false)
+   throw Error('arrow_reference_contract');
+  const originalBy=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+  const studyBy=new Map(study.races.map(r=>[r.track+'|'+r.race,r]));
+  if(studyBy.size!==study.races.length)throw Error('arrow_duplicate_source');
+  const used=new Set(),cards=[];
+  const levels={'デキ抜群':1,'上昇':2,'平行線':3,'やや下降':4,'デキ落ち':5};
+  for(const item of p.races){
+   const id=item?.track+'|'+item?.race,original=originalBy.get(id),
+         source=studyBy.get(id);
+   if(!original||!source||used.has(id)||
+      original.status!=='hold'||original.reason!=='missing_factors'||
+      !Array.isArray(original.runners)||
+      item.rosterCount!==original.runners.length||
+      item.rosterCount!==original.horseCount||
+      item.rosterCount<4||item.rosterCount>18||
+      source.rosterCount!==item.rosterCount||
+      source.arrowObservedCount!==item.rosterCount||
+      source.arrowUnobservedCount!==0||
+      !Array.isArray(source.arrows)||source.arrows.length!==item.rosterCount||
+      !Array.isArray(source.runners)||
+      source.observedCount!==source.runners.length||
+      source.unassessedCount!==item.rosterCount-source.observedCount||
+      item.arrowObservedCount!==item.rosterCount||
+      item.indexObservedCount!==source.observedCount||
+      item.partialIndexIgnored!==(source.observedCount!==item.rosterCount)||
+      item.rankingScope!==(source.observedCount===item.rosterCount?
+       'arrow_then_index_rank':'arrow_only')||
+      item.status!=='unsigned_arrow_first_research'||
+      item.tiedSourceTiersNotSplit!==true||
+      item.researchOnly!==true||item.officialJraVerified!==false||
+      item.formalScoreReady!==false||item.predictionReady!==false||
+      item.bettingReady!==false||item.receiptIssued!==false||
+      item.actualPurchase!==false||
+      !Array.isArray(item.first)||!Array.isArray(item.second)||
+      !Array.isArray(item.third)||
+      !Number.isInteger(item.points)||item.points<1||item.points>48)
+    throw Error('arrow_reference_row');
+   used.add(id);
+   const roster=new Set(original.runners.map(h=>h.number));
+   if(roster.size!==item.rosterCount||
+      !original.runners.some(h=>h.training==='未評価'))
+    throw Error('arrow_reference_roster');
+   const arrow=new Map(),index=new Map();
+   let prevLevel=0,prevNumber=0,prevRank=0;
+   for(const h of source.arrows){
+    if(!h||Object.keys(h).sort().join(',')!=='condition,number'||
+       !Number.isInteger(h.number)||!roster.has(h.number)||
+       arrow.has(h.number)||!Object.hasOwn(levels,h.condition))
+     throw Error('arrow_reference_arrow');
+    const level=levels[h.condition];
+    if(level<prevLevel||(level===prevLevel&&h.number<=prevNumber))
+     throw Error('arrow_reference_arrow_order');
+    prevLevel=level;prevNumber=h.number;arrow.set(h.number,level);
+   }
+   for(const h of source.runners){
+    if(!h||Object.keys(h).sort().join(',')!=='number,observedRank'||
+       !Number.isInteger(h.number)||!roster.has(h.number)||
+       index.has(h.number)||!Number.isInteger(h.observedRank)||
+       h.observedRank<1||h.observedRank>source.observedCount||
+       h.observedRank<prevRank)
+     throw Error('arrow_reference_index');
+    prevRank=h.observedRank;index.set(h.number,h.observedRank);
+   }
+   if(arrow.size!==item.rosterCount||index.size!==source.observedCount)
+    throw Error('arrow_reference_source_coverage');
+   const completeIndex=index.size===item.rosterCount;
+   const keyOf=n=>[arrow.get(n),...(completeIndex?[index.get(n)]:[])];
+   const cmp=(a,b)=>{
+    const x=keyOf(a),y=keyOf(b);
+    for(let i=0;i<x.length;i++)if(x[i]!==y[i])return x[i]-y[i];
+    return a-b;
+   };
+   const ranked=[...roster].sort(cmp);
+   const boundary=n=>n===ranked.length||
+     keyOf(ranked[n-1]).join('|')!==keyOf(ranked[n]).join('|');
+   let expected=null;
+   for(const first of [2,3,1]){
+    if(!boundary(first))continue;
+    const options=[];
+    for(let second=first+1;second<=Math.min(8,ranked.length);second++){
+     if(!boundary(second))continue;
+     for(let third=Math.max(3,second);
+         third<=Math.min(12,ranked.length);third++){
+      if(!boundary(third))continue;
+      const count=first*(second-1)*(third-2);
+      if(count>=1&&count<=48)options.push({first,second,third,count});
+     }
+    }
+    if(options.length){
+     options.sort((a,b)=>
+      Number(30<=b.count&&b.count<=40)-Number(30<=a.count&&a.count<=40)||
+      b.count-a.count||b.third-a.third||a.second-b.second);
+     expected=options[0];break;
+    }
+   }
+   if(!expected||item.points!==expected.count||
+      item.first.join(',')!==ranked.slice(0,expected.first).join(',')||
+      item.second.join(',')!==ranked.slice(0,expected.second).join(',')||
+      item.third.join(',')!==ranked.slice(0,expected.third).join(','))
+    throw Error('arrow_reference_formation_mismatch');
+   if(draftExpiredOnDevice(day,original.postTime))continue;
+   const card=dom('details');
+   card.append(dom('summary',item.track+' '+item.race+'R｜調教矢印から'+
+    item.points+'点の署名なし参考（未購入）'));
+   card.append(dom('p','1着 '+item.first.map(n=>n+'番').join('・'),'picks'));
+   card.append(dom('p','2着 '+item.second.map(n=>n+'番').join('・'),'picks'));
+   card.append(dom('p','3着 '+item.third.map(n=>n+'番').join('・'),'picks'));
+   card.append(dom('p',
+    (completeIndex?'同じ矢印内だけ指数順位を参考。':
+     '指数に欠測があるため全頭で指数順位は使わず矢印のみ。')+
+    '馬番順の同点切りなし。正式な調教30点・総合予想・JRA確認や保存済み買い目には使いません。','muted'));
+   cards.push(card);
+  }
+  host.replaceChildren(...cards);
+  status.textContent=cards.length?
+    '調教資料不足で保留中のうち、全頭の矢印が確認できた'+
+    cards.length+'Rに参考の1/2/3着グループを表示。署名・購入・固定なし。':
+    '発走前に矢印の全頭比較から組める参考グループは0R。通常の見送りを維持。';
+ }catch(_){
+  host.replaceChildren();
+  status.textContent='調教矢印の参考グループの照合に不整合があり非表示。既存の馬券・記録は無変更。';
  }
 }
 function renderHeldTie48(data,day){
@@ -2207,6 +2360,7 @@ function render(input,day){
  renderUncertainRecent(data,day);
  renderHeldTie48(data,day);
  renderTkyTrainingStudy(data,day);
+ renderTkyArrowFormations(data,day);
  renderWorkoutQuick(data,day);
  const materialByRace=validatedRunnerSourceEvidence(data);
  $('autoEvidenceGapReport').textContent=evidenceGapSummary(data,materialByRace);
