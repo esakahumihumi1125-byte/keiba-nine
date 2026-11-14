@@ -320,6 +320,49 @@ h1 small{display:block;color:#c7d7e7;font-size:13px}
 @media(prefers-reduced-motion:reduce){.arc-brand-mark{animation:none}}
 
 .arc-legacy-context{font-size:12px;color:#b9cbe0;margin:-7px 0 13px}
+
+/* Owner iPhone first: racecards before optional research, no behavior change. */
+html{scroll-behavior:smooth}
+main{padding-bottom:65px}
+.arc-main-tabs{position:sticky;top:0;z-index:15;display:grid;
+ grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;
+ margin:9px 0 12px;padding:7px;border:1px solid #6787a3;
+ border-radius:12px;background:#0b2138f5;box-shadow:0 3px 13px #06142783}
+.arc-main-tabs a{display:flex;align-items:center;justify-content:center;
+ min-height:43px;padding:6px 4px;border-radius:8px;
+ color:#f3db9c;background:#24415d;font-size:13px;font-weight:800;
+ text-decoration:none;text-align:center}
+.arc-main-tabs a:focus-visible,.quick-links a:focus-visible{outline:3px solid #e8c774}
+#autoDailyStart,#forecastRacesSection,#fixedHistorySection{scroll-margin-top:74px}
+.owner-menu{background:transparent;border:0;margin:0;padding:0}
+.owner-menu>summary{display:inline-flex;align-items:center;
+ min-height:30px;color:#bcd0e1;font-weight:600;font-size:12px}
+.owner-menu .owner-nav{margin:5px 0 9px;padding:7px;background:#10263d;border-radius:9px}
+.owner-weekend-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.owner-weekend-actions button{margin:5px 0;min-height:58px;padding:9px 6px;
+ font-size:14px;line-height:1.3}
+.auto-easy-pulse,.auto-race-quick{padding:12px;border:1px solid #7f9eb9;
+ background:#102f4d;border-radius:11px;color:#f1d48c;
+ font-weight:850;font-size:18px;line-height:1.48;overflow-wrap:anywhere}
+.auto-race-quick{font-size:16px;margin:10px 0}
+.owner-instructions,.owner-research-tools{margin:12px 0}
+.owner-research-tools>summary{font-size:15px}
+.quick-links{margin:7px 0}
+.quick-links a{font-weight:750}
+@media(max-width:520px){
+ .arc-brand{padding:8px 9px;margin:7px 0 10px;gap:8px}
+ .arc-brand-mark{width:73px;height:60px;flex-basis:73px}
+ .arc-brand-copy h1{font-size:26px}
+ .arc-brand-jp{font-size:11px;margin:0}
+ .arc-brand-sub{font-size:10px;margin:1px 0}
+ .arc-brand-engine{font-size:10px}
+ .arc-legacy-context{margin:0 0 7px}
+ section{padding:11px;margin:9px 0}
+ .warning{padding:9px}
+ .owner-weekend-actions button{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
 h2{font-size:19px;margin:0 0 10px}
 nav{display:flex;justify-content:space-between;gap:12px}a{color:#f0d185}
 .owner-nav{flex-wrap:wrap;gap:6px 12px;justify-content:flex-start}
