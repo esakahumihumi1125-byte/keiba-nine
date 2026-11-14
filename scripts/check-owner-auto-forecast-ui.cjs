@@ -4497,6 +4497,19 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(tied48.storage.has(STORAGE),false);
  assert.equal(tied48.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(tied48.requests.length,1,'tie helper uses no additional provider call');
+ const timer48=boot({simulateTimers:true,initialServerRaw:heldTie48Fixture()});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(timer48.get('autoHeldTie48Races').children.length,1);
+ assert.equal(timer48.timerCount(),1,
+  'held-only research previews must arm a provisional off timer');
+ const tieReads=timer48.requests.length;
+ timer48.advanceClock('2099-01-01T03:00:01Z');
+ timer48.fireTimer();
+ assert.equal(timer48.get('autoHeldTie48Races').children.length,0);
+ assert.equal(timer48.timerCount(),0);
+ assert.equal(timer48.requests.length,tieReads,
+  'the held preview timer may not make any provider calls');
+ assert.equal(timer48.storage.has(STORAGE),false);
  const late48=boot({initialServerRaw:heldTie48Fixture(),
   initialClock:'2099-01-01T03:00:00Z'});
  await new Promise(r=>setImmediate(r));
