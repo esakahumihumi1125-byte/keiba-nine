@@ -57,7 +57,7 @@ def synthetic_day(*, mixed=False):
 
 class Saturday36RSmokeTests(unittest.TestCase):
     def test_saturday_iphone_copy_refers_to_current_backup_and_scores(self):
-        self.assertIn("12種類の記録をバックアップ", AUTO_HTML)
+        self.assertIn("13種類の記録をバックアップ", AUTO_HTML)
         self.assertNotIn("10種類の記録をバックアップ", AUTO_HTML)
         self.assertNotIn("11種類の端末記録", AUTO_HTML)
         self.assertIn("新配点79点", AUTO_HTML)
