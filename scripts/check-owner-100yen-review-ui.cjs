@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-100yen-review.js','utf8');
 function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=null,
- jraResultFixture=null){
+ jraResultFixture=null,receiptVerifyFixture=null){
  const elements=new Map(),requests=[],storage=new Map();
  let pending=null;
  function node(tag){
@@ -31,6 +31,10 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
    };
   if(url.startsWith('/api/owner-100yen-archived'))return {
     ok:true,json:async()=>({archiveEnabled:false,available:false})
+  };
+  if(url==='/api/owner-100yen-verify-receipts')return {
+    ok:!!receiptVerifyFixture,
+    json:async()=>receiptVerifyFixture||{error:'unverified'}
   };
   if(url.startsWith('/api/owner-100yen-review'))return {
     ok:true,json:async()=>({available:!!reviewFixture,review:reviewFixture})
@@ -88,8 +92,11 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  observed.get('jraResultUrl').value=officialURL;
  const before=observed.requests.length;
  await observed.get('jraResultCheck').onclick();
- assert.equal(observed.requests.length,before+1,
-  'one explicit JRA public request, no JRDB query');
+ assert.equal(observed.requests.length,before+2,
+  'one explicit JRA public request and one local archive check, no JRDB query');
+ assert.equal(observed.requests.filter(x=>
+  x.url.startsWith('/api/jra/result-candidate?')).length,1);
+ assert.match(observed.requests[3].url,/^\/api\/owner-archive-read\?/);
  assert.match(observed.requests[2].url,/^\/api\/jra\/result-candidate\?/);
  assert.match(observed.requests[2].url,/track=%E4%BA%AC%E9%83%BD/);
  assert.match(observed.requests[2].url,/race=8/);
@@ -100,6 +107,92 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.match(observed.get('jraResultStatus').textContent,
   /正式的中・収支には反映していません/);
  assert.equal(observed.storage.size,0,'official candidate never writes storage');
+ // For a real record, compare only after the existing server endpoint
+ // has verified the original prestart HMAC receipt (no paid JRDB calls).
+ const chosenReceipt={
+  snapshot:{date:'2026-11-08',track:'京都',race:8,
+   sourceKind:'prestart-locked',actualPurchase:false,
+   scheduleVerified:false,predictionVerified:false,
+   lockedAt:'2026-11-08T09:00:00+09:00',
+   scheduledOffAt:'2026-11-08T13:50:00+09:00',
+   trifectaTickets:[[7,8,2],[7,8,5]],trioTickets:[]},
+  signature:'a'.repeat(64)
+ };
+ const stored={
+  archiveEnabled:true,persistentStorageReady:true,available:true,
+  raceCount:1,receipts:[chosenReceipt]
+ };
+ const verified={
+  available:true,serverSigned:true,captureAuditVerified:false,
+  officialScheduleVerified:false,officialFeedConnected:false,
+  review:{actualPurchase:false,unitYen:100,reviewedRaces:0,
+   pendingRaces:1,roiPercent:null,totalInvestedYen:0,totalReturnedYen:0,
+   races:[{date:'2026-11-08',track:'京都',race:8,status:'pending',
+    trifectaPoints:2,trioPoints:0}]}
+ };
+ const matched=boot('?date=2026-11-08',null,null,stored,candidate,verified);
+ await new Promise(r=>setImmediate(r));
+ matched.get('jraResultTrack').value='京都';
+ matched.get('jraResultRace').value='8';
+ matched.get('jraResultUrl').value=officialURL;
+ await matched.get('jraResultCheck').onclick();
+ assert.equal(matched.requests.length,5,
+  'one JRA page + one receipt archive read + one HMAC verify');
+ assert.equal(matched.requests.filter(x=>
+  x.url.startsWith('/api/jra/result-candidate?')).length,1);
+ assert.equal(matched.requests[4].url,'/api/owner-100yen-verify-receipts');
+ assert.equal(matched.requests[4].opts.method,'POST');
+ assert.equal(matched.requests[4].opts.headers['X-Keiba-Request'],'private');
+ assert.equal(JSON.parse(matched.requests[4].opts.body).receipts.length,1);
+ assert.match(matched.get('jraResultStatus').textContent,
+  /予想内 1組（未確定）/);
+ assert.match(matched.get('jraResultCandidates').children.at(-1).textContent,
+  /候補一致：7－8－2／100円あたり候補払戻 26,050円/);
+ assert.equal(matched.storage.size,0);
+ // Dead heat: multiple JRA candidate winners may both be in frozen tickets.
+ const deadHeat={...candidate,
+  trifectaCandidates:[
+   {ticket:[7,8,2],payoutYen:26050},
+   {ticket:[7,8,5],payoutYen:48920}
+  ]};
+ const multi=boot('?date=2026-11-08',null,null,stored,deadHeat,verified);
+ await new Promise(r=>setImmediate(r));
+ multi.get('jraResultTrack').value='京都';
+ multi.get('jraResultRace').value='8';
+ multi.get('jraResultUrl').value=officialURL;
+ await multi.get('jraResultCheck').onclick();
+ assert.match(multi.get('jraResultStatus').textContent,
+  /結果候補 2組中、予想内 2組（未確定）/);
+ assert.equal(multi.storage.size,0);
+ // Forged / contradictory server verification MUST NOT be a claimed hit.
+ const forgedVerify={...verified,
+  officialFeedConnected:true};
+ const withheld=boot('?date=2026-11-08',null,null,
+  stored,candidate,forgedVerify);
+ await new Promise(r=>setImmediate(r));
+ withheld.get('jraResultTrack').value='京都';
+ withheld.get('jraResultRace').value='8';
+ withheld.get('jraResultUrl').value=officialURL;
+ await withheld.get('jraResultCheck').onclick();
+ assert.doesNotMatch(withheld.get('jraResultStatus').textContent,
+  /予想内 1組/);
+ assert.match(withheld.get('jraResultCandidates').children.at(-1).textContent,
+  /判定保留/);
+ assert.equal(withheld.storage.size,0);
+ // A signed receipt from a different race is never used for comparison.
+ const unrelated=structuredClone(chosenReceipt);
+ unrelated.snapshot.race=7;
+ const otherArchive={...stored,receipts:[unrelated]};
+ const noRace=boot('?date=2026-11-08',null,null,
+  otherArchive,candidate,verified);
+ await new Promise(r=>setImmediate(r));
+ noRace.get('jraResultTrack').value='京都';
+ noRace.get('jraResultRace').value='8';
+ noRace.get('jraResultUrl').value=officialURL;
+ await noRace.get('jraResultCheck').onclick();
+ assert.equal(noRace.requests.length,4,'no matching receipt: never verify a fabricated R');
+ assert.match(noRace.get('jraResultStatus').textContent,/未登録/);
+ assert.equal(noRace.storage.size,0);
  observed.get('day').value='2026-11-07';
  observed.get('day').onchange();
  assert.equal(observed.get('jraResultCandidates').children.length,0);
