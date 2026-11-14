@@ -44,6 +44,7 @@ from owner_uncertain_recent_preview import preview_missing_recent_holds
 from owner_held_tie_48_preview import preview_held_ties_48
 from owner_training_source_delivery import observe_training_source_delivery
 from owner_tky_training_index_study import tky_training_index_study
+from owner_tky_arrow_formation_preview import preview_tky_arrow_formations
 from owner_workout_index_order import workout_index_order, unavailable as unavailable_workout_order
 from owner_workout_order_receipts import (issue_workout_locks, verify_workout_locks,
                                          WorkoutLockError)
@@ -2468,6 +2469,18 @@ def create_app(settings=None):
                         now=final_prestart_checked_at)
                 except (CoverageError, ValueError, TypeError, KeyError):
                     logging.warning('KEIBA_TKY_TRAINING_STUDY=unavailable')
+                # When ALL current runners have expert arrows, preserve
+                # exact equal-value tiers in an independent unsigned 3連単
+                # research example. This never changes the held 2-factor
+                # draft, assessment status or any signed/wager record.
+                stage = 'tky_arrow_formation_preview'
+                if 'tkyTrainingStudy' in report:
+                    try:
+                        report['tkyArrowFormationPreview'] = preview_tky_arrow_formations(
+                            report, report['tkyTrainingStudy'], day,
+                            now=final_prestart_checked_at)
+                    except (CoverageError, ValueError, TypeError, KeyError):
+                        logging.warning('KEIBA_TKY_ARROW_FORMATION=unavailable')
                 # Source-presence per horse: derive from the SAME four
                 # in-memory reads, AFTER the final server prestart gate has
                 # suppressed any newly late draft. Never re-create a hidden
