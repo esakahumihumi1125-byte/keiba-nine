@@ -1727,6 +1727,11 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   [saturdayLanding,'2099-01-03','20990103'],
   [sundayLanding,'2099-01-04','20990104']]){
   assert.equal(view.get('autoDay').value,iso);
+  // The *selected* day is highlighted, not always Saturday.
+  assert.equal(view.get('autoSaturdayQuick').dataset.selected,
+   String(iso==='2099-01-03'));
+  assert.equal(view.get('autoSundayQuick').dataset.selected,
+   String(iso==='2099-01-04'));
   assert.equal(view.requests.length,1,
    'opening a normal weekend day makes one guarded data request');
   assert.equal(view.requests[0].url,
@@ -1749,6 +1754,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(friday.get('autoStatus').textContent,/土曜の予想を取得・表示（1回）/);
  await friday.get('autoSaturdayQuick').onclick();
  assert.equal(friday.get('autoDay').value,'2099-01-03');
+ assert.equal(friday.get('autoSaturdayQuick').dataset.selected,'true');
+ assert.equal(friday.get('autoSundayQuick').dataset.selected,'false');
  assert.equal(friday.requests.length,1);
  assert.equal(friday.requests[0].url,
   '/api/jrdb/owner-auto-draft?date=20990103');
@@ -1766,6 +1773,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  gapsView.setServerRaw(already);
  await gapsView.get('autoRun').onclick();
  assert.match(gapsView.get('autoSummary').textContent,/研究用自動案 0R／見送り 1R/);
+ assert.match(gapsView.get('autoEasyPulse').textContent,
+  /全1R｜研究用下書き 0R｜見送り 1R/);
+ assert.match(gapsView.get('autoRaceQuickSummary').textContent,
+  /全1R｜研究用下書き 0R｜見送り 1R/);
  assert.match(gapsView.get('autoMissingFactorSummary').textContent,
   /近走未評価 4頭/);
  assert.match(gapsView.get('autoMissingFactorSummary').textContent,
@@ -4910,6 +4921,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  sparse.get('autoDay').value='2099-01-02';
  sparse.get('autoDay').onchange();
  assert.equal(sparse.get('autoUncertainRecentRaces').children.length,0);
+ assert.match(sparse.get('autoEasyPulse').textContent,/予想は未取得/);
+ assert.match(sparse.get('autoRaceQuickSummary').textContent,/予想は未取得/);
  assert.match(sparse.get('autoUncertainRecentStatus').textContent,/取得前/);
  assert.match(sparse.get('autoUncertainRecentHint').textContent,/未取得/);
  // Only a mathematically unique training leader may appear as an
