@@ -3,6 +3,8 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from urllib.parse import urlencode
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from owner_100yen_snapshot import decode_frozen_snapshots, FrozenSnapshotError, SCHEMA
@@ -76,6 +78,78 @@ class Owner100YenPageTests(unittest.TestCase):
         from owner_auto_forecast_ui import JS as forecast_js
         self.assertIn("autoReviewLink", forecast_js)
         self.assertIn("updateReviewLink", forecast_js)
+
+    def test_jra_result_probe_is_owner_only_readonly_and_unattested(self):
+        """Exactly one user-provided official URL read; no signed result feed."""
+        from jra_official_result_probe import parse_public_result_candidate
+        from test_jra_official_result_probe import DAY, URL, source
+        app = create_app(settings_for())
+        preview = create_app(SETTINGS)
+        params = urlencode({"date": DAY, "track": "京都", "race": 8,
+                            "url": URL})
+        route = "/api/jra/result-candidate"
+        with patch("private_service.probe_official_result_page") as read:
+            report = parse_public_result_candidate(source(), URL, DAY, "京都", 8)
+            report["sourceReadCount"] = 1
+            read.return_value = report
+            self.assertEqual(call(preview, route,
+                                  QUERY_STRING=params)["status"], "404 Not Found")
+            self.assertEqual(call(app, route, auth="",
+                                  QUERY_STRING=params)["status"], "401 Unauthorized")
+            self.assertEqual(call(app, route, HTTP_X_KEIBA_REQUEST="",
+                                  QUERY_STRING=params)["status"], "403 Forbidden")
+            self.assertEqual(call(app, route,
+                HTTP_SEC_FETCH_SITE="cross-site",
+                QUERY_STRING=params)["status"], "403 Forbidden")
+            read.assert_not_called()
+            response = call(app, route, QUERY_STRING=params)
+            self.assertEqual(response["status"], "200 OK")
+            record = json.loads(response["body"])
+            self.assertFalse(record["officialJraVerified"])
+            self.assertFalse(record["sourceAuthenticityAttested"])
+            self.assertFalse(record["finalityVerified"])
+            self.assertFalse(record["settlementReady"])
+            self.assertFalse(record["changesExistingReceipts"])
+            self.assertFalse(record["changesExistingRoi"])
+            self.assertEqual(record["sourceReadCount"], 1)
+            self.assertEqual(record["trifectaCandidates"][0]["ticket"], [7, 8, 2])
+            self.assertNotIn("signed", record)
+            self.assertNotIn("receipt", record)
+            read.assert_called_once_with(URL, DAY, "京都", 8)
+            self.assertIn("no-store", response["headers"]["Cache-Control"])
+
+    def test_jra_result_bad_date_venue_url_and_failure_do_not_fetch_paid_data(self):
+        from jra_official_result_probe import DAY, JraPublicProbeError
+        from test_jra_official_result_probe import URL
+        app = create_app(settings_for())
+        route = "/api/jra/result-candidate"
+        good={"date":DAY,"track":"京都","race":8,"url":URL}
+        cases=[
+            {**good,"race":9},
+            {**good,"track":"東京"},
+            {**good,"url":URL.replace("www.jra.go.jp","evil.test")},
+            {**good,"url":URL.replace("https:","http:")},
+            {**good,"url":URL+"#fragment"},
+            {**good,"date":"2026-11-09"},
+            {**good,"race":"08"},
+        ]
+        with patch("private_service.probe_official_result_page") as read:
+            for case in cases:
+                with self.subTest(case=case):
+                    r=call(app,route,QUERY_STRING=urlencode(case))
+                    self.assertEqual(r["status"],"400 Bad Request")
+            for raw in ("","date=2026-11-08",
+                        urlencode(good)+"&race=9",
+                        urlencode(good)+"&extra=1"):
+                with self.subTest(query=raw):
+                    self.assertEqual(call(app,route,
+                        QUERY_STRING=raw)["status"],"400 Bad Request")
+            read.assert_not_called()
+            read.side_effect=JraPublicProbeError("probe unavailable")
+            r=call(app,route,QUERY_STRING=urlencode(good))
+            self.assertEqual(r["status"],"502 Bad Gateway")
+            self.assertNotIn(b"probe unavailable",r["body"])
+            self.assertEqual(read.call_count,1)
 
     def test_unconfigured_returns_empty_not_fake_losses(self):
         private = create_app({**SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY":"1",
