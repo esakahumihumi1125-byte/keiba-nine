@@ -46,14 +46,41 @@ class OwnerRunnerResearchTests(unittest.TestCase):
         self.assertEqual(doc["runners"][1]["completeFactors"], 1)
         self.assertFalse(doc["bettingReady"])
 
-    def test_equal_two_factor_totals_are_tied(self):
+    def test_training_30_recent_3_matches_draft_priority(self):
+        a, b = self.selected()
+        # Old equal-weight grades put A/S above S/C (7 vs 5).
+        # The user's 30:3 priority requires S/C (90) above A/S (69).
+        a[0]["gradesByNumber"]["01"] = "S"
+        b[0]["byNumber"]["01"]["grade"] = "C"
+        a[0]["gradesByNumber"]["02"] = "A"
+        b[0]["byNumber"]["02"]["grade"] = "S"
+        original = copy.deepcopy((a, b))
+        out = owner_runner_research(a, b, "東京", 1)
+        self.assertEqual([h["number"] for h in out["runners"]], [1, 2])
+        self.assertEqual([h["researchOrder"] for h in out["runners"]], [1, 2])
+        self.assertEqual((a, b), original)
+        self.assertNotIn("_partialScore", repr(out))
+        self.assertFalse(out["predictionReady"])
+
+    def test_genuinely_equal_weighted_grades_are_tied(self):
         a, b = self.selected()
         a[0]["gradesByNumber"]["01"] = "S"
         b[0]["byNumber"]["01"]["grade"] = "B"
-        a[0]["gradesByNumber"]["02"] = "A"
-        b[0]["byNumber"]["02"]["grade"] = "A"
-        doc = owner_runner_research(a, b, "東京", 1)
-        self.assertEqual([r["researchOrder"] for r in doc["runners"]], [1, 1])
+        a[0]["gradesByNumber"]["02"] = "S"
+        b[0]["byNumber"]["02"]["grade"] = "B"
+        out = owner_runner_research(a, b, "東京", 1)
+        self.assertEqual([h["number"] for h in out["runners"]], [1, 2])
+        self.assertEqual([h["researchOrder"] for h in out["runners"]], [1, 1])
+
+    def test_missing_training_never_uses_recent_as_full_score(self):
+        a, b = self.selected()
+        a[0]["gradesByNumber"]["01"] = "未評価"
+        b[0]["byNumber"]["01"]["grade"] = "S"
+        out = owner_runner_research(a, b, "東京", 1)
+        by_number = {h["number"]: h for h in out["runners"]}
+        self.assertIsNone(by_number[1]["researchOrder"])
+        self.assertEqual(by_number[1]["completeFactors"], 1)
+        self.assertEqual(by_number[2]["researchOrder"], 1)
 
     def test_single_scored_run_is_observed_but_never_invents_recent_grade(self):
         a, b = self.selected()
