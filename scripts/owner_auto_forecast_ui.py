@@ -993,6 +993,7 @@ function validate(data,day){
    if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
     numbers.has(h.number)||!GRADES.has(h.training)||
     !GRADES.has(h.recent)||!GRADES.has(h.twoFactorGrade)||
+    !validRecentObserved(h.recentObserved)||
     !(h.pastFourthCorner in POS)||
     !(h.twoFactorPoints===null||Number.isInteger(h.twoFactorPoints))||
     !(h.weightedResearchPoints===null||
@@ -1032,6 +1033,29 @@ function validate(data,day){
  validateSourcePassport(data);
  return data;
 }
+function validRecentObserved(v){
+ if(v===undefined||v===null)return true; // older snapshots
+ if(!v||typeof v!=='object'||Array.isArray(v))return false;
+ const keys=['datedRuns','completedRuns','topThreeObserved',
+  'fourthCornerObserved','late3fObserved'];
+ if(Object.keys(v).length!==keys.length||keys.some(k=>!Object.hasOwn(v,k)))
+  return false;
+ const [dated,completed,top,corner,late]=keys.map(k=>v[k]);
+ return [dated,completed,top,corner,late].every(Number.isInteger)&&
+  dated>=0&&dated<=5&&completed>=0&&completed<=dated&&
+  top>=0&&top<=Math.min(3,completed)&&
+  corner>=0&&corner<=Math.min(3,dated)&&
+  late>=0&&late<=Math.min(3,dated);
+}
+function oneRunObservation(h){
+ const o=h.recentObserved;
+ if(!o||h.recent!=='未評価'||!o.datedRuns)return '';
+ return 'JRDBで確認できた過去走 '+o.datedRuns+'走／着順確認 '+
+  o.completedRuns+'走'+
+  (o.completedRuns?'／確認できた直近最大3走で3着以内 '+
+   o.topThreeObserved+'回':'（着順未確認）')+
+  '。近走ランクは未評価のまま、能力得点・買い目には反映しません。';
+}
 function boundedTwoFactorResearchRange(h){
  // /99 is the scale of provisional ordinal TRAINING (30x0..3) plus
  // RECENT (3x0..3), NOT a score out of the formal 100-point scale.
@@ -1056,6 +1080,8 @@ function runnerView(h,index){
   dom('span',POS[h.pastFourthCorner]+' ※脚質確定ではない','notes'));
  const range=boundedTwoFactorResearchRange(h);
  if(range)p.append(dom('span',range,'notes'));
+ const observed=oneRunObservation(h);
+ if(observed)p.append(dom('span',observed,'notes'));
  if(missingText(h))p.append(dom('span',missingText(h),'notes'));
  return p;
 }
