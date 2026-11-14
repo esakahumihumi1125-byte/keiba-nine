@@ -927,6 +927,60 @@ function validateSourcePassport(data){
  if(seen.size!==data.raceCount)throw Error('レース別資料進捗不足');
  return a;
 }
+// A separately guarded, read-only view of genuine two-index comparison.
+ // No third-party paid index is copied into browser storage or returned.
+function validateWorkoutIndexOrder(data,day){
+ const study=data.workoutIndexOrder;
+ if(study===undefined)return new Map(); // old response version
+ if(!study||study.version!=='owner-workout-index-order-1'||
+    study.date!==day||study.raceCount!==data.raceCount||
+    study.researchOnly!==true||study.privateOwnerOnly!==true||
+    study.scoreReady!==false||study.officialJraVerified!==false||
+    study.predictionReady!==false||study.bettingReady!==false||
+    study.sourcePublicationTimeVerified!==false||
+    study.rawIndexesIncluded!==false||
+    study.ticketsIssued!==0||study.newProviderRequests!==0||
+    study.changesExistingReceipts!==false||
+    !Array.isArray(study.races)||study.studiedRaceCount!==study.races.length||
+    study.races.length>data.raceCount)
+   throw Error('調教指数内比較の形式が不正です');
+ const source=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+ const out=new Map();
+ for(const row of study.races){
+  const id=row?.track+'|'+row?.race,base=source.get(id);
+  if(!base||out.has(id)||!Array.isArray(row.runners)||
+     !Number.isInteger(row.runnerCount)||row.runnerCount!==base.runners.length||
+     row.runnerCount!==row.runners.length||row.runnerCount<2||
+     row.runnerCount>18||
+     row.rankingScope!=='workout_index_within_band_only'||
+     !Number.isInteger(row.differentIndexPairsWithinBand)||
+     !Number.isInteger(row.exactTiePairsWithinBand)||
+     row.differentIndexPairsWithinBand<0||row.exactTiePairsWithinBand<0||
+     row.differentIndexPairsWithinBand+row.exactTiePairsWithinBand>153)
+    throw Error('調教指数比較のレース照合に不一致');
+  const old=new Map(base.runners.map(h=>[h.number,h])),used=new Set();
+  const bandOrder={S:0,A:1,B:2,C:3};
+  let previousBand=-1,previousRank=0;
+  for(const h of row.runners){
+   if(!h||!Number.isInteger(h.number)||used.has(h.number)||
+      !Object.hasOwn(bandOrder,h.trainingBand)||
+      !Number.isInteger(h.withinBandRank)||
+      h.withinBandRank<1||h.withinBandRank>row.runnerCount||
+      old.get(h.number)?.training!==h.trainingBand)
+    throw Error('調教指数比較の馬番照合に不一致');
+   const order=bandOrder[h.trainingBand];
+   if(order<previousBand||
+      (order===previousBand&&h.withinBandRank<previousRank))
+    throw Error('調教指数比較の順序に不一致');
+   previousBand=order;previousRank=h.withinBandRank;
+   used.add(h.number);
+  }
+  if(used.size!==base.runners.length)
+   throw Error('調教指数比較に未照合の馬あり');
+  out.set(id,row);
+ }
+ return out;
+}
 function validate(data,day){
  if(!data||data.version!=='jrdb-owner-auto-draft-1'||data.date!==day||
   data.researchOnly!==true||data.privateOwnerOnly!==true||
@@ -1049,6 +1103,7 @@ function validate(data,day){
  validateTen(data);
  validateContext(data);
  validateSourcePassport(data);
+ validateWorkoutIndexOrder(data,day);
  return data;
 }
 function validRecentObserved(v){
@@ -1807,6 +1862,7 @@ function renderWorkoutQuick(data,day){
 }
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
+ const workoutOrder=validateWorkoutIndexOrder(data,day);
  renderUncertainRecent(data,day);
  renderWorkoutQuick(data,day);
  const materialByRace=validatedRunnerSourceEvidence(data);
@@ -1880,6 +1936,24 @@ function render(input,day){
    detail.append(dom('p','過去4角の位置取り観測：前方 '+front+
      '頭／後方 '+back+'頭／混在 '+mixed+'頭／資料不足 '+unknown+
      '頭（今回の展開予測・適性点数ではありません）','muted'));
+  }
+  const orderStudy=workoutOrder.get(key);
+  if(orderStudy&&!draftExpiredOnDevice(day,race.postTime)&&
+     !changedLock){
+   const panel=dom('details',undefined,'real-workout-band-order');
+   panel.append(dom('summary',
+    '調教S/A/B/Cの同評価内を指数で比較（研究用・'+
+    orderStudy.runnerCount+'頭）'));
+   for(const band of ['S','A','B','C']){
+    const peers=orderStudy.runners.filter(h=>h.trainingBand===band);
+    if(!peers.length)continue;
+    panel.append(dom('p',band+'評価内の指数順：'+peers.map(h=>
+     h.number+'番（同'+band+'内'+h.withinBandRank+'位）').join('／'),'muted'));
+   }
+   panel.append(dom('p','同じS評価でも追切・仕上の弱い方の指数で差を表示。'+
+    '指数の原数値・換算30点は出していません。指数内の順位は正式な馬の強さ・'+
+    '3連単の1着候補・総合100点ではありません。提供元の公開時刻も未検証。','muted'));
+   detail.append(panel);
   }
   if(race.status==='hold'){
    const extra=race.reason==='invalid_two_factor'&&
