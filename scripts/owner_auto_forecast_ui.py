@@ -340,7 +340,10 @@ main{padding-bottom:65px}
 .owner-menu .owner-nav{margin:5px 0 9px;padding:7px;background:#10263d;border-radius:9px}
 .owner-weekend-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .owner-weekend-actions button{margin:5px 0;min-height:58px;padding:9px 6px;
- font-size:14px;line-height:1.3}
+ font-size:14px;line-height:1.3;background:#2b425b;color:#eff5ff;
+ border:1px solid #7894af}
+.owner-weekend-actions button[data-selected="true"]{background:#e8c774;
+ color:#182b41;border-color:#e8c774}
 .auto-easy-pulse,.auto-race-quick{padding:12px;border:1px solid #7f9eb9;
  background:#102f4d;border-radius:11px;color:#f1d48c;
  font-weight:850;font-size:18px;line-height:1.48;overflow-wrap:anywhere}
@@ -5696,7 +5699,18 @@ function updateJraCrosscheck(){
   'リンク未検出は開催なしを意味せず、リンク発見も馬番・取消・馬場・発走時刻の一致を証明しません。';
 }
 
+// The chosen date determines which weekend button is gold. Neither
+// highlighting nor changing a date triggers a provider request.
+function highlightSelectedWeekend(){
+ const selected=$('autoDay').value;
+ const dt=new Date(selected+'T12:00:00Z');
+ const weekday=Number.isFinite(dt.valueOf())&&
+  dt.toISOString().slice(0,10)===selected?dt.getUTCDay():-1;
+ $('autoSaturdayQuick').dataset.selected=String(weekday===6);
+ $('autoSundayQuick').dataset.selected=String(weekday===0);
+}
 $('autoDay').value=jstToday();
+highlightSelectedWeekend();
 showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
 showSavedWorkoutPairHistory($('autoDay').value.replaceAll('-',''));
 updateJraReleaseGuide();updateJraCrosscheck();
@@ -5709,6 +5723,7 @@ function updateReviewLink(){
   (valid?'?date='+encodeURIComponent(day):'');
 }
 $('autoDay').onchange=()=>{
+ highlightSelectedWeekend();
  resetResolvedJraCard();
  $('autoOfficialCardUrl').value='';
  $('autoOfficialCardStatus').textContent='開催日を変更しました。JRA公式Web出馬表の候補は未確認です。';
@@ -8194,6 +8209,7 @@ function resumeOwnerDay(){
  $('autoPreflightStatus').textContent='開催日が変わりました。無料診断は未実行。';
  request++;$('autoRun').disabled=false;
  $('autoDay').value=today;
+ highlightSelectedWeekend();
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
