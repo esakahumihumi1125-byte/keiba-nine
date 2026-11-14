@@ -4486,7 +4486,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.deepEqual(lockedRows[0].snapshot.horses,lockedSnapshot.horses);
  assert.equal(lockedView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(lockedView.get('autoWorkoutProviderCheck').disabled,false);
- assert.match(lockedView.get('autoWorkoutLockStatus').textContent,/新規 1R/);
+ assert.match(lockedView.get('autoWorkoutLockStatus').textContent,
+  /初回記録を維持 1R/,
+  'the prestart auto-read fixed the original research rank, and a second tap cannot replace it');
  assert.equal(lockedView.requests.filter(x=>
   x.url==='/api/owner-workout-order-provider-check').length,0,
   'normal forecast display may not auto-request paid results');
