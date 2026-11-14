@@ -4572,6 +4572,66 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(invalidView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(invalidView.requests.length,1,
   'source diagnosis cannot fetch more provider rows');
+ // /tky carries a DIFFERENT analyst training index even if /tcy
+ // has no two-index workout grade. Surface its observed-only order for
+ // held races, but never convert it into a training30 score or tickets.
+ const tkyStudy=heldReasonBreakdownFixture();
+ tkyStudy.tkyTrainingStudy={
+  version:'owner-tky-training-index-study-1',date:day,raceCount:1,
+  studiedRaceCount:1,
+  races:[{
+   track:'東京',race:1,rosterCount:7,observedCount:5,
+   unassessedCount:2,rankingScope:'observed_tky_training_index_only',
+   runners:[
+    {number:1,observedRank:1},
+    {number:2,observedRank:2},
+    {number:3,observedRank:2},
+    {number:5,observedRank:4},
+    {number:7,observedRank:5}
+   ]
+  }],
+  sourceMetric:'tky_training_index',trainingSourceDistinctFromTcy:true,
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  modelCalibrated:false,training30Ready:false,
+  predictionReady:false,bettingReady:false,ticketsIssued:0,
+  newProviderRequests:0,changesExistingDrafts:false,
+  changesExistingReceipts:false,rawIndicesIncluded:false
+ };
+ const tkyView=boot({initialServerRaw:tkyStudy});
+ await new Promise(r=>setImmediate(r));
+ const tkyRows=tkyView.get('autoTkyTrainingRows').children;
+ assert.equal(tkyRows.length,1);
+ assert.match(tkyRows[0].children[0].textContent,/別の調教指数で比較 5\/7頭/);
+ assert.match(tkyRows[0].children[1].textContent,/1位 1番／2位 2番／2位 3番／4位 5番／5位 7番/);
+ assert.match(tkyRows[0].children[2].textContent,/指数不明 2頭は順位外/);
+ assert.match(tkyView.get('autoTkyTrainingStatus').textContent,/参考順が確認できた 1R/);
+ assert.equal(tkyView.get('autoSummary').textContent.includes('見送り 1R'),true);
+ assert.equal(tkyView.storage.has(STORAGE),false);
+ assert.equal(tkyView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(tkyView.requests.length,1,'tky training study may not fetch extra paid sources');
+ const tkyTimer=boot({simulateTimers:true,initialServerRaw:heldReasonBreakdownFixture()});
+ await new Promise(r=>setImmediate(r));
+ // Without tky evidence, held races cannot arm a made-up order timer.
+ assert.equal(tkyTimer.get('autoTkyTrainingRows').children.length,0);
+ const tkyLate=boot({initialServerRaw:structuredClone(tkyStudy),
+  initialClock:'2099-01-01T03:00:01Z'});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(tkyLate.get('autoTkyTrainingRows').children.length,0);
+ const tkyArmed=boot({simulateTimers:true,initialServerRaw:structuredClone(tkyStudy)});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(tkyArmed.timerCount(),1);
+ const tkyReads=tkyArmed.requests.length;
+ tkyArmed.advanceClock('2099-01-01T03:00:01Z');
+ tkyArmed.fireTimer();
+ assert.equal(tkyArmed.get('autoTkyTrainingRows').children.length,0);
+ assert.equal(tkyArmed.requests.length,tkyReads);
+ assert.equal(tkyArmed.storage.has(STORAGE),false);
+ const forgedTky=structuredClone(tkyStudy);
+ forgedTky.tkyTrainingStudy.races[0].runners[2].observedRank=1;
+ const tkyBad=boot({initialServerRaw:forgedTky});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(tkyBad.get('autoTkyTrainingRows').children.length,0);
+ assert.match(tkyBad.get('autoTkyTrainingStatus').textContent,/照合が一致せず非表示/);
  // Real /tcy workout-index ordering stays within the same provisional
  // S/A/B/C grade. It is NOT a new win ranking or fabricated 30-point score.
  const indexOrder=resultWith('a'.repeat(64));
