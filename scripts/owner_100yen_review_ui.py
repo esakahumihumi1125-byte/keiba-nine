@@ -27,7 +27,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="provisionalStatus" class="muted" role="status">まだ照合していません。自動で成績APIは呼びません。</p>
 <div id="provisionalRaces"></div></section>
 <details id="jraResultCandidatePanel"><summary>JRAの結果ページを1Rだけ読み取る（候補・任意）</summary>
-<p class="muted">JRAのレース結果ページのURLを公式サイトからコピーして入力してください。発走翌日以降の1Rだけを1回照会し、着順表と3連単・3連複の払戻候補が一致するか調べます。<b>正式な払戻確定・的中証明ではなく、仮想収支には加算しません。</b>誤った日付・取消・同着等は保留になる場合があります。</p>
+<p class="muted">JRAのレース結果ページのURLを公式サイトからコピーして入力してください。開催日の翌日以降に選択した1Rを1回確認し、<b>同じ日の署名付き発走前3連単があれば、候補の組み合わせと参考比較</b>します。固定記録がない場合はJRA形式の候補だけ表示。公式結果の最終認証・返還確認・的中証明は未完成で、仮想収支には加算しません。</p>
 <label for="jraResultTrack">競馬場</label>
 <select id="jraResultTrack">
 <option value="">競馬場を選択</option>
@@ -37,7 +37,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <label for="jraResultUrl">JRA公式結果ページのURL</label>
 <input id="jraResultUrl" type="url" maxlength="500" inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://www.jra.go.jp/JRADB/accessS.html?CNAME=...">
 <p class="muted"><a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式サイトで結果ページを探す</a>（このリンクでは自動照会しません）</p>
-<button id="jraResultCheck" type="button">公式ページの結果候補を1回だけ確認</button>
+<button id="jraResultCheck" type="button">JRA結果候補と固定3連単を参考照合（1回）</button>
 <p id="jraResultStatus" class="muted" role="status">未実行。ここを開くだけではJRAへ照会しません。</p>
 <div id="jraResultCandidates"></div>
 </details>
@@ -399,6 +399,48 @@ function validateJraCandidate(obj,day,track,race){
  }
  return obj;
 }
+// Only the server can confirm an HMAC signed *prestart* receipt.
+// Never compare browser-edited picks to public result candidates as an
+// apparent hit. This does not certify a JRA result or add virtual returns.
+async function matchJraCandidateToLockedDraft(report,day,track,race,seq){
+ const {receipts,source}=await signedForPreliminary(day);
+ if(seq!==jraCandidateRequest)return null;
+ const expected=expectedPreliminaryRaces(receipts,day);
+ const label=track+'|'+race;
+ if(!expected.has(label))
+  return {kind:'no_receipt',text:'このレースの署名付き発走前3連単は未登録です。結果候補だけ表示しています。'};
+ const chosen=receipts.filter(x=>x.snapshot.track===track&&x.snapshot.race===race);
+ if(chosen.length!==1)throw Error('Race receipt mismatch');
+ const res=await fetch('/api/owner-100yen-verify-receipts',{
+  method:'POST',cache:'no-store',credentials:'same-origin',
+  headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+           'Accept':'application/json'},
+  body:JSON.stringify({date:day,receipts:chosen})
+ });
+ if(!res.ok)throw Error('Signed receipt verification unavailable');
+ const result=await res.json();
+ if(seq!==jraCandidateRequest)return null;
+ const review=result?.review;
+ const raceRow=review?.races?.[0];
+ if(result.available!==true||result.serverSigned!==true||
+    result.captureAuditVerified!==false||
+    result.officialScheduleVerified!==false||
+    result.officialFeedConnected!==false||
+    review?.actualPurchase!==false||review?.unitYen!==100||
+    review?.reviewedRaces!==0||review?.pendingRaces!==1||
+    review?.roiPercent!==null||review?.totalInvestedYen!==0||
+    review?.totalReturnedYen!==0||
+    !Array.isArray(review?.races)||review.races.length!==1||
+    raceRow?.date!==day||raceRow?.track!==track||raceRow?.race!==race||
+    raceRow?.status!=='pending'||raceRow?.trioPoints!==0||
+    raceRow?.trifectaPoints!==expected.get(label))
+  throw Error('Unsigned or contradictory receipt review');
+ const picks=new Set(chosen[0].snapshot.trifectaTickets.map(x=>x.join('-')));
+ if(picks.size!==raceRow.trifectaPoints)throw Error('Ticket count mismatch');
+ const matched=report.trifectaCandidates.filter(x=>picks.has(x.ticket.join('-')));
+ return {kind:'matched',source,points:picks.size,matched,
+  candidateCount:report.trifectaCandidates.length};
+}
 $('jraResultCheck').onclick=async()=>{
  const seq=++jraCandidateRequest,day=$('day').value,
   track=$('jraResultTrack').value,
@@ -437,8 +479,35 @@ $('jraResultCheck').onclick=async()=>{
      '：100円あたり '+yen(row.payoutYen)+'（候補）','muted'));
    }
   }
-  $('jraResultStatus').textContent='着順表と払戻候補の組み合わせを照合。'+
-   '出典の最終認証・返還確認は未完了のため、正式的中・収支には反映していません。';
+  // Optional same-tap comparison uses the already saved prestart
+  // HMAC receipt. It never triggers JRDB reads or writes results/ROI.
+  let matchState='固定済み予想との比較は保留。';
+  try{
+   const compared=await matchJraCandidateToLockedDraft(report,day,track,race,seq);
+   if(seq!==jraCandidateRequest)return;
+   if(compared?.kind==='matched'){
+    matchState=compared.source+'の署名付き3連単'+compared.points+
+      '点と比較：結果候補 '+compared.candidateCount+
+      '組中、予想内 '+compared.matched.length+'組（未確定）。';
+    holder.append(el('p',matchState,'pending'));
+    for(const entry of compared.matched)
+     holder.append(el('p','候補一致：'+entry.ticket.join('－')+
+      '／100円あたり候補払戻 '+yen(entry.payoutYen),'muted'));
+    if(!compared.matched.length)
+     holder.append(el('p',
+      '一致する3連単候補はありません（結果が最終確定した証拠ではありません）。','muted'));
+   }else if(compared?.kind==='no_receipt'){
+    matchState=compared.text;
+    holder.append(el('p',matchState,'muted'));
+   }
+  }catch(_){
+   if(seq!==jraCandidateRequest)return;
+   holder.append(el('p',
+    '署名付き発走前記録を確認できず、予想との一致は判定保留です。','muted'));
+  }
+  if(seq!==jraCandidateRequest)return;
+  $('jraResultStatus').textContent='JRA形式の着順と払戻候補を照合。'+
+   matchState+' 正式的中・実購入・仮想収支には反映していません。';
  }catch(_){
   if(seq===jraCandidateRequest)
    $('jraResultStatus').textContent=
