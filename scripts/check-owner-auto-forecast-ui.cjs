@@ -4492,7 +4492,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(tied48Rows[0].children[0].textContent,/東京 1R.*研究用 32通り/);
  assert.match(tied48Rows[0].children[1].textContent,
   /1着候補 1／2着候補 1・2・3・4・5／3着候補 1・2・3・4・5・6・7・8・9・10/);
- assert.match(tied48.get('autoHeldTie48Hint').textContent,/追加参考 1R/);
+ assert.match(tied48.get('autoHeldTie48Hint').textContent,/48点以内参考 1R/);
  assert.equal(tied48.get('autoSummary').textContent.includes('見送り 1R'),true);
  assert.equal(tied48.storage.has(STORAGE),false);
  assert.equal(tied48.storage.has('keiba-nine-owner-real-purchases-v1'),false);
