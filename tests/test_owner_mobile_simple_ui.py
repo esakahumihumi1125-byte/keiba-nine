@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from owner_auto_forecast_ui import HTML
+from owner_auto_forecast_ui import HTML, JS
 
 class SimpleForecastScreenTest(unittest.TestCase):
     def test_primary_flow(self):
@@ -38,8 +38,8 @@ class SimpleForecastScreenTest(unittest.TestCase):
             HTML.index("<summary>追加分析・詳しい設定（必要なときだけ）</summary>"),
             HTML.index('id="autoHistoryAudit"'))
         self.assertEqual(HTML.count('id="autoHoldBreakdown"'), 1)
-        self.assertIn("function holdBreakdownSummary(data)", HTML)
-        self.assertIn("発走時刻経過は資料不足ではありません", HTML)
+        self.assertIn("function holdBreakdownSummary(data)", JS)
+        self.assertIn("発走時刻経過は資料不足ではありません", JS)
         self.assertIn("JRDBのAPI照会", HTML)
         self.assertIn("正式10項目", HTML)
 
