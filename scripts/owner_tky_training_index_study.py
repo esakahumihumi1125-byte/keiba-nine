@@ -1,10 +1,11 @@
-"""Read-only prestart alternative JRDB /tky *training_index* ordering.
+"""Read-only prestart JRDB /tky *training_arrow* plus *training_index*.
 
-JRDB's /tky '調教指数' (information/analyst index) is distinct from
-/tcy '追切指数' & '仕上指数'. Never infer /tcy grades, 30-point scores,
-win chances or betting picks from this separate index. The private caller
-has already fetched /tky; no API calls, raw values or horse identities
-other than programme horse numbers are returned.
+The JRDB reference instructs analysts to PRIORITIZE the five-category
+training arrow over the specialist training index when these conflict.
+Never combine their rankings into a fabricated 30-point model or convert
+to /tcy '追切指数' / '仕上指数' grades. Only owner-private observations,
+horse numbers and public category labels leave this helper: no raw
+paid numeric indexes, new provider reads, ticket issues or receipt edits.
 """
 import re
 from decimal import Decimal, InvalidOperation
@@ -14,7 +15,16 @@ from jrdb_coverage import CoverageError, audit_race_coverage
 from jrdb_evidence_readiness import _valid_date, HORSE_ID
 from jrdb_owner_auto_draft import VERSION as DRAFT_VERSION, JST
 
-VERSION = "owner-tky-training-index-study-1"
+VERSION = "owner-tky-training-index-study-2"
+# JRDB's official training-arrow code table (1=excellent, 5=declining).
+# These are expert opinion categories, NOT calibrated winning probabilities.
+ARROWS = {
+    "1": "デキ抜群",
+    "2": "上昇",
+    "3": "平行線",
+    "4": "やや下降",
+    "5": "デキ落ち",
+}
 DECIMAL = re.compile(r"-?\d{1,4}(?:\.\d{1,3})?\Z")
 POST = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z")
 MAX_RACES = 120
@@ -37,7 +47,12 @@ def _index(value):
 
 
 def tky_training_index_study(programme, entries, report, day, *, now):
-    """Private, rank observed runners only; missing indices are NOT last."""
+    """Compare two DISTINCT source observations, never impute missing rows.
+
+    Show the training-arrow categories first. Numeric training_index rank is
+    shown separately as descriptive research, NEVER as overriding an arrow.
+    Horses missing either observation stay unobserved for THAT field.
+    """
     if (not _valid_date(day) or not isinstance(programme, list)
             or len(programme) > MAX_RACES or not isinstance(entries, list)
             or not isinstance(report, dict)
@@ -107,30 +122,48 @@ def tky_training_index_study(programme, entries, report, day, *, now):
                 or len(set(ids)) != len(ids)):
             continue
         available = []
+        arrow_observations = []
         for item in raw:
+            number = int(item["horse_number"])
             metric = _index(item.get("training_index"))
             if metric is not None:
-                available.append((int(item["horse_number"]),metric))
+                available.append((number, metric))
+            arrow = item.get("training_arrow")
+            if type(arrow) is str and arrow in ARROWS:
+                arrow_observations.append((number, arrow))
+        # One numerical index alone cannot form an index comparison.
         if len(available) < 2:
+            available = []
+        # Two arrow codes alone CAN convey expert condition categories;
+        # a sparse numeric index must never erase those observations.
+        if len(available) < 2 and len(arrow_observations) < 2:
             continue
-        available.sort(key=lambda x: (-x[1],x[0]))
-        ranked,previous,rank = [],None,None
-        for place,(number,value) in enumerate(available,1):
+        available.sort(key=lambda x: (-x[1], x[0]))
+        ranked, previous, rank = [], None, None
+        for place, (number, value) in enumerate(available, 1):
             if value != previous:
-                rank=place
-            ranked.append({"number":number,"observedRank":rank})
-            previous=value
+                rank = place
+            ranked.append({"number": number, "observedRank": rank})
+            previous = value
+        arrow_observations.sort(key=lambda x: (int(x[1]), x[0]))
+        arrow_rows = [
+            {"number": number, "condition": ARROWS[arrow]}
+            for number, arrow in arrow_observations
+        ]
         study.append({
-            "track":coord[0],"race":coord[1],
-            "rosterCount":len(raw),"observedCount":len(ranked),
-            "unassessedCount":len(raw)-len(ranked),
-            "rankingScope":"observed_tky_training_index_only",
-            "runners":ranked,
+            "track": coord[0], "race": coord[1],
+            "rosterCount": len(raw), "observedCount": len(ranked),
+            "unassessedCount": len(raw) - len(ranked),
+            "arrowObservedCount": len(arrow_rows),
+            "arrowUnobservedCount": len(raw) - len(arrow_rows),
+            "rankingScope": "tky_arrow_first_index_descriptive_only",
+            "runners": ranked, "arrows": arrow_rows,
         })
     return {
         "version":VERSION,"date":day,"raceCount":len(programme),
         "studiedRaceCount":len(study),"races":study,
-        "sourceMetric":"tky_training_index",
+        "sourceMetric":"tky_training_index_and_training_arrow",
+        "trainingArrowPriority":True,
         "trainingSourceDistinctFromTcy":True,
         "researchOnly":True,"privateOwnerOnly":True,
         "officialJraVerified":False,"modelCalibrated":False,
@@ -138,8 +171,9 @@ def tky_training_index_study(programme, entries, report, day, *, now):
         "bettingReady":False,"ticketsIssued":0,
         "newProviderRequests":0,"changesExistingDrafts":False,
         "changesExistingReceipts":False,"rawIndicesIncluded":False,
-        "note":("出走馬データに含まれる別系統の調教指数の観測馬だけを"
-                "指数順で表示。追切指数/仕上指数と同一視せず、"
-                "欠測馬を最下位扱いしない。正式な調教30点、"
-                "総合順位、3連単、JRA公式照合には使用しません。"),
+        "note":("JRDB公式の見方に従い調教矢印の5段階評価を先に表示し、"
+                "別系統の調教指数は数値順の参考として独立表示。"
+                "指数と矢印の評価が異なる場合は矢印を優先。"
+                "欠測馬を最下位扱いせず、/tcy追切・仕上指数や"
+                "正式調教30点・総合順位・3連単には使用しません。"),
     }
