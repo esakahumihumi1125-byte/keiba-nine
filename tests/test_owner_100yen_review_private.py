@@ -119,7 +119,8 @@ class Owner100YenPageTests(unittest.TestCase):
             self.assertIn("no-store", response["headers"]["Cache-Control"])
 
     def test_jra_result_bad_date_venue_url_and_failure_do_not_fetch_paid_data(self):
-        from jra_official_result_probe import DAY, JraPublicProbeError
+        from jra_official_result_probe import JraPublicProbeError
+        from test_jra_official_result_probe import DAY
         from test_jra_official_result_probe import URL
         app = create_app(settings_for())
         route = "/api/jra/result-candidate"
