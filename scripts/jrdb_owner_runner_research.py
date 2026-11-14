@@ -30,6 +30,39 @@ def _recent_position(stats):
     return "mixedObserved"
 
 
+def _recent_observations(past):
+    """Redacted completed-history counts; never ungraded into a grade.
+
+    The beta /tze feed can offer one real, finish-observed start but not
+    the two completed scored starts required for a RECENT S/A/B/C.
+    Return only bounded COUNTS for owner research: no raw IDM, placing,
+    race dates, horse IDs, or private source fields.
+    Older/mocked partial contracts without these counts remain supported.
+    """
+    names = ("datedRuns", "completedRuns", "topThree",
+             "fourthObserved", "late3fObserved")
+    if not any(name in past for name in names):
+        return None
+    if not all(name in past for name in names):
+        raise CoverageError("Incomplete past-run observation counts")
+    dated, completed, top3, fourth, late = (past[name] for name in names)
+    if (any(type(x) is not int for x in
+            (dated, completed, top3, fourth, late))
+            or not 0 <= dated <= 5
+            or not 0 <= completed <= dated
+            or not 0 <= top3 <= min(3, completed)
+            or not 0 <= fourth <= min(3, dated)
+            or not 0 <= late <= min(3, dated)):
+        raise CoverageError("Invalid past-run observation counts")
+    return {
+        "datedRuns": dated,
+        "completedRuns": completed,
+        "topThreeObserved": top3,
+        "fourthCornerObserved": fourth,
+        "late3fObserved": late,
+    }
+
+
 def owner_runner_research(training_hints, recent_hints, track, race):
     """An owner-only, partial two-factor ordering: not a final prediction."""
     if (track not in TRACKS.values() or type(race) is not int
@@ -61,6 +94,7 @@ def owner_runner_research(training_hints, recent_hints, track, race):
         if b not in KNOWN:
             raise CoverageError("Unexpected past-form research grade")
         position = _recent_position(past)
+        recent_counts = _recent_observations(past)
         completeness = int(a != "未評価") + int(b != "未評価")
         # No ranking with missing factors. The sort uses BOTH present grades
         # only, with no normalization or imaginary replacement for missing data.
@@ -70,6 +104,7 @@ def owner_runner_research(training_hints, recent_hints, track, race):
             "missingReasons": missing_reasons(a, b,
                 t.get("assessmentStatusByNumber", {}).get(number), past.get("assessmentStatus")),
             "pastFourthCorner": position,
+            "recentObserved": recent_counts,
             "completeFactors": completeness,
             "researchOrder": None,
             "_partialScore": subtotal,
