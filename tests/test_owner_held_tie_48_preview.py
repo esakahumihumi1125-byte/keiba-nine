@@ -17,26 +17,20 @@ def build(pairs,now=PRESTART):
 
 
 class HeldTie48Tests(unittest.TestCase):
-    def test_solo_clear_leader_preserves_all_four_ambiguous_second_runners(self):
-        # The usual first-2/3 formation cannot be selected without
-        # splitting four tied A horses. One S is alone ahead of them.
+    def test_solo_clear_leader_no_longer_needs_an_unsigned_tie_preview(self):
+        # Newly generated PRESTART drafts now allow 1x5x10=32 without
+        # splitting four equal second-tier runners. The separate legacy
+        # read-only held-tie pane has nothing new to offer for this race.
         scores=[("S","C")]+[("A","C")]*4+[("B","C")]*5
         report=build(scores)
-        self.assertEqual(report["draftCount"],0)
-        self.assertEqual(report["races"][0]["reason"],"ambiguous_equal_grade_boundary")
+        self.assertEqual(report["draftCount"],1)
+        self.assertEqual(report["races"][0]["points"],32)
         before=copy.deepcopy(report)
         out=preview_held_ties_48(report,DAY,now=PRESTART)
         self.assertEqual(out["version"],VERSION)
-        self.assertEqual(out["reviewedPrestartTieHolds"],1)
-        self.assertEqual(out["unsignedReferenceCount"],1)
-        r=out["races"][0]
-        self.assertEqual(r["first"],[1])
-        self.assertEqual(r["second"],[1,2,3,4,5])
-        self.assertEqual(r["third"],list(range(1,11)))
-        self.assertEqual(r["points"],32)
-        self.assertTrue(r["allTiedScoreBoundariesUnsplit"])
-        self.assertFalse(r["receiptIssued"])
-        self.assertFalse(r["bettingReady"])
+        self.assertEqual(out["reviewedPrestartTieHolds"],0)
+        self.assertEqual(out["unsignedReferenceCount"],0)
+        self.assertEqual(out["races"],[])
         self.assertEqual(out["ticketsIssued"],0)
         self.assertEqual(out["newProviderRequests"],0)
         self.assertEqual(before,report)

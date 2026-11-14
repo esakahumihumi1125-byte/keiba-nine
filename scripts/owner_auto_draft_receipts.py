@@ -80,9 +80,9 @@ def seal_auto_research_drafts(report, password, now=None):
             continue
         first, second, third = row.get("first"), row.get("second"), row.get("third")
         if (not all(isinstance(x, list) for x in (first, second, third))
-                or len(first) not in (2, 3)
-                or not len(first) < len(second) <= 6
-                or not len(second) <= len(third) <= 9):
+                or len(first) not in (1, 2, 3)
+                or not len(first) < len(second) <= 8
+                or not len(second) <= len(third) <= 12):
             raise ReceiptError("Invalid automatic formation")
         expected = sorted({(x, y, z) for x in first for y in second for z in third
                            if x != y and x != z and y != z})
@@ -90,7 +90,7 @@ def seal_auto_research_drafts(report, password, now=None):
             actual = _tickets(row.get("tickets"), "trifecta")
         except ReviewInputError:
             raise ReceiptError("Invalid automatic ticket") from None
-        if (not expected or len(expected) > 40
+        if (not expected or len(expected) > 48
                 or actual != tuple(expected)
                 or row.get("points") != len(expected)
                 or row.get("amountYen") != len(expected) * 100):

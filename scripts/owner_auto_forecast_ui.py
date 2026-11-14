@@ -279,7 +279,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 </details>
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
-買い目は重複除外・最大40点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
+買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
 </main><script src="/owner-auto-forecast.js" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
@@ -1081,7 +1081,7 @@ function validate(data,day){
    !Array.isArray(r.runners)||r.runners.length>18||
    !Array.isArray(r.first)||!Array.isArray(r.second)||
    !Array.isArray(r.third)||!Array.isArray(r.tickets)||
-   r.points!==r.tickets.length||r.points>40||r.amountYen!==r.points*100)
+   r.points!==r.tickets.length||r.points>48||r.amountYen!==r.points*100)
    throw Error('レース別データが不正です');
   seen.add(r.track+'|'+r.race);
   if(data.sourceMaterials.status==='observed'){
@@ -1116,9 +1116,9 @@ function validate(data,day){
        (!Object.hasOwn(RUNNER_ISSUES,r.validationIssue)||r.runners.length!==0)))
     throw Error('見送り理由が不正です');
   }else{
-   if(r.reason!=='two_factor_only'||r.first.length<2||r.first.length>3||
-    r.second.length<=r.first.length||r.second.length>6||
-    r.third.length<r.second.length||r.third.length>10||!r.points)
+   if(r.reason!=='two_factor_only'||r.first.length<1||r.first.length>3||
+    r.second.length<=r.first.length||r.second.length>8||
+    r.third.length<r.second.length||r.third.length>12||!r.points)
     throw Error('候補が不正です');
    const unique=new Set();
    for(const t of r.tickets){
@@ -1291,9 +1291,13 @@ function formation(r){
   dom('p','2着：'+r.second.join('・')+'番','picks'),
   dom('p','3着：'+r.third.join('・')+'番','picks'),
   dom('p',r.points+'点／1点100円なら'+r.amountYen.toLocaleString('ja-JP')+'円（仮計算・未購入）'),
-  ...(r.second.length===6?[dom('p',
-   '同点の候補馬を馬番順で切らず、2着6頭・3着6頭まで拡張した研究例。'+
-   '1着2頭×2着6頭×3着6頭＝重複除外40点。正式10項目の完成予想ではありません。','muted')]:[]),
+  ...(r.first.length===2&&r.second.length===6&&r.third.length===6&&r.points===40
+   ?[dom('p','同点を切らず、2着・3着とも6頭まで拡張した40点の研究例。'+
+      '正式10項目の完成予想ではありません。','muted')]:[]),
+  ...(r.first.length===1||r.points>40||r.second.length>6||r.third.length>9
+   ?[dom('p','従来の40点方式では同点の境界が分けられず見送りだったR。'+
+      '同点を馬番で切らず最大48点に収めた新しい発走前研究用下書きです。'+
+      'JRA公式照合・正式100点採点・実購入ではありません。','muted')]:[]),
   combinations);
  return block;
 }
