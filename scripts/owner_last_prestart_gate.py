@@ -18,7 +18,9 @@ OFF_TEXT = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z", re.ASCII)
 
 def _signed_triplets(value):
     """Match frozen tickets to the draft without assuming the same list order."""
-    if (not isinstance(value, list) or not 1 <= len(value) <= 40):
+    # Match the live prestart two-factor builder and sealed receipt limit.
+    # Never allow >48, duplicate, malformed, or post-off triplets.
+    if (not isinstance(value, list) or not 1 <= len(value) <= 48):
         raise CoverageError("Final prestart ticket list mismatch")
     triples = set()
     for item in value:
