@@ -199,7 +199,9 @@ def verify_workout_pair_observations(receipts, prestart, secret, day):
         if not isinstance(row, dict) or set(row) != {"snapshot","signature"}:
             raise WorkoutLockError("Invalid saved comparison receipt")
         snap, signature = row["snapshot"], row["signature"]
-        coord = snap.get("track"),snap.get("race") if isinstance(snap,dict) else None
+        if not isinstance(snap, dict):
+            raise WorkoutLockError("Invalid stored observation shape")
+        coord = snap.get("track"), snap.get("race")
         original = originals.get(coord)
         if (coord in used or original is None
                 or _validate(snap, original)[0] != day
