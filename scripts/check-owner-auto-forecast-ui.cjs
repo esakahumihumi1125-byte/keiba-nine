@@ -1635,6 +1635,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const gapsView=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  const already=heldReasonBreakdownFixture();
+ already.races[0].runners[0].recentObserved={
+  datedRuns:1,completedRuns:1,topThreeObserved:1,
+  fourthCornerObserved:1,late3fObserved:1
+ };
  gapsView.setServerRaw(already);
  await gapsView.get('autoRun').onclick();
  assert.match(gapsView.get('autoSummary').textContent,/研究用自動案 0R／見送り 1R/);
@@ -1680,6 +1684,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const shown=(n)=>rows.find(x=>x.children[0].textContent===n+'番');
  assert.match(shown(1).children.map(x=>x.textContent).join('|'),
   /2項目研究の推定可能範囲 90〜99\/99/);
+ assert.match(shown(1).children.map(x=>x.textContent).join('|'),
+  /JRDBで確認できた過去走 1走／着順確認 1走／確認できた直近最大3走で3着以内 1回/);
+ assert.match(shown(1).children.map(x=>x.textContent).join('|'),
+  /近走ランクは未評価のまま/);
  assert.match(shown(3).children.map(x=>x.textContent).join('|'),
   /2項目研究の推定可能範囲 60〜69\/99/);
  assert.match(shown(4).children.map(x=>x.textContent).join('|'),
@@ -1691,6 +1699,19 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /見送りRは調教S→A→B→C→未評価の順に参考表示/);
  assert.equal(gapsView.requests.length,1);
  assert.equal(gapsView.storage.has(STORAGE),false);
+ // Corrupt count-only data is never displayed or written as a wager.
+ const unsafeEvidence=boot({manualWeekday:false});
+ await new Promise(r=>setImmediate(r));
+ const invalidEvidence=heldReasonBreakdownFixture();
+ invalidEvidence.races[0].runners[0].recentObserved={
+  datedRuns:1,completedRuns:1,topThreeObserved:2,
+  fourthCornerObserved:0,late3fObserved:1
+ };
+ unsafeEvidence.setServerRaw(invalidEvidence);
+ await unsafeEvidence.get('autoRun').onclick();
+ assert.match(unsafeEvidence.get('autoStatus').textContent,/確認できません|安全な自動生成ができません/);
+ assert.equal(unsafeEvidence.storage.has(STORAGE),false);
+ assert.equal(unsafeEvidence.requests.length,1);
  gapsView.get('autoDay').value='2099-01-02';
  gapsView.get('autoDay').onchange();
  assert.match(gapsView.get('autoMissingFactorSummary').textContent,/開催日を取得すると/);
