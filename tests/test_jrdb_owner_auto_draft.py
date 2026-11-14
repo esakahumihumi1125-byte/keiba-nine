@@ -208,6 +208,41 @@ class AutoDraftTests(unittest.TestCase):
         self.assertEqual(row["runners"][2]["weightedResearchPoints"],69)
         self.assertFalse(row["overallPredictionReady"])
 
+    def test_optional_redacted_recent_observations_never_change_tickets(self):
+        normal = generate()
+        case = research()
+        observations = {
+            "datedRuns": 1, "completedRuns": 1, "topThreeObserved": 1,
+            "fourthCornerObserved": 1, "late3fObserved": 1,
+        }
+        case["races"][0]["research"]["runners"][0][
+            "recentObserved"] = observations
+        copied = copy.deepcopy(case)
+        out = generate(r=case)
+        self.assertEqual(out["races"][0]["tickets"],
+                         normal["races"][0]["tickets"])
+        self.assertEqual(out["races"][0]["first"],
+                         normal["races"][0]["first"])
+        self.assertEqual(out["races"][0]["runners"][0][
+            "recentObserved"], observations)
+        self.assertEqual(case, copied)
+        self.assertFalse(out["bettingReady"])
+        for invalid in (
+            {**observations, "topThreeObserved": 4},
+            {**observations, "datedRuns": "1"},
+            {**observations, "private_horse_id": "secret"},
+        ):
+            research_case = research()
+            research_case["races"][0]["research"]["runners"][0][
+                "recentObserved"] = invalid
+            result = generate(r=research_case)
+            self.assertEqual(result["races"][0]["reason"],
+                             "invalid_two_factor")
+            self.assertEqual(result["races"][0]["validationIssue"],
+                             "recent_evidence")
+            self.assertEqual(result["races"][0]["tickets"], [])
+            self.assertNotIn("secret", repr(result))
+
     def test_missing_factor_or_time_holds_no_tickets(self):
         pairs = PAIRS[:-1]+[("未評価","C")]
         missing = generate(programme(7),research(pairs))["races"][0]
