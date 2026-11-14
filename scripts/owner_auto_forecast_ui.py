@@ -5074,6 +5074,7 @@ function updateJraCrosscheck(){
 
 $('autoDay').value=jstToday();
 showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
+showSavedWorkoutPairHistory($('autoDay').value.replaceAll('-',''));
 updateJraReleaseGuide();updateJraCrosscheck();
 function updateReviewLink(){
  const day=$('autoDay').value;
@@ -5088,9 +5089,12 @@ $('autoDay').onchange=()=>{
  $('autoOfficialCardUrl').value='';
  $('autoOfficialCardStatus').textContent='開催日を変更しました。JRA公式Web出馬表の候補は未確認です。';
  workoutProviderSeq++;
+ workoutPairVerifySeq++;
+ $('autoWorkoutPairVerifyStatus').textContent='選択日を変更しました。研究結果の署名は未検証。';
  $('autoWorkoutProviderSummary').replaceChildren();
  $('autoWorkoutProviderStatus').textContent='選択日の署名付き調教研究記録がある場合のみ暫定結果を照合できます。';
  showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
+ showSavedWorkoutPairHistory($('autoDay').value.replaceAll('-',''));
  ++preflightSeq;
  $('autoPreflight').disabled=false;
  $('autoPreflightStatus').textContent='選択日が変わりました。無料診断は未実行です。';
@@ -6182,6 +6186,7 @@ $('autoWorkoutProviderCheck').onclick=async()=>{
      day!==$('autoDay').value.replaceAll('-',''))return;
   if(!response.ok)throw Error('provider_workout_result_failed');
   const {rows,totals}=validateWorkoutProviderComparison(result,receipts,day);
+  const stored=saveWorkoutPairReceipts(result,receipts,day);
   const cards=[];
   for(const row of rows){
    const card=dom('p',row.track+row.race+'R：'+
@@ -6201,7 +6206,8 @@ $('autoWorkoutProviderCheck').onclick=async()=>{
   $('autoWorkoutProviderStatus').textContent=
    'JRDB暫定着順の全頭照合 '+result.studiedRaceCount+'/'+result.raceCount+
    'R。結果が欠けるRは保留。JRA公式の結果・勝率・30点配点の校正・回収率は未確認。'+
-   '予想、買い目、購入、記録は変更していません。';
+   '既存の予想・購入記録は変更していません。'+
+   '検証用結果は初回固定 '+stored.added+'R／前回の記録を保持 '+stored.previous+'R。';
  }catch(_){
   if(seq===workoutProviderSeq){
    $('autoWorkoutProviderSummary').replaceChildren();
@@ -6212,6 +6218,48 @@ $('autoWorkoutProviderCheck').onclick=async()=>{
  }finally{
   if(seq===workoutProviderSeq&&day===$('autoDay').value.replaceAll('-',''))
    showSavedWorkoutLocks(day);
+ }
+};
+$('autoWorkoutPairVerify').onclick=async()=>{
+ const btn=$('autoWorkoutPairVerify'),day=$('autoDay').value.replaceAll('-','');
+ if(btn.disabled)return;
+ btn.disabled=true;
+ const seq=++workoutPairVerifySeq;
+ $('autoWorkoutPairVerifyStatus').textContent='保存済みの発走前・レース後の署名を無料確認中…';
+ try{
+  const selected=savedWorkoutPairEntries(day).selected;
+  if(!selected.length)throw Error('no_saved_observations');
+  const ids=new Set(selected.map(r=>r.snapshot.track+'|'+r.snapshot.race));
+  const prestart=savedWorkoutLocksDay(day).selected.filter(r=>
+   ids.has(r.snapshot.track+'|'+r.snapshot.race));
+  if(prestart.length!==selected.length)throw Error('prestart_missing');
+  const body=JSON.stringify({date:day,prestartReceipts:prestart,receipts:selected});
+  if(body.length>250000)throw Error('verification_body_too_large');
+  const res=await fetch('/api/owner-workout-pair-verify',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body
+  });
+  const data=await res.json();
+  if(seq!==workoutPairVerifySeq||day!==$('autoDay').value.replaceAll('-',''))return;
+  if(!res.ok||data?.version!=='owner-workout-pair-verify-1'||
+     data.date!==day||data.verifiedRaceCount!==selected.length||
+     data.serverSigned!==true||data.researchOnly!==true||
+     data.privateOwnerOnly!==true||data.providerCalls!==0||
+     data.officialJraVerified!==false||data.calibrationReady!==false||
+     data.formalPredictionReady!==false||data.bettingReady!==false||
+     data.changesExistingReceipts!==false)
+   throw Error('server_hmac_verification_mismatch');
+  $('autoWorkoutPairVerifyStatus').textContent=
+   '保存済み結果 '+selected.length+'Rの発走前・レース後署名をサーバーで検証済み。'+
+   'JRDB追加取得0回。暫定結果でありJRA公式の着順確認・30点の校正は未実施。';
+ }catch(_){
+  if(seq===workoutPairVerifySeq)
+   $('autoWorkoutPairVerifyStatus').textContent=
+    '研究結果の署名を検証できません。元の記録は消さず、バックアップを確認してください。';
+ }finally{
+  if(seq===workoutPairVerifySeq&&day===$('autoDay').value.replaceAll('-',''))
+   showSavedWorkoutPairHistory(day);
  }
 };
 $('autoFiveProviderCheck').onclick=async()=>{
