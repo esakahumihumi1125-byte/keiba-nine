@@ -4711,10 +4711,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  partialIndex.tkyArrowFormationPreview.races[0].points=30;
  // This 30-point group is not legal: the third=7 group is safe, but
  // 2*(4-1)*(7-2)=30 is legal; the deterministic selector will prefer it.
- const partialView=boot({initialServerRaw:partialIndex});
+ const arrowSparseView=boot({initialServerRaw:partialIndex});
  await new Promise(r=>setImmediate(r));
- assert.equal(partialView.get('autoTkyArrowFormationRows').children.length,1);
- assert.match(partialView.get('autoTkyArrowFormationRows').children[0].children[4].textContent,
+ assert.equal(arrowSparseView.get('autoTkyArrowFormationRows').children.length,1);
+ assert.match(arrowSparseView.get('autoTkyArrowFormationRows').children[0].children[4].textContent,
   /指数に欠測があるため全頭で指数順位は使わず矢印のみ/);
  const forgedArrowPick=structuredClone(fullArrow);
  forgedArrowPick.tkyArrowFormationPreview.races[0].first=[2,1];
