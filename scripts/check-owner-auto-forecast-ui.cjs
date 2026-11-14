@@ -4650,6 +4650,84 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(badDirection.get('autoTkyTrainingStatus').textContent,/照合が一致せず非表示/);
  assert.equal(badDirection.storage.has(STORAGE),false);
  assert.equal(badDirection.requests.length,1);
+ // Source-complete /tky expert arrows can add an UNSIGNED, distinctly
+ // marked research-only formation without claiming missing /tcy grades.
+ const fullArrow=structuredClone(tkyStudy);
+ fullArrow.tkyTrainingStudy.races[0]={
+  track:'東京',race:1,rosterCount:7,observedCount:7,
+  unassessedCount:0,arrowObservedCount:7,arrowUnobservedCount:0,
+  rankingScope:'tky_arrow_first_index_descriptive_only',
+  comparableDirectionPairs:0,disagreeDirectionPairs:0,
+  arrows:[
+   {number:1,condition:'デキ抜群'},
+   {number:2,condition:'デキ抜群'},
+   {number:3,condition:'上昇'},
+   {number:4,condition:'上昇'},
+   {number:5,condition:'平行線'},
+   {number:6,condition:'平行線'},
+   {number:7,condition:'やや下降'}
+  ],
+  runners:[1,2,3,4,5,6,7].map(n=>({number:n,observedRank:n}))
+ };
+ fullArrow.tkyArrowFormationPreview={
+  version:'owner-tky-arrow-formation-preview-1',date:day,raceCount:1,
+  reviewedPrestartStudies:1,safeReferenceCount:1,
+  races:[{
+   track:'東京',race:1,status:'unsigned_arrow_first_research',
+   first:[1,2],second:[1,2,3,4,5],third:[1,2,3,4,5,6,7],
+   points:40,rosterCount:7,arrowObservedCount:7,indexObservedCount:7,
+   rankingScope:'arrow_then_index_rank',partialIndexIgnored:false,
+   tiedSourceTiersNotSplit:true,researchOnly:true,
+   officialJraVerified:false,formalScoreReady:false,
+   predictionReady:false,bettingReady:false,
+   receiptIssued:false,actualPurchase:false
+  }],
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  formalTenFactorReady:false,predictionReady:false,bettingReady:false,
+  newProviderRequests:0,ticketsIssued:0,
+  changesExistingDrafts:false,changesExistingReceipts:false
+ };
+ const expertView=boot({initialServerRaw:fullArrow});
+ await new Promise(r=>setImmediate(r));
+ const expertCards=expertView.get('autoTkyArrowFormationRows').children;
+ assert.equal(expertCards.length,1);
+ assert.match(expertCards[0].children[0].textContent,/40点の署名なし参考/);
+ assert.match(expertCards[0].children[1].textContent,/1着 1番・2番/);
+ assert.match(expertCards[0].children[2].textContent,
+  /2着 1番・2番・3番・4番・5番/);
+ assert.match(expertCards[0].children[3].textContent,/3着 .*7番/);
+ assert.equal(expertView.storage.has(STORAGE),false);
+ assert.equal(expertView.requests.length,1,'no extra paid call for arrow research');
+ const partialIndex=structuredClone(fullArrow);
+ partialIndex.tkyTrainingStudy.races[0].runners.pop();
+ partialIndex.tkyTrainingStudy.races[0].observedCount=6;
+ partialIndex.tkyTrainingStudy.races[0].unassessedCount=1;
+ partialIndex.tkyArrowFormationPreview.races[0].indexObservedCount=6;
+ partialIndex.tkyArrowFormationPreview.races[0].rankingScope='arrow_only';
+ partialIndex.tkyArrowFormationPreview.races[0].partialIndexIgnored=true;
+ // Without the last numeric rank, tied-arrow 5/6 cannot be split.
+ partialIndex.tkyArrowFormationPreview.races[0].second=[1,2,3,4];
+ partialIndex.tkyArrowFormationPreview.races[0].third=[1,2,3,4,5,6,7];
+ partialIndex.tkyArrowFormationPreview.races[0].points=30;
+ // This 30-point group is not legal: the third=7 group is safe, but
+ // 2*(4-1)*(7-2)=30 is legal; the deterministic selector will prefer it.
+ const partialView=boot({initialServerRaw:partialIndex});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(partialView.get('autoTkyArrowFormationRows').children.length,1);
+ assert.match(partialView.get('autoTkyArrowFormationRows').children[0].children[4].textContent,
+  /指数に欠測があるため全頭で指数順位は使わず矢印のみ/);
+ const forgedArrowPick=structuredClone(fullArrow);
+ forgedArrowPick.tkyArrowFormationPreview.races[0].first=[2,1];
+ const rejectedArrowPick=boot({initialServerRaw:forgedArrowPick});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(rejectedArrowPick.get('autoTkyArrowFormationRows').children.length,0);
+ assert.match(rejectedArrowPick.get('autoTkyArrowFormationStatus').textContent,
+  /不整合があり非表示/);
+ const expiredArrow=boot({initialServerRaw:fullArrow,
+  initialClock:'2099-01-01T03:00:01Z'});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(expiredArrow.get('autoTkyArrowFormationRows').children.length,0);
+ assert.equal(expiredArrow.storage.has(STORAGE),false);
  const tkyTimer=boot({simulateTimers:true,initialServerRaw:heldReasonBreakdownFixture()});
  await new Promise(r=>setImmediate(r));
  // Without tky evidence, held races cannot arm a made-up order timer.
