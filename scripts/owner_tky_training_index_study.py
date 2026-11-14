@@ -150,6 +150,24 @@ def tky_training_index_study(programme, entries, report, day, *, now):
             {"number": number, "condition": ARROWS[arrow]}
             for number, arrow in arrow_observations
         ]
+        # Compare directions only where BOTH fields are observed for
+        # BOTH horses. Same-arrow and same-index pairs give no direction.
+        # Lower arrow code is better, but higher numeric index ranks first.
+        # A disagreement is a data-quality review cue, NOT a tiebreaker.
+        paired = []
+        for item in raw:
+            metric = _index(item.get("training_index"))
+            arrow = item.get("training_arrow")
+            if metric is not None and type(arrow) is str and arrow in ARROWS:
+                paired.append((metric, int(arrow)))
+        comparable_pairs, disagreement_pairs = 0, 0
+        for i, (index_a, arrow_a) in enumerate(paired):
+            for index_b, arrow_b in paired[i + 1:]:
+                if index_a == index_b or arrow_a == arrow_b:
+                    continue
+                comparable_pairs += 1
+                if (index_a - index_b) * (arrow_a - arrow_b) > 0:
+                    disagreement_pairs += 1
         study.append({
             "track": coord[0], "race": coord[1],
             "rosterCount": len(raw), "observedCount": len(ranked),
@@ -157,6 +175,8 @@ def tky_training_index_study(programme, entries, report, day, *, now):
             "arrowObservedCount": len(arrow_rows),
             "arrowUnobservedCount": len(raw) - len(arrow_rows),
             "rankingScope": "tky_arrow_first_index_descriptive_only",
+            "comparableDirectionPairs": comparable_pairs,
+            "disagreeDirectionPairs": disagreement_pairs,
             "runners": ranked, "arrows": arrow_rows,
         })
     return {
