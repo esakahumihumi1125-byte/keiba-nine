@@ -146,8 +146,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoHeldTie48Status" class="muted" role="status">レース取得前。同点馬を勝手に選びません。</p>
 <div id="autoHeldTie48Races"></div>
 </details>
-<details id="autoTkyTrainingPanel"><summary>調教資料不足でも読める別系統の調教指数（参考順）</summary>
-<p class="muted">JRDBの出走馬データ（/tky）には、追切・仕上指数（/tcy）とは別の「調教指数」があります。調教資料が欠けた見送りレースで、この別系統の指数を使って取得できた馬だけの参考順位を表示。指数がない馬は最下位扱いせず、同点は同順位です。正式調教30点・10項目100点や3連単、発走前固定記録、購入には一切反映しません。</p>
+<details id="autoTkyTrainingPanel"><summary>調教資料不足Rの調教矢印・別指数（参考のみ）</summary>
+<p class="muted">JRDB出走馬データ（/tky）の「調教矢印」は1〜5の状態評価。JRDB公式の説明に従い、矢印を指数より優先して表示します。別の「調教指数」は数値が高い順の参考で、矢印と結果が異なる場合は矢印を優先。どちらも追切・仕上指数（/tcy）とは別物です。欠測馬は最下位扱いしません。正式調教30点・10項目100点や3連単、発走前固定記録、購入には反映しません。</p>
 <p id="autoTkyTrainingStatus" class="muted" role="status">発走前の資料が未取得です。</p>
 <div id="autoTkyTrainingRows"></div>
 </details>
@@ -1947,9 +1947,10 @@ function renderTkyTrainingStudy(data,day){
   return;
  }
  try{
-  if(!study||study.version!=='owner-tky-training-index-study-1'||
+  if(!study||study.version!=='owner-tky-training-index-study-2'||
      study.date!==day||study.raceCount!==data.raceCount||
-     study.sourceMetric!=='tky_training_index'||
+     study.sourceMetric!=='tky_training_index_and_training_arrow'||
+     study.trainingArrowPriority!==true||
      study.trainingSourceDistinctFromTcy!==true||
      study.researchOnly!==true||study.privateOwnerOnly!==true||
      study.officialJraVerified!==false||study.modelCalibrated!==false||
@@ -1973,10 +1974,15 @@ function renderTkyTrainingStudy(data,day){
       item.rosterCount!==original.runners.length||
       item.rosterCount<4||item.rosterCount>18||
       !Number.isInteger(item.observedCount)||
-      item.observedCount<2||item.observedCount>item.rosterCount||
+      item.observedCount<0||item.observedCount>item.rosterCount||
       item.unassessedCount!==item.rosterCount-item.observedCount||
-      item.rankingScope!=='observed_tky_training_index_only'||
-      !Array.isArray(item.runners)||item.runners.length!==item.observedCount)
+      !Number.isInteger(item.arrowObservedCount)||
+      item.arrowObservedCount<0||item.arrowObservedCount>item.rosterCount||
+      item.arrowUnobservedCount!==item.rosterCount-item.arrowObservedCount||
+      item.observedCount<2&&item.arrowObservedCount<2||
+      item.rankingScope!=='tky_arrow_first_index_descriptive_only'||
+      !Array.isArray(item.runners)||item.runners.length!==item.observedCount||
+      !Array.isArray(item.arrows)||item.arrows.length!==item.arrowObservedCount)
     throw Error('tky_training_roster');
    used.add(key);
    const roster=new Set(original.runners.map(h=>h.number)),observed=new Set();
@@ -2000,23 +2006,51 @@ function renderTkyTrainingStudy(data,day){
     if(distinct[i]!==band.filter(n=>n<=prior).length+1)
      throw Error('tky_training_rank_gaps');
    }
+   const conditionLevel={
+    'デキ抜群':1,'上昇':2,'平行線':3,'やや下降':4,'デキ落ち':5
+   };
+   const arrowSeen=new Set();
+   let lastCondition=0,lastArrowNumber=0;
+   for(const itemArrow of item.arrows){
+    if(!itemArrow||
+       Object.keys(itemArrow).sort().join(',')!=='condition,number'||
+       !Number.isInteger(itemArrow.number)||
+       !roster.has(itemArrow.number)||arrowSeen.has(itemArrow.number)||
+       !Object.hasOwn(conditionLevel,itemArrow.condition))
+     throw Error('tky_training_arrow_roster');
+    const severity=conditionLevel[itemArrow.condition];
+    if(severity<lastCondition||
+       (severity===lastCondition&&itemArrow.number<=lastArrowNumber))
+     throw Error('tky_training_arrow_order');
+    lastCondition=severity;lastArrowNumber=itemArrow.number;
+    arrowSeen.add(itemArrow.number);
+   }
    if(draftExpiredOnDevice(day,original.postTime))continue;
    const card=dom('details');
    card.append(dom('summary',item.track+' '+item.race+
-    'R｜別の調教指数で比較 '+item.observedCount+'/'+item.rosterCount+'頭'));
-   card.append(dom('p',item.runners.map(h=>
-    h.observedRank+'位 '+h.number+'番').join('／'),'picks'));
-   card.append(dom('p','これは/tkyの別系統の調教指数だけで並べた参考順。'+
-    (item.unassessedCount?
-     '指数不明 '+item.unassessedCount+'頭は順位外で、弱い馬とは判定していません。':'')+
-    '追切指数/仕上指数とは別で、調教30点・総合順位・3連単の判断には使用しません。','muted'));
+    'R｜調教矢印 '+item.arrowObservedCount+'頭／指数 '+item.observedCount+
+    '頭（全'+item.rosterCount+'頭）'));
+   card.append(dom('p',item.arrows.length?
+    '調教矢印を優先：'+item.arrows.map(h=>
+     h.number+'番 '+h.condition).join('／'):
+    '調教矢印は未取得（数値だけで馬の状態を決めません）','picks'));
+   card.append(dom('p',item.runners.length?
+    '別の調教指数の数値順（状態評価ではない）：'+item.runners.map(h=>
+      h.observedRank+'位 '+h.number+'番').join('／'):
+    '別の調教指数の数値比較は資料不足','muted'));
+   card.append(dom('p',
+    'JRDBは調教矢印の評価を数値指数より優先するよう説明しています。'+
+    (item.arrowUnobservedCount?'矢印不明 '+item.arrowUnobservedCount+'頭。':'')+
+    (item.unassessedCount?'指数不明 '+item.unassessedCount+'頭。':'')+
+    '欠測はデキ落ちの意味ではありません。/tcyの追切・仕上指数とは別で、'+
+    '正式調教30点・総合順位・3連単には使用しません。','muted'));
    cards.push(card);
   }
   host.replaceChildren(...cards);
   status.textContent=cards.length?
-   '調教資料不足の見送りから、別指数の参考順が確認できた '+cards.length+
-   'R。発走前の観測馬だけ（正式採点・馬券は変更なし）。':
-   '別系統の調教指数で比較できる発走前の見送りレースは0R。';
+   '調教資料不足の見送りから、調教矢印と別指数の参考情報が確認できた '+
+   cards.length+'R。矢印を優先し、正式採点・馬券は変更なし。':
+   '調教矢印・別指数を比較できる発走前の見送りレースは0R。';
  }catch(_){
   host.replaceChildren();
   status.textContent='別系統の調教指数の照合が一致せず非表示。既存予想・記録は無変更。';

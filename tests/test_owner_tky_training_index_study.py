@@ -22,12 +22,14 @@ def fixture():
         "track":"東京","race":1,"post_time":"10:00","headcount":5
     }
     entries=[]
+    arrows=("4","2","2","1",None)
     for i,val in enumerate(("16.0","12.0","12.0",None,"-5.5"),1):
         entries.append({
             "racekey":race["racekey"],"racedate":DAY,
             "horse_number":f"{i:02d}",
             "horse_id":f"2328aaa95a{i:02d}",
             "training_index":val,
+            "training_arrow":arrows[i-1],
             "horse_name":"PAID-TEST-HORSE",
             "withdrawn_flag":"0"
         })
@@ -59,6 +61,15 @@ class TkyTrainingIndexStudyTests(unittest.TestCase):
         self.assertEqual(row["rosterCount"],5)
         self.assertEqual(row["observedCount"],4)
         self.assertEqual(row["unassessedCount"],1)
+        self.assertEqual(row["arrowObservedCount"],4)
+        self.assertEqual(row["arrowUnobservedCount"],1)
+        self.assertEqual(row["rankingScope"],"tky_arrow_first_index_descriptive_only")
+        self.assertEqual(row["arrows"],[
+            {"number":4,"condition":"デキ抜群"},
+            {"number":2,"condition":"上昇"},
+            {"number":3,"condition":"上昇"},
+            {"number":1,"condition":"やや下降"},
+        ])
         self.assertEqual(row["runners"],[
             {"number":1,"observedRank":1},
             {"number":2,"observedRank":2},
@@ -66,6 +77,9 @@ class TkyTrainingIndexStudyTests(unittest.TestCase):
             {"number":5,"observedRank":4},
         ])
         self.assertTrue(result["trainingSourceDistinctFromTcy"])
+        self.assertTrue(result["trainingArrowPriority"])
+        self.assertEqual(result["sourceMetric"],
+                         "tky_training_index_and_training_arrow")
         self.assertFalse(result["training30Ready"])
         self.assertFalse(result["predictionReady"])
         self.assertEqual(result["ticketsIssued"],0)
@@ -76,10 +90,52 @@ class TkyTrainingIndexStudyTests(unittest.TestCase):
 
     def test_no_assessment_when_less_than_two_observed(self):
         p,e,r=fixture()
-        for item in e[1:]:item["training_index"]=None
+        for item in e[1:]:
+            item["training_index"]=None
+            item["training_arrow"]=None
+        e[0]["training_arrow"]=None
         result=tky_training_index_study(p,e,r,DAY,now=NOW)
         self.assertEqual(result["races"],[])
         self.assertEqual(result["studiedRaceCount"],0)
+
+    def test_arrow_only_is_useful_even_if_numeric_index_is_missing(self):
+        p,e,r=fixture()
+        for entry in e:entry["training_index"]=None
+        result=tky_training_index_study(p,e,r,DAY,now=NOW)
+        self.assertEqual(result["studiedRaceCount"],1)
+        row=result["races"][0]
+        self.assertEqual(row["observedCount"],0)
+        self.assertEqual(row["unassessedCount"],5)
+        self.assertEqual(row["arrowObservedCount"],4)
+        self.assertEqual(row["runners"],[])
+        self.assertEqual(row["arrows"][0],{
+            "number":4,"condition":"デキ抜群"
+        })
+        self.assertEqual(row["arrows"][-1],{
+            "number":1,"condition":"やや下降"
+        })
+        self.assertFalse(result["predictionReady"])
+
+    def test_invalid_arrow_codes_never_become_expert_evidence(self):
+        p,e,r=fixture()
+        for i,item in enumerate(e):
+            item["training_arrow"]=("9","",None,4,False)[i]
+            item["training_index"]=None
+        result=tky_training_index_study(p,e,r,DAY,now=NOW)
+        self.assertEqual(result["races"],[])
+        self.assertEqual(result["studiedRaceCount"],0)
+
+    def test_number_only_and_arrow_are_not_combined_into_fake_score(self):
+        p,e,r=fixture()
+        # The largest numeric index is horse 1, but the best expert arrow
+        # is horse 4. Never promote numeric order to superior condition.
+        result=tky_training_index_study(p,e,r,DAY,now=NOW)
+        row=result["races"][0]
+        self.assertEqual(row["runners"][0]["number"],1)
+        self.assertEqual(row["arrows"][0]["number"],4)
+        self.assertNotIn("score",repr(result))
+        self.assertNotIn("tickets",repr(row))
+        self.assertFalse(result["training30Ready"])
 
     def test_race_closed_after_provisional_post(self):
         p,e,r=fixture()
