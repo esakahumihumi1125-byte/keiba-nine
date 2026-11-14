@@ -1147,6 +1147,37 @@ function researchRaceSpotlight(race){
  p.append(dom('span','※調教・近走の一部資料だけ。1着候補・正式順位ではありません。','study-neutral'));
  return p;
 }
+// Explain exact TWO-FACTOR ties without creating a third-place cut,
+// inventing an S-to-C total, signing tickets, or reading new paid data.
+// A race whose provisional off time elapsed is never reconstructed.
+function heldTieGroups(race,day){
+ if(race.status!=='hold'||race.reason!=='ambiguous_equal_grade_boundary'||
+    draftExpiredOnDevice(day,race.postTime))return null;
+ const weights={S:3,A:2,B:1,C:0},scores=new Map();
+ if(!Array.isArray(race.runners)||race.runners.length<4)return null;
+ for(const h of race.runners){
+  if(!Object.hasOwn(weights,h.training)||!Object.hasOwn(weights,h.recent))
+   return null;
+  const score=30*weights[h.training]+3*weights[h.recent];
+  if(h.weightedResearchPoints!==score)return null;
+  if(!scores.has(score))scores.set(score,[]);
+  scores.get(score).push(h.number);
+ }
+ const groups=[...scores].sort((a,b)=>b[0]-a[0])
+  .map(([,numbers])=>numbers.slice().sort((a,b)=>a-b));
+ if(!groups.some(numbers=>numbers.length>1))return null;
+ const panel=dom('details',undefined,'tie-group-study');
+ panel.append(dom('summary','同点の馬番グループを見る（買い目なし）'));
+ for(const [i,numbers] of groups.entries()){
+  panel.append(dom('p','仮比較第'+(i+1)+'群：'+
+   numbers.map(n=>n+'番').join('・')+
+   (numbers.length>1?'（同評価・群内順位なし）':''),'muted'));
+ }
+ panel.append(dom('p','調教30・近走3の未検証比較だけで同評価のため保留。'+
+  '次はコース距離17・展開17・馬場12などの独立した根拠を確認。'+
+  '勝ち馬順位・正式100点・3連単・購入を確定しません。','muted'));
+ return panel;
+}
 function formation(r){
  const block=dom('div',undefined,'formation');
  const combinations=dom('details',undefined,'ticket-breakdown');
@@ -1841,6 +1872,8 @@ function render(input,day){
        Object.hasOwn(REVIEW_STAGES,race.reviewStage)
       ?'（要確認：'+REVIEW_STAGES[race.reviewStage]+'）':'';
    detail.append(dom('p',REASONS[race.reason]+extra,'hold'));
+   const ties=heldTieGroups(race,day);
+   if(ties)detail.append(ties);
   }
   const tenRace=tenRows.get(race.track+'|'+race.race);
   if(tenRace.trainingLedRecheckNumbers.length){
