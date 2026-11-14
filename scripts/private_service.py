@@ -41,6 +41,7 @@ from jrdb_owner_auto_draft import (
 )
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_uncertain_recent_preview import preview_missing_recent_holds
+from owner_held_tie_48_preview import preview_held_ties_48
 from owner_workout_index_order import workout_index_order, unavailable as unavailable_workout_order
 from owner_workout_order_receipts import (issue_workout_locks, verify_workout_locks,
                                          WorkoutLockError)
@@ -2498,6 +2499,29 @@ def create_app(settings=None):
                         'newProviderRequests': 0, 'ticketsIssued': 0,
                         'note': '追加の研究用候補は確認できません。',
                     }
+                # Held complete-score ties may yield an UNSIGNED 12-48 point
+                # research shape without splitting exact score groups. Never
+                # amend existing drafts or backfill races after their off.
+                stage = 'held_tie_48_preview'
+                try:
+                    report['heldTie48Research'] = preview_held_ties_48(
+                        report, day, now=final_prestart_checked_at)
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    logging.warning('KEIBA_HELD_TIE_48=unavailable')
+                    report['heldTie48Research'] = {
+                        'version': 'owner-held-tie-48-preview-1',
+                        'date': day, 'raceCount': report['raceCount'],
+                        'reviewedPrestartTieHolds': 0,
+                        'unsignedReferenceCount': 0, 'races': [],
+                        'researchOnly': True, 'privateOwnerOnly': True,
+                        'officialJraVerified': False,
+                        'formalTenFactorReady': False,
+                        'predictionReady': False, 'bettingReady': False,
+                        'changesExistingDrafts': False,
+                        'changesExistingReceipts': False,
+                        'newProviderRequests': 0, 'ticketsIssued': 0,
+                        'note': '同点レースの追加参考は確認できません。',
+                    }
                 # Optional, read-only real workout-index order within the
                 # SAME provisional S/A/B/C grade. No invented centipoints,
                 # raw JRDB values, additional provider calls or new tickets.
@@ -2535,7 +2559,7 @@ def create_app(settings=None):
                     'programme=%s source_reads=%s drafts=%s holds=%s receipts=%s '
                     'material=%s course=%s hold_causes=%s factor_gaps=%s '
                     'factor_gap_causes=%s unsigned_sparse_previews=%s '
-                    'tie_boundary_rescues=%s expired_on_return=%s '
+                    'tie_boundary_rescues=%s unsigned_tie_48_previews=%s expired_on_return=%s '
                     'jra=unverified formal=ungraded',
                     'present' if report['raceCount'] else 'empty',
                     report['sourceReadCount'],
@@ -2553,6 +2577,7 @@ def create_app(settings=None):
                         and len(row['second']) == 6
                         and len(row['third']) == 6
                         and row['points'] == 40),
+                    report['heldTie48Research']['unsignedReferenceCount'],
                     expired_before_delivery,
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,

@@ -110,7 +110,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 <section id="forecastRacesSection">
 <h2>3. 競馬場・レースを選ぶ</h2>
-<p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p><p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p>
+<p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p><p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p><p id="autoHeldTie48Hint" class="muted" role="status">同点見送りの48点以内参考：未取得。</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
 <p id="autoTrackWorkouts" class="muted" role="status">調教S/Aの参考表示：JRDB資料の取得前です。</p>
 <details id="autoWorkoutQuickPanel"><summary>全場の調教S/A馬番を発走順に見る（見送りRも）</summary>
@@ -139,6 +139,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">近走3点の不足をC・0点扱いせず、欠けている評価がどんなS/A/B/Cでも、調教30点による候補グループが変わらない場合に限り、参考のフォーメーションを表示します。単独の調教最上位馬が明確な場合のみ1頭軸の研究例も扱いますが、勝ち馬の保証ではありません。正式10項目採点でもJRA公式出走確認でもなく、実際の購入・固定記録・仮想収支に入れません。</p>
 <p id="autoUncertainRecentStatus" class="muted" role="status">レース取得前。追加資料を勝手に補完しません。</p>
 <div id="autoUncertainRecentRaces"></div>
+</details>
+<details id="autoHeldTie48Panel"><summary>同点で見送りのRを48点以内で検証（署名・購入なし）</summary>
+<p class="muted">調教30・近走3の両方が評価済みでも、同じ得点の馬が候補の境界にまたがると従来40点の下書きは見送ります。馬番順で同点馬を切らず、最大48点の中に収まるレースだけ参考の1/2/3着グループを表示。正式100点予想、勝率・JRA公式照合、実購入や保存済み馬券の変更ではありません。</p>
+<p id="autoHeldTie48Status" class="muted" role="status">レース取得前。同点馬を勝手に選びません。</p>
+<div id="autoHeldTie48Races"></div>
 </details>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
@@ -1678,6 +1683,9 @@ function clearDraftShortcut(){
  shortcut.textContent='買い目あり：未取得';
  shortcut.onclick=null;
  $('autoUncertainRecentRaces').replaceChildren();
+ $('autoHeldTie48Races').replaceChildren();
+ $('autoHeldTie48Hint').textContent='同点見送りの48点以内参考：未取得。';
+ $('autoHeldTie48Status').textContent='レース取得前。同点馬を勝手に選びません。';
  $('autoWorkoutQuickRows').replaceChildren();
  $('autoWorkoutQuickStatus').textContent='未取得。追加照会なしで一覧を作ります。';
  $('autoUncertainRecentHint').textContent='近走不足の追加研究：未取得。';
@@ -1711,8 +1719,14 @@ function armAutomaticOffTimer(data,day){
  const now=new Date().getTime();
  if(!Number.isFinite(now))return;
  let next=Infinity;
+ const referenced=new Set([
+  ...(data.uncertainRecentResearch?.races||[]),
+  ...(data.heldTie48Research?.races||[])
+ ].map(r=>r.track+'|'+r.race));
  for(const race of data.races){
-  if(race.status!=='provisional_draft'||draftExpiredOnDevice(day,race.postTime))
+  if(!(race.status==='provisional_draft'||
+       (race.status==='hold'&&referenced.has(race.track+'|'+race.race)))||
+     draftExpiredOnDevice(day,race.postTime))
    continue;
   const off=Date.parse(iso+'T'+race.postTime+':00+09:00');
   if(Number.isFinite(off)&&off>now&&off<next)next=off;
@@ -1727,7 +1741,10 @@ function armAutomaticOffTimer(data,day){
      $('autoDay').value.replaceAll('-','')!==day)return;
   const expired=data.races.filter(r=>r.status==='provisional_draft'&&
    draftExpiredOnDevice(day,r.postTime)).length;
-  if(expired>latestExpiredDraftCount){
+  const expiredResearch=data.races.some(r=>
+   r.status==='hold'&&referenced.has(r.track+'|'+r.race)&&
+   draftExpiredOnDevice(day,r.postTime));
+  if(expired>latestExpiredDraftCount||expiredResearch){
    latestExpiredDraftCount=expired;
    render(data,day); // Purely read/display; never re-sign, buy or fetch.
    $('autoStatus').textContent='発走予定時刻を過ぎた研究用の新しい買い目を自動で非表示にしました。発走前の固定履歴はそのままです。JRA公式の実際の発走時刻は別途確認してください。';
@@ -1828,6 +1845,93 @@ function renderUncertainRecent(data,day){
   status.textContent='追加の参考候補を安全に確認できません。元の研究用予想と固定記録は無変更です。';
  }
 }
+function renderHeldTie48(data,day){
+ const host=$('autoHeldTie48Races'),
+  hint=$('autoHeldTie48Hint'),status=$('autoHeldTie48Status');
+ host.replaceChildren();
+ const p=data.heldTie48Research;
+ if(p===undefined){
+  hint.textContent='同点見送りの48点以内参考：未取得。';
+  status.textContent='この日の同点補助研究は未取得。通常の見送りを維持します。';
+  return;
+ }
+ try{
+  if(!p||p.version!=='owner-held-tie-48-preview-1'||
+     p.date!==day||p.raceCount!==data.raceCount||
+     p.researchOnly!==true||p.privateOwnerOnly!==true||
+     p.officialJraVerified!==false||p.formalTenFactorReady!==false||
+     p.predictionReady!==false||p.bettingReady!==false||
+     p.changesExistingDrafts!==false||
+     p.changesExistingReceipts!==false||
+     p.newProviderRequests!==0||p.ticketsIssued!==0||
+     !Number.isInteger(p.reviewedPrestartTieHolds)||
+     p.reviewedPrestartTieHolds<0||
+     p.reviewedPrestartTieHolds>data.holdCount||
+     !Array.isArray(p.races)||p.races.length>data.holdCount||
+     p.unsignedReferenceCount!==p.races.length)
+   throw Error('held_tie_contract');
+  const originals=new Map(data.races.map(r=>[r.track+'|'+r.race,r])),
+   seen=new Set(),cards=[],scale={S:3,A:2,B:1,C:0};
+  for(const row of p.races){
+   const id=row?.track+'|'+row?.race,base=originals.get(id);
+   if(!row||typeof row.track!=='string'||!Number.isInteger(row.race)||
+      seen.has(id)||!base||base.status!=='hold'||
+      base.reason!=='ambiguous_equal_grade_boundary'||
+      row.status!=='unsplit_complete_two_factor_hold'||
+      row.completeRunnerCount!==base.runners.length||
+      row.allTiedScoreBoundariesUnsplit!==true||
+      row.researchOnly!==true||row.officialJraVerified!==false||
+      row.formalScoreReady!==false||row.predictionReady!==false||
+      row.bettingReady!==false||row.receiptIssued!==false||
+      row.actualPurchase!==false||!Number.isInteger(row.points)||
+      row.points<12||row.points>48)
+    throw Error('held_tie_identity');
+   seen.add(id);
+   const ranked=base.runners.map(h=>{
+    if(!Object.hasOwn(scale,h.training)||
+       !Object.hasOwn(scale,h.recent)||
+       h.weightedResearchPoints!==30*scale[h.training]+3*scale[h.recent])
+     throw Error('held_tie_score_missing');
+    return {number:h.number,score:h.weightedResearchPoints};
+   }).sort((a,b)=>b.score-a.score||a.number-b.number);
+   const groups=[row.first,row.second,row.third];
+   if(groups.some((g,i)=>!Array.isArray(g)||
+       g.length<(i===0?1:i===1?2:3)||
+       g.length>(i===0?3:i===1?6:12)||
+       JSON.stringify(g)!==JSON.stringify(ranked.slice(0,g.length).map(x=>x.number))||
+       (g.length<ranked.length&&
+        ranked[g.length-1].score===ranked[g.length].score))||
+      groups[1].length<=groups[0].length||
+      groups[2].length<groups[1].length||
+      row.points!==groups[0].length*(groups[1].length-1)*
+       (groups[2].length-2))
+    throw Error('held_tie_formation');
+   if(draftExpiredOnDevice(day,base.postTime))continue;
+   const card=dom('details');
+   card.append(dom('summary',row.track+' '+row.race+
+    'R｜同点群を維持した研究用 '+row.points+'通り'));
+   card.append(dom('p','1着候補 '+row.first.join('・')+
+    '／2着候補 '+row.second.join('・')+
+    '／3着候補 '+row.third.join('・'),'picks'));
+   card.append(dom('p','調教・近走の暫定33点分だけの比較。従来40点の境界では見送りだったR。'+
+    '同点馬は丸ごと候補群に残し、最大48通りまでの署名なし研究例。'+
+    'JRA公式出走・取消・馬場・発走時刻は未確認。馬券購入・固定記録には反映しません。','muted'));
+   cards.push(card);
+  }
+  host.replaceChildren(...cards);
+  hint.textContent=cards.length?
+   '同点見送りからの48点以内参考 '+cards.length+'R（署名なし）。':
+   '同点見送りからの追加参考0R。無理に順位を付けません。';
+  status.textContent='同点で見送り '+p.reviewedPrestartTieHolds+
+   'Rを検討。参考 '+cards.length+'R'+
+   (cards.length<p.races.length?'（発走時刻経過分は非表示）':'')+
+   '。通常の見送り数・発走前固定記録は無変更。';
+ }catch(_){
+  host.replaceChildren();
+  hint.textContent='同点の追加研究は安全確認できず非表示。';
+  status.textContent='同点の参考候補を検証できません。保存済み予想・購入記録に変更はありません。';
+ }
+}
 // Read-only training S/A digest for the owner: never an overall horse
 // grade, winner pick, or permission to revive expired provisional tickets.
 function renderWorkoutQuick(data,day){
@@ -1878,6 +1982,7 @@ function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const workoutOrder=validateWorkoutIndexOrder(data,day);
  renderUncertainRecent(data,day);
+ renderHeldTie48(data,day);
  renderWorkoutQuick(data,day);
  const materialByRace=validatedRunnerSourceEvidence(data);
  $('autoEvidenceGapReport').textContent=evidenceGapSummary(data,materialByRace);
