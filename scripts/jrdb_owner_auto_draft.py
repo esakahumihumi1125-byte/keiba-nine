@@ -365,6 +365,56 @@ def _safe_formation_sizes(runners):
     return None
 
 
+def _safe_held_formation_48(runners):
+    """Rescue ONLY previously held, complete and prestart two-factor ties.
+
+    The existing <=40-point drafts always take precedence. This fallback
+    may include a clear single first-place leader, keep whole tied tiers
+    through the second/third cutoffs and use up to 48 combinations.
+    Never choose a runner by horse number across an equal weighted score.
+    The caller gates missing grades, scratches, time and signed receipts.
+    """
+    n = len(runners)
+    if not 4 <= n <= 18:
+        return None
+    scores = []
+    for horse in runners:
+        if not isinstance(horse, dict):
+            return None
+        score = horse.get("weightedResearchPoints")
+        if type(score) is not int or not 0 <= score <= PROVISIONAL_WEIGHTED_MAX:
+            return None
+        scores.append(score)
+    if any(left < right for left, right in zip(scores, scores[1:])):
+        return None
+    def whole(count):
+        return 1 <= count <= n and (
+            count == n or scores[count - 1] > scores[count]
+        )
+
+    # A strong sole leader is allowed ONLY when 2/3 firsts are tied.
+    # Do not change legacy two-first drafts or historical HMACs.
+    for first in (2, 3, 1):
+        if not whole(first):
+            continue
+        options = []
+        for second in range(first + 1, min(8, n) + 1):
+            if not whole(second):
+                continue
+            for third in range(max(3, second), min(12, n) + 1):
+                if not whole(third):
+                    continue
+                points = first * (second - 1) * (third - 2)
+                if 12 <= points <= 48:
+                    options.append((points, first, second, third))
+        if options:
+            points, first, second, third = max(options, key=lambda x: (
+                30 <= x[0] <= 40, x[0], x[3], -x[2]
+            ))
+            return first, second, third
+    return None
+
+
 def _draft_for_race(row, research, day, now):
     if (not isinstance(row, dict) or row.get("racedate") != day
             or row.get("track") not in TRACKS.values()
@@ -434,6 +484,11 @@ def _draft_for_race(row, research, day, now):
         return output
     sizes = _safe_formation_sizes(runners)
     if sizes is None:
+        # Future provisional races only: old 40-point choices remain exact.
+        # Unknown grades never reach this branch and old signed receipts
+        # are first-write locked by the separate private server/client.
+        sizes = _safe_held_formation_48(runners)
+    if sizes is None:
         output["reason"] = "ambiguous_equal_grade_boundary"
         return output
     a, b, c = sizes
@@ -442,7 +497,7 @@ def _draft_for_race(row, research, day, now):
     third = [x["number"] for x in runners[:c]]
     tickets = [[x, y, z] for x in first for y in second for z in third
                if x != y and x != z and y != z]
-    if not 1 <= len(tickets) <= 40 or len({tuple(x) for x in tickets}) != len(tickets):
+    if not 1 <= len(tickets) <= 48 or len({tuple(x) for x in tickets}) != len(tickets):
         raise CoverageError("Unexpected auto formation size")
     output.update({
         "status": "provisional_draft", "reason": "two_factor_only",
