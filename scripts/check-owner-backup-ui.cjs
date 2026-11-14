@@ -14,8 +14,9 @@ const keys=[
  'keiba-nine-owner-three-core-receipts-v1',
  'keiba-nine-owner-five-core-receipts-v1',
  'keiba-nine-owner-research6-draft-receipts-v1',
- 'keiba-nine-owner-staff-study-sessions-v1'
-],format='keiba-nine-owner-local-all-v9';
+ 'keiba-nine-owner-staff-study-sessions-v1',
+ 'keiba-nine-owner-workout-order-locks-v1'
+],format='keiba-nine-owner-local-all-v10';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -120,12 +121,27 @@ const staffStudy={signature:'f'.repeat(64),snapshot:{
   changesExistingRoi:false,additionalPaidReadsOnlyOnExplicitOptIn:true
  }
 }};
+const workoutOrder={signature:'7'.repeat(64),snapshot:{
+ version:'owner-workout-order-lock-1',date:'20990109',track:'東京',race:1,
+ sourceKind:'prestart-workout-index-order',
+ capturedAt:'2099-01-09T07:15:00+09:00',
+ scheduledOffAt:'2099-01-09T09:55:00+09:00',
+ raceRunnerCount:3,
+ horses:[
+  {number:1,trainingBand:'S',withinBandRank:1},
+  {number:2,trainingBand:'S',withinBandRank:2},
+  {number:3,trainingBand:'A',withinBandRank:1}
+ ],
+ researchOnly:true,officialJraVerified:false,modelCalibrated:false,
+ predictionReady:false,actualPurchase:false
+}};
 const fixture=()=>({
  [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],
  [keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],
  [keys[6]]:[signedReceipt],[keys[7]]:[reboundWatch],
  [keys[8]]:[coreStudy],[keys[9]]:[fiveStudy],
- [keys[10]]:[research6Draft],[keys[11]]:[staffStudy]
+ [keys[10]]:[research6Draft],[keys[11]]:[staffStudy],
+ [keys[12]]:[workoutOrder]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -174,7 +190,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[],[keys[11]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[],[keys[11]]:[],[keys[12]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -224,7 +240,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
  assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
- assert.match(e('backupPreview').textContent,/元の11種類の記録へ戻しました/);
+ assert.match(e('backupPreview').textContent,/元の13種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -296,7 +312,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(boot({...fixture(),[keys[11]]:[staffStudy,staffStudy]})
   .el('backupDownload').disabled,true,'duplicate signed day should be blocked');
  // v8 (11 sections) restores without deleting new staff evidence.
- const legacy11=fixture();delete legacy11[keys[11]];
+ const legacy11=fixture();for(const k of keys.slice(11))delete legacy11[k];
  const old11=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v8',
   exportedAt:'2099-01-08T23:00:00Z',sections:legacy11}));
  const currentStudy=boot(fixture()),originalStudy=currentStudy.storage.get(keys[11]);
@@ -307,6 +323,35 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  currentStudy.el('backupRestore').onclick();
  assert.equal(currentStudy.storage.get(keys[11]),originalStudy,
   'old 11-part backup must preserve new signed staff history');
+ // v9 (12-section) backup cannot erase the new signed prestart workout study.
+ const legacy12=fixture();delete legacy12[keys[12]];
+ const old12=fakeFile(JSON.stringify({
+  format:'keiba-nine-owner-local-all-v9',
+  exportedAt:'2099-01-08T23:00:00Z',sections:legacy12
+ }));
+ const currentWorkout=boot(fixture());
+ const priorWorkout=currentWorkout.storage.get(keys[12]);
+ currentWorkout.el('backupFile').files=[old12];
+ await currentWorkout.el('backupFile').onchange();await flush();
+ assert.equal(currentWorkout.el('backupRestore').disabled,false);
+ assert.match(currentWorkout.el('backupPreview').textContent,/旧12種類のバックアップ/);
+ currentWorkout.el('backupRestore').onclick();
+ assert.equal(currentWorkout.storage.get(keys[12]),priorWorkout,
+  'v9 restore cannot delete newer workout HMAC evidence');
+ for(const corruptedWorkout of [
+  {...workoutOrder,signature:'oops'},
+  {...workoutOrder,snapshot:{...workoutOrder.snapshot,
+    horses:[...workoutOrder.snapshot.horses.slice(0,2),
+     {...workoutOrder.snapshot.horses[2],withinBandRank:2}]}},
+  {...workoutOrder,snapshot:{...workoutOrder.snapshot,
+    modelCalibrated:true}}
+ ]){
+  assert.equal(boot({...fixture(),[keys[12]]:[corruptedWorkout]})
+   .el('backupDownload').disabled,true,'bad workout study blocks unsafe backup export');
+ }
+ assert.equal(boot({...fixture(),[keys[12]]:[workoutOrder,workoutOrder]})
+  .el('backupDownload').disabled,true,'duplicated workout study blocked');
+ assert.match(boot(fixture()).el('backupSummary').textContent,/調教順位固定1R/);
  // Old nine-section v6 backup must not remove newly fixed 85-point records.
  const oldNine=fixture();for(const key of keys.slice(9))delete oldNine[key];
  const legacyNine=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v6',
