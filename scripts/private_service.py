@@ -120,6 +120,9 @@ from jra_prestart_card_candidate import (
     probe_prestart_card, validate_racecard_url, JraPrestartCardError
 )
 from jra_card_link_resolver import resolve_racecard_link, JraLinkResolutionError
+from jra_official_result_probe import (
+    probe_official_result_page, JraPublicProbeError, _safe_identity as validate_jra_result_identity
+)
 from owner_ticket_handoff import JS as TICKET_HANDOFF_JS
 from manual_purchase_book import HTML as PURCHASE_HTML, JS as PURCHASE_JS, CSS as PURCHASE_CSS
 from owner_backup import HTML as BACKUP_HTML, JS as BACKUP_JS, CSS as BACKUP_CSS
@@ -1911,6 +1914,39 @@ def create_app(settings=None):
                 return response('502 Bad Gateway', {
                     'error': 'JRA出馬表の候補情報を安全に読み取れませんでした。公式ページを直接確認してください。'})
             return response('200 OK', result)
+        if method == 'GET' and path == '/api/jra/result-candidate':
+            # Authenticated owner-only, explicit one-page official-website
+            # observation. No JRDB usage, HMAC attestation, settlement or
+            # mutation of prestart tickets. This is NOT an official result.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人専用サービスでのみ利用できます。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''),
+                             keep_blank_values=True)
+            if (set(query) != {'date', 'track', 'race', 'url'}
+                    or any(len(values) != 1 for values in query.values())):
+                return response('400 Bad Request', {
+                    'error': '開催日・競馬場・レース・JRA公式結果URLを1件ずつ指定してください。'})
+            date, track, number, url = (
+                query['date'][0], query['track'][0],
+                query['race'][0], query['url'][0]
+            )
+            try:
+                if not re.fullmatch(r'(?:[1-9]|1[0-2])', number):
+                    raise JraPublicProbeError('Invalid race number')
+                race = int(number)
+                validate_jra_result_identity(date, track, race, url)
+            except (JraPublicProbeError, TypeError, ValueError):
+                return response('400 Bad Request', {
+                    'error': 'JRA公式結果のURL・開催日・競馬場・レース番号が一致しません。'})
+            try:
+                candidate = probe_official_result_page(url, date, track, race)
+            except JraPublicProbeError:
+                return response('502 Bad Gateway', {
+                    'error': '公式ページの結果候補を検証できませんでした。公式サイトで直接確認してください。'})
+            return response('200 OK', candidate)
         if method == 'GET' and path == '/api/jrdb/connection-test':
             # Owner-initiated single /tra request. No paid ROWS or dates are
             # returned to logs, stored, shared with Pages or used to predict.
