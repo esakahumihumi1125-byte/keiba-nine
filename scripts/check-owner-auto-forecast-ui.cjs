@@ -1478,6 +1478,41 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     sourceIncompleteCouldChange:true,researchOnly:true,privateOwnerOnly:true
    })};
   }
+  if(url==='/api/owner-workout-order-provider-check'){
+   const req=JSON.parse(options.body||'{}'),bands=['S','A','B','C'];
+   const total=Object.fromEntries(bands.map(b=>[b,{
+    concordant:0,discordant:0,equalIndexExcluded:0
+   }]));
+   const races=req.receipts.map(entry=>{
+    const p=entry.snapshot;
+    const counts=Object.fromEntries(bands.map(b=>[b,{
+     concordant:0,discordant:0,equalIndexExcluded:0
+    }]));
+    for(const b of bands){
+     const peers=p.horses.filter(h=>h.trainingBand===b);
+     for(let i=0;i<peers.length;i++)for(let j=i+1;j<peers.length;j++){
+      const key=peers[i].withinBandRank===peers[j].withinBandRank?
+       'equalIndexExcluded':'concordant';
+      counts[b][key]++;total[b][key]++;
+     }
+    }
+    return {track:p.track,race:p.race,
+     providerStatus:'complete_provisional_order',
+     comparedRunnerCount:p.raceRunnerCount,pairCounts:counts,
+     officialJraVerified:false,predictionVerified:false};
+   });
+   return {ok:true,json:async()=>({
+    version:'owner-workout-order-provider-pairs-1',date:req.date,
+    sourceKind:'jrdb-tse-provisional-workout-order-pair-review',
+    sourceReadCount:1,raceCount:races.length,races,
+    studiedRaceCount:races.length,observedPairsByTrainingBand:total,
+    officialJraVerified:false,accuracyVerified:false,
+    calibrationReady:false,scoreReady:false,newScoringRubric:false,
+    bettingReady:false,predictionReady:false,
+    actualPurchase:false,roiPercent:null,payoutVerified:false,
+    researchOnly:true,privateOwnerOnly:true
+   })};
+  }
   if(url==='/api/owner-five-core-provider-check'){
    const args=JSON.parse(options.body);
    const snap=args.receipts[0].snapshot,first=snap.horses[0];
