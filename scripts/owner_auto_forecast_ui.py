@@ -151,6 +151,14 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section id="fixedHistorySection">
 <h2>4. 発走前に固定した買い目</h2>
 <p class="muted">最初に保存した買い目は再分析で上書きしません。</p>
+<details><summary>調教S/A/B/C内の指数順位を発走前に固定して結果と比較（研究用）</summary>
+<p class="muted">通常のJRDB資料取得時、まだ発走していないレースの「同じ調教評価内での指数順」を、本人用サーバーが署名してこの端末に初回固定します。指数の原数値・架空の30点得点・3連単は保存しません。Safariとホーム画面の保存領域は異なる場合があります。</p>
+<p id="autoWorkoutLockStatus" class="muted" role="status">選択日の発走前調教順位記録は未確認です。</p>
+<button id="autoWorkoutProviderCheck" type="button" disabled>固定した調教順位をJRDB暫定着順と比較（任意・結果取得1回）</button>
+<p id="autoWorkoutProviderStatus" class="muted" role="status">固定記録がある開催日だけ確認できます。結果照会はボタンを押した時だけです。</p>
+<div id="autoWorkoutProviderSummary"></div>
+<p class="muted">指数順と実際の着順が一致・不一致だったペア数だけを集計。資料不足、取消、着順不一致は保留です。正式30点、勝率、JRA公式結果、回収率、馬券変更には利用しません。端末保存を削除すると研究記録は失われます。</p>
+</details>
 <button id="autoReceiptVerify" type="button">この日の固定買い目をサーバーで署名確認</button>
 <p id="autoReceiptVerifyStatus" class="muted" role="status">未確認。端末内の署名付き研究記録だけを本人用サーバーで検証します。原データの追加取得や買い目の変更はありません。</p>
 <p class="muted">署名が正しくてもJRA公式の発走時刻・結果・実購入・サーバー保存を証明するものではありません。サーバー保存が未設定なら、別途バックアップが必要です。</p>
@@ -415,6 +423,8 @@ function missingFactorHoldBreakdown(data){
  return {summary,races};
 }
 const RECEIPTS_KEY='keiba-nine-owner-server-receipts-v1';
+const WORKOUT_LOCK_STORAGE='keiba-nine-owner-workout-order-locks-v1';
+let workoutProviderSeq=0;
 // Safe, fixed server diagnostics. Do not display raw provider error text.
 const FAILURE_STAGE={
  programme:'番組取得・形式確認',entries:'出走馬取得',training:'調教取得',
