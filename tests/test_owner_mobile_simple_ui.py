@@ -43,6 +43,55 @@ class SimpleForecastScreenTest(unittest.TestCase):
         self.assertIn("JRDBのAPI照会", HTML)
         self.assertIn("正式10項目", HTML)
 
+    def test_primary_mobile_navigation_and_racecards_before_research(self):
+        # Three anchor links stay on this page: they MUST NOT trigger a
+        # JRDB/API call, edit an existing receipt or open purchase pages.
+        for label, anchor in [
+            ("予想を取得", "autoDailyStart"),
+            ("レース一覧", "forecastRacesSection"),
+            ("結果・記録", "fixedHistorySection"),
+        ]:
+            self.assertIn('href="#' + anchor + '">' + label + '</a>', HTML)
+            self.assertEqual(HTML.count('id="' + anchor + '"'), 1)
+        self.assertEqual(HTML.count('class="arc-main-tabs"'), 1)
+        self.assertIn('class="owner-weekend-actions"', HTML)
+        self.assertIn('id="autoEasyPulse"', HTML)
+        self.assertIn('id="autoRaceQuickSummary"', HTML)
+        self.assertIn('id="autoDayDiagnostics"', HTML)
+        self.assertIn('id="autoResearchTools"', HTML)
+        self.assertIn('<summary>詳しい分析・調教資料を見る（任意）</summary>', HTML)
+        self.assertLess(HTML.index('id="autoVenues"'),
+                        HTML.index('id="autoResearchTools"'))
+        self.assertLess(HTML.index('id="autoRaces"'),
+                        HTML.index('id="autoResearchTools"'))
+        self.assertLess(HTML.index('id="autoRaces"'),
+                        HTML.index('id="autoTkyTrainingPanel"'))
+        self.assertLess(HTML.index('id="autoRaces"'),
+                        HTML.index('id="autoUncertainRecentPanel"'))
+        self.assertLess(HTML.index('id="autoRaces"'),
+                        HTML.index('id="autoHoldPanel"'))
+        self.assertIn("safeDraftCount+'R｜見送り '+data.holdCount+'R'", JS)
+        self.assertIn("highlightSelectedWeekend()", JS)
+        # No new provider endpoint, polling, purchase control or access
+        # to paid API keys is introduced by simplified navigation.
+        self.assertNotIn('onclick=', HTML.split(
+            '<nav class="arc-main-tabs"', 1)[1].split('</nav>', 1)[0])
+
+    def test_default_closed_diagnostics_preserve_existing_ids(self):
+        for id_ in (
+            "autoResearchTools", "autoDayDiagnostics", "autoHoldPanel",
+            "autoTkyTrainingPanel", "autoTkyArrowFormationPanel",
+            "autoUncertainRecentPanel", "autoEvidenceGapPanel",
+            "autoReceiptVerify", "autoHistory", "autoTenStatus",
+        ):
+            self.assertEqual(HTML.count('id="' + id_ + '"'), 1)
+        self.assertNotIn('id="autoResearchTools" open', HTML)
+        self.assertNotIn('id="autoDayDiagnostics" open', HTML)
+        self.assertLess(HTML.index('id="autoEasyPulse"'),
+                        HTML.index('id="autoMorningStatus"'))
+        self.assertLess(HTML.index('id="autoEasyPulse"'),
+                        HTML.index('id="autoVenues"'))
+
     def test_official_jra_link_is_visible_without_opening_advanced_panels(self):
         link = ('<a id="autoOfficialQuickLink" '
                 'href="https://www.jra.go.jp/keiba/" '
