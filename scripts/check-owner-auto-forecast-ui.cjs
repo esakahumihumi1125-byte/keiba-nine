@@ -4198,6 +4198,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(full.get('autoMorningStatus').textContent,/番組 36R／発走前の研究用3連単下書き 1R／見送り 35R/);
  assert.match(full.get('autoOperationalNext').textContent,/全36R中、研究用3連単 1R／見送り 35R/);
  assert.match(full.get('autoMorningStatus').textContent,/サーバー永続保存は未設定/);
+ assert.match(full.get('autoHoldBreakdown').textContent,
+  /見送り 35Rの内訳.*暫定発走時刻経過 35R/);
+
  assert.match(full.get('autoProgrammeCoverage').textContent,/JRDB番組：36R／3場/);
  for(const venue of ['東京','京都','福島'])
   assert.match(full.get('autoProgrammeCoverage').textContent,
@@ -4395,6 +4398,11 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await mixed.get('autoRun').onclick();
  const reasonButtons=mixed.get('autoHoldReasons').children;
  assert.equal(reasonButtons.length,3);
+ assert.match(mixed.get('autoHoldBreakdown').textContent,
+  /見送り 35Rの内訳.*調教・近走不足 1R.*候補同点 1R.*暫定発走時刻経過 33R/);
+ assert.match(mixed.get('autoHoldBreakdown').textContent,
+  /発走時刻経過は資料不足ではありません/);
+
  assert.equal(reasonButtons[0].dataset.reason,'after_provisional_off');
  assert.match(mixed.get('autoOperationalNext').textContent,/主な見送り：発走済み 33R／候補同点 1R/);
  assert.equal(mixed.get('autoNextDraft').disabled,false,
