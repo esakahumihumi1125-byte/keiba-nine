@@ -41,6 +41,7 @@ from jrdb_owner_auto_draft import (
 )
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_uncertain_recent_preview import preview_missing_recent_holds
+from owner_workout_index_order import workout_index_order, unavailable as unavailable_workout_order
 from owner_ten_factor_contract import ten_factor_contract
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
@@ -2491,6 +2492,19 @@ def create_app(settings=None):
                         'newProviderRequests': 0, 'ticketsIssued': 0,
                         'note': '追加の研究用候補は確認できません。',
                     }
+                # Optional, read-only real workout-index order within the
+                # SAME provisional S/A/B/C grade. No invented centipoints,
+                # raw JRDB values, additional provider calls or new tickets.
+                # Use the FINAL server clock, not the earlier draft clock.
+                stage = 'workout_index_order'
+                try:
+                    report['workoutIndexOrder'] = workout_index_order(
+                        programme, entries, training, report, day,
+                        now=final_prestart_checked_at)
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    report['workoutIndexOrder'] = unavailable_workout_order(
+                        day, report['raceCount'])
+                    logging.warning('KEIBA_WORKOUT_ORDER=unavailable')
                 # Operator-only one-line evidence of finishing a private
                 # request: one /tra read for empty days or four core reads
                 # plus optional /tka for a populated programme.
