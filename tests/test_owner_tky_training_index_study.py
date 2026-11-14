@@ -64,6 +64,8 @@ class TkyTrainingIndexStudyTests(unittest.TestCase):
         self.assertEqual(row["arrowObservedCount"],4)
         self.assertEqual(row["arrowUnobservedCount"],1)
         self.assertEqual(row["rankingScope"],"tky_arrow_first_index_descriptive_only")
+        self.assertEqual(row["comparableDirectionPairs"],2)
+        self.assertEqual(row["disagreeDirectionPairs"],2)
         self.assertEqual(row["arrows"],[
             {"number":4,"condition":"デキ抜群"},
             {"number":2,"condition":"上昇"},
@@ -136,6 +138,36 @@ class TkyTrainingIndexStudyTests(unittest.TestCase):
         self.assertNotIn("score",repr(result))
         self.assertNotIn("tickets",repr(row))
         self.assertFalse(result["training30Ready"])
+
+    def test_arrow_index_disagreements_are_observation_only(self):
+        p,e,r=fixture()
+        # Horse 1 has a worse arrow than horses 2 and 3 but a higher
+        # numeric index: two genuine opposite-direction comparisons.
+        contradictory=tky_training_index_study(p,e,r,DAY,now=NOW)["races"][0]
+        self.assertEqual(contradictory["comparableDirectionPairs"],2)
+        self.assertEqual(contradictory["disagreeDirectionPairs"],2)
+        self.assertNotIn("score",repr(contradictory))
+        self.assertNotIn("training_index",repr(contradictory))
+
+        # Reverse numeric ordering to agree with the expert arrows.
+        e[0]["training_index"]="4.0"
+        agreed=tky_training_index_study(p,e,r,DAY,now=NOW)["races"][0]
+        self.assertEqual(agreed["comparableDirectionPairs"],2)
+        self.assertEqual(agreed["disagreeDirectionPairs"],0)
+
+        # Equal-arrow pairs do not have a directional verdict.
+        e[0]["training_arrow"]="2"
+        tied=tky_training_index_study(p,e,r,DAY,now=NOW)["races"][0]
+        self.assertEqual(tied["comparableDirectionPairs"],0)
+        self.assertEqual(tied["disagreeDirectionPairs"],0)
+
+        # Missing all indexes still allows arrow-only observations,
+        # but must not invent a comparison count.
+        for entry in e:
+            entry["training_index"]=None
+        only_arrows=tky_training_index_study(p,e,r,DAY,now=NOW)["races"][0]
+        self.assertEqual(only_arrows["comparableDirectionPairs"],0)
+        self.assertEqual(only_arrows["disagreeDirectionPairs"],0)
 
     def test_race_closed_after_provisional_post(self):
         p,e,r=fixture()
