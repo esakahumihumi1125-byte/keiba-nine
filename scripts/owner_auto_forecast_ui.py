@@ -112,6 +112,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>3. 競馬場・レースを選ぶ</h2>
 <p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p><p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p><p id="autoHeldTie48Hint" class="muted" role="status">同点見送りの48点以内参考：未取得。</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
+<p id="autoTrainingFeedStatus" class="muted" role="status">調教元データの行数・馬番照合状況はまだ未確認です。</p>
 <p id="autoTrackWorkouts" class="muted" role="status">調教S/Aの参考表示：JRDB資料の取得前です。</p>
 <details id="autoWorkoutQuickPanel"><summary>全場の調教S/A馬番を発走順に見る（見送りRも）</summary>
 <p class="muted">JRDB調教の未検証S/Aだけを馬番で一覧表示します。近走・展開・馬場・JRA最終出走確認を含めた総合順位や1着候補ではありません。行を押すと該当レースを表示するだけで、追加の有料通信や馬券購入は行いません。</p>
@@ -1526,6 +1527,89 @@ function showSnapshotFreshness(){
   (old?'新しい取消・馬場・発走時刻を反映した保証はありません。':'これは提供元の最終更新時刻ではありません。')+
   'JRA公式の独立照合は未実施。再取得は「全場・全Rを再分析する」を明示的に押した場合だけ。';
 }
+function renderTrainingSourceDelivery(data,day){
+ const target=$('autoTrainingFeedStatus'),p=data.trainingSourceDelivery;
+ if(p===undefined){
+  target.textContent='調教データの元レコード件数はこの応答では未取得。'+
+   '「見送り」の中に資料未到着・照合未完了が混在する可能性があります。';
+  return;
+ }
+ const fields=['entryRowsReturned','entriesMatchedDayProgramme',
+  'trainingRowsReturned','trainingRowsKnownRace','trainingRowsCurrentRaceDate',
+  'trainingRacesWithRows','trainingLinkedRunners',
+  'trainingRunnersWithBothIndices','trainingRacesWithBothIndices',
+  'trainingIdentityConflicts','trainingDuplicateRunnerRows',
+  'recentRowsReturned','recentRowsCurrentRaceDate'];
+ const states=new Set(['programme_not_returned','training_not_queried',
+  'training_empty_response','training_no_current_race',
+  'training_current_race_date_mismatch','training_no_runner_match',
+  'training_indices_missing','training_identity_conflict',
+  'training_partial_index_coverage','training_index_rows_present']);
+ try{
+  if(!p||p.version!=='owner-training-source-delivery-1'||
+     p.date!==day||p.raceCount!==data.raceCount||
+     p.sourceReadCount!==data.sourceReadCount||
+     p.researchOnly!==true||p.privateOwnerOnly!==true||
+     p.officialJraVerified!==false||p.scoreReady!==false||
+     p.predictionReady!==false||p.bettingReady!==false||
+     p.newProviderRequests!==0||p.retainedLicensedRows!==false||
+     p.changesExistingDrafts!==false||p.changesExistingReceipts!==false||
+     !states.has(p.status)||Object.keys(p).some(x=>x==='horses'||x==='racekey')||
+     fields.some(key=>!Number.isInteger(p[key])||p[key]<0||p[key]>50000)||
+     p.entriesMatchedDayProgramme>p.entryRowsReturned||
+     p.trainingRowsKnownRace>p.trainingRowsReturned||
+     p.trainingRowsCurrentRaceDate>p.trainingRowsKnownRace||
+     p.trainingLinkedRunners>p.entriesMatchedDayProgramme||
+     p.trainingRunnersWithBothIndices>p.trainingLinkedRunners||
+     p.trainingRacesWithRows>p.raceCount||
+     p.trainingRacesWithBothIndices>p.trainingRacesWithRows||
+     p.recentRowsCurrentRaceDate>p.recentRowsReturned||
+     p.trainingDuplicateRunnerRows>p.trainingRowsCurrentRaceDate||
+     p.trainingIdentityConflicts>p.trainingRowsCurrentRaceDate||
+     (p.status==='training_empty_response'&&p.trainingRowsReturned!==0)||
+     (p.status==='training_no_current_race'&&
+      !(p.trainingRowsReturned>0&&p.trainingRowsKnownRace===0))||
+     (p.status==='training_current_race_date_mismatch'&&
+      !(p.trainingRowsKnownRace>0&&p.trainingRowsCurrentRaceDate===0))||
+     (p.status==='training_no_runner_match'&&
+      !(p.trainingRowsCurrentRaceDate>0&&p.trainingLinkedRunners===0))||
+     (p.status==='training_indices_missing'&&
+      !(p.trainingLinkedRunners>0&&p.trainingRunnersWithBothIndices===0))||
+     (p.status==='training_identity_conflict'&&
+      p.trainingIdentityConflicts+p.trainingDuplicateRunnerRows===0)||
+     (p.status==='training_partial_index_coverage'&&
+      !(p.trainingRunnersWithBothIndices>0&&
+       p.trainingRunnersWithBothIndices<p.entriesMatchedDayProgramme))||
+     (p.status==='training_index_rows_present'&&
+      !(p.trainingRunnersWithBothIndices>0&&
+       p.trainingRunnersWithBothIndices===p.entriesMatchedDayProgramme))||
+     (p.status==='programme_not_returned'&&data.raceCount!==0))
+   throw Error('unverified_workout_delivery');
+  const notes={
+   programme_not_returned:'番組が0R。調教は照会していません。',
+   training_not_queried:'調教ソースは未照会。',
+   training_empty_response:'調教の応答が0行。未配信・取得時点・APIの事情など、原因は未特定。',
+   training_no_current_race:'調教の応答はあるが選択日のレースキーと一致する行は0件。照合条件を要確認。',
+   training_current_race_date_mismatch:'レースキーに該当する調教行はあるが開催日が一致せず、資料は未評価。',
+   training_no_runner_match:'該当日の調教行はあるが出走馬と結び付く頭数が0。馬番・IDの照合を要確認。',
+   training_indices_missing:'調教行は馬と照合できたが追切・仕上の両指数が揃った馬は0頭。',
+   training_identity_conflict:'調教の馬番・IDに不整合または重複あり。安全のため再確認が必要。',
+   training_partial_index_coverage:'調教指数が揃う馬と未評価の馬が混在。',
+   training_index_rows_present:'確認できた出走馬は両方の調教指数が存在（正式採点ではない）。'
+  };
+  target.textContent='【調教元データの受信・照合】'+notes[p.status]+
+   '｜出走馬 '+p.entriesMatchedDayProgramme+'頭／調教応答 '+p.trainingRowsReturned+
+   '行／当日レースとの一致 '+p.trainingRowsCurrentRaceDate+
+   '行／馬と照合 '+p.trainingLinkedRunners+
+   '頭／両指数あり '+p.trainingRunnersWithBothIndices+
+   '頭。近走応答 '+p.recentRowsReturned+'行。'+
+   '元データが0行でも配信されていないとは断定できず、見送りは馬の弱さを意味しません。'+
+   '再取得は上の「全場・全Rを再分析する」を自分で押したときだけ。';
+ }catch(_){
+  target.textContent='調教元データの診断を安全に検証できません。'+
+   '予想・署名・買い目は変えず、再取得前に資料状況を確認してください。';
+ }
+}
 function sourceReadProof(data){
  // This reports *provider reads*, not actual verified runner records,
  // official JRA information, calibrated grades or purchase readiness.
@@ -1686,6 +1770,7 @@ function clearDraftShortcut(){
  $('autoHeldTie48Races').replaceChildren();
  $('autoHeldTie48Hint').textContent='同点見送りの48点以内参考：未取得。';
  $('autoHeldTie48Status').textContent='レース取得前。同点馬を勝手に選びません。';
+ $('autoTrainingFeedStatus').textContent='調教元データの行数・馬番照合状況はまだ未確認です。';
  $('autoWorkoutQuickRows').replaceChildren();
  $('autoWorkoutQuickStatus').textContent='未取得。追加照会なしで一覧を作ります。';
  $('autoUncertainRecentHint').textContent='近走不足の追加研究：未取得。';
@@ -1996,6 +2081,7 @@ function render(input,day){
  // Old first-write disagreements must not count as actionable picks.
  $('autoProgrammeCoverage').textContent=programmeCoverage(data);
  $('autoReadProof').textContent=sourceReadProof(data);
+ renderTrainingSourceDelivery(data,day);
  const tenRows=new Map(p.races.map(r=>[r.track+'|'+r.race,r]));
  const courseRows=new Map(ctx.races.map(r=>[r.track+'|'+r.race,r]));
  const passport=data.sourcePassport?.sourceAuditAvailable?
