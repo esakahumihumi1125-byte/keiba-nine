@@ -70,19 +70,34 @@ def _formation(race):
         return None
     ranked.sort(key=lambda h: (-h["floor"], -h["ceiling"], h["number"]))
     count = len(ranked)
-    options = []
-    for first in (1, 2, 3):
-        if not _cutoff_proven(ranked, first):
-            continue
-        for second in range(first + 1, min(count, 5) + 1):
-            if not _cutoff_proven(ranked, second):
+    def options_with_limits(second_limit, third_limit):
+        """Every boundary must survive *all* possibilities for missing recent.
+
+        Neither a tied workout tier nor an unknown recent mark may be split
+        by choosing the numerically smaller horse. A partial grade is never
+        set to C/zero to make a shape fit.
+        """
+        result = []
+        for first in (1, 2, 3):
+            if not _cutoff_proven(ranked, first):
                 continue
-            for third in range(second, min(count, 10) + 1):
-                if not _cutoff_proven(ranked, third):
+            for second in range(first + 1, min(count, second_limit) + 1):
+                if not _cutoff_proven(ranked, second):
                     continue
-                n = first * (second - 1) * (third - 2)
-                if 12 <= n <= 48:
-                    options.append((first, second, third, n))
+                for third in range(second, min(count, third_limit) + 1):
+                    if not _cutoff_proven(ranked, third):
+                        continue
+                    n = first * (second - 1) * (third - 2)
+                    if 12 <= n <= 48:
+                        result.append((first, second, third, n))
+        return result
+
+    # Preserve every existing unsigned reference from the <=5/<=10
+    # selector. Only formerly unpresentable holds try wider 2nd/3rd
+    # tiers (<=8/<=12), still under 48 unique combinations.
+    options = options_with_limits(5, 10)
+    if not options:
+        options = options_with_limits(8, 12)
     if not options:
         return None
     # A ONE-horse first tier is permitted only when its minimum score

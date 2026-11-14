@@ -117,6 +117,64 @@ class UncertainRecentResearchTests(unittest.TestCase):
         self.assertEqual(output["ticketsIssued"], 0)
         self.assertEqual(report, old)
 
+    def test_wider_second_tier_keeps_all_missing_recent_a_horses(self):
+        # 2 S + 4 A + 4 B, with all recent fields absent.
+        # Old second<=5 cannot keep all four A's. 2x6x6=40 is
+        # provably stable without inventing a 近走 grade or rank.
+        pairs = ([("S", "未評価")] * 2
+                 + [("A", "未評価")] * 4
+                 + [("B", "未評価")] * 4)
+        frozen = build(pairs)
+        original = copy.deepcopy(frozen)
+        preview = preview_missing_recent_holds(frozen, DAY, now=PRESTART)
+        self.assertEqual(frozen, original)
+        self.assertEqual(preview["safeResearchPreviewCount"], 1)
+        row = preview["races"][0]
+        self.assertEqual(row["first"], [1, 2])
+        self.assertEqual(row["second"], [1, 2, 3, 4, 5, 6])
+        self.assertEqual(row["third"], [1, 2, 3, 4, 5, 6])
+        self.assertEqual(row["points"], 40)
+        self.assertEqual(row["missingRecentCount"], 10)
+        self.assertFalse(row["receiptIssued"])
+        self.assertFalse(row["officialJraVerified"])
+        self.assertEqual(preview["ticketsIssued"], 0)
+        self.assertEqual(preview["newProviderRequests"], 0)
+
+    def test_wider_single_leader_stable_forty_two_while_a_tier_unsplit(self):
+        # 1 S + 7 A + 2 B; second<=5 cannot be selected from
+        # an entire seven-horse A group. One S is strictly ahead
+        # irrespective of missing recent, and 1x8x8=42.
+        pairs = ([("S", "未評価")]
+                 + [("A", "未評価")] * 7
+                 + [("B", "未評価")] * 2)
+        result = preview_missing_recent_holds(build(pairs), DAY, now=PRESTART)
+        self.assertEqual(result["safeResearchPreviewCount"], 1)
+        row = result["races"][0]
+        self.assertEqual(row["first"], [1])
+        self.assertEqual(row["second"], list(range(1, 9)))
+        self.assertEqual(row["third"], list(range(1, 9)))
+        self.assertEqual(row["points"], 42)
+        self.assertTrue(row["eachCutoffProvenForAllRecentGrades"])
+        self.assertFalse(result["bettingReady"])
+        self.assertEqual(result["ticketsIssued"], 0)
+
+    def test_oversized_tied_second_group_does_not_exceed_48(self):
+        pairs = ([("S", "未評価")]
+                 + [("A", "未評価")] * 8
+                 + [("B", "未評価")] * 2)
+        result = preview_missing_recent_holds(build(pairs), DAY, now=PRESTART)
+        self.assertEqual(result["safeResearchPreviewCount"], 0)
+        self.assertEqual(result["races"], [])
+
+    def test_existing_thirty_six_point_reference_remains_unchanged(self):
+        report = build()
+        original = copy.deepcopy(report)
+        preview = preview_missing_recent_holds(report, DAY, now=PRESTART)
+        self.assertEqual(preview["races"][0]["points"], 36)
+        self.assertEqual(preview["races"][0]["first"], [1, 2])
+        self.assertEqual(preview["races"][0]["second"], [1, 2, 4, 3])
+        self.assertEqual(report, original)
+
     def test_overlapping_uncertainty_never_splits_top_group(self):
         pairs = [("A", "未評価")] * 8
         output = preview_missing_recent_holds(build(pairs), DAY, now=PRESTART)
