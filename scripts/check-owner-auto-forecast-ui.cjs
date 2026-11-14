@@ -4708,11 +4708,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  partialIndex.tkyArrowFormationPreview.races[0].rankingScope='arrow_only';
  partialIndex.tkyArrowFormationPreview.races[0].partialIndexIgnored=true;
  // Without the last numeric rank, tied-arrow 5/6 cannot be split.
- partialIndex.tkyArrowFormationPreview.races[0].second=[1,2,3,4];
- partialIndex.tkyArrowFormationPreview.races[0].third=[1,2,3,4,5,6,7];
- partialIndex.tkyArrowFormationPreview.races[0].points=30;
- // This 30-point group is not legal: the third=7 group is safe, but
- // 2*(4-1)*(7-2)=30 is legal; the deterministic selector will prefer it.
+ // Keep them together through second=third=6: 2*(6-1)*(6-2)=40.
+ partialIndex.tkyArrowFormationPreview.races[0].second=[1,2,3,4,5,6];
+ partialIndex.tkyArrowFormationPreview.races[0].third=[1,2,3,4,5,6];
+ partialIndex.tkyArrowFormationPreview.races[0].points=40;
  const arrowSparseView=boot({initialServerRaw:partialIndex});
  await new Promise(r=>setImmediate(r));
  assert.equal(arrowSparseView.get('autoTkyArrowFormationRows').children.length,1);
