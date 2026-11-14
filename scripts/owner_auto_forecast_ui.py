@@ -1909,13 +1909,74 @@ function renderUncertainRecent(data,day){
    const groups=[row.first,row.second,row.third];
    if(groups.some((g,j)=>!Array.isArray(g)||
        g.length<(j===0?1:j===1?2:3)||
-       g.length>(j===0?3:j===1?5:10)||
+       g.length>(j===0?3:j===1?8:12)||
        new Set(g).size!==g.length||
        g.some(n=>!Number.isInteger(n)||!setRoster.has(n)))||
       groups.some((g,j)=>j>0&&groups[j-1].some(n=>!g.includes(n)))||
       row.points!==groups[0].length*(groups[1].length-1)*
        (groups[2].length-2))
     throw Error('unknown_recent_formation');
+   // New wider second/third groups must be independently reconstructed
+   // from each horse's *observed* workout and bounded missing-recent
+   // interval; the UI must not trust a forged "stable" source flag.
+   if(row.second.length>5||row.third.length>10){
+    const values={S:3,A:2,B:1,C:0};
+    const ordered=base.runners.map(h=>{
+     if(!h||!Number.isInteger(h.number)||
+        !Object.hasOwn(values,h.training)||
+        !(h.recent==='未評価'||Object.hasOwn(values,h.recent)))
+      throw Error('unknown_recent_wide_source');
+     const floor=30*values[h.training]+
+       (h.recent==='未評価'?0:3*values[h.recent]);
+     return {number:h.number,floor,
+      ceiling:floor+(h.recent==='未評価'?9:0)};
+    }).sort((a,b)=>b.floor-a.floor||b.ceiling-a.ceiling||
+      a.number-b.number);
+    if(new Set(ordered.map(h=>h.number)).size!==ordered.length)
+     throw Error('unknown_recent_wide_roster');
+    const stable=n=>n===ordered.length||(
+      n>0&&n<ordered.length&&
+      Math.min(...ordered.slice(0,n).map(h=>h.floor))>
+      Math.max(...ordered.slice(n).map(h=>h.ceiling)));
+    const candidates=(secondCap,thirdCap)=>{
+     const found=[];
+     for(const first of [1,2,3]){
+      if(!stable(first))continue;
+      for(let second=first+1;
+          second<=Math.min(secondCap,ordered.length);second++){
+       if(!stable(second))continue;
+       for(let third=second;
+           third<=Math.min(thirdCap,ordered.length);third++){
+        if(!stable(third))continue;
+        const points=first*(second-1)*(third-2);
+        if(points>=12&&points<=48)
+         found.push({first,second,third,points});
+       }
+      }
+     }
+     return found;
+    };
+    if(candidates(5,10).length)
+     throw Error('unknown_recent_wide_legacy_preferred');
+    const wide=candidates(8,12).sort((a,b)=>
+       Number(30<=b.points&&b.points<=40)-
+        Number(30<=a.points&&a.points<=40)||
+       Number(41<=b.points&&b.points<=48)-
+        Number(41<=a.points&&a.points<=48)||
+       Number(b.first===2)-Number(a.first===2)||
+       Number(b.first===1)-Number(a.first===1)||
+       b.points-a.points);
+    const selected=wide[0];
+    if(!selected||
+       row.first.join(',')!==ordered.slice(0,selected.first)
+        .map(h=>h.number).join(',')||
+       row.second.join(',')!==ordered.slice(0,selected.second)
+        .map(h=>h.number).join(',')||
+       row.third.join(',')!==ordered.slice(0,selected.third)
+        .map(h=>h.number).join(',')||
+       row.points!==selected.points)
+     throw Error('unknown_recent_wide_comparison_mismatch');
+   }
    if(draftExpiredOnDevice(day,base.postTime))continue;
    const card=dom('details');
    card.append(dom('summary',row.track+' '+row.race+
@@ -1929,6 +1990,9 @@ function renderUncertainRecent(data,day){
     'JRA公式出走・取消・馬場・時刻は未検証。','muted'));
    if(row.first.length===1)card.append(dom('p',
     '調教の暫定評価で単独トップが、近走の未評価S〜Cのどの場合でも入れ替わらないため、1頭軸の参考例を表示。正式な1着予想・購入指示ではありません。','muted'));
+   if(row.second.length>5||row.third.length>10)card.append(dom('p',
+    '近走が欠けた馬を仮にCや最下位にせず、候補境界が不変な場合だけ2着・3着の同評価群を拡張。最大48点の署名なし参考。','muted'));
+
    cards.push(card);
   }
   host.replaceChildren(...cards);
