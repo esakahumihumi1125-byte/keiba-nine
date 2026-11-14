@@ -122,7 +122,23 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 <section id="forecastRacesSection">
 <h2>3. 競馬場・レースを選ぶ</h2>
-<p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p><p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p><p id="autoHeldTie48Hint" class="muted" role="status">同点見送りの48点以内参考：未取得。</p>
+<p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
+<p id="autoRaceQuickSummary" class="auto-race-quick" role="status">予想は未取得です。</p>
+<details class="owner-race-diagnostics"><summary>全Rの内訳・資料状況</summary><p id="autoSummary" class="muted">未取得</p></details><div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
+<label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
+<select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
+<button id="autoNextDraft" type="button" class="secondary-cta" disabled>次の下書きRへ（未取得）</button>
+<p class="muted">このボタンはJRDBの暫定発走時刻順です。JRA公式の発走時刻・取消を確認してください。</p>
+<p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
+<div id="autoRaces"></div>
+<details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
+<p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
+<div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
+<p id="autoHoldStatus" class="muted" role="status">開催日を取得すると見送り理由を確認できます。</p>
+</details>
+<details id="autoResearchTools" class="owner-research-tools">
+<summary>詳しい分析・調教資料を見る（任意）</summary>
+<p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p><p id="autoHeldTie48Hint" class="muted" role="status">同点見送りの48点以内参考：未取得。</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
 <p id="autoTrainingFeedStatus" class="muted" role="status">調教元データの行数・馬番照合状況はまだ未確認です。</p>
 <p id="autoTrackWorkouts" class="muted" role="status">調教S/Aの参考表示：JRDB資料の取得前です。</p>
@@ -137,11 +153,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">10項目・合計100点の配点ごとに、取得済みの同じ資料から観測件数と、不足している資料の確認優先順を表示します。資料ありでもS/A/B/Cの採点やJRA公式照合が済んだ意味ではありません。追加の有料照会や保存・購入操作は行いません。</p>
 <pre id="autoTenEvidenceMatrix" class="acceptance-report" role="status">10項目の資料確認はまだです。資料を再取得せず、すでに受信した内容のみ集計します。</pre>
 </details>
-<details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
-<p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
-<div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
-<p id="autoHoldStatus" class="muted" role="status">開催日を取得すると見送り理由を確認できます。</p>
-</details>
+
 <details id="autoMissingFactorPanel"><summary>調教・近走不足の内訳（追加照会なし）</summary>
 <p class="muted">既に取得したレース別の資料だけで未評価理由を集計します。過去走が少ない馬を0点扱いしたり、固定買い目を変えたりしません。</p>
 <p id="autoMissingFactorSummary" class="muted" role="status">開催日を取得すると未評価の内訳を確認できます。</p>
@@ -168,13 +180,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoTkyArrowFormationStatus" class="muted" role="status">発走前の調教矢印を確認していません。</p>
 <div id="autoTkyArrowFormationRows"></div>
 </details>
-<div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
-<label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
-<select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
-<button id="autoNextDraft" type="button" class="secondary-cta" disabled>次の下書きRへ（未取得）</button>
-<p class="muted">このボタンはJRDBの暫定発走時刻順です。JRA公式の発走時刻・取消を確認してください。</p>
-<p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
-<div id="autoRaces"></div>
+
+</details>
 </section>
 <section id="fixedHistorySection">
 <h2>4. 発走前に固定した買い目</h2>
