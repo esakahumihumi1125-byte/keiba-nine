@@ -4346,6 +4346,22 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(sparse.get('autoUncertainRecentRaces').children.length,0);
  assert.match(sparse.get('autoUncertainRecentStatus').textContent,/取得前/);
  assert.match(sparse.get('autoUncertainRecentHint').textContent,/未取得/);
+ // Only a mathematically unique training leader may appear as an
+ // UNSIGNED one-horse first tier; it never creates receipts or purchases.
+ const solo=boundedRecentFixture();
+ solo.races[0].runners[1].training='A'; // unique S, all other bands lower
+ Object.assign(solo.uncertainRecentResearch.races[0],{
+  first:[1],second:[1,2,3,4],third:[1,2,3,4,5,6,7],points:15
+ });
+ withTenPreview(solo);withSourcePassport(solo);
+ const soloView=boot({initialServerRaw:solo});
+ await new Promise(r=>setImmediate(r));
+ const soloCards=soloView.get('autoUncertainRecentRaces').children;
+ assert.equal(soloCards.length,1);
+ assert.match(soloCards[0].children[1].textContent,/1着候補 1／2着候補 1・2・3・4/);
+ assert.match(soloCards[0].children.at(-1).textContent,/1頭軸の参考例/);
+ assert.equal(soloView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(soloView.storage.has(STORAGE),false);
  const corrupt=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  const invalidSparse=boundedRecentFixture();
