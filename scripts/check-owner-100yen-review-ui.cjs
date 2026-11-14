@@ -101,7 +101,9 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.match(observed.requests[2].url,/track=%E4%BA%AC%E9%83%BD/);
  assert.match(observed.requests[2].url,/race=8/);
  assert.equal(observed.requests[2].opts.headers['X-Keiba-Request'],'private');
- assert.equal(observed.get('jraResultCandidates').children.length,3);
+ assert.equal(observed.get('jraResultCandidates').children.length,4);
+ assert.match(observed.get('jraResultCandidates').children.at(-1).textContent,
+  /判定保留/);
  assert.match(observed.get('jraResultCandidates').children[1].textContent,
   /3連単 7－8－2：100円あたり 26,050円（候補）/);
  assert.match(observed.get('jraResultStatus').textContent,
