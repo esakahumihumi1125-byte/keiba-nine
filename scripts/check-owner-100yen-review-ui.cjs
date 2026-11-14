@@ -4,7 +4,8 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-100yen-review.js','utf8');
-function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=null){
+function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=null,
+ jraResultFixture=null){
  const elements=new Map(),requests=[],storage=new Map();
  let pending=null;
  function node(tag){
@@ -25,6 +26,9 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
   requests.push({url,opts});
   const wait=pending;pending=null;
   if(wait)await wait;
+  if(url.startsWith('/api/jra/result-candidate?'))return {
+    ok:!!jraResultFixture,json:async()=>jraResultFixture||{error:'not found'}
+   };
   if(url.startsWith('/api/owner-100yen-archived'))return {
     ok:true,json:async()=>({archiveEnabled:false,available:false})
   };
@@ -56,6 +60,76 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.match(a.get('status').textContent,/未登録/);
  assert.equal(a.get('load').disabled,false);
  assert.equal(a.storage.size,0);
+ // JRA official result candidates are an explicit read-only ONE-race
+ // observation: never run automatically or certify a payout/ROI.
+ const officialURL='https://www.jra.go.jp/JRADB/accessS.html?'+
+  'CNAME=pw01sde0108202605020820261108%2FA0';
+ const candidate={
+  version:'owner-jra-public-result-probe-1',
+  date:'2026-11-08',track:'京都',race:8,
+  trifectaCandidates:[{ticket:[7,8,2],payoutYen:26050}],
+  trioCandidates:[{ticket:[2,7,8],payoutYen:2320}],
+  payoutMatchesDisplayedPodium:true,podiumShape:'single_third_place',
+  matchingTrifectaCount:1,matchingTrioCount:1,
+  sourceHostAllowlisted:true,visibleRaceIdentityMatched:true,
+  payoutLayoutParsed:true,podiumChecked:true,
+  officialJraVerified:false,sourceAuthenticityAttested:false,
+  finalityVerified:false,refundsVerified:false,settlementReady:false,
+  officialRoiPercent:null,actualPurchase:false,researchOnly:true,
+  sourceReadCount:1,changesExistingReceipts:false,
+  changesExistingRoi:false,
+ };
+ const observed=boot('?date=2026-11-08',null,null,null,candidate);
+ await new Promise(r=>setImmediate(r));
+ assert.equal(observed.requests.length,2,
+  'result page never auto-queries JRA on opening');
+ observed.get('jraResultTrack').value='京都';
+ observed.get('jraResultRace').value='8';
+ observed.get('jraResultUrl').value=officialURL;
+ const before=observed.requests.length;
+ await observed.get('jraResultCheck').onclick();
+ assert.equal(observed.requests.length,before+1,
+  'one explicit JRA public request, no JRDB query');
+ assert.match(observed.requests[2].url,/^\/api\/jra\/result-candidate\?/);
+ assert.match(observed.requests[2].url,/track=%E4%BA%AC%E9%83%BD/);
+ assert.match(observed.requests[2].url,/race=8/);
+ assert.equal(observed.requests[2].opts.headers['X-Keiba-Request'],'private');
+ assert.equal(observed.get('jraResultCandidates').children.length,3);
+ assert.match(observed.get('jraResultCandidates').children[1].textContent,
+  /3連単 7－8－2：100円あたり 26,050円（候補）/);
+ assert.match(observed.get('jraResultStatus').textContent,
+  /正式的中・収支には反映していません/);
+ assert.equal(observed.storage.size,0,'official candidate never writes storage');
+ observed.get('day').value='2026-11-07';
+ observed.get('day').onchange();
+ assert.equal(observed.get('jraResultCandidates').children.length,0);
+ assert.match(observed.get('jraResultStatus').textContent,/未実行/);
+ const invalidOfficial=boot('?date=2026-11-08',null,null,null,
+  {...candidate,officialJraVerified:true});
+ await new Promise(r=>setImmediate(r));
+ invalidOfficial.get('jraResultTrack').value='京都';
+ invalidOfficial.get('jraResultRace').value='8';
+ invalidOfficial.get('jraResultUrl').value=officialURL;
+ await invalidOfficial.get('jraResultCheck').onclick();
+ assert.equal(invalidOfficial.get('jraResultCandidates').children.length,0);
+ assert.match(invalidOfficial.get('jraResultStatus').textContent,
+  /安全に確認できませんでした/);
+ const wrongUrl=boot('?date=2026-11-08',null,null,null,candidate);
+ await new Promise(r=>setImmediate(r));
+ wrongUrl.get('jraResultTrack').value='京都';
+ wrongUrl.get('jraResultRace').value='8';
+ wrongUrl.get('jraResultUrl').value='https://evil.test/a';
+ await wrongUrl.get('jraResultCheck').onclick();
+ assert.equal(wrongUrl.requests.length,2,'malformed URL makes no network call');
+ const todayOrFuture=boot('?date=2099-01-02',null,null,null,candidate);
+ await new Promise(r=>setImmediate(r));
+ todayOrFuture.get('jraResultTrack').value='京都';
+ todayOrFuture.get('jraResultRace').value='8';
+ todayOrFuture.get('jraResultUrl').value=officialURL;
+ await todayOrFuture.get('jraResultCheck').onclick();
+ assert.equal(todayOrFuture.requests.length,2,
+  'future result is never fetched');
+ assert.equal(todayOrFuture.storage.size,0);
  const b=boot('?date=2099-02-31');
  await new Promise(r=>setImmediate(r));
  assert.notEqual(b.get('day').value,'2099-02-31');
