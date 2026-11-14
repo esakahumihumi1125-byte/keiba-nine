@@ -34,7 +34,7 @@ def observe_training_source_delivery(programme, entries, training, recent, day,
             raise CoverageError("Invalid source delivery collection")
     if source_read_count == 1 and (programme or entries or training or recent):
         raise CoverageError("Programme-only source call with supplemental rows")
-    if not programme and (entries or training or recent):
+    if not programme and (source_read_count != 1 or entries or training or recent):
         raise CoverageError("Missing source programme")
     known = {}
     for row in programme:
