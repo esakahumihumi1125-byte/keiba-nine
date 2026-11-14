@@ -183,6 +183,43 @@ function heldReasonBreakdownFixture(){
  // Intact supported C/C is NOT a missing-grade or source shortage.
  return withSourcePassport(withTenPreview(result));
 }
+function heldTie48Fixture(){
+ const data=resultWith('e'.repeat(64)),race=data.races[0];
+ const groups=[['S',1],...Array.from({length:4},(_,i)=>['A',i+2]),
+               ...Array.from({length:5},(_,i)=>['B',i+6])];
+ race.runners=groups.map(([training,number])=>{
+  const x={S:3,A:2,B:1}[training],twoFactorPoints=x+2;
+  return {number,training,recent:'C',
+   twoFactorPoints,twoFactorGrade:twoFactorPoints>=4?'B':'C',
+   weightedResearchPoints:30*x,pastFourthCorner:'insufficient',
+   comparisonRank:x===3?1:x===2?2:6};
+ });
+ Object.assign(race,{
+  status:'hold',reason:'ambiguous_equal_grade_boundary',
+  horseCount:10,first:[],second:[],third:[],tickets:[],
+  points:0,amountYen:0
+ });
+ data.draftCount=0;data.holdCount=1;
+ data.holdReasons={ambiguous_equal_grade_boundary:1};
+ data.researchReceipts=[];data.researchReceiptCount=0;
+ data.heldTie48Research={
+  version:'owner-held-tie-48-preview-1',date:day,raceCount:1,
+  reviewedPrestartTieHolds:1,unsignedReferenceCount:1,
+  races:[{
+   track:'東京',race:1,status:'unsplit_complete_two_factor_hold',
+   completeRunnerCount:10,allTiedScoreBoundariesUnsplit:true,
+   first:[1],second:[1,2,3,4,5],third:[1,2,3,4,5,6,7,8,9,10],
+   points:32,researchOnly:true,officialJraVerified:false,
+   formalScoreReady:false,predictionReady:false,bettingReady:false,
+   receiptIssued:false,actualPurchase:false
+  }],
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  formalTenFactorReady:false,predictionReady:false,bettingReady:false,
+  changesExistingDrafts:false,changesExistingReceipts:false,
+  newProviderRequests:0,ticketsIssued:0
+ };
+ return withSourcePassport(withTenPreview(data));
+}
 function tiedTwoFactorFixture(){
  const data=resultWith('e'.repeat(64)),race=data.races[0];
  race.runners=structuredClone(race.runners);
@@ -4445,6 +4482,31 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(pastRace.children.some(x=>x.className==='tie-group-study'),false,
   'elapsed provisional off-time may not reconstruct a new tie study');
  assert.equal(tiedPast.storage.has(STORAGE),false);
+ // 40-point historical cutoffs remain held. An unsigned 32-shape
+ // exists when exactly ONE S leads four tied A + five tied B horses.
+ // None of the signed tickets or 100-yen ROI is altered.
+ const tied48=boot({initialServerRaw:heldTie48Fixture()});
+ await new Promise(r=>setImmediate(r));
+ const tied48Rows=tied48.get('autoHeldTie48Races').children;
+ assert.equal(tied48Rows.length,1);
+ assert.match(tied48Rows[0].children[0].textContent,/東京 1R.*参考/);
+ assert.match(tied48Rows[0].children[1].textContent,
+  /1着候補 1／2着候補 1・2・3・4・5／3着候補 1・2・3・4・5・6・7・8・9・10/);
+ assert.match(tied48.get('autoHeldTie48Hint').textContent,/追加参考 1R/);
+ assert.equal(tied48.get('autoSummary').textContent.includes('見送り 1R'),true);
+ assert.equal(tied48.storage.has(STORAGE),false);
+ assert.equal(tied48.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(tied48.requests.length,1,'tie helper uses no additional provider call');
+ const late48=boot({initialServerRaw:heldTie48Fixture(),
+  initialClock:'2099-01-01T03:00:00Z'});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(late48.get('autoHeldTie48Races').children.length,0);
+ const forged48=heldTie48Fixture();
+ forged48.heldTie48Research.races[0].second=[1,2,3,4];
+ const bad48=boot({initialServerRaw:forged48});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(bad48.get('autoHeldTie48Races').children.length,0);
+ assert.equal(bad48.storage.has(STORAGE),false);
  // Real /tcy workout-index ordering stays within the same provisional
  // S/A/B/C grade. It is NOT a new win ranking or fabricated 30-point score.
  const indexOrder=resultWith('a'.repeat(64));
