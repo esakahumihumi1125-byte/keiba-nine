@@ -4520,6 +4520,58 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await new Promise(r=>setImmediate(r));
  assert.equal(bad48.get('autoHeldTie48Races').children.length,0);
  assert.equal(bad48.storage.has(STORAGE),false);
+ // Source HTTP success is NOT evidence of present /tcy workout rows.
+ // Distinguish empty source, wrong race keys, and identity mismatches.
+ const deliveryFixture=(state)=>{
+  const o=resultWith('f'.repeat(64));
+  o.trainingSourceDelivery={
+   version:'owner-training-source-delivery-1',date:day,raceCount:1,
+   sourceReadCount:4,entryRowsReturned:7,entriesMatchedDayProgramme:7,
+   trainingRowsReturned:0,trainingRowsKnownRace:0,
+   trainingRowsCurrentRaceDate:0,trainingRacesWithRows:0,
+   trainingLinkedRunners:0,trainingRunnersWithBothIndices:0,
+   trainingRacesWithBothIndices:0,trainingIdentityConflicts:0,
+   trainingDuplicateRunnerRows:0,recentRowsReturned:7,
+   recentRowsCurrentRaceDate:7,status:state,
+   researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+   scoreReady:false,predictionReady:false,bettingReady:false,
+   newProviderRequests:0,retainedLicensedRows:false,
+   changesExistingDrafts:false,changesExistingReceipts:false
+  };
+  return o;
+ };
+ const emptyWorkout=boot({initialServerRaw:deliveryFixture('training_empty_response')});
+ await new Promise(r=>setImmediate(r));
+ assert.match(emptyWorkout.get('autoTrainingFeedStatus').textContent,
+  /出走馬 7頭／調教応答 0行.*両指数あり 0頭/);
+ assert.match(emptyWorkout.get('autoTrainingFeedStatus').textContent,
+  /原因は未特定/);
+ assert.equal(emptyWorkout.requests.length,1);
+ const wrongKeyWorkout=deliveryFixture('training_no_current_race');
+ wrongKeyWorkout.trainingSourceDelivery.trainingRowsReturned=7;
+ const wrongKeyView=boot({initialServerRaw:wrongKeyWorkout});
+ await new Promise(r=>setImmediate(r));
+ assert.match(wrongKeyView.get('autoTrainingFeedStatus').textContent,
+  /レースキーと一致する行は0件/);
+ const mismatchWorkout=deliveryFixture('training_identity_conflict');
+ Object.assign(mismatchWorkout.trainingSourceDelivery,{
+  trainingRowsReturned:7,trainingRowsKnownRace:7,
+  trainingRowsCurrentRaceDate:7,trainingRacesWithRows:1,
+  trainingIdentityConflicts:7
+ });
+ const mismatchView=boot({initialServerRaw:mismatchWorkout});
+ await new Promise(r=>setImmediate(r));
+ assert.match(mismatchView.get('autoTrainingFeedStatus').textContent,
+  /馬番・IDに不整合または重複あり/);
+ const invalidWorkout=deliveryFixture('training_index_rows_present');
+ invalidWorkout.trainingSourceDelivery.trainingRunnersWithBothIndices=8;
+ const invalidView=boot({initialServerRaw:invalidWorkout});
+ await new Promise(r=>setImmediate(r));
+ assert.match(invalidView.get('autoTrainingFeedStatus').textContent,
+  /安全に検証できません/);
+ assert.equal(invalidView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(invalidView.requests.length,1,
+  'source diagnosis cannot fetch more provider rows');
  // Real /tcy workout-index ordering stays within the same provisional
  // S/A/B/C grade. It is NOT a new win ranking or fabricated 30-point score.
  const indexOrder=resultWith('a'.repeat(64));
