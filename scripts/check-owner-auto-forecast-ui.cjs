@@ -4583,6 +4583,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    track:'東京',race:1,rosterCount:7,observedCount:5,
    unassessedCount:2,arrowObservedCount:5,arrowUnobservedCount:2,
    rankingScope:'tky_arrow_first_index_descriptive_only',
+   comparableDirectionPairs:9,disagreeDirectionPairs:5,
    arrows:[
     {number:5,condition:'デキ抜群'},
     {number:2,condition:'上昇'},
@@ -4617,6 +4618,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /数値順.*1位 1番／2位 2番／2位 3番／4位 5番／5位 7番/);
  assert.match(tkyRows[0].children[3].textContent,/JRDBは調教矢印の評価を数値指数より優先/);
  assert.match(tkyRows[0].children[3].textContent,/指数不明 2頭/);
+ assert.match(tkyRows[0].children[3].textContent,
+  /順序が逆の組 5／9組/);
  assert.match(tkyView.get('autoTkyTrainingStatus').textContent,/参考情報が確認できた 1R/);
  assert.equal(tkyView.get('autoSummary').textContent.includes('見送り 1R'),true);
  assert.equal(tkyView.storage.has(STORAGE),false);
@@ -4627,6 +4630,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  arrowOnlyRow.runners=[];
  arrowOnlyRow.observedCount=0;
  arrowOnlyRow.unassessedCount=7;
+ arrowOnlyRow.comparableDirectionPairs=0;
+ arrowOnlyRow.disagreeDirectionPairs=0;
  const arrowOnly=boot({initialServerRaw:arrowOnlyStudy});
  await new Promise(r=>setImmediate(r));
  assert.equal(arrowOnly.get('autoTkyTrainingRows').children.length,1);
@@ -4634,7 +4639,17 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /調教矢印を優先.*デキ抜群/);
  assert.match(arrowOnly.get('autoTkyTrainingRows').children[0].children[2].textContent,
   /調教指数の数値比較は資料不足/);
+ assert.match(arrowOnly.get('autoTkyTrainingRows').children[0].children[3].textContent,
+  /方向比較できた組はありません/);
  assert.equal(arrowOnly.requests.length,1);
+ const badDirectionStudy=structuredClone(tkyStudy);
+ badDirectionStudy.tkyTrainingStudy.races[0].disagreeDirectionPairs=10;
+ const badDirection=boot({initialServerRaw:badDirectionStudy});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(badDirection.get('autoTkyTrainingRows').children.length,0);
+ assert.match(badDirection.get('autoTkyTrainingStatus').textContent,/照合が一致せず非表示/);
+ assert.equal(badDirection.storage.has(STORAGE),false);
+ assert.equal(badDirection.requests.length,1);
  const tkyTimer=boot({simulateTimers:true,initialServerRaw:heldReasonBreakdownFixture()});
  await new Promise(r=>setImmediate(r));
  // Without tky evidence, held races cannot arm a made-up order timer.
