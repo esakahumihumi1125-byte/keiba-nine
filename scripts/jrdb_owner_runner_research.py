@@ -10,10 +10,14 @@ from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import NUMBER
 from jrdb_dual_factor_readiness import KNOWN
 from jrdb_program_preview import TRACKS
+from evaluation_policy import OWNER_FORMAL_FACTORS
 
 VERSION = "jrdb-owner-runner-research-1"
 VALUES = {"S": 4, "A": 3, "B": 2, "C": 1}
 POSITION = {"frontObserved", "backObserved", "mixedObserved", "insufficient"}
+TRAINING_WEIGHT = OWNER_FORMAL_FACTORS["training"]
+RECENT_WEIGHT = OWNER_FORMAL_FACTORS["recent"]
+assert (TRAINING_WEIGHT, RECENT_WEIGHT) == (30, 3)
 
 
 def _recent_position(stats):
@@ -96,9 +100,15 @@ def owner_runner_research(training_hints, recent_hints, track, race):
         position = _recent_position(past)
         recent_counts = _recent_observations(past)
         completeness = int(a != "未評価") + int(b != "未評価")
-        # No ranking with missing factors. The sort uses BOTH present grades
-        # only, with no normalization or imaginary replacement for missing data.
-        subtotal = VALUES[a] + VALUES[b] if completeness == 2 else None
+        # Use the SAME 30:3 priority as the later automatic trifecta builder.
+        # The earlier equal-weight sum can rank A/S above S/C, even though
+        # the 30:3 draft correctly does the opposite. No partial imputation.
+        # Internal integer only: provider values and scores stay private.
+        subtotal = (
+            (VALUES[a] - 1) * TRAINING_WEIGHT
+            + (VALUES[b] - 1) * RECENT_WEIGHT
+            if completeness == 2 else None
+        )
         result.append({
             "number": int(number), "training": a, "recent": b,
             "missingReasons": missing_reasons(a, b,
@@ -136,7 +146,8 @@ def owner_runner_research(training_hints, recent_hints, track, race):
         "predictionReady": False,
         "bettingReady": False,
         "note": ("調教指数と近走資料の独立した暫定S/A/B/Cを馬番別に表示。"
-                 "両方に評価がある馬だけ仮並びを付けるが、能力順位や勝率ではない。"
+                 "両方に評価がある馬だけ調教30：近走3で仮並びを付けるが、"
+                 "能力順位や勝率ではない。"
                  "調教時計・近走数値などのJRDB元データは表示しない。"
                  "コース距離・馬場・血統・展開・取消を含めた総合評価、"
                  "JRA公式照合、3連単は未実施。"),
