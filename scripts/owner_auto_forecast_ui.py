@@ -2218,7 +2218,7 @@ function renderTkyArrowFormations(data,day){
     '発走前に矢印の全頭比較から組める参考グループは0R。通常の見送りを維持。';
  }catch(_){
   host.replaceChildren();
-  status.textContent='調教矢印の参考グループの照合に不整合があり非表示。既存の馬券・記録は無変更。';
+  status.textContent='調教矢印の参考グループの照合に不整合があり非表示。既存の馬券・記録は無変更。'+(_.message||'unknown');
  }
 }
 function renderHeldTie48(data,day){
