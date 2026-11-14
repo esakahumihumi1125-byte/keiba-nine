@@ -26,6 +26,21 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="provisionalCheck" type="button">固定3連単とJRDB暫定着順を参考照合</button>
 <p id="provisionalStatus" class="muted" role="status">まだ照合していません。自動で成績APIは呼びません。</p>
 <div id="provisionalRaces"></div></section>
+<details id="jraResultCandidatePanel"><summary>JRAの結果ページを1Rだけ読み取る（候補・任意）</summary>
+<p class="muted">JRAのレース結果ページのURLを公式サイトからコピーして入力してください。発走翌日以降の1Rだけを1回照会し、着順表と3連単・3連複の払戻候補が一致するか調べます。<b>正式な払戻確定・的中証明ではなく、仮想収支には加算しません。</b>誤った日付・取消・同着等は保留になる場合があります。</p>
+<label for="jraResultTrack">競馬場</label>
+<select id="jraResultTrack">
+<option value="">競馬場を選択</option>
+<option>札幌</option><option>函館</option><option>福島</option><option>新潟</option><option>東京</option><option>中山</option><option>中京</option><option>京都</option><option>阪神</option><option>小倉</option>
+</select>
+<label for="jraResultRace">レース</label><input id="jraResultRace" type="number" min="1" max="12" step="1" value="1">
+<label for="jraResultUrl">JRA公式結果ページのURL</label>
+<input id="jraResultUrl" type="url" maxlength="500" inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://www.jra.go.jp/JRADB/accessS.html?CNAME=...">
+<p class="muted"><a href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式サイトで結果ページを探す</a>（このリンクでは自動照会しません）</p>
+<button id="jraResultCheck" type="button">公式ページの結果候補を1回だけ確認</button>
+<p id="jraResultStatus" class="muted" role="status">未実行。ここを開くだけではJRAへ照会しません。</p>
+<div id="jraResultCandidates"></div>
+</details>
 <p class="muted">表示専用です。予想・購入・記録・JRDBの原資料は変更しません。
 公式結果の自動取り込みが未完成の場合、仮想回収率は未確定のまま表示されます。</p>
 </main><script src="/owner-100yen-review.js" defer></script></body></html>"""
@@ -40,8 +55,8 @@ h2{font-size:18px;margin:0 0 12px}
 .notice{background:#322e26;color:#ffe5af;padding:12px;border:1px solid #8a794f;border-radius:12px}
 section{background:#142b43;border:1px solid #496782;border-radius:14px;padding:14px;margin:14px 0}
 label{display:block;font-weight:700}
-input,button{display:block;width:100%;padding:12px;margin:8px 0;font:inherit;border-radius:9px;min-height:46px}
-input{background:#092034;color:#eef4ff;border:1px solid #8297ad}
+input,button,select{display:block;width:100%;padding:12px;margin:8px 0;font:inherit;border-radius:9px;min-height:46px}
+input{background:#092034;color:#eef4ff;border:1px solid #8297ad}select{background:#092034;color:#eef4ff;border:1px solid #8297ad}details{margin:14px 0;padding:12px;background:#142b43;border:1px solid #496782;border-radius:14px}details summary{cursor:pointer;font-weight:800;color:#edce87;min-height:40px}
 button{background:#e8ca83;color:#172a3d;border:0;font-weight:800}button:disabled{opacity:.5}
 .summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .stat{background:#0b2137;border:1px solid #4c6580;border-radius:9px;padding:11px}
@@ -331,6 +346,109 @@ async function readReport(day){
  return {body,signed:false};
 }
 
+// Public official-site observation is deliberately distinct from
+// independent JRA certification, immutable prestart picks and simulated ROI.
+const JRA_PROBE_VERSION='owner-jra-public-result-probe-1';
+const JRA_TRACKS=new Set(['札幌','函館','福島','新潟','東京','中山',
+ '中京','京都','阪神','小倉']);
+let jraCandidateRequest=0;
+function clearJraCandidate(){
+ jraCandidateRequest++;
+ $('jraResultCandidates').replaceChildren();
+ $('jraResultStatus').textContent='未実行。新しい結果候補の照会はしていません。';
+ $('jraResultCheck').disabled=false;
+}
+function validateJraCandidate(obj,day,track,race){
+ if(!obj||obj.version!==JRA_PROBE_VERSION||
+    obj.date!==day||obj.track!==track||obj.race!==race||
+    obj.sourceHostAllowlisted!==true||
+    obj.visibleRaceIdentityMatched!==true||
+    obj.payoutLayoutParsed!==true||obj.podiumChecked!==true||
+    obj.payoutMatchesDisplayedPodium!==true||
+    obj.officialJraVerified!==false||
+    obj.sourceAuthenticityAttested!==false||
+    obj.finalityVerified!==false||obj.refundsVerified!==false||
+    obj.settlementReady!==false||obj.officialRoiPercent!==null||
+    obj.actualPurchase!==false||obj.researchOnly!==true||
+    obj.changesExistingReceipts!==false||
+    obj.changesExistingRoi!==false||obj.sourceReadCount!==1||
+    !Array.isArray(obj.trifectaCandidates)||
+    !Array.isArray(obj.trioCandidates)||
+    obj.trifectaCandidates.length<1||obj.trifectaCandidates.length>18||
+    obj.trioCandidates.length<1||obj.trioCandidates.length>18)
+   throw Error('Unverified result candidate');
+ for(const [kind,rows] of [
+  ['3連単',obj.trifectaCandidates],['3連複',obj.trioCandidates]]){
+  const seen=new Set();
+  for(const row of rows){
+   if(!row||Object.keys(row).sort().join(',')!=='payoutYen,ticket'||
+      !Array.isArray(row.ticket)||row.ticket.length!==3||
+      row.ticket.some(n=>!Number.isInteger(n)||n<1||n>18)||
+      new Set(row.ticket).size!==3||
+      !Number.isInteger(row.payoutYen)||row.payoutYen<100||
+      row.payoutYen>1000000000)
+    throw Error('Malformed result candidate');
+   const normalized=kind==='3連複'
+    ?[...row.ticket].sort((a,b)=>a-b):row.ticket;
+   if(kind==='3連複'&&row.ticket.join(',')!==normalized.join(','))
+    throw Error('Noncanonical trio');
+   const key=normalized.join('-');
+   if(seen.has(key))throw Error('Repeated result candidate');
+   seen.add(key);
+  }
+ }
+ return obj;
+}
+$('jraResultCheck').onclick=async()=>{
+ const seq=++jraCandidateRequest,day=$('day').value,
+  track=$('jraResultTrack').value,
+  race=Number($('jraResultRace').value),
+  url=$('jraResultUrl').value.trim(),
+  button=$('jraResultCheck');
+ $('jraResultCandidates').replaceChildren();
+ const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+ if(!validDay(day)||day>=today||!JRA_TRACKS.has(track)||
+    !Number.isInteger(race)||race<1||race>12||
+    url.length>500||!/^https:\/\/(?:www\.jra\.go\.jp|jra\.jp|app\.jra\.jp|sp\.jra\.jp)\/JRADB\/accessS\.html\?CNAME=/.test(url)||
+    url.includes('#')){
+  $('jraResultStatus').textContent=
+   '前日以前の開催日・競馬場・1〜12Rと、JRA公式結果ページのURLを確認してください。';
+  return;
+ }
+ button.disabled=true;
+ $('jraResultStatus').textContent='指定したJRA公式ページを1回だけ確認中。固定済みの予想や収支は変更しません。';
+ try{
+  const query='date='+encodeURIComponent(day)+'&track='+encodeURIComponent(track)+
+   '&race='+race+'&url='+encodeURIComponent(url);
+  const res=await fetch('/api/jra/result-candidate?'+query,{
+   cache:'no-store',credentials:'same-origin',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  if(!res.ok)throw Error('Official page unavailable');
+  const report=validateJraCandidate(await res.json(),day,track,race);
+  if(seq!==jraCandidateRequest)return;
+  const holder=$('jraResultCandidates');
+  holder.append(el('p',track+race+'R｜JRA形式の払戻候補。'+
+    '最終確定・返還・実購入・100円仮想収支は未確認。','muted'));
+  for(const [name,rows] of [
+   ['3連単',report.trifectaCandidates],['3連複',report.trioCandidates]]){
+   for(const row of rows){
+    holder.append(el('p',name+' '+row.ticket.join('－')+
+     '：100円あたり '+yen(row.payoutYen)+'（候補）','muted'));
+   }
+  }
+  $('jraResultStatus').textContent='着順表と払戻候補の組み合わせを照合。'+
+   '出典の最終認証・返還確認は未完了のため、正式的中・収支には反映していません。';
+ }catch(_){
+  if(seq===jraCandidateRequest)
+   $('jraResultStatus').textContent=
+    'JRA結果ページの候補を安全に確認できませんでした。'+
+    '公式ページを直接確認してください。予想・収支は無変更です。';
+ }finally{
+  if(seq===jraCandidateRequest)button.disabled=false;
+ }
+};
+
 let request=0;
 function validDay(day){
  if(typeof day!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(day))return false;
@@ -345,7 +463,7 @@ $('day').value=fromForecast||
 $('day').onchange=()=>{
  request++;$('load').disabled=false;clear();
  $('status').textContent='開催日を選んで確認してください。';
- clearPreliminary();
+ clearPreliminary();clearJraCandidate();
 };
 $('load').onclick=async()=>{
  const seq=++request,day=$('day').value,button=$('load');clear();
