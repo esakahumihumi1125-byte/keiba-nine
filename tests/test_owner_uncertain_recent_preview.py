@@ -54,6 +54,42 @@ class UncertainRecentResearchTests(unittest.TestCase):
         self.assertNotIn("racekey", repr(preview))
         self.assertNotIn("horse_id", repr(preview))
 
+    def test_unique_training_leader_allows_unsigned_one_horse_first_tier(self):
+        # One S runner is ALWAYS ahead of four A and five B runners,
+        # even if every missing recent grade takes its worst/best value.
+        # This permits a 1x5x10, 32-combination RESEARCH example, not
+        # a signed 3連単 or a verified winner / purchase suggestion.
+        horses = ([("S", "未評価")]
+                  + [("A", "未評価")] * 4
+                  + [("B", "未評価")] * 5)
+        original = build(horses)
+        before = copy.deepcopy(original)
+        self.assertEqual(original["holdReasons"], {"missing_factors": 1})
+        preview = preview_missing_recent_holds(original, DAY, now=PRESTART)
+        self.assertEqual(preview["safeResearchPreviewCount"], 1)
+        row = preview["races"][0]
+        self.assertEqual(row["first"], [1])
+        self.assertEqual(row["second"], [1, 2, 3, 4, 5])
+        self.assertEqual(row["third"], list(range(1, 11)))
+        self.assertEqual(row["points"], 32)
+        self.assertTrue(row["eachCutoffProvenForAllRecentGrades"])
+        self.assertFalse(row["receiptIssued"])
+        self.assertFalse(row["predictionReady"])
+        self.assertFalse(row["bettingReady"])
+        self.assertEqual(preview["ticketsIssued"], 0)
+        self.assertEqual(preview["newProviderRequests"], 0)
+        self.assertEqual(original, before)
+
+    def test_single_first_tier_requires_unambiguous_training_gap(self):
+        # Two tied S runners can be included as a pair; neither one
+        # may be singled out as a fabricated solo first-place choice.
+        horses = ([("S", "未評価")] * 2
+                  + [("A", "未評価")] * 4
+                  + [("B", "未評価")] * 5)
+        preview = preview_missing_recent_holds(build(horses), DAY, now=PRESTART)
+        for row in preview["races"]:
+            self.assertNotEqual(len(row["first"]), 1)
+
     def test_only_unsigned_48_point_preview_can_keep_ten_horse_group(self):
         # S/S top two, A/A next two, B/B last six. With recent
         # uniformly missing, the true score intervals are disjoint at
