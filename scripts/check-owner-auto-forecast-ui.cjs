@@ -183,6 +183,25 @@ function heldReasonBreakdownFixture(){
  // Intact supported C/C is NOT a missing-grade or source shortage.
  return withSourcePassport(withTenPreview(result));
 }
+function tiedTwoFactorFixture(){
+ const data=resultWith('e'.repeat(64)),race=data.races[0];
+ race.runners=structuredClone(race.runners);
+ const top=race.runners[0];
+ for(const i of [1,2]){
+  const h=race.runners[i];
+  Object.assign(h,{
+   training:top.training,recent:top.recent,
+   twoFactorGrade:top.twoFactorGrade,twoFactorPoints:top.twoFactorPoints,
+   weightedResearchPoints:top.weightedResearchPoints,comparisonRank:1
+  });
+ }
+ Object.assign(race,{status:'hold',reason:'ambiguous_equal_grade_boundary',
+  first:[],second:[],third:[],tickets:[],points:0,amountYen:0});
+ data.draftCount=0;data.holdCount=1;
+ data.holdReasons={ambiguous_equal_grade_boundary:1};
+ data.researchReceipts=[];data.researchReceiptCount=0;
+ return withSourcePassport(withTenPreview(data));
+}
 function boundedRecentFixture(){
  // One prestart race has enough training bands to prove the membership
  // groups, even though four recent grades are missing. It MUST remain a
@@ -4326,6 +4345,29 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(timeNav.requests.length,timeNavReads);
  assert.equal(timeNav.storage.get(STORAGE),timeNavStore);
  assert.equal(timeNav.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Equal 30:3 provisional scores are displayed as WHOLE groups.
+ // The panel must not split a triple top tier into false 2-horse picks,
+ // must not issue any receipt, or trigger new paid history calls.
+ const tied=boot({initialServerRaw:tiedTwoFactorFixture()});
+ await new Promise(r=>setImmediate(r));
+ const tiedRace=tied.get('autoRaces').children[0].children[0];
+ const tiedPanel=tiedRace.children.find(x=>x.className==='tie-group-study');
+ assert.ok(tiedPanel,'a held tie needs a separate read-only group study');
+ assert.match(tiedPanel.children[0].textContent,/同点の馬番グループを見る/);
+ assert.match(tiedPanel.children[1].textContent,/仮比較第1群：1番・2番・3番（同評価・群内順位なし）/);
+ assert.equal(tiedRace.children.some(x=>x.className==='formation'),false);
+ assert.equal(tied.storage.has(STORAGE),false);
+ assert.equal(tied.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(tied.requests.length,1,'tie display must not read a second source');
+ const tiedPast=boot({
+  initialServerRaw:tiedTwoFactorFixture(),
+  initialClock:'2099-01-01T04:00:00Z'
+ });
+ await new Promise(r=>setImmediate(r));
+ const pastRace=tiedPast.get('autoRaces').children[0].children[0];
+ assert.equal(pastRace.children.some(x=>x.className==='tie-group-study'),false,
+  'elapsed provisional off-time may not reconstruct a new tie study');
+ assert.equal(tiedPast.storage.has(STORAGE),false);
  // Sparse recent research is strictly a *separate* unsigned display.
  // Never promote held candidates to a draft, sign them or fetch a source.
  const sparse=boot({manualWeekday:false});
