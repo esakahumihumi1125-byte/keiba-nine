@@ -34,6 +34,10 @@ class OwnerDraftMaterialTests(unittest.TestCase):
         self.assertEqual(tokyo["counts"]["drawWeight"],1)
         self.assertEqual(tokyo["counts"]["personnel"],1)
         self.assertEqual(tokyo["counts"]["body"],1)
+        self.assertEqual(set(tokyo["sourceSignals"]),{
+            "runningStyle","surfaceAptitude","distanceAptitude",
+            "goingAptitude","paceIndices"})
+        self.assertEqual(tokyo["sourceSignals"]["paceIndices"],0)
         self.assertEqual(data,original)
         for sensitive in ("racekey","horse_id","horse_number",
                           "PRIVATE-SIRE","PRIVATE-JOCKEY","oikirisisu"):
