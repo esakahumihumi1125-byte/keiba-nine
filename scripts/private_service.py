@@ -3088,7 +3088,10 @@ def create_app(settings=None):
                     raise WorkoutLockError('Only signed prestart receipts accepted')
                 day = args['date']
                 from owner_rebound_receipts import _timestamp
-                original = verify_workout_locks(args['receipts'], password, day)
+                original = verify_workout_locks(
+                    args['receipts'],
+                    archive_signing_secret(settings) if archive_enabled(settings) else password,
+                    day)
                 stamp = datetime.fromisoformat(_now_in_jst())
                 if not any(stamp >= _timestamp(x['scheduledOffAt']) for x in original):
                     return response('200 OK', compare_workout_order_with_provider(
