@@ -26,6 +26,8 @@ def complete():
         row["training_arrow"] = arrow
         row["training_index"] = str(20-i)
         entries.append(row)
+    # Mirror the private-service draft's explicit no-auto-purchase flag.
+    report["autoPurchase"] = False
     report["races"][0]["horseCount"] = 7
     report["races"][0]["runners"] = [
         {"number": i, "training": "未評価", "recent": "C"}
