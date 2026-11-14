@@ -146,6 +146,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoHeldTie48Status" class="muted" role="status">レース取得前。同点馬を勝手に選びません。</p>
 <div id="autoHeldTie48Races"></div>
 </details>
+<details id="autoTkyTrainingPanel"><summary>調教資料不足でも読める別系統の調教指数（参考順）</summary>
+<p class="muted">JRDBの出走馬データ（/tky）には、追切・仕上指数（/tcy）とは別の「調教指数」があります。調教資料が欠けた見送りレースで、この別系統の指数を使って取得できた馬だけの参考順位を表示。指数がない馬は最下位扱いせず、同点は同順位です。正式調教30点・10項目100点や3連単、発走前固定記録、購入には一切反映しません。</p>
+<p id="autoTkyTrainingStatus" class="muted" role="status">発走前の資料が未取得です。</p>
+<div id="autoTkyTrainingRows"></div>
+</details>
 <div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
 <select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
@@ -1768,6 +1773,8 @@ function clearDraftShortcut(){
  shortcut.onclick=null;
  $('autoUncertainRecentRaces').replaceChildren();
  $('autoHeldTie48Races').replaceChildren();
+ $('autoTkyTrainingRows').replaceChildren();
+ $('autoTkyTrainingStatus').textContent='発走前の資料が未取得です。';
  $('autoHeldTie48Hint').textContent='同点見送りの48点以内参考：未取得。';
  $('autoHeldTie48Status').textContent='レース取得前。同点馬を勝手に選びません。';
  $('autoTrainingFeedStatus').textContent='調教元データの行数・馬番照合状況はまだ未確認です。';
@@ -1806,7 +1813,8 @@ function armAutomaticOffTimer(data,day){
  let next=Infinity;
  const referenced=new Set([
   ...(data.uncertainRecentResearch?.races||[]),
-  ...(data.heldTie48Research?.races||[])
+  ...(data.heldTie48Research?.races||[]),
+  ...(data.tkyTrainingStudy?.races||[])
  ].map(r=>r.track+'|'+r.race));
  for(const race of data.races){
   if(!(race.status==='provisional_draft'||
@@ -1928,6 +1936,90 @@ function renderUncertainRecent(data,day){
   host.replaceChildren();
   hint.textContent='近走不足の追加研究は形式確認ができないため非表示。';
   status.textContent='追加の参考候補を安全に確認できません。元の研究用予想と固定記録は無変更です。';
+ }
+}
+function renderTkyTrainingStudy(data,day){
+ const host=$('autoTkyTrainingRows'),status=$('autoTkyTrainingStatus');
+ host.replaceChildren();
+ const study=data.tkyTrainingStudy;
+ if(study===undefined){
+  status.textContent='別系統の調教指数資料はこの応答では未確認。通常の見送りを維持します。';
+  return;
+ }
+ try{
+  if(!study||study.version!=='owner-tky-training-index-study-1'||
+     study.date!==day||study.raceCount!==data.raceCount||
+     study.sourceMetric!=='tky_training_index'||
+     study.trainingSourceDistinctFromTcy!==true||
+     study.researchOnly!==true||study.privateOwnerOnly!==true||
+     study.officialJraVerified!==false||study.modelCalibrated!==false||
+     study.training30Ready!==false||study.predictionReady!==false||
+     study.bettingReady!==false||study.ticketsIssued!==0||
+     study.newProviderRequests!==0||study.changesExistingDrafts!==false||
+     study.changesExistingReceipts!==false||
+     study.rawIndicesIncluded!==false||
+     !Array.isArray(study.races)||study.races.length>data.raceCount||
+     study.studiedRaceCount!==study.races.length)
+   throw Error('tky_training_contract');
+  const originals=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+  const used=new Set(),cards=[];
+  for(const item of study.races){
+   const key=item?.track+'|'+item?.race,original=originals.get(key);
+   if(!original||used.has(key)||original.status!=='hold'||
+      original.reason!=='missing_factors'||
+      !Array.isArray(original.runners)||
+      !original.runners.some(h=>h.training==='未評価')||
+      !Number.isInteger(item.rosterCount)||
+      item.rosterCount!==original.runners.length||
+      item.rosterCount<4||item.rosterCount>18||
+      !Number.isInteger(item.observedCount)||
+      item.observedCount<2||item.observedCount>item.rosterCount||
+      item.unassessedCount!==item.rosterCount-item.observedCount||
+      item.rankingScope!=='observed_tky_training_index_only'||
+      !Array.isArray(item.runners)||item.runners.length!==item.observedCount)
+    throw Error('tky_training_roster');
+   used.add(key);
+   const roster=new Set(original.runners.map(h=>h.number)),observed=new Set();
+   const band=[];
+   let previousRank=0;
+   for(const horse of item.runners){
+    if(!horse||Object.keys(horse).sort().join(',')!=='number,observedRank'||
+       !Number.isInteger(horse.number)||!roster.has(horse.number)||
+       observed.has(horse.number)||!Number.isInteger(horse.observedRank)||
+       horse.observedRank<1||horse.observedRank>item.observedCount||
+       (band.length===0&&horse.observedRank!==1)||
+       (band.length&&horse.observedRank<previousRank))
+     throw Error('tky_training_rank');
+    observed.add(horse.number);
+    band.push(horse.observedRank);
+    previousRank=horse.observedRank;
+   }
+   const distinct=[...new Set(band)];
+   for(let i=1;i<distinct.length;i++){
+    const prior=distinct[i-1];
+    if(distinct[i]!==band.filter(n=>n<=prior).length+1)
+     throw Error('tky_training_rank_gaps');
+   }
+   if(draftExpiredOnDevice(day,original.postTime))continue;
+   const card=dom('details');
+   card.append(dom('summary',item.track+' '+item.race+
+    'R｜別の調教指数で比較 '+item.observedCount+'/'+item.rosterCount+'頭'));
+   card.append(dom('p',item.runners.map(h=>
+    h.observedRank+'位 '+h.number+'番').join('／'),'picks'));
+   card.append(dom('p','これは/tkyの別系統の調教指数だけで並べた参考順。'+
+    (item.unassessedCount?
+     '指数不明 '+item.unassessedCount+'頭は順位外で、弱い馬とは判定していません。':'')+
+    '追切指数/仕上指数とは別で、調教30点・総合順位・3連単の判断には使用しません。','muted'));
+   cards.push(card);
+  }
+  host.replaceChildren(...cards);
+  status.textContent=cards.length?
+   '調教資料不足の見送りから、別指数の参考順が確認できた '+cards.length+
+   'R。発走前の観測馬だけ（正式採点・馬券は変更なし）。':
+   '別系統の調教指数で比較できる発走前の見送りレースは0R。';
+ }catch(_){
+  host.replaceChildren();
+  status.textContent='別系統の調教指数の照合が一致せず非表示。既存予想・記録は無変更。';
  }
 }
 function renderHeldTie48(data,day){
@@ -2068,6 +2160,7 @@ function render(input,day){
  const workoutOrder=validateWorkoutIndexOrder(data,day);
  renderUncertainRecent(data,day);
  renderHeldTie48(data,day);
+ renderTkyTrainingStudy(data,day);
  renderWorkoutQuick(data,day);
  const materialByRace=validatedRunnerSourceEvidence(data);
  $('autoEvidenceGapReport').textContent=evidenceGapSummary(data,materialByRace);
