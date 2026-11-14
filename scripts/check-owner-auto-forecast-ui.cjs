@@ -4928,6 +4928,48 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(soloCards[0].children.at(-1).textContent,/1頭軸の参考例/);
  assert.equal(soloView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(soloView.storage.has(STORAGE),false);
+ // Widened 2nd/3rd groups from ALREADY held missing-recent races:
+ // 2 S + 4 A + 1 B. No possible missing recent grade crosses tiers.
+ // The old 2nd<=5 limit would hide this stable 2x6x6=40 example.
+ // This remains an unsigned, unpurchased *reference*, not an auto-draft.
+ const wider=boundedRecentFixture();
+ const widerRace=wider.races[0];
+ const bandsWide=['S','S','A','A','A','A','B'];
+ widerRace.runners=widerRace.runners.map((h,i)=>({
+  ...h,training:bandsWide[i],recent:'未評価',
+  twoFactorGrade:'未評価',twoFactorPoints:null,
+  weightedResearchPoints:null,comparisonRank:null,
+  missingReasons:['no_linked_recent_record']
+ }));
+ Object.assign(wider.uncertainRecentResearch.races[0],{
+  first:[1,2],second:[1,2,3,4,5,6],third:[1,2,3,4,5,6],
+  points:40,missingRecentCount:7,assessedTrainingCount:7
+ });
+ withTenPreview(wider);withSourcePassport(wider);
+ const wideView=boot({initialServerRaw:wider});
+ await new Promise(r=>setImmediate(r));
+ const wideCards=wideView.get('autoUncertainRecentRaces').children;
+ assert.equal(wideCards.length,1);
+ assert.match(wideCards[0].children[0].textContent,/参考40通り/);
+ assert.match(wideCards[0].children.at(-1).textContent,
+  /最大48点の署名なし参考/);
+ assert.equal(wideView.storage.has(STORAGE),false);
+ assert.equal(wideView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(wideView.requests.length,1,
+  'widened sparse reference must not read JRDB again');
+ const alteredWide=structuredClone(wider);
+ alteredWide.uncertainRecentResearch.races[0].second=[1,2,3,4,5,7];
+ alteredWide.uncertainRecentResearch.races[0].third=[1,2,3,4,5,7];
+ const forgedWide=boot({initialServerRaw:alteredWide});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(forgedWide.get('autoUncertainRecentRaces').children.length,0);
+ assert.match(forgedWide.get('autoUncertainRecentStatus').textContent,
+  /安全に確認できません/);
+ const expiredWide=boot({initialServerRaw:wider,
+  initialClock:'2099-01-01T03:01:00Z'});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(expiredWide.get('autoUncertainRecentRaces').children.length,0);
+ assert.equal(expiredWide.storage.has(STORAGE),false);
  const corrupt=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  const invalidSparse=boundedRecentFixture();
