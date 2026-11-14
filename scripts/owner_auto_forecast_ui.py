@@ -4,12 +4,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="theme-color" content="#09172b">
 <title>ARC RACE｜本人用・研究予想</title>
 <link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261112"></head><body><main>
-<nav class="owner-nav">
+<details class="owner-menu"><summary>関連ページ・WIN5</summary><nav class="owner-nav">
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
 <a href="/">本人用ホーム</a>
 <a href="/owner-jrdb-day-research">2項目の根拠</a>
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html#win5" rel="noopener noreferrer">WIN5（別画面）</a>
-</nav>
+</nav></details>
 <header class="arc-brand" aria-label="ARC RACE アークレース">
 <svg class="arc-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 100" role="img" aria-label="円弧と競走馬の横顔">
 <defs><linearGradient id="arc-brand-gold" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#fff1bc"/><stop offset=".48" stop-color="#d8ac55"/><stop offset="1" stop-color="#99702d"/></linearGradient></defs>
@@ -22,14 +22,22 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div class="arc-brand-copy"><h1>ARC RACE</h1><p class="arc-brand-jp">アークレース</p><p class="arc-brand-sub">AI競馬予想・データ分析</p><p class="arc-brand-engine">Powered by <strong>UMETRIC</strong></p></div>
 </header>
 <p class="arc-legacy-context">本人用・研究予想（従来のKEIBA NINEと保存記録・接続先は共通）</p>
+<nav class="arc-main-tabs" aria-label="アークレースの主な画面">
+<a href="#autoDailyStart">予想を取得</a>
+<a href="#forecastRacesSection">レース一覧</a>
+<a href="#fixedHistorySection">結果・記録</a>
+</nav>
 <p class="warning"><strong>現在は研究用の暫定予想です。</strong>調教・近走の2項目で3連単を試算しています。
 正式10項目の予想とJRA公式照合は未完成。自動購入はしません。</p>
-<section class="daily-start">
+<section class="daily-start" id="autoDailyStart">
 <h2>1. 予想を見る</h2>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
+<div class="owner-weekend-actions">
 <button id="autoSaturdayQuick" class="primary-cta" type="button">土曜の予想を取得・表示（1回）</button>
 <button id="autoSundayQuick" class="secondary-cta" type="button">日曜の予想を取得・表示（1回）</button>
+</div>
 <button id="autoRun" class="secondary-cta" type="button">全場・全Rを再分析する</button>
+<details class="owner-instructions"><summary>取得方法・通信設定の説明</summary>
 <p class="muted">土日の1タップ取得は直前の木曜以降。取得済みデータは開いている画面で再利用します。また、発走前固定済みの研究記録がある日は20分以内の再訪問でその履歴を表示し、再照会を控えます。新しい配信資料を見たい場合は「全場・全Rを再分析する」を押してください。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
 <details><summary>日付だけを切り替える（追加照会なし）</summary>
 <div class="day-shortcuts" role="group" aria-label="週末の開催日を選ぶ">
@@ -53,8 +61,14 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 再分析ボタンを押した場合は番組・出走馬・調教・近走を各1回取得し、
 馬場情報の追加取得も最大1回だけ試みます。取得できなくても既存の発走前記録は維持します。
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
+</details>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
+<p id="autoEasyPulse" class="auto-easy-pulse" role="status">開催日を取得すると、予想あり・見送りの件数を表示します。</p>
+<nav class="quick-links" aria-label="画面内の移動">
+<a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
+<a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
 <h2>2. 今日の予想状況</h2>
+<details id="autoDayDiagnostics"><summary>取得状況・見送り内訳を詳しく見る</summary>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
 <p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
@@ -64,9 +78,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="autoAcceptanceCheck" type="button">選択日の取得・保存状況を確認</button>
 <pre id="autoAcceptanceReport" class="acceptance-report" role="status">未確認。押した時だけ端末内の既存情報を集計します。</pre>
 </details>
-<nav class="quick-links" aria-label="画面内の移動">
-<a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
-<a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
+</details>
 <p class="owner-official-shortcut"><a id="autoOfficialQuickLink" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式出馬表を開いて出走・取消・発走時刻を確認</a> <span class="muted">（手動確認・自動照合0R）</span></p>
 <details><summary>取得・資料の詳しい状態</summary>
 <p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
@@ -110,7 +122,23 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 <section id="forecastRacesSection">
 <h2>3. 競馬場・レースを選ぶ</h2>
-<p class="muted">競馬場・レースを選び、1着／2着／3着と点数を確認します（研究用の暫定案）。</p><p id="autoSummary" class="muted">未取得</p><p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p><p id="autoHeldTie48Hint" class="muted" role="status">同点見送りの48点以内参考：未取得。</p>
+<p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
+<p id="autoRaceQuickSummary" class="auto-race-quick" role="status">予想は未取得です。</p>
+<details class="owner-race-diagnostics"><summary>全Rの内訳・資料状況</summary><p id="autoSummary" class="muted">未取得</p></details><div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
+<label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
+<select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
+<button id="autoNextDraft" type="button" class="secondary-cta" disabled>次の下書きRへ（未取得）</button>
+<p class="muted">このボタンはJRDBの暫定発走時刻順です。JRA公式の発走時刻・取消を確認してください。</p>
+<p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
+<div id="autoRaces"></div>
+<details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
+<p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
+<div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
+<p id="autoHoldStatus" class="muted" role="status">開催日を取得すると見送り理由を確認できます。</p>
+</details>
+<details id="autoResearchTools" class="owner-research-tools">
+<summary>詳しい分析・調教資料を見る（任意）</summary>
+<p id="autoUncertainRecentHint" class="muted" role="status">近走不足の追加研究：未取得。</p><p id="autoHeldTie48Hint" class="muted" role="status">同点見送りの48点以内参考：未取得。</p>
 <p id="autoSourceSummary" class="muted" role="status">全Rの資料進捗は未取得です。</p>
 <p id="autoTrainingFeedStatus" class="muted" role="status">調教元データの行数・馬番照合状況はまだ未確認です。</p>
 <p id="autoTrackWorkouts" class="muted" role="status">調教S/Aの参考表示：JRDB資料の取得前です。</p>
@@ -125,11 +153,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">10項目・合計100点の配点ごとに、取得済みの同じ資料から観測件数と、不足している資料の確認優先順を表示します。資料ありでもS/A/B/Cの採点やJRA公式照合が済んだ意味ではありません。追加の有料照会や保存・購入操作は行いません。</p>
 <pre id="autoTenEvidenceMatrix" class="acceptance-report" role="status">10項目の資料確認はまだです。資料を再取得せず、すでに受信した内容のみ集計します。</pre>
 </details>
-<details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
-<p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
-<div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
-<p id="autoHoldStatus" class="muted" role="status">開催日を取得すると見送り理由を確認できます。</p>
-</details>
+
 <details id="autoMissingFactorPanel"><summary>調教・近走不足の内訳（追加照会なし）</summary>
 <p class="muted">既に取得したレース別の資料だけで未評価理由を集計します。過去走が少ない馬を0点扱いしたり、固定買い目を変えたりしません。</p>
 <p id="autoMissingFactorSummary" class="muted" role="status">開催日を取得すると未評価の内訳を確認できます。</p>
@@ -156,13 +180,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoTkyArrowFormationStatus" class="muted" role="status">発走前の調教矢印を確認していません。</p>
 <div id="autoTkyArrowFormationRows"></div>
 </details>
-<div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
-<label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
-<select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
-<button id="autoNextDraft" type="button" class="secondary-cta" disabled>次の下書きRへ（未取得）</button>
-<p class="muted">このボタンはJRDBの暫定発走時刻順です。JRA公式の発走時刻・取消を確認してください。</p>
-<p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
-<div id="autoRaces"></div>
+
+</details>
 </section>
 <section id="fixedHistorySection">
 <h2>4. 発走前に固定した買い目</h2>
@@ -301,6 +320,52 @@ h1 small{display:block;color:#c7d7e7;font-size:13px}
 @media(prefers-reduced-motion:reduce){.arc-brand-mark{animation:none}}
 
 .arc-legacy-context{font-size:12px;color:#b9cbe0;margin:-7px 0 13px}
+
+/* Owner iPhone first: racecards before optional research, no behavior change. */
+html{scroll-behavior:smooth}
+main{padding-bottom:65px}
+.arc-main-tabs{position:sticky;top:0;z-index:15;display:grid;
+ grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;
+ margin:9px 0 12px;padding:7px;border:1px solid #6787a3;
+ border-radius:12px;background:#0b2138f5;box-shadow:0 3px 13px #06142783}
+.arc-main-tabs a{display:flex;align-items:center;justify-content:center;
+ min-height:43px;padding:6px 4px;border-radius:8px;
+ color:#f3db9c;background:#24415d;font-size:13px;font-weight:800;
+ text-decoration:none;text-align:center}
+.arc-main-tabs a:focus-visible,.quick-links a:focus-visible{outline:3px solid #e8c774}
+#autoDailyStart,#forecastRacesSection,#fixedHistorySection{scroll-margin-top:74px}
+.owner-menu{background:transparent;border:0;margin:0;padding:0}
+.owner-menu>summary{display:inline-flex;align-items:center;
+ min-height:30px;color:#bcd0e1;font-weight:600;font-size:12px}
+.owner-menu .owner-nav{margin:5px 0 9px;padding:7px;background:#10263d;border-radius:9px}
+.owner-weekend-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.owner-weekend-actions button{margin:5px 0;min-height:58px;padding:9px 6px;
+ font-size:14px;line-height:1.3;background:#2b425b;color:#eff5ff;
+ border:1px solid #7894af}
+.owner-weekend-actions button[data-selected="true"]{background:#e8c774;
+ color:#182b41;border-color:#e8c774}
+.auto-easy-pulse,.auto-race-quick{padding:12px;border:1px solid #7f9eb9;
+ background:#102f4d;border-radius:11px;color:#f1d48c;
+ font-weight:850;font-size:18px;line-height:1.48;overflow-wrap:anywhere}
+.auto-race-quick{font-size:16px;margin:10px 0}
+.owner-instructions,.owner-research-tools{margin:12px 0}
+.owner-research-tools>summary{font-size:15px}
+.quick-links{margin:7px 0}
+.quick-links a{font-weight:750}
+@media(max-width:520px){
+ .arc-brand{padding:8px 9px;margin:7px 0 10px;gap:8px}
+ .arc-brand-mark{width:73px;height:60px;flex-basis:73px}
+ .arc-brand-copy h1{font-size:26px}
+ .arc-brand-jp{font-size:11px;margin:0}
+ .arc-brand-sub{font-size:10px;margin:1px 0}
+ .arc-brand-engine{font-size:10px}
+ .arc-legacy-context{margin:0 0 7px}
+ section{padding:11px;margin:9px 0}
+ .warning{padding:9px}
+ .owner-weekend-actions button{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
 h2{font-size:19px;margin:0 0 10px}
 nav{display:flex;justify-content:space-between;gap:12px}a{color:#f0d185}
 .owner-nav{flex-wrap:wrap;gap:6px 12px;justify-content:flex-start}
@@ -2735,6 +2800,16 @@ function render(input,day){
   show(target.track,target.key); // Local clock rechecked by show(), no provider call.
  };
  const safeDraftCount=displayableDrafts.length;
+ // Display validated counts only; these are provisional research drafts,
+ // never full-ten grades, JRA-verified entries or purchases.
+ const easyCount='全'+data.raceCount+'R｜研究用下書き '+
+  safeDraftCount+'R｜見送り '+data.holdCount+'R';
+ const hiddenCount=Math.max(0,data.draftCount-safeDraftCount);
+ $('autoEasyPulse').textContent=easyCount+
+  (hiddenCount?'｜新規非表示 '+hiddenCount+'R':'')+
+  '（正式10項目・JRA公式照合は未完成）';
+ $('autoRaceQuickSummary').textContent=easyCount+
+  '。予想があるレースは上の「買い目あり」からすぐ表示できます。';
  const singleDraft=safeDraftCount===1?displayableDrafts[0]:null;
  const shortcut=$('autoDraftShortcut');
  shortcut.textContent=singleDraft
@@ -5624,7 +5699,18 @@ function updateJraCrosscheck(){
   'リンク未検出は開催なしを意味せず、リンク発見も馬番・取消・馬場・発走時刻の一致を証明しません。';
 }
 
+// The chosen date determines which weekend button is gold. Neither
+// highlighting nor changing a date triggers a provider request.
+function highlightSelectedWeekend(){
+ const selected=$('autoDay').value;
+ const dt=new Date(selected+'T12:00:00Z');
+ const weekday=Number.isFinite(dt.valueOf())&&
+  dt.toISOString().slice(0,10)===selected?dt.getUTCDay():-1;
+ $('autoSaturdayQuick').dataset.selected=String(weekday===6);
+ $('autoSundayQuick').dataset.selected=String(weekday===0);
+}
 $('autoDay').value=jstToday();
+highlightSelectedWeekend();
 showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
 showSavedWorkoutPairHistory($('autoDay').value.replaceAll('-',''));
 updateJraReleaseGuide();updateJraCrosscheck();
@@ -5637,6 +5723,7 @@ function updateReviewLink(){
   (valid?'?date='+encodeURIComponent(day):'');
 }
 $('autoDay').onchange=()=>{
+ highlightSelectedWeekend();
  resetResolvedJraCard();
  $('autoOfficialCardUrl').value='';
  $('autoOfficialCardStatus').textContent='開催日を変更しました。JRA公式Web出馬表の候補は未確認です。';
@@ -5670,6 +5757,8 @@ $('autoDay').onchange=()=>{
  $('autoViewingStatus').textContent='レースを取得すると選択できます。';
  clearHistory();
  $('autoSummary').textContent='未取得';
+ $('autoEasyPulse').textContent='この開催日の予想は未取得です。';
+ $('autoRaceQuickSummary').textContent='予想は未取得です。';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoTrackWorkouts').textContent='調教S/Aの参考表示：開催日のデータは未取得です。';
  $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
@@ -6128,6 +6217,8 @@ $('autoRun').onclick=async()=>{
   $('autoStatus').textContent='開催日を選択してください。';return;
  }
  button.disabled=true;$('autoStatus').textContent='JRDB資料を一括照合し、自動暫定案を作成中…';
+ $('autoEasyPulse').textContent='開催日を取得中。新しい買い目はまだ未確認です。';
+ $('autoRaceQuickSummary').textContent='データ確認中。まだ予想は表示していません。';
  $('autoOperationalNext').textContent='JRDB取得・資料検証中。新しい研究用下書きの確認は完了していません。';
  $('autoReadProof').textContent='JRDB資料を照会中。番組R数・4ソース完了・署名はまだ未確認。';
  clearHistory();
@@ -6279,6 +6370,8 @@ $('autoRun').onclick=async()=>{
    :detail||
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
+  $('autoEasyPulse').textContent='取得に失敗。新しい研究用予想は確認できません。上のエラーを確認してください。';
+  $('autoRaceQuickSummary').textContent='予想は未取得です。以前の固定記録はそのままです。';
  $('autoHoldReasons').replaceChildren();
  $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
  $('autoMissingFactorSummary').textContent='開催日を取得すると未評価の内訳を確認できます。';
@@ -8116,6 +8209,7 @@ function resumeOwnerDay(){
  $('autoPreflightStatus').textContent='開催日が変わりました。無料診断は未実行。';
  request++;$('autoRun').disabled=false;
  $('autoDay').value=today;
+ highlightSelectedWeekend();
  updateReviewLink();
  $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
  $('autoHoldReasons').replaceChildren();
@@ -8128,6 +8222,8 @@ function resumeOwnerDay(){
  $('autoViewingStatus').textContent='レースを取得すると選択できます。';
  clearHistory();
  $('autoSummary').textContent='未取得';
+ $('autoEasyPulse').textContent='この開催日の予想は未取得です。';
+ $('autoRaceQuickSummary').textContent='予想は未取得です。';
  $('autoSourceSummary').textContent='全Rの資料進捗は未取得です。';
  $('autoTrackWorkouts').textContent='調教S/Aの参考表示：開催日のデータは未取得です。';
  $('autoReadProof').textContent='開催日を切り替えました。JRDB資料はまだ照会していません。';
@@ -8219,6 +8315,9 @@ function showRecentlyFixedWithoutProvider(day,label){
  showFixedHistory(day);
  $('autoSavedStatus').textContent=localReceiptStatus(day);
  $('autoSummary').textContent='新規未取得｜端末内の発走前固定 '+count+'R';
+ $('autoEasyPulse').textContent='端末に固定済みの研究記録 '+count+
+  'Rを表示中。新しいJRDB予想は未取得。';
+ $('autoRaceQuickSummary').textContent='新規予想は未取得。過去の固定記録は「結果・記録」で確認できます。';
  $('autoTrackWorkouts').textContent='今回は馬番別調教資料を取得していません。固定済み研究記録のみ表示。';
  $('autoStatus').textContent='【'+label+'・固定履歴を表示】この端末に保存済みの発走前研究用3連単 '+count+
   'Rを表示しています。20分以内に確認済みのため自動JRDB再照会0回。今回の新しい出走資料・予想は取得していません。'+
