@@ -11,7 +11,7 @@ from evaluation_policy import (OWNER_FORMAL_FACTORS as FACTORS,
     OWNER_FORMAL_POLICY_VERSION as POLICY_VERSION, POINTS, SCORE_THRESHOLDS,
     supported, timestamp)
 from jrdb_coverage import CoverageError
-from jrdb_owner_auto_draft import _safe_formation_sizes
+from owner_formal_formation import formal_formation_sizes
 from keiba_trifecta_builder import REQUIRED_EVIDENCE, build_trifecta
 from owner_upset_alternative import build_upset_alternative, _hold as hold_upset
 
@@ -319,9 +319,10 @@ def full_ten_factor_preview(snapshot, *, now):
             [h["number"] for h in ranking], evidence=None)
         return response
     # Source-based ties cannot be broken by horse number merely to fill slots.
-    sizes = _safe_formation_sizes([
-        {"weightedResearchPoints": h["weightedPoints"]} for h in ranking
-    ])
+    # The formal ten-factor gate has a separate up-to-48 selector.
+    # Older two-factor signed 40-point drafts remain unchanged.
+    # Exact equal-score groups are never cut just to fill a point target.
+    sizes = formal_formation_sizes(ranking)
     if sizes is None:
         response["status"] = "ambiguous_score_cutoff"
         response["upsetAlternative"] = hold_upset("ambiguous_score_cutoff")
