@@ -98,13 +98,13 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <details><summary>開催日朝の使い方（3ステップ）</summary>
 <p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
 <p class="muted">② 下の「下書きのみ」を選ぶか、競馬場・レースを選択して1着／2着／3着の3連単と重複除外した点数を確認する。これは調教・近走だけの研究用下書きで、10項目の本予想や投票推奨ではない。</p>
-<p class="muted">③ 発走前の固定記録を確認し、必要に応じて「13種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
+<p class="muted">③ 発走前の固定記録を確認し、必要に応じて「14種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
 </details>
 <details><summary>端末の保存状況と再分析の差分</summary>
 <p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
 <p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p></details>
 <p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
-<a href="/owner-backup">固定済み買い目など13種類の端末記録をバックアップする</a>。
+<a href="/owner-backup">固定済み買い目など14種類の端末記録をバックアップする</a>。
 既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
 <a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
@@ -175,7 +175,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoHistory"></div>
 <p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
 署名はこの画面では検証していません。後付け予想ではありません。</p>
-<a href="/owner-backup">13種類の記録をバックアップ・復元する</a>
+<a href="/owner-backup">14種類の記録をバックアップ・復元する</a>
 </section>
 <details class="advanced-panel"><summary>追加分析・詳しい設定（必要なときだけ）</summary>
 <section>
