@@ -4377,6 +4377,53 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(pastRace.children.some(x=>x.className==='tie-group-study'),false,
   'elapsed provisional off-time may not reconstruct a new tie study');
  assert.equal(tiedPast.storage.has(STORAGE),false);
+ // Real /tcy workout-index ordering stays within the same provisional
+ // S/A/B/C grade. It is NOT a new win ranking or fabricated 30-point score.
+ const indexOrder=resultWith('a'.repeat(64));
+ indexOrder.workoutIndexOrder={
+  version:'owner-workout-index-order-1',date:day,raceCount:1,
+  studiedRaceCount:1,
+  researchOnly:true,privateOwnerOnly:true,scoreReady:false,
+  officialJraVerified:false,predictionReady:false,bettingReady:false,
+  sourcePublicationTimeVerified:false,rawIndexesIncluded:false,
+  ticketsIssued:0,newProviderRequests:0,changesExistingReceipts:false,
+  races:[{track:'東京',race:1,runnerCount:7,
+   rankingScope:'workout_index_within_band_only',
+   differentIndexPairsWithinBand:2,exactTiePairsWithinBand:2,
+   runners:[
+    {number:1,trainingBand:'S',withinBandRank:1},
+    {number:2,trainingBand:'S',withinBandRank:2},
+    {number:3,trainingBand:'A',withinBandRank:1},
+    {number:4,trainingBand:'A',withinBandRank:1},
+    {number:5,trainingBand:'B',withinBandRank:1},
+    {number:6,trainingBand:'B',withinBandRank:2},
+    {number:7,trainingBand:'C',withinBandRank:1},
+   ]}]
+ };
+ const indexView=boot({initialServerRaw:indexOrder});
+ await new Promise(r=>setImmediate(r));
+ const indexCard=indexView.get('autoRaces').children[0].children[0];
+ const indexPanel=indexCard.children.find(x=>x.className==='real-workout-band-order');
+ assert.ok(indexPanel);
+ assert.match(indexPanel.children[0].textContent,/同評価内を指数で比較/);
+ assert.match(indexPanel.children[1].textContent,/S評価内の指数順：1番（同S内1位）／2番（同S内2位）/);
+ assert.match(indexPanel.children.at(-1).textContent,/換算30点は出していません/);
+ assert.equal(indexView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const indexAfter=boot({
+  initialServerRaw:structuredClone(indexOrder),
+  initialClock:'2099-01-01T03:00:00Z'
+ });
+ await new Promise(r=>setImmediate(r));
+ const afterCard=indexAfter.get('autoRaces').children[0].children[0];
+ assert.equal(afterCard.children.some(x=>x.className==='real-workout-band-order'),false,
+  'after provisional post time, new granular index order is hidden');
+ const forgedOrder=structuredClone(indexOrder);
+ forgedOrder.workoutIndexOrder.races[0].runners[0].trainingBand='C';
+ const invalidIndex=boot({initialServerRaw:forgedOrder});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(invalidIndex.get('autoRaces').children.length,0,
+  'an inconsistent index band must fail validation before render');
+ assert.equal(invalidIndex.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // Sparse recent research is strictly a *separate* unsigned display.
  // Never promote held candidates to a draft, sign them or fetch a source.
  const sparse=boot({manualWeekday:false});
