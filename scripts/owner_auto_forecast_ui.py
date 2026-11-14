@@ -147,7 +147,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoHeldTie48Races"></div>
 </details>
 <details id="autoTkyTrainingPanel"><summary>調教資料不足Rの調教矢印・別指数（参考のみ）</summary>
-<p class="muted">JRDB出走馬データ（/tky）の「調教矢印」は1〜5の状態評価。JRDB公式の説明に従い、矢印を指数より優先して表示します。別の「調教指数」は数値が高い順の参考で、矢印と結果が異なる場合は矢印を優先。どちらも追切・仕上指数（/tcy）とは別物です。欠測馬は最下位扱いしません。正式調教30点・10項目100点や3連単、発走前固定記録、購入には反映しません。</p>
+<p class="muted">JRDB出走馬データ（/tky）の「調教矢印」は1〜5の状態評価。JRDB公式の説明に従い、矢印を指数より優先して表示します。別の「調教指数」は数値が高い順の参考で、矢印と結果が異なる場合は矢印を優先。どちらも追切・仕上指数（/tcy）とは別物です。矢印と指数の方向が逆の組数は確認用だけに表示します。同点や欠測は比較せず、欠測馬は最下位扱いしません。正式調教30点・10項目100点や3連単、発走前固定記録、購入には反映しません。</p>
 <p id="autoTkyTrainingStatus" class="muted" role="status">発走前の資料が未取得です。</p>
 <div id="autoTkyTrainingRows"></div>
 </details>
@@ -1979,6 +1979,14 @@ function renderTkyTrainingStudy(data,day){
       !Number.isInteger(item.arrowObservedCount)||
       item.arrowObservedCount<0||item.arrowObservedCount>item.rosterCount||
       item.arrowUnobservedCount!==item.rosterCount-item.arrowObservedCount||
+      !Number.isInteger(item.comparableDirectionPairs)||
+      item.comparableDirectionPairs<0||
+      item.comparableDirectionPairs>
+       Math.min(item.observedCount,item.arrowObservedCount)*
+       (Math.min(item.observedCount,item.arrowObservedCount)-1)/2||
+      !Number.isInteger(item.disagreeDirectionPairs)||
+      item.disagreeDirectionPairs<0||
+      item.disagreeDirectionPairs>item.comparableDirectionPairs||
       item.observedCount<2&&item.arrowObservedCount<2||
       item.rankingScope!=='tky_arrow_first_index_descriptive_only'||
       !Array.isArray(item.runners)||item.runners.length!==item.observedCount||
@@ -2040,6 +2048,10 @@ function renderTkyTrainingStudy(data,day){
     '別の調教指数の数値比較は資料不足','muted'));
    card.append(dom('p',
     'JRDBは調教矢印の評価を数値指数より優先するよう説明しています。'+
+    (item.comparableDirectionPairs?
+     '矢印と指数の順序が逆の組 '+item.disagreeDirectionPairs+
+     '／'+item.comparableDirectionPairs+'組（比較できた組だけ）。':
+     '矢印と指数を方向比較できた組はありません。')+
     (item.arrowUnobservedCount?'矢印不明 '+item.arrowUnobservedCount+'頭。':'')+
     (item.unassessedCount?'指数不明 '+item.unassessedCount+'頭。':'')+
     '欠測はデキ落ちの意味ではありません。/tcyの追切・仕上指数とは別で、'+
