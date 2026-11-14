@@ -4929,6 +4929,7 @@ function updateJraCrosscheck(){
 }
 
 $('autoDay').value=jstToday();
+showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
 updateJraReleaseGuide();updateJraCrosscheck();
 function updateReviewLink(){
  const day=$('autoDay').value;
@@ -4942,6 +4943,10 @@ $('autoDay').onchange=()=>{
  resetResolvedJraCard();
  $('autoOfficialCardUrl').value='';
  $('autoOfficialCardStatus').textContent='開催日を変更しました。JRA公式Web出馬表の候補は未確認です。';
+ workoutProviderSeq++;
+ $('autoWorkoutProviderSummary').replaceChildren();
+ $('autoWorkoutProviderStatus').textContent='選択日の署名付き調教研究記録がある場合のみ暫定結果を照合できます。';
+ showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
  ++preflightSeq;
  $('autoPreflight').disabled=false;
  $('autoPreflightStatus').textContent='選択日が変わりました。無料診断は未実行です。';
@@ -5478,6 +5483,15 @@ $('autoRun').onclick=async()=>{
    localStatus=saveAutoReceipts(body,day);
   }catch(_){
    throw Error('receipt_storage_failed');
+  }
+  // Optional frozen index evidence is stored separately from signed
+  // 3連単, never overwrites the first existing research record, and
+  // failure cannot invalidate already safe prestart bet receipt storage.
+  try{saveWorkoutLocks(body,day);}
+  catch(_){
+   $('autoWorkoutLockStatus').textContent=
+    '調教指数の初回固定に失敗。既存の研究予想・購入記録は変更していません。';
+   $('autoWorkoutProviderCheck').disabled=true;
   }
   const displayed=render(body,day);
   // Keep only a tiny, non-sensitive 0R read marker between Safari
