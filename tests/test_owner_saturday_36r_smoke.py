@@ -62,7 +62,7 @@ class Saturday36RSmokeTests(unittest.TestCase):
         self.assertNotIn("11種類の端末記録", AUTO_HTML)
         self.assertIn("新配点79点", AUTO_HTML)
         self.assertIn("旧85点", AUTO_HTML)
-        self.assertIn("12種類の記録を1つのJSON", BACKUP_HTML)
+        self.assertIn("13種類の記録を1つのJSON", BACKUP_HTML)
 
     def test_full_day_generates_36_valid_bounded_receipts_before_off(self):
         p, study = synthetic_day()
