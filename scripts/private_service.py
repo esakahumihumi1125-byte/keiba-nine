@@ -42,6 +42,7 @@ from jrdb_owner_auto_draft import (
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_uncertain_recent_preview import preview_missing_recent_holds
 from owner_held_tie_48_preview import preview_held_ties_48
+from owner_training_source_delivery import observe_training_source_delivery
 from owner_workout_index_order import workout_index_order, unavailable as unavailable_workout_order
 from owner_workout_order_receipts import (issue_workout_locks, verify_workout_locks,
                                          WorkoutLockError)
@@ -2378,6 +2379,18 @@ def create_app(settings=None):
                 # the agreed weights/grade thresholds; it MUST NOT
                 # manufacture a ten-factor score or change sealed tickets.
                 report['tenFactorPreview'] = ten_factor_contract(report)
+                # A successful /tcy HTTP response is not proof that any
+                # training record belongs to today's runners. Diagnose the
+                # original SAME /tra,/tky,/tcy,/tze reads separately.
+                # Only aggregate counts and a fixed status reach the owner;
+                # no new JRDB read or invented "provider not published" claim.
+                stage = 'training_source_delivery'
+                try:
+                    report['trainingSourceDelivery'] = observe_training_source_delivery(
+                        programme, entries, training, recent, day,
+                        source_read_count=source_reads)
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    logging.warning('KEIBA_TRAINING_DELIVERY=unavailable')
                 # Optional source evidence requires all four underlying
                 # reads. A one-read empty /tra programme has no material
                 # coverage to evaluate (and NOT zero graded horses).
@@ -2559,7 +2572,8 @@ def create_app(settings=None):
                     'programme=%s source_reads=%s drafts=%s holds=%s receipts=%s '
                     'material=%s course=%s hold_causes=%s factor_gaps=%s '
                     'factor_gap_causes=%s unsigned_sparse_previews=%s '
-                    'tie_boundary_rescues=%s unsigned_tie_48_previews=%s expired_on_return=%s '
+                    'tie_boundary_rescues=%s unsigned_tie_48_previews=%s training_feed=%s '
+                    'training_index_rows=%s expired_on_return=%s '
                     'jra=unverified formal=ungraded',
                     'present' if report['raceCount'] else 'empty',
                     report['sourceReadCount'],
@@ -2578,6 +2592,9 @@ def create_app(settings=None):
                         and len(row['third']) == 6
                         and row['points'] == 40),
                     report['heldTie48Research']['unsignedReferenceCount'],
+                    report.get('trainingSourceDelivery', {}).get('status', 'unavailable'),
+                    report.get('trainingSourceDelivery', {}).get(
+                        'trainingRunnersWithBothIndices', 0),
                     expired_before_delivery,
                 )
             except (JRDBError, ProgrammeFormatError, CoverageError,
