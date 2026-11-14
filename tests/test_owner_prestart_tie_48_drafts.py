@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_owner_auto_draft import build_owner_auto_drafts
 from owner_auto_draft_receipts import seal_auto_research_drafts
 from owner_prestart_receipt import verify_preview_receipts
+from owner_last_prestart_gate import expire_undelivered_drafts
 from test_jrdb_owner_auto_draft import (
     programme, research, JST, DAY, SETTINGS
 )
@@ -69,6 +70,28 @@ class OwnerTie48DraftTests(unittest.TestCase):
         self.assertEqual(race["amountYen"], 4200)
         self.assertEqual(len({tuple(t) for t in race["tickets"]}), 42)
         self.assertEqual(len(seal_auto_research_drafts(result, SECRET, now=BEFORE)), 1)
+
+    def test_signed_forty_two_point_draft_passes_final_delivery_gate(self):
+        # End-to-end in-process regression against the exact failure stage
+        # seen by the owner: builder -> HMAC seal -> final report alignment.
+        pairs = [("S", "C")] + [("A", "C")] * 7 + [("B", "C")] * 2
+        result = generate(pairs)
+        signed = seal_auto_research_drafts(result, SECRET, now=BEFORE)
+        self.assertEqual(result["races"][0]["points"], 42)
+        self.assertEqual(len(signed), 1)
+        result["researchReceipts"] = signed
+        result["researchReceiptCount"] = len(signed)
+        before = copy.deepcopy(result)
+        self.assertEqual(expire_undelivered_drafts(result, BEFORE), 0)
+        self.assertEqual(result, before)
+        # Second server-clock check must remove *only* the newly late
+        # outgoing 3連単 and receipt, never sign after off.
+        self.assertEqual(expire_undelivered_drafts(result, AFTER), 1)
+        self.assertEqual(result["draftCount"], 0)
+        self.assertEqual(result["races"][0]["status"], "hold")
+        self.assertEqual(result["races"][0]["tickets"], [])
+        self.assertEqual(result["researchReceipts"], [])
+        self.assertEqual(result["researchReceiptCount"], 0)
 
     def test_old_forty_point_algorithm_is_unchanged_when_already_safe(self):
         result = generate([("S", "S"), ("S", "A"), ("A", "A"),

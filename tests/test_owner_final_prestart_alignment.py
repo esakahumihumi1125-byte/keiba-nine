@@ -56,6 +56,51 @@ class FinalPrestartReceiptIdentityTests(unittest.TestCase):
         self.assertEqual(expire_undelivered_drafts(report, MORNING), 0)
         self.assertEqual(report, original)
 
+    def test_forty_eight_real_distinct_triplets_pass_final_gate(self):
+        report = fixture()
+        # All combinations from nested 1st 2, 2nd 4, 3rd 10 = 48.
+        # Old final prestart validator incorrectly rejected >40.
+        first, second, third = [1, 2], [1, 2, 3, 4], list(range(1, 11))
+        tickets = [
+            [a, b, c] for a in first for b in second for c in third
+            if a != b and a != c and b != c
+        ]
+        self.assertEqual(len(tickets), 48)
+        race = report["races"][0]
+        race.update(first=first, second=second, third=third,
+                    tickets=tickets, points=48, amountYen=4800)
+        report["researchReceipts"][0]["snapshot"]["trifectaTickets"] = (
+            copy.deepcopy(tickets))
+        unchanged = copy.deepcopy(report)
+        self.assertEqual(expire_undelivered_drafts(report, MORNING), 0)
+        self.assertEqual(report, unchanged)
+        # A late delivery hides this R and its outgoing signature;
+        # its still-future sibling is untouched.
+        other = copy.deepcopy(report["researchReceipts"][1])
+        self.assertEqual(expire_undelivered_drafts(report, LATE), 1)
+        self.assertEqual((report["draftCount"], report["holdCount"]), (1, 1))
+        self.assertEqual(report["researchReceipts"], [other])
+        self.assertEqual(report["races"][0]["tickets"], [])
+        self.assertEqual(report["races"][0]["points"], 0)
+
+    def test_forty_nine_unique_triplets_still_fail_closed(self):
+        report = fixture()
+        first, second, third = [1, 2], [1, 2, 3, 4], list(range(1, 11))
+        tickets = [
+            [a, b, c] for a in first for b in second for c in third
+            if a != b and a != c and b != c
+        ]
+        tickets.append([1, 5, 6])  # valid distinct *extra*, but over 48
+        self.assertEqual(len({tuple(t) for t in tickets}), 49)
+        report["races"][0].update(
+            tickets=tickets, points=49, amountYen=4900)
+        report["researchReceipts"][0]["snapshot"]["trifectaTickets"] = (
+            copy.deepcopy(tickets))
+        before = copy.deepcopy(report)
+        with self.assertRaises(CoverageError):
+            expire_undelivered_drafts(report, MORNING)
+        self.assertEqual(report, before)
+
     def test_exact_boundary_expires_only_that_race_and_keeps_other_receipt(self):
         report = fixture()
         second_receipt = copy.deepcopy(report["researchReceipts"][1])
