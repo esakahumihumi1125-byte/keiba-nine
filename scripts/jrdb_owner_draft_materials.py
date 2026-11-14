@@ -10,6 +10,7 @@ from jrdb_recent_hypothesis import build_recent_hints
 from jrdb_private_factor_bridge import build_private_factor_matrix, summarize_factor_materials
 from jrdb_entry_rotation_materials import enrich_entry_materials_matrix, summarize_entry_materials_matrix
 from jrdb_personnel_body_materials import enrich_personnel_body_matrix, summarize_personnel_body_matrix
+from owner_pace_aptitude_inputs import observe_pace_aptitude_input_counts
 
 VERSION = "owner-draft-material-coverage-1"
 FIELDS = ("pedigree", "drawWeight", "rotation", "personnel", "body", "pastCorner")
@@ -33,6 +34,8 @@ def observe_owner_draft_materials(programme, entries, training, recent, day):
         enriched, programme, entries, day)
     personnel_summary = summarize_personnel_body_matrix(personnel_matrix)
     reports = (base_summary, entry_summary, personnel_summary)
+    auxiliary = observe_pace_aptitude_input_counts(programme, entries, day)
+    auxiliary_by_coord = {(r["track"], r["race"]): r for r in auxiliary}
     if any(r.get("predictionReady") is not False or
            r.get("bettingReady") is not False for r in reports):
         raise CoverageError("Source observations promoted to prediction")
@@ -49,7 +52,9 @@ def observe_owner_draft_materials(programme, entries, training, recent, day):
             rows[coord] = item
         indexed.append(rows)
     keys = {(item["track"], item["race"]) for item in programme}
-    if len(keys) != len(programme) or any(set(m) != keys for m in indexed):
+    if (len(keys) != len(programme) or any(set(m) != keys for m in indexed)
+            or len(auxiliary_by_coord) != len(auxiliary)
+            or set(auxiliary_by_coord) != keys):
         raise CoverageError("Source material races disagree")
     output = []
     programme_by_coord = {
@@ -64,6 +69,9 @@ def observe_owner_draft_materials(programme, entries, training, recent, day):
                 or b["runnerCount"] != count or c["runnerCount"] != count
                 or any(x["verifiedFactorCount"] != 0 for x in (a, b, c))):
             raise CoverageError("Source material counts contradict roster")
+        extra = auxiliary_by_coord[key]
+        if extra["runnerCount"] != count:
+            raise CoverageError("Supplemental source roster mismatch")
         entry = b["entryObservations"]
         people = c["recorded"]
         observed = {
@@ -78,7 +86,8 @@ def observe_owner_draft_materials(programme, entries, training, recent, day):
                for value in observed.values()):
             raise CoverageError("Invalid source material counters")
         output.append({"track": key[0], "race": key[1],
-                       "runnerCount": count, "counts": observed})
+                       "runnerCount": count, "counts": observed,
+                       "sourceSignals": extra["counts"]})
     return {"version": VERSION, "status": "observed",
             "observedFactorSlots": 8, "gradedNewFactors": 0,
             "officialJraVerified": False, "races": output}

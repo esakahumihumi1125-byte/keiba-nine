@@ -479,6 +479,11 @@ const MATERIAL_LABELS={
  pedigree:'父・母父',drawWeight:'枠・斤量',rotation:'前走日付',
  personnel:'騎手・厩舎',body:'馬体形状',pastCorner:'過去4角'
 };
+const SOURCE_SIGNAL_LABELS={
+ runningStyle:'脚質コード',surfaceAptitude:'当該芝ダート適性コード',
+ distanceAptitude:'距離適性コード',goingAptitude:'重馬場適性コード',
+ paceIndices:'テン・ペース・上がり・位置指数の4項目'
+};
 const POS={
  frontObserved:'過去4角：前方観測',
  backObserved:'過去4角：後方観測',
@@ -966,7 +971,15 @@ function validate(data,day){
    !row.counts||Object.keys(row.counts).length!==6||
    Object.keys(MATERIAL_LABELS).some(k=>
      !Number.isInteger(row.counts[k])||row.counts[k]<0||
-     row.counts[k]>row.runnerCount)||materials.has(row.track+'|'+row.race))
+     row.counts[k]>row.runnerCount)||
+   (row.sourceSignals!==undefined&&(
+     !row.sourceSignals||typeof row.sourceSignals!=='object'||
+     Array.isArray(row.sourceSignals)||
+     Object.keys(row.sourceSignals).length!==5||
+     Object.keys(SOURCE_SIGNAL_LABELS).some(k=>
+       !Number.isInteger(row.sourceSignals[k])||
+       row.sourceSignals[k]<0||row.sourceSignals[k]>row.runnerCount)))||
+   materials.has(row.track+'|'+row.race))
     throw Error('観測資料の形式が不正です');
   materials.set(row.track+'|'+row.race,row);
  }
@@ -1915,8 +1928,13 @@ function render(input,day){
    const evidence=Object.entries(MATERIAL_LABELS)
     .map(([key,label])=>label+' '+item.counts[key]+'/'+item.runnerCount)
     .join('／');
-   detail.append(dom('p','資料の有無（採点ではない）：'+evidence,'muted'),
-    dom('p','コース距離・馬場適性は未接続。調教・近走以外の8項目は未採点。','muted'));
+   detail.append(dom('p','資料の有無（採点ではない）：'+evidence,'muted'));
+   if(item.sourceSignals)detail.append(dom('p',
+    'JRDBの追加指標の有無（採点なし）：'+
+    Object.entries(SOURCE_SIGNAL_LABELS).map(([key,label])=>
+     label+' '+item.sourceSignals[key]+'/'+item.runnerCount+'頭').join('／')+
+    '。コードや指数の値から勝率・適性を自動推定したものではありません。','muted'));
+   detail.append(dom('p','コース距離・馬場適性は未接続。調教・近走以外の8項目は未採点。','muted'));
   }else{
    detail.append(dom('p','追加8項目の資料確認は未完了（予想・買い目とは別）。','muted'));
   }
