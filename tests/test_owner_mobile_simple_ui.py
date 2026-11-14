@@ -37,6 +37,9 @@ class SimpleForecastScreenTest(unittest.TestCase):
         self.assertLess(
             HTML.index("<summary>追加分析・詳しい設定（必要なときだけ）</summary>"),
             HTML.index('id="autoHistoryAudit"'))
+        self.assertEqual(HTML.count('id="autoHoldBreakdown"'), 1)
+        self.assertIn("function holdBreakdownSummary(data)", HTML)
+        self.assertIn("発走時刻経過は資料不足ではありません", HTML)
         self.assertIn("JRDBのAPI照会", HTML)
         self.assertIn("正式10項目", HTML)
 
