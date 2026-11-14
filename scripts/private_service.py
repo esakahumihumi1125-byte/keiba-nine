@@ -42,6 +42,7 @@ from jrdb_owner_auto_draft import (
 from owner_last_prestart_gate import expire_undelivered_drafts
 from owner_uncertain_recent_preview import preview_missing_recent_holds
 from owner_workout_index_order import workout_index_order, unavailable as unavailable_workout_order
+from owner_workout_order_receipts import issue_workout_locks, WorkoutLockError
 from owner_ten_factor_contract import ten_factor_contract
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
@@ -2505,6 +2506,19 @@ def create_app(settings=None):
                     report['workoutIndexOrder'] = unavailable_workout_order(
                         day, report['raceCount'])
                     logging.warning('KEIBA_WORKOUT_ORDER=unavailable')
+                # Freeze ONLY originally observed prestart rank-order groups
+                # with a separate HMAC domain. This makes future out-of-time
+                # provider study possible without revising existing bet slips
+                # or retaining raw licensed /tcy index numbers.
+                report['workoutOrderReceipts'] = []
+                stage = 'workout_order_locks'
+                try:
+                    report['workoutOrderReceipts'] = issue_workout_locks(
+                        report, signing_secret, final_prestart_checked_at)
+                except (WorkoutLockError, ValueError, TypeError, KeyError):
+                    logging.warning('KEIBA_WORKOUT_LOCK=unavailable')
+                report['workoutOrderReceiptCount'] = len(
+                    report['workoutOrderReceipts'])
                 # Operator-only one-line evidence of finishing a private
                 # request: one /tra read for empty days or four core reads
                 # plus optional /tka for a populated programme.
