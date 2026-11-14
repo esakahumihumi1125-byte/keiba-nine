@@ -4653,6 +4653,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  // Source-complete /tky expert arrows can add an UNSIGNED, distinctly
  // marked research-only formation without claiming missing /tcy grades.
  const fullArrow=structuredClone(tkyStudy);
+ fullArrow.races[0].horseCount=7;
  fullArrow.tkyTrainingStudy.races[0]={
   track:'東京',race:1,rosterCount:7,observedCount:7,
   unassessedCount:0,arrowObservedCount:7,arrowUnobservedCount:0,
