@@ -62,6 +62,7 @@ from owner_workout_cross_band_receipts import (
     issue_cross_band_observations, verify_cross_band_observations,
 )
 from owner_ten_factor_contract import ten_factor_contract
+from owner_automatic_factor_scores import automatic_factor_scores
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
 from jrdb_owner_draft_materials import (
@@ -2620,6 +2621,13 @@ def create_app(settings=None):
                 # read-only observed-order study for PRESTART held races.
                 # Never substitute this different index for /tcy grades,
                 # assign fabricated 30pt scores, or create signed tickets.
+                # Reuse today's validated inputs; no extra provider reads.
+                try:
+                    report['automaticFactorScores'] = automatic_factor_scores(
+                        programme, entries, recent, day,
+                        now=final_prestart_checked_at)
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    logging.warning('KEIBA_AUTOMATIC_FACTOR_SCORES=unavailable')
                 stage = 'tky_training_study'
                 try:
                     report['tkyTrainingStudy'] = tky_training_index_study(

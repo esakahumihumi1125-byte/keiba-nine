@@ -1329,17 +1329,83 @@ function runnerView(h,index){
  if(missingText(h))p.append(dom('span',missingText(h),'notes'));
  return p;
 }
-function renderTenHorse(h,source){
+const AUTO_FACTOR_REASONS=Object.freeze({
+ pace_fast:'先行型が半数以上：差し・好位差しを加点する仮説',
+ pace_slow:'先行型が4分の1以下：前に行く馬を加点する仮説',
+ pace_balanced:'先行型の割合が中間：好位・自在性を加点する仮説',
+ styles_missing:'脚質未確認の馬がいるため展開は未採点',
+ staff_relative_midrank:'騎手指数・厩舎指数のレース内順位を等分（同値は同点）',
+ staff_missing:'騎手・厩舎指数が全頭分そろわず比較保留',
+ rotation_14_56:'前走から14〜56日：間隔を80/100とする仮説',
+ rotation_7_90:'前走から7〜90日（14〜56日以外）：65/100とする仮説',
+ rotation_outside:'前走から7日未満または90日超：50/100とする仮説',
+ previous_date_missing:'前走日が未確認。新馬も0点にしません'
+});
+function automaticFactorRace(data,day,race){
+ const a=data.automaticFactorScores;
+ if(!a)return null; // Older server/cached responses remain usable.
+ if(a.version!=='owner-automatic-factor-scores-1'||a.policyVersion!=='research-6'||
+    a.date!==day.replaceAll('-','')||a.maximumPoints!==28||
+    a.modelCalibrated!==false||a.officialJraVerified!==false||
+    a.overallPredictionReady!==false||a.newProviderRequests!==0||
+    !Array.isArray(a.races)||a.races.length>120||
+    !Number.isFinite(Date.parse(a.capturedAt)))return null;
+ const rows=a.races.filter(x=>x.track===race.track&&x.race===race.race);
+ if(rows.length!==1)return null;
+ const row=rows[0];
+ if(row.status!=='scored'||row.reason!==null||row.postTime!==race.postTime||
+    !Array.isArray(row.horses)||row.horses.length<4||row.horses.length>18)return null;
+ const seen=new Set();
+ for(const h of row.horses){
+  if(!Number.isInteger(h.number)||h.number<1||h.number>18||seen.has(h.number)||
+     !h.factors||Object.keys(h.factors).sort().join('|')!=='jockey_stable|pace|rotation')return null;
+  seen.add(h.number);
+  for(const [key,weight] of [['pace',17],['jockey_stable',10],['rotation',1]]){
+   const v=h.factors[key];
+   if(!v||v.weight!==weight||!Object.hasOwn(AUTO_FACTOR_REASONS,v.reason))return null;
+   if(v.score===null){if(v.points!==null||v.grade!=='未評価')return null;}
+   else{
+    if(!Number.isFinite(v.score)||v.score<0||v.score>100||
+       !Number.isFinite(v.points)||Math.abs(v.points-v.score*weight/100)>.000051||
+       v.grade!==(v.score>=85?'S':v.score>=70?'A':v.score>=55?'B':'C'))return null;
+   }
+  }
+ }
+ return row;
+}
+function renderAutomaticFactors(row){
+ const panel=dom('details',undefined,'automatic-factors');
+ panel.append(dom('summary','自動採点：展開・騎手厩舎・ローテ（最大28点分）'));
+ panel.append(dom('p','既存のJRDB資料から算出。採点ルールは検証前で、総合100点・勝率ではありません。'+
+  '買い目にはまだ反映していません。','muted'));
+ for(const h of row.horses){
+  const horse=dom('div',undefined,'ten-horse');
+  horse.append(dom('b',h.number+'番'));
+  for(const [key,label] of [['pace','展開・脚質'],['jockey_stable','騎手・厩舎'],['rotation','ローテ']]){
+   const v=h.factors[key];
+   horse.append(dom('p',label+'：'+(v.points===null?'未評価':
+    v.points.toFixed(2)+'/'+v.weight+'点 '+v.grade+'（仮）'),v.grade==='未評価'?'muted':'grade '+v.grade));
+   horse.append(dom('p',AUTO_FACTOR_REASONS[v.reason],'muted'));
+  }
+  panel.append(horse);
+ }
+ return panel;
+}
+function renderTenHorse(h,source,automatic){
+ const additions=automatic?.factors||{};
+ const scored=Object.entries(additions).filter(([,v])=>v.score!==null);
+ const addedCapacity=scored.reduce((sum,[,v])=>sum+v.weight,0);
+ const knownCapacity=h.provisionalWeightCapacity+addedCapacity;
  const details=dom('details',undefined,'ten-horse');
  details.append(dom('summary',h.number+'番：'+
   (h.provisionalScoreReady?'暫定 '+h.provisionalPoints33+'/33点':'暫定点 未算出')+
-  '｜総合 未評価（評価項目'+h.provisionalWeightCapacity+
-  '点分／未評価'+h.unassessedWeightCapacity+'点分）'));
+  '｜総合 未評価（評価項目'+knownCapacity+
+  '点分／未評価'+(100-knownCapacity)+'点分）'));
  const grid=dom('div',undefined,'ten-grid');
  for(const [key,label,weight] of TEN){
-  const slot=dom('div',undefined,'ten-slot'),grade=h.grades[key];
+  const slot=dom('div',undefined,'ten-slot'),extra=additions[key],grade=extra?.grade||h.grades[key];
   slot.append(dom('span',label+' '+weight+'点'),
-    dom('b',grade+(grade==='未評価'?'':'（仮）'),grade==='未評価'?'':grade));
+    dom('b',grade+(grade==='未評価'?'':'（仮）')+(extra?.points!=null?' '+extra.points.toFixed(2)+'点':''),grade==='未評価'?'':grade));
   grid.append(slot);
  }
  details.append(grid);
@@ -1347,7 +1413,7 @@ function renderTenHorse(h,source){
   ?'自動算出（仮説）：調教 '+h.provisionalBreakdown.training+
    '/30点 ＋ 近走 '+h.provisionalBreakdown.recent+
    '/3点 ＝ '+h.provisionalPoints33+
-   '/33点。残り67点の採点なし。正式な100点総合点・評価順位ではありません。'
+   '/33点。下記の追加採点も検証前です。正式な100点総合点・評価順位ではありません。'
   :'調教と近走の両方が揃わないか、見送り対象のため暫定得点を算出しません。'+
    '不足を0点に置き換えません。','muted'));
  if(source){
@@ -1358,10 +1424,16 @@ function renderTenHorse(h,source){
    label+' '+(source[key]?'資料あり':'資料不足')).join('／')+
    '。資料ありは適性や能力の評価ではありません。馬体重当日値は未確認。','muted'));
  }else{
-  details.append(dom('p','JRDBの馬別追加資料は照合保留。残り8項目は未採点。','muted'));
+  details.append(dom('p','JRDBの馬別追加資料は照合保留。未評価項目は下記に表示します。','muted'));
+ }
+ if(automatic){
+  for(const [key,v] of Object.entries(additions)){
+   const label=TEN.find(([k])=>k===key)[1];
+   details.append(dom('p',label+'：'+AUTO_FACTOR_REASONS[v.reason],'muted'));
+  }
  }
  details.append(dom('p','未評価の項目（配点が大きい順）：'+
-  h.priorityMissingFactors.map(key=>{
+  h.priorityMissingFactors.filter(key=>!scored.some(([k])=>k===key)).map(key=>{
    const entry=TEN.find(([k])=>k===key);
    return entry[1]+entry[2]+'点';
   }).join('／')+'。ここでの点数は配点であり能力得点ではありません。','muted'));
@@ -1373,7 +1445,7 @@ function renderTenHeader(p){
   const el=dom('div',undefined,'ten-weight');
   el.append(dom('span',f.label),dom('b',f.weight+'点'));host.append(el);
  }
- $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、残り8項目は未評価（配点67点）。これは正式総合点・勝率・総合順位ではありません。';
+ $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、展開17・騎手厩舎10・ローテ1は資料が揃った馬を追加自動採点。各馬の欄に得点と理由を表示します。総合100点の採点は未完成です。';
 }
 // Grades on a racecard are observations from the existing two-factor
 // source, not a horse ranking or a predicted winner. Never substitute 0 for
@@ -2668,6 +2740,9 @@ function render(input,day){
     :'見送り'+(race.runners.length?'｜調教S '+race.runners.filter(h=>h.training==='S').length+
       '頭・A '+race.runners.filter(h=>h.training==='A').length+'頭（仮）':'')));
   detail.append(title);
+  const automatic=automaticFactorRace(data,day,race);
+  if(automatic&&!race.runners.length&&!elapsed&&!changedLock&&!draftExpiredOnDevice(day,race.postTime))
+   detail.append(renderAutomaticFactors(automatic));
   const course=courseRows.get(race.track+'|'+race.race);
   const condition=course.goingAvailable?course.going+'（JRDB資料）':'馬場未確認';
   detail.append(dom('p','コース条件：'+(course.surface||'芝・ダート未確認')+
@@ -2745,7 +2820,9 @@ function render(input,day){
    for(const [i,h] of displayed.entries()){
     horses.append(runnerView(h,i));
     const ten=tenRows.get(race.track+'|'+race.race).horses.find(x=>x.number===h.number);
-    horses.append(renderTenHorse(ten,materialByRace.get(key)?.get(h.number)));
+    horses.append(renderTenHorse(ten,materialByRace.get(key)?.get(h.number),
+     !elapsed&&!changedLock&&!draftExpiredOnDevice(day,race.postTime)
+      ?automatic?.horses.find(x=>x.number===h.number):null));
    }
    detail.append(horses);
   }
@@ -2761,7 +2838,7 @@ function render(input,day){
     Object.entries(SOURCE_SIGNAL_LABELS).map(([key,label])=>
      label+' '+item.sourceSignals[key]+'/'+item.runnerCount+'頭').join('／')+
     '。コードや指数の値から勝率・適性を自動推定したものではありません。','muted'));
-   detail.append(dom('p','コース距離・馬場適性は未接続。調教・近走以外の8項目は未採点。','muted'));
+   detail.append(dom('p','コース距離・馬場適性は未接続。追加3項目の算出結果は、このRの自動採点欄で確認できます。総合採点は未完成。','muted'));
   }else{
    detail.append(dom('p','追加8項目の資料確認は未完了（予想・買い目とは別）。','muted'));
   }
