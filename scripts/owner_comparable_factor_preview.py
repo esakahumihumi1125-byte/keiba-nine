@@ -15,7 +15,7 @@ from jrdb_coverage import CoverageError
 from jrdb_owner_auto_draft import VERSION as DRAFT_VERSION
 from owner_automatic_factor_scores import VERSION as AUTO_VERSION
 
-VERSION = 'owner-comparable-factor-formation-1'
+VERSION = 'owner-comparable-factor-formation-2'
 JST = timezone(timedelta(hours=9))
 DAY = re.compile(r'20\d{6}\Z', re.ASCII)
 OFF = re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d\Z', re.ASCII)
@@ -23,6 +23,12 @@ GRADES = {'S': 3, 'A': 2, 'B': 1, 'C': 0}
 AUTO_FACTORS = ('course_distance', 'pace', 'ground', 'jockey_stable', 'rotation')
 MIN_COMPARABLE_WEIGHT = 70
 MAX_RACES = 120
+# Fixed aggregate statuses only: no dates, horse IDs, race keys or provider rows.
+DIAGNOSTIC_KEYS = (
+    'ineligible', 'time_unavailable', 'roster_mismatch',
+    'training_missing', 'factor_invalid', 'insufficient_shared_weight',
+    'tie_or_point_limit', 'preview',
+)
 
 
 def _grade_points(value, weight):
@@ -72,18 +78,18 @@ def _candidate(base, automatic, day, now):
             or automatic.get('track') != base.get('track')
             or automatic.get('race') != base.get('race')
             or automatic.get('postTime') != base.get('postTime')):
-        return None
+        return None, 'ineligible'
     off_text = base.get('postTime')
     if not isinstance(off_text, str) or not OFF.fullmatch(off_text):
-        return None
+        return None, 'time_unavailable'
     off = datetime.strptime(day + off_text, '%Y%m%d%H:%M').replace(tzinfo=JST)
     if now >= off or now.date() > off.date():
-        return None
+        return None, 'time_unavailable'
     original, scored = base.get('runners'), automatic.get('horses')
     if (not isinstance(original, list) or not isinstance(scored, list)
             or not 5 <= len(original) <= 18 or len(original) != len(scored)
             or base.get('horseCount') != len(original)):
-        return None
+        return None, 'roster_mismatch'
     runners, source = {}, {}
     for h in original:
         if (not isinstance(h, dict) or type(h.get('number')) is not int
@@ -91,20 +97,20 @@ def _candidate(base, automatic, day, now):
                 or h['number'] in runners
                 or h.get('training') not in (*GRADES, '未評価')
                 or h.get('recent') not in (*GRADES, '未評価')):
-            return None
+            return None, 'roster_mismatch'
         runners[h['number']] = h
     for h in scored:
         if (not isinstance(h, dict) or type(h.get('number')) is not int
                 or h['number'] in source or h['number'] not in runners
                 or not isinstance(h.get('factors'), dict)):
-            return None
+            return None, 'roster_mismatch'
         source[h['number']] = h['factors']
     if set(source) != set(runners):
-        return None
+        return None, 'roster_mismatch'
     # Training is the owner's dominant source. Without full training
     # coverage there is no research formation, not a lower-grade default.
     if not all(h['training'] in GRADES for h in runners.values()):
-        return None
+        return None, 'training_missing'
     keys = ['training']
     if all(h['recent'] in GRADES for h in runners.values()):
         keys.append('recent')
@@ -113,7 +119,7 @@ def _candidate(base, automatic, day, now):
         values = [source[number].get(name) for number in runners]
         if any(not isinstance(v, dict) or v.get('weight') != weight
                for v in values):
-            return None
+            return None, 'factor_invalid'
         known = []
         for v in values:
             points, score = v.get('points'), v.get('score')
@@ -124,14 +130,14 @@ def _candidate(base, automatic, day, now):
                     or not math.isfinite(points) or not math.isfinite(score)
                     or not 0 <= score <= 100 or not 0 <= points <= weight
                     or abs(points - score * weight / 100) > .0001):
-                return None
+                return None, 'factor_invalid'
             known.append(True)
         # Missing on ANY runner excludes this factor for the WHOLE race.
         if all(known):
             keys.append(name)
     capacity = sum(WEIGHTS[k] for k in keys)
     if capacity < MIN_COMPARABLE_WEIGHT:
-        return None
+        return None, 'insufficient_shared_weight'
     order = []
     for number, row in runners.items():
         earned = _grade_points(row['training'], WEIGHTS['training'])
@@ -144,7 +150,7 @@ def _candidate(base, automatic, day, now):
     order.sort(key=lambda h: (-h['units'], h['number']))
     formation = _formation(order)
     if not formation:
-        return None
+        return None, 'tie_or_point_limit'
     return {
         'track': base['track'], 'race': base['race'],
         'postTime': off_text, 'status': 'comparable_research_only',
@@ -155,7 +161,7 @@ def _candidate(base, automatic, day, now):
         'tiesNeverSplit': True, 'missingNeverImputed': True,
         'officialJraVerified': False, 'formalScoreReady': False,
         'bettingReady': False, 'receiptIssued': False, 'actualPurchase': False,
-    }
+    }, 'preview'
 
 
 def preview_comparable_factor_holds(report, automatic, day, *, now):
@@ -194,6 +200,7 @@ def preview_comparable_factor_holds(report, automatic, day, *, now):
         original[coord] = race
     rows = []
     reviewed = 0
+    diagnostics = {key: 0 for key in DIAGNOSTIC_KEYS}
     now_jst = now.astimezone(JST)
     for row in automatic['races']:
         if not isinstance(row, dict):
@@ -203,14 +210,19 @@ def preview_comparable_factor_holds(report, automatic, day, *, now):
             raise CoverageError('Missing or duplicated score race')
         seen.add(coord)
         base = original[coord]
-        if base.get('reason') in ('missing_factors', 'ambiguous_equal_grade_boundary'):
-            reviewed += 1
-        candidate = _candidate(base, row, day, now_jst)
+        if (base.get('status') != 'hold'
+                or base.get('reason') not in
+                ('missing_factors', 'ambiguous_equal_grade_boundary')):
+            continue
+        reviewed += 1
+        candidate, reason = _candidate(base, row, day, now_jst)
+        diagnostics[reason] += 1
         if candidate:
             rows.append(candidate)
     return {
         'version': VERSION, 'date': day, 'raceCount': len(original),
         'reviewedHeldRaces': reviewed, 'unsignedReferenceCount': len(rows),
+        'diagnostics': diagnostics, 'minimumComparableWeight': MIN_COMPARABLE_WEIGHT,
         'races': rows, 'researchOnly': True, 'privateOwnerOnly': True,
         'officialJraVerified': False, 'formalTenFactorReady': False,
         'predictionReady': False, 'bettingReady': False,
