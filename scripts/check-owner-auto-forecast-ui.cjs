@@ -13,9 +13,9 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  vm.runInContext(js.slice(start,end)+'\nglobalThis.checkAuto=automaticFactorRace;globalThis.eligibleResearchFactorPanel=eligibleResearchFactorPanel;',sandbox);
  const score=(weight)=>({score:80,points:weight*.8,grade:'A',weight,reason:'staff_relative_midrank'});
  const row={track:'東京',race:1,postTime:'12:00',status:'scored',reason:null,
-  horses:[1,2,3,4].map(number=>({number,factors:{course_distance:{...score(17),reason:'distance_only_match'},pace:score(17),jockey_stable:score(10),rotation:score(1)}}))};
- const data={automaticFactorScores:{version:'owner-automatic-factor-scores-2',policyVersion:'research-6',
-  date:'20990101',maximumPoints:45,factorKeys:['pace','jockey_stable','rotation','course_distance'],capturedAt:'2099-01-01T09:00:00+09:00',
+  horses:[1,2,3,4].map(number=>({number,factors:{course_distance:{...score(17),reason:'distance_only_match'},ground:{...score(12),reason:'ground_soft_mudder_1'},pace:score(17),jockey_stable:score(10),rotation:score(1)}}))};
+ const data={automaticFactorScores:{version:'owner-automatic-factor-scores-3',policyVersion:'research-6',
+  date:'20990101',maximumPoints:57,factorKeys:['pace','jockey_stable','rotation','course_distance','ground'],capturedAt:'2099-01-01T09:00:00+09:00',
   modelCalibrated:false,officialJraVerified:false,overallPredictionReady:false,
   newProviderRequests:0,races:[row]}};
  const check=value=>sandbox.checkAuto(value,'2099-01-01',row);
@@ -37,12 +37,17 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
   x=>x.races[0].horses[0].factors.pace.score=null,
   x=>x.races[0].horses[0].factors.rotation.reason='<script>',
    x=>x.races[0].horses[0].factors.course_distance.reason='unsafe',
+   x=>x.races[0].horses[0].factors.ground.points=12,
+   x=>x.races[0].horses[0].factors.ground.reason='fake',
    x=>x.factorKeys.push('invalid'),
  ]){const bad=structuredClone(data);mutate(bad.automaticFactorScores);assert.equal(check(bad),null);}
  const missing=structuredClone(data);
  missing.automaticFactorScores.races[0].horses[0].factors.rotation=
   {score:null,points:null,grade:'未評価',weight:1,reason:'previous_date_missing'};
  assert.equal(check(missing).horses[0].factors.rotation.points,null);
+ missing.automaticFactorScores.races[0].horses[1].factors.ground=
+  {score:null,points:null,grade:'未評価',weight:12,reason:'ground_good_not_scored'};
+ assert.equal(check(missing).horses[1].factors.ground.points,null);
 }
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';

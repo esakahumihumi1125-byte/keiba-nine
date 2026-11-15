@@ -2578,8 +2578,10 @@ def create_app(settings=None):
                             material_diag.get('verifiedRaces', 0),
                             material_diag.get('rejectedRaces', 0))
                 # Fifth, optional owner-private source read: current /tka
-                # ground condition context. Never derive a horse aptitude
-                # grade from a venue condition. A missing/invalid response
+                # ground condition context. Never infer actual aptitude from
+                # venue conditions alone; a separate, explicitly provisional
+                # muddy-ground research signal may combine vetted /tky codes.
+                # A missing/invalid response
                 # must NOT affect already-sealed prestart forecasts.
                 # The normalized /tra programme is still usable when /tka
                 # is temporarily unavailable.
@@ -2625,7 +2627,8 @@ def create_app(settings=None):
                 try:
                     report['automaticFactorScores'] = automatic_factor_scores(
                         programme, entries, recent, day,
-                        now=final_prestart_checked_at)
+                        now=final_prestart_checked_at,
+                        race_context=report.get('raceContext'))
                 except (CoverageError, ValueError, TypeError, KeyError):
                     logging.warning('KEIBA_AUTOMATIC_FACTOR_SCORES=unavailable')
                 stage = 'tky_training_study'
