@@ -1375,7 +1375,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   configured=true,connectionOK=true,connectionCount=1,
   receiptVerificationOk=true,coreVerificationOk=true,
   coreProviderCorrupt=false,fiveExposureCorrupt=false,
-  archiveReady=false,archiveCorrupt=false,
+  archiveReady=false,archiveCorrupt=false,workoutCrossCorrupt=false,
   autoDraftOk=true,autoDraftNonJson=null,autoDraftNetworkFailure=false,
   officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
@@ -1640,6 +1640,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    const total=Object.fromEntries(bands.map(b=>[b,{
     concordant:0,discordant:0,equalIndexExcluded:0
    }]));
+   const keys=['S>A','S>B','S>C','A>B','A>C','B>C'];
+   const allCross=Object.fromEntries(keys.map(k=>[k,{
+    concordant:0,discordant:0
+   }]));
    const races=req.receipts.map(entry=>{
     const p=entry.snapshot;
     const counts=Object.fromEntries(bands.map(b=>[b,{
@@ -1653,9 +1657,18 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
       counts[b][key]++;total[b][key]++;
      }
     }
+    const cross=Object.fromEntries(keys.map(k=>{
+     const [a,b]=k.split('>');
+     const amount=p.horses.filter(h=>h.trainingBand===a).length*
+       p.horses.filter(h=>h.trainingBand===b).length;
+     allCross[k].concordant+=amount;
+     return [k,{concordant:amount,discordant:0}];
+    }));
+    if(workoutCrossCorrupt)cross['S>A'].concordant++;
     return {track:p.track,race:p.race,
      providerStatus:'complete_provisional_order',
      comparedRunnerCount:p.raceRunnerCount,pairCounts:counts,
+     crossBandPairs:cross,
      officialJraVerified:false,predictionVerified:false};
    });
    const pairObservationReceipts=req.receipts.map((entry,i)=>({
@@ -1680,6 +1693,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     sourceKind:'jrdb-tse-provisional-workout-order-pair-review',
     sourceReadCount:1,raceCount:races.length,races,
     studiedRaceCount:races.length,observedPairsByTrainingBand:total,
+    observedCrossBandPairs:allCross,
+    crossBandHypothesisOnly:true,crossBandResultsSigned:false,
+    sourceReadsForCrossBand:0,
     officialJraVerified:false,accuracyVerified:false,
     calibrationReady:false,scoreReady:false,newScoringRubric:false,
     bettingReady:false,predictionReady:false,
@@ -1825,6 +1841,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setFiveExposureCorrupt:x=>fiveExposureCorrupt=x,
   setArchiveReady:x=>archiveReady=x,
   setArchiveCorrupt:x=>archiveCorrupt=x,
+  setWorkoutCrossCorrupt:x=>workoutCrossCorrupt=x,
   setOfficialPdfLinks:x=>officialPdfLinks=x,
   setOfficialPdfOk:x=>officialPdfOk=x,
   setOfficialCardOffTime:x=>officialCardOffTime=x,
@@ -5137,6 +5154,14 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(lockedView.get('autoWorkoutProviderSummary').children[0].textContent,
   /指数順と暫定着順が一致 2組／不一致 0組／元の指数同点で判定対象外 1組/);
  assert.equal(lockedView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const aggregate=lockedView.get('autoWorkoutProviderSummary').children;
+ assert.ok(aggregate.some(x=>/異なる調教ランクの順序：/.test(x.textContent)),
+  'cross-band comparison is available using same one result read');
+ assert.ok(aggregate.some(x=>x.tag==='details'),
+  'six different S/A/B/C grade-order pairs are inspectable');
+ assert.equal(lockedView.requests.filter(x=>
+  x.url==='/api/owner-workout-order-provider-check').length,1,
+  'cross-band analysis reuses existing result read, no new JRDB call');
  const PAIR_KEY='keiba-nine-owner-workout-pair-observations-v1';
  const firstPairs=JSON.parse(lockedView.storage.get(PAIR_KEY));
  assert.equal(firstPairs.length,1);
@@ -5155,6 +5180,16 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(lockedView.storage.get(PAIR_KEY),JSON.stringify(firstPairs),
   'same race re-read must not overwrite signed first provisional result');
  assert.match(lockedView.get('autoWorkoutProviderStatus').textContent,/前回の記録を保持 1R/);
+ const forgedCross=boot({manualWeekday:false,
+  seedStorage:[[LOCK_KEY,JSON.stringify(lockedRows)]]});
+ forgedCross.setWorkoutCrossCorrupt(true);
+ forgedCross.get('autoDay').value=date;
+ forgedCross.get('autoDay').onchange();
+ await forgedCross.get('autoWorkoutProviderCheck').onclick();
+ assert.match(forgedCross.get('autoWorkoutProviderStatus').textContent,
+  /安全に比較できませんでした/);
+ assert.equal(forgedCross.storage.has(PAIR_KEY),false,
+  'impossible cross-band denominators must not save a signed outcome');
  const secondStudy=structuredClone(lockedStudy);
  secondStudy.workoutOrderReceipts[0].signature='c'.repeat(64);
  const rerun=boot({initialServerRaw:secondStudy,
