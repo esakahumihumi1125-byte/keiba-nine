@@ -92,12 +92,17 @@ def _formation(race):
                         result.append((first, second, third, n))
         return result
 
-    # Preserve every existing unsigned reference from the <=5/<=10
-    # selector. Only formerly unpresentable holds try wider 2nd/3rd
-    # tiers (<=8/<=12), still under 48 unique combinations.
+    # Preserve the established <=5/<=10 and <=8/<=12 choices first.
+    # For a large field, a *single* unmistakable top tier may coexist
+    # with a 3rd-place tier extending to all 18 starters. E.g. 1S/3A/14B
+    # yields exactly 1*(4-1)*(18-2)=48 distinct research combinations.
+    # Never split that B tier at horse 12 merely to fit a familiar shape.
+    # All cutoffs must hold for every possible missing 3-point grade.
     options = options_with_limits(5, 10)
     if not options:
         options = options_with_limits(8, 12)
+    if not options:
+        options = options_with_limits(8, 18)
     if not options:
         return None
     # A ONE-horse first tier is permitted only when its minimum score

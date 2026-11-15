@@ -4998,7 +4998,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const soloCards=soloView.get('autoUncertainRecentRaces').children;
  assert.equal(soloCards.length,1);
  assert.match(soloCards[0].children[1].textContent,/1着候補 1／2着候補 1・2・3・4/);
- assert.match(soloCards[0].children.at(-1).textContent,/1頭軸の参考例/);
+ assert.ok(soloCards[0].children.some(x=>
+  /1頭軸の参考例/.test(x.textContent||'')),
+  'one-horse reference note stays visible alongside all-runners warning');
+ assert.match(soloCards[0].children.at(-1).textContent,/3着候補にはこのレースの全頭/);
  assert.equal(soloView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(soloView.storage.has(STORAGE),false);
  // Widened 2nd/3rd groups from ALREADY held missing-recent races:
@@ -5030,6 +5033,45 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(wideView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(wideView.requests.length,1,
   'widened sparse reference must not read JRDB again');
+ // Full 18-runner group with one distinct S, three tied A, and
+ // fourteen tied B can keep the entire B tier at 3rd within 48.
+ // Only the original held research is used; no signed ticket is created.
+ const wide18=boundedRecentFixture();
+ const wide18Race=wide18.races[0];
+ const base18=structuredClone(wide18Race.runners);
+ wide18Race.runners=Array.from({length:18},(_,i)=>{
+  const h=base18[i%base18.length];
+  return {...h,number:i+1,training:i===0?'S':i<4?'A':'B',
+   recent:'未評価',twoFactorGrade:'未評価',twoFactorPoints:null,
+   weightedResearchPoints:null,comparisonRank:null,
+   missingReasons:['no_linked_recent_record']};
+ });
+ wide18Race.horseCount=18;
+ Object.assign(wide18.uncertainRecentResearch.races[0],{
+  first:[1],second:[1,2,3,4],
+  third:Array.from({length:18},(_,i)=>i+1),
+  points:48,missingRecentCount:18,assessedTrainingCount:18
+ });
+ withTenPreview(wide18);withSourcePassport(wide18);
+ const fullTierView=boot({initialServerRaw:wide18});
+ await new Promise(r=>setImmediate(r));
+ const fullTierCards=fullTierView.get('autoUncertainRecentRaces').children;
+ assert.equal(fullTierCards.length,1);
+ assert.match(fullTierCards[0].children[0].textContent,/参考48通り/);
+ assert.match(fullTierCards[0].children.at(-1).textContent,
+  /3着候補にはこのレースの全頭/);
+ assert.equal(fullTierView.get('autoReferenceOpen').disabled,false);
+ assert.equal(fullTierView.storage.has(STORAGE),false);
+ assert.equal(fullTierView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(fullTierView.requests.length,1,'no extra read for all-runner tier');
+ const forged18=structuredClone(wide18);
+ forged18.uncertainRecentResearch.races[0].third.pop();
+ forged18.uncertainRecentResearch.races[0].points=45;
+ const forged18View=boot({initialServerRaw:forged18});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(forged18View.get('autoUncertainRecentRaces').children.length,0,
+  'cannot omit one tied B horse from an all-runner tier');
+ assert.equal(forged18View.storage.has(STORAGE),false);
  const alteredWide=structuredClone(wider);
  alteredWide.uncertainRecentResearch.races[0].second=[1,2,3,4,5,7];
  alteredWide.uncertainRecentResearch.races[0].third=[1,2,3,4,5,7];

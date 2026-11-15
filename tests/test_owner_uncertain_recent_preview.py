@@ -158,6 +158,44 @@ class UncertainRecentResearchTests(unittest.TestCase):
         self.assertFalse(result["bettingReady"])
         self.assertEqual(result["ticketsIssued"], 0)
 
+    def test_eighteen_runner_third_tier_can_be_kept_whole_under_48(self):
+        # Distinct workout S / A / B groups are separated by at least 21
+        # units even with every recent grade missing. One S + three A
+        # + fourteen B permits a 1x4x18 = 48 unsigned reference; the
+        # old max-12 third group incorrectly hid all fourteen B runners.
+        horses = ([("S", "未評価")]
+                  + [("A", "未評価")] * 3
+                  + [("B", "未評価")] * 14)
+        report = build(horses)
+        unchanged = copy.deepcopy(report)
+        preview = preview_missing_recent_holds(report, DAY, now=PRESTART)
+        self.assertEqual(preview["safeResearchPreviewCount"], 1)
+        row = preview["races"][0]
+        self.assertEqual(row["first"], [1])
+        self.assertEqual(row["second"], [1, 2, 3, 4])
+        self.assertEqual(row["third"], list(range(1, 19)))
+        self.assertEqual(row["points"], 48)
+        self.assertEqual(row["missingRecentCount"], 18)
+        self.assertFalse(row["receiptIssued"])
+        self.assertFalse(row["officialJraVerified"])
+        self.assertEqual(preview["ticketsIssued"], 0)
+        self.assertEqual(preview["newProviderRequests"], 0)
+        self.assertEqual(report, unchanged)
+
+    def test_eighteen_runner_expansion_still_skips_over_48(self):
+        # Cutting a tied eight-horse A group would misrepresent the model.
+        # 1 S + 8 A + 9 B requires at least 56 combinations even
+        # before adding the B tier; no arbitrary horse-number cutoff.
+        horses = ([("S", "未評価")]
+                  + [("A", "未評価")] * 8
+                  + [("B", "未評価")] * 9)
+        report = build(horses)
+        before = copy.deepcopy(report)
+        preview = preview_missing_recent_holds(report, DAY, now=PRESTART)
+        self.assertEqual(preview["safeResearchPreviewCount"], 0)
+        self.assertEqual(preview["races"], [])
+        self.assertEqual(report, before)
+
     def test_oversized_tied_second_group_does_not_exceed_48(self):
         pairs = ([("S", "未評価")]
                  + [("A", "未評価")] * 8
