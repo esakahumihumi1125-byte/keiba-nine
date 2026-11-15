@@ -15,7 +15,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 公式結果を独立確認できないレースは「結果待ち」のまま保留し、
 投資額・回収率の確定値に混ぜません。過去の買い目を後から作ったり変更したりしません。</p>
 <section><label for="day">開催日</label><input id="day" type="date">
+<div class="weekend-actions">
+<button id="recentSaturday" type="button">直近の土曜を確認</button>
+<button id="recentSunday" type="button">直近の日曜を確認</button>
+</div>
 <button id="load" type="button">この日の100円仮想収支を確認</button>
+<p class="muted">直近の土日ボタンは日付選択と保存済み記録の再表示だけ。変則開催は日付を選んでください。新しいJRDBの有料照会や予想・購入はしません。</p>
 <p id="status" class="muted" role="status">開催日を選んで確認してください。</p></section>
 <section><h2>全体の集計</h2>
 <div id="summary" class="summary"></div><p class="muted" id="coverage"></p></section>
@@ -64,6 +69,8 @@ label{display:block;font-weight:700}
 input,button,select{display:block;width:100%;padding:12px;margin:8px 0;font:inherit;border-radius:9px;min-height:46px}
 input{background:#092034;color:#eef4ff;border:1px solid #8297ad}select{background:#092034;color:#eef4ff;border:1px solid #8297ad}details{margin:14px 0;padding:12px;background:#142b43;border:1px solid #496782;border-radius:14px}details summary{cursor:pointer;font-weight:800;color:#edce87;min-height:40px}
 button{background:#e8ca83;color:#172a3d;border:0;font-weight:800}button:disabled{opacity:.5}
+.weekend-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.weekend-actions button{background:#254963;color:#eef6ff;border:1px solid #527994;font-size:13px}
 .summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .stat{background:#0b2137;border:1px solid #4c6580;border-radius:9px;padding:11px}
 .stat small{color:#c5d7e5;display:block;font-size:12px}
@@ -103,8 +110,10 @@ function check(v){
   v.actualPurchase!==false||!Array.isArray(v.races)||
   !Array.isArray(v.venueBreakdown)||!Number.isInteger(v.reviewedRaces)||
   !Number.isInteger(v.pendingRaces)||v.reviewedRaces+v.pendingRaces!==v.races.length||
-  v.races.length>36||typeof v.totalInvestedYen!=='number'||
-  typeof v.totalReturnedYen!=='number')throw Error('集計形式が一致しません');
+  v.races.length>36||!Number.isSafeInteger(v.totalInvestedYen)||
+  v.totalInvestedYen<0||!Number.isSafeInteger(v.pendingStakeYen)||
+  v.pendingStakeYen<0||!Number.isSafeInteger(v.totalReturnedYen)||
+  v.totalReturnedYen<0)throw Error('集計形式が一致しません');
  return v;
 }
 function clear(){for(const k of ['summary','venue','races'])$(k).replaceChildren();
@@ -113,7 +122,9 @@ function draw(input){
  const v=check(input),total=$('summary');clear();
  total.append(stat('結果確認済み',v.reviewedRaces+'R'),
   stat('結果待ち',v.pendingRaces+'R'),
-  stat('仮想投資（確認済みのみ）',yen(v.totalInvestedYen)),
+  stat('固定済み100円仮想投資（結果待ち含む）',
+   yen(v.totalInvestedYen+v.pendingStakeYen)),
+  stat('仮想投資（結果確認済みのみ）',yen(v.totalInvestedYen)),
   stat('仮想払戻（確認済みのみ）',yen(v.totalReturnedYen)),
   stat('仮想収支',v.reviewedRaces?yen(v.totalProfitYen):'未確定'),
   stat('仮想回収率',pct(v.roiPercent)),
@@ -645,16 +656,32 @@ function validDay(day){
  const d=new Date(day+'T12:00:00Z');
  return Number.isFinite(d.valueOf())&&d.toISOString().slice(0,10)===day;
 }
+function recentWeekendDate(targetDay,now=new Date()){
+ const tokyo=now.toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+ const d=new Date(tokyo+'T12:00:00Z');
+ if(!Number.isFinite(d.valueOf())||!validDay(tokyo))throw Error('日付を確認できません');
+ const delta=(d.getUTCDay()-targetDay+7)%7;
+ d.setUTCDate(d.getUTCDate()-delta);
+ return d.toISOString().slice(0,10);
+}
 const selected=typeof location!=='undefined'&&typeof location.search==='string'
  ?/^\?date=(20\d{2}-\d{2}-\d{2})$/.exec(location.search):null;
 const fromForecast=selected&&validDay(selected[1])?selected[1]:null;
-$('day').value=fromForecast||
- new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+const dayOfWeek=new Date(today+'T12:00:00Z').getUTCDay();
+$('day').value=fromForecast||recentWeekendDate(dayOfWeek===6?6:0);
 $('day').onchange=()=>{
  request++;$('load').disabled=false;clear();
  $('status').textContent='開催日を選んで確認してください。';
  clearPreliminary();clearJraCandidate();
 };
+function chooseRecentWeekend(weekday){
+ $('day').value=recentWeekendDate(weekday);
+ $('day').onchange();
+ $('load').onclick();
+}
+$('recentSaturday').onclick=()=>chooseRecentWeekend(6);
+$('recentSunday').onclick=()=>chooseRecentWeekend(0);
 $('load').onclick=async()=>{
  const seq=++request,day=$('day').value,button=$('load');clear();
  if(!validDay(day)){
