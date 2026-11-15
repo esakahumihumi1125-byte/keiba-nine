@@ -5460,10 +5460,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const quick79=boot();
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(quick79.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
- assert.equal(quick79.get('autoFiveQuick').disabled,true,
-  'history reads require a verified basic programme first');
- await quick79.get('autoRun').onclick();
- assert.equal(quick79.get('autoFiveQuick').disabled,false);
+ // The harness completes its default authenticated base-day read before
+ // this assertion; no extra manual base fetch is needed or wanted.
+ assert.equal(quick79.get('autoFiveQuick').disabled,false,
+  'history action unlocks after validated basic programme');
  assert.equal(quick79.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
  const prevQuickStorage=quick79.storage.get(STORAGE);
  await quick79.get('autoFiveQuick').onclick();
