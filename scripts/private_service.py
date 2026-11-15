@@ -32,6 +32,7 @@ from jrdb_day_factor_progress import summarize_day_factor_progress
 from jrdb_day_materials_progress import summarize_day_materials
 from jrdb_prestart_body import audit_prestart_body
 from jrdb_main_workout_evidence import audit_main_workouts
+from owner_training_source_crosscheck import crosscheck_training_sources
 from owner_body_one_evidence_preflight import body_one_evidence_preflight
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
@@ -2162,6 +2163,44 @@ def create_app(settings=None):
                     RaceContextError, FreshnessError, ValueError, KeyError, TypeError):
                 return response('502 Bad Gateway', {
                     'error': '全レースの資料を安全に一括照合できませんでした。'})
+            return response('200 OK', report)
+        if method == 'GET' and path == '/api/jrdb/training-source-crosscheck':
+            # The owner must explicitly opt in to four separate same-day
+            # /tra,/tky,/tcy,/tch licensed reads. Nothing is cached, billed
+            # automatically at startup or inferred to be a formal grade.
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not all(isinstance(settings.get(k), str) and settings[k].strip()
+                               for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': 'JRDB調教比較の本人専用接続が利用できません。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            now = _now_in_jst()
+            if (set(query) != {'date'} or len(query['date']) != 1
+                    or not _valid_date(query['date'][0])
+                    or query['date'][0] != now[:10].replace('-', '')):
+                return response('400 Bad Request', {
+                    'error': '調教比較は日本時間の当日のみ照合できます。'})
+            if now[11:16] >= '18:30':
+                return response('409 Conflict', {
+                    'error': '発走前の調教比較は終了しています。'})
+            day = query['date'][0]
+            try:
+                programme = normalize_program_rows(fetch_race_program(day), day)
+                if not any(isinstance(p.get('post_time'), str)
+                           and p['post_time'] > now[11:16]
+                           for p in programme):
+                    return response('409 Conflict', {
+                        'error': '対象日の発走前レースがありません。'})
+                entries = fetch_horse_entries(day)
+                training = fetch_training_analysis(day)
+                main = fetch_main_workout_detail(day)
+                report = crosscheck_training_sources(
+                    programme, entries, training, main, day)
+            except (JRDBError, ProgrammeFormatError, CoverageError,
+                    ValueError, KeyError, TypeError):
+                return response('502 Bad Gateway', {
+                    'error': 'JRDB調教分析と本追切を安全に照合できませんでした。'})
             return response('200 OK', report)
         if method == 'GET' and path == '/api/jrdb/main-workout-evidence':
             # JRDB /tch is an optional third paid source, NEVER invoked by
