@@ -54,7 +54,7 @@ def _fetch_endpoint(endpoint, parameters, *, timeout_seconds=CORE_SOURCE_SOCKET_
     Historical requests must specify exactly one existing race key, never a
     date range or an unconstrained search.
     """
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'dra', 'dka', 'dky', 'dse'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'thj', 'dra', 'dka', 'dky', 'dse'):
         raise JRDBError('Unsupported JRDB endpoint')
     # A smaller socket wait is permitted ONLY for the optional /tka
     # supplement. Never silently change the four core sources or open
@@ -157,7 +157,7 @@ def _fetch_endpoint(endpoint, parameters, *, timeout_seconds=CORE_SOURCE_SOCKET_
 
 def _fetch_day(endpoint, racedate, *, timeout_seconds=CORE_SOURCE_SOCKET_TIMEOUT_SECONDS):
     """Private current-week reader; historic endpoints cannot use this."""
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'thj'):
         raise JRDBError("Unsupported current-day endpoint")
     return _fetch_endpoint(endpoint, {"racedate": racedate},
                            timeout_seconds=timeout_seconds)
@@ -233,3 +233,12 @@ def fetch_finished_race_results(racedate):
     unverified by JRA. No background polling or historical date range.
     """
     return _fetch_day("tse", racedate)
+
+
+def fetch_finished_race_payoffs(racedate):
+    """Private owner-only /thj post-race payoff source (one selected day).
+
+    Returns provider rows inside the trusted WSGI service only. Never expose
+    raw rows, popularity or keys to the browser, logs or client records.
+    """
+    return _fetch_day('thj', racedate)

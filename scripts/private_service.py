@@ -21,6 +21,7 @@ from owner_session_auth import (owner_credentials_match, session_cookie, session
 from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_recent_runs,
                           fetch_venue_conditions, fetch_prestart_body, fetch_finished_race_results,
+                          fetch_finished_race_payoffs,
                           fetch_historical_race_program,
                           fetch_historical_venue_conditions, fetch_historical_runner_staff,
                           fetch_historical_finished_runners, JRDBError, approved_api_base)
@@ -79,6 +80,7 @@ from owner_rebound_provider_results import summarize_provider_watch_results
 from owner_three_core_provider_results import compare_three_core_provider_results
 from owner_five_core_provider_results import compare_five_core_provider_results
 from owner_prestart_tse_review import compare_prestart_tickets, ProvisionalResultError
+from owner_prestart_thj_review import compare_verified_prestart_thj
 from owner_three_core_receipts import (
     issue_three_core_receipts, verify_three_core_receipts, CoreReceiptError
 )
@@ -3163,6 +3165,69 @@ def create_app(settings=None):
                     TypeError, KeyError, ReceiptError):
                 return response('502 Bad Gateway', {
                     'error': 'JRDB暫定着順を安全に照合できません。元の記録は変更しません。'})
+            return response('200 OK', comparison)
+        if method == 'POST' and path == '/api/owner-prestart-thj-review':
+            # Provider /thj supplies 100-yen payoff observations, not JRA-
+            # certified historical ROI. Explicit owner tap only: no timer,
+            # archive mutation, public view or purchased-wager inference.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人専用サービスでのみ利用できます。'})
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or not all(settings.get(k) for k in
+                               ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': 'JRDB払戻資料の本人専用接続が利用できません。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '発走前記録の送信形式を確認できません。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < size <= 70000:
+                    raise ReceiptError('Unexpected payoff review size')
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise ReceiptError('Incomplete payoff review')
+                args = json.loads(raw)
+                if not isinstance(args, dict) or set(args) != {'date', 'receipts'}:
+                    raise ReceiptError('Cannot receive client payout claims')
+                day = args['date']
+                if archive_enabled(settings):
+                    try:
+                        verified = verify_preview_receipts(
+                            args['receipts'], archive_signing_secret(settings), day)
+                    except ReceiptError:
+                        verified = verify_preview_receipts(
+                            args['receipts'], password, day)
+                else:
+                    verified = verify_preview_receipts(args['receipts'], password, day)
+                if not verified:
+                    raise ReceiptError('No signed prestart receipts')
+                current = datetime.fromisoformat(_now_in_jst())
+                from keiba_100yen_review import _time
+                has_finished = any(
+                    current >= _time(snap['scheduledOffAt'])
+                    for snap in verified)
+                # Never bill the provider just to compare future-dated
+                # forecasts. The response remains pending for every race.
+                if not has_finished:
+                    return response('200 OK', compare_verified_prestart_thj(
+                        verified, [], day, now=current, provider_read_count=0))
+            except (ValueError, TypeError, KeyError, ReceiptError,
+                    ReviewInputError, ArchiveUnavailable, CoverageError):
+                return response('400 Bad Request', {
+                    'error': '署名付き発走前記録を安全に検証できません。'})
+            try:
+                payout_rows = fetch_finished_race_payoffs(day.replace('-', ''))
+                comparison = compare_verified_prestart_thj(
+                    verified, payout_rows, day, now=current)
+            except (JRDBError, CoverageError, ValueError, TypeError, KeyError):
+                return response('502 Bad Gateway', {
+                    'error': 'JRDB払戻データの照合が完了しませんでした。記録は変更しません。'})
             return response('200 OK', comparison)
         if method == 'POST' and path == '/api/owner-workout-order-provider-check':
             # A separate opt-in result lookup, NEVER part of the prestart

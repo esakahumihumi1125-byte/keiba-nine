@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-100yen-review.js','utf8');
 function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=null,
- jraResultFixture=null,receiptVerifyFixture=null){
+ jraResultFixture=null,receiptVerifyFixture=null,thjFixture=null){
  const elements=new Map(),requests=[],storage=new Map();
  let pending=null;
  function node(tag){
@@ -46,6 +46,9 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
   };
   if(url==='/api/owner-prestart-tse-review')return {
     ok:true,json:async()=>provisionalFixture
+  };
+  if(url==='/api/owner-prestart-thj-review')return {
+    ok:!!thjFixture,json:async()=>thjFixture||{error:'not ready'}
   };
   throw Error('Unexpected backend request');
  };
@@ -399,5 +402,67 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  releaseProvisional();await waiting;
  assert.equal(staleProvisional.get('provisionalRaces').children.length,0);
  assert.equal(staleProvisional.storage.size,1);
+ // /thj is an explicit JRDB source comparison, never a JRA-certified
+ // official payout or a mutation of the signed prestart ledger.
+ const thj={
+  version:'owner-prestart-thj-100yen-reference-1',date:'2099-01-02',
+  source:'jrdb_thj_provider_reference',unitYen:100,providerReadCount:1,
+  raceCount:2,observedRaces:1,pendingRaces:1,pendingStakeYen:3000,
+  reviewedInvestedYen:4000,reviewedReturnedYen:26050,
+  reviewedProfitYen:22050,reviewedRoiPercent:651.25,
+  providerMatchedRaces:1,
+  races:[
+   {track:'東京',race:1,status:'provider_observed',
+    trifectaPoints:40,investedYen:4000,returnedYen:26050,
+    providerMatchedTickets:1,officialJraVerified:false},
+   {track:'京都',race:2,status:'refund_review',
+    trifectaPoints:30,investedYen:null,returnedYen:null,
+    providerMatchedTickets:null,officialJraVerified:false}
+  ],
+  researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  payoutOfficiallyVerified:false,actualPurchase:false,predictionReady:false,
+  changesExistingReceipts:false,writesPersistentResults:false
+ };
+ const thjView=boot('?date=2099-01-02',fake,sample,
+  {archiveEnabled:true,persistentStorageReady:true,available:true,
+   raceCount:2,receipts:signed},null,null,thj);
+ await new Promise(r=>setImmediate(r));
+ assert.equal(thjView.requests.length,2,
+  'payoff check cannot run merely because the review page loaded');
+ const beforeThj=thjView.requests.length;
+ await thjView.get('thjCheck').onclick();
+ assert.equal(thjView.requests.length,beforeThj+2);
+ assert.equal(thjView.requests[3].url,'/api/owner-prestart-thj-review');
+ assert.equal(thjView.requests[3].opts.method,'POST');
+ assert.equal(thjView.requests[3].opts.headers['X-Keiba-Request'],'private');
+ assert.equal(JSON.parse(thjView.requests[3].opts.body).receipts.length,2);
+ assert.match(thjView.get('thjStatus').textContent,/JRDB払戻1R.*未確定1R/);
+ assert.equal(thjView.get('thjSummary').children.length,6);
+ assert.match(thjView.get('thjSummary').children.at(-1).children[1].textContent,
+  /651.3%/);
+ assert.equal(thjView.get('thjRaces').children.length,2);
+ assert.match(thjView.get('thjRaces').children[1].textContent,/返還確認が必要/);
+ assert.equal(thjView.storage.size,0);
+ thjView.get('day').value='2099-01-03';
+ thjView.get('day').onchange();
+ assert.equal(thjView.get('thjRaces').children.length,0);
+ assert.equal(thjView.get('thjSummary').children.length,0);
+ for(const mutate of [
+  x=>x.officialJraVerified=true,
+  x=>x.races[0].returnedYen=9999,
+  x=>x.races[1].returnedYen=0,
+  x=>x.races[0].track='福島',
+  x=>x.races[0].trifectaPoints=39
+ ]){
+  const invalid=JSON.parse(JSON.stringify(thj));mutate(invalid);
+  const noFraud=boot('?date=2099-01-02',fake,sample,
+   {archiveEnabled:true,persistentStorageReady:true,available:true,
+    raceCount:2,receipts:signed},null,null,invalid);
+  await new Promise(r=>setImmediate(r));
+  await noFraud.get('thjCheck').onclick();
+  assert.equal(noFraud.get('thjSummary').children.length,0);
+  assert.match(noFraud.get('thjStatus').textContent,/安全に照合できません/);
+  assert.equal(noFraud.storage.size,0);
+ }
  console.log('Owner 100-yen review: provisional comparison opt-in/read-only PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
