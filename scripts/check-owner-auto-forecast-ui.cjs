@@ -2160,6 +2160,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(fixedMarker.fixedCount,1);
  assert.equal(typeof fixedMarker.at,'number');
  assert.equal(saturdayOpened.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(saturdayOpened.get('autoFixedQuickRaces').children.length,1);
+ assert.equal(saturdayOpened.get('autoFixedQuickPanel').open,false,
+  'newly available forecasts take priority over saved history cards');
  const saturdayReturn=boot({manualWeekday:false,
   initialClock:'2099-01-02T15:08:00Z',
   initialServerRaw:saturdayRaw,seedStorage:saturdayOpened.storage});
@@ -2170,6 +2173,22 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(saturdayReturn.get('autoRaces').children.length,0,
   'local receipt view must never imply a freshly generated score/ranking');
  assert.equal(saturdayReturn.get('autoHistory').children.length,1);
+ // The owner actually sees the 1/2/3-place horses on reopening,
+ // rather than a blank main race page and a hidden history at the bottom.
+ const fixedPanel=saturdayReturn.get('autoFixedQuickPanel');
+ const cards=saturdayReturn.get('autoFixedQuickRaces').children;
+ assert.equal(fixedPanel.open,true);
+ assert.equal(cards.length,1);
+ assert.match(saturdayReturn.get('autoFixedQuickTitle').textContent,/固定：1R/);
+ assert.match(saturdayReturn.get('autoFixedQuickStatus').textContent,/署名は未検証.*実購入なし/);
+ assert.match(cards[0].children[0].textContent,/東京 1R.*3連単 40点/);
+ assert.match(cards[0].children[1].textContent,/1着に含む：1番・2番/);
+ assert.match(cards[0].children[2].textContent,/2着に含む/);
+ assert.match(cards[0].children[3].textContent,/3着に含む/);
+ assert.match(cards[0].children[4].children[0].textContent,/固定した 40点/);
+ assert.match(cards[0].children[4].children[1].textContent,/1→2→3/);
+ assert.equal(saturdayReturn.get('autoRaces').children.length,0,
+  'history card is isolated from fresh automatic forecasts');
  assert.match(saturdayReturn.get('autoSummary').textContent,/新規未取得｜端末内の発走前固定 1R/);
  assert.match(saturdayReturn.get('autoStatus').textContent,
   /固定履歴を表示.*自動JRDB再照会0回.*未検証/);
@@ -2191,6 +2210,28 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(saturdayQuickFromFixed.get('autoStatus').textContent,
   /土曜・固定履歴を表示.*再照会0回/);
  assert.equal(saturdayQuickFromFixed.storage.get(STORAGE),firstSatReceipts);
+ assert.equal(saturdayQuickFromFixed.get('autoFixedQuickRaces').children.length,1);
+ // The date switch must never leave another day's stored picks visible.
+ saturdayQuickFromFixed.get('autoDay').value='2099-01-04';
+ saturdayQuickFromFixed.get('autoDay').onchange();
+ assert.equal(saturdayQuickFromFixed.get('autoFixedQuickRaces').children.length,0);
+ assert.equal(saturdayQuickFromFixed.get('autoFixedQuickPanel').open,false);
+ assert.equal(saturdayQuickFromFixed.storage.get(STORAGE),firstSatReceipts);
+ // An invalid cross-day ledger must never be replayed as a valid pick.
+ const corruptedSeed=new Map(saturdayOpened.storage);
+ const corruptedItems=JSON.parse(corruptedSeed.get(STORAGE));
+ corruptedItems.push({...corruptedItems[0],snapshot:{
+  ...corruptedItems[0].snapshot,date:'2099-01-04',
+  trifectaTickets:[[1,1,2]]}});
+ corruptedSeed.set(STORAGE,JSON.stringify(corruptedItems));
+ const corruptFixed=boot({manualWeekday:false,
+  initialClock:'2099-01-02T15:08:00Z',initialServerRaw:saturdayRaw,
+  seedStorage:corruptedSeed});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(corruptFixed.get('autoFixedQuickRaces').children.length,0);
+ assert.match(corruptFixed.get('autoFixedQuickStatus').textContent,/不整合/);
+ assert.equal(corruptFixed.storage.get(STORAGE),JSON.stringify(corruptedItems));
+ assert.equal(corruptFixed.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // Expired or invalid markers must never suppress fresh day retrieval.
  const staleSat=boot({manualWeekday:false,
   initialClock:'2099-01-02T15:21:00Z',
