@@ -1345,14 +1345,20 @@ const AUTO_FACTOR_REASONS=Object.freeze({
  distance_only_versatile:'万能型の距離適性コード。コース実績は未反映',
  distance_only_match:'距離帯と適性コードが一致する仮説。コース実績は未反映',
  distance_only_adjacent:'隣接する距離帯の仮説。コース実績は未反映',
- distance_only_far:'距離帯に差がある仮説。コース実績は未反映'
+ distance_only_far:'距離帯に差がある仮説。コース実績は未反映',
+ ground_going_unknown:'開催馬場が未取得・不一致。推測で点を入れません',
+ ground_good_not_scored:'良馬場は重馬場適性コードだけでは評価できません',
+ ground_mudder_code_missing:'重馬場適性コードが不明。0点扱いしません',
+ ground_soft_mudder_1:'JRDB重馬場適性「得意」。軟らかい馬場のみの参考仮説',
+ ground_soft_mudder_2:'JRDB重馬場適性「普通」。軟らかい馬場のみの参考仮説',
+ ground_soft_mudder_3:'JRDB重馬場適性「苦手」。軟らかい馬場のみの参考仮説'
 });
 function automaticFactorRace(data,day,race){
  const a=data.automaticFactorScores;
  if(!a)return null; // Older server/cached responses remain usable.
- if(a.version!=='owner-automatic-factor-scores-2'||a.policyVersion!=='research-6'||
-    a.date!==day.replaceAll('-','')||a.maximumPoints!==45||
-    !Array.isArray(a.factorKeys)||a.factorKeys.join('|')!=='pace|jockey_stable|rotation|course_distance'||
+ if(a.version!=='owner-automatic-factor-scores-3'||a.policyVersion!=='research-6'||
+    a.date!==day.replaceAll('-','')||a.maximumPoints!==57||
+    !Array.isArray(a.factorKeys)||a.factorKeys.join('|')!=='pace|jockey_stable|rotation|course_distance|ground'||
     a.modelCalibrated!==false||a.officialJraVerified!==false||
     a.overallPredictionReady!==false||a.newProviderRequests!==0||
     !Array.isArray(a.races)||a.races.length>120||
@@ -1365,9 +1371,9 @@ function automaticFactorRace(data,day,race){
  const seen=new Set();
  for(const h of row.horses){
   if(!Number.isInteger(h.number)||h.number<1||h.number>18||seen.has(h.number)||
-     !h.factors||Object.keys(h.factors).sort().join('|')!=='course_distance|jockey_stable|pace|rotation')return null;
+     !h.factors||Object.keys(h.factors).sort().join('|')!=='course_distance|ground|jockey_stable|pace|rotation')return null;
   seen.add(h.number);
-  for(const [key,weight] of [['course_distance',17],['pace',17],['jockey_stable',10],['rotation',1]]){
+  for(const [key,weight] of [['course_distance',17],['ground',12],['pace',17],['jockey_stable',10],['rotation',1]]){
    const v=h.factors[key];
    if(!v||v.weight!==weight||!Object.hasOwn(AUTO_FACTOR_REASONS,v.reason))return null;
    if(v.score===null){if(v.points!==null||v.grade!=='未評価')return null;}
@@ -1382,16 +1388,16 @@ function automaticFactorRace(data,day,race){
 }
 function renderAutomaticFactors(row){
  const panel=dom('details',undefined,'automatic-factors');
- panel.append(dom('summary','自動採点：距離適性・展開・騎手厩舎・ローテ（最大45点分）'));
+ panel.append(dom('summary','自動採点：距離適性・馬場適性・展開・騎手厩舎・ローテ（最大57点分）'));
  panel.append(dom('p','既存のJRDB資料から算出。採点ルールは検証前で、総合100点・勝率ではありません。'+
-  '距離評価はコース実績を含みません。買い目にはまだ反映していません。','muted'));
+  '距離はコース実績を含まず、馬場は稍重以上でのみ参考採点。買い目には未反映です。','muted'));
  for(const h of row.horses){
   const horse=dom('details',undefined,'ten-horse');
-  const brief=[['course_distance','距離'],['pace','展開'],['jockey_stable','騎手厩舎'],['rotation','ローテ']]
+  const brief=[['course_distance','距離'],['ground','馬場'],['pace','展開'],['jockey_stable','騎手厩舎'],['rotation','ローテ']]
    .map(([key,label])=>label+':'+(h.factors[key].points===null?'未評価':
     h.factors[key].points.toFixed(2)+'点')).join('｜');
   horse.append(dom('summary',h.number+'番｜'+brief));
-  for(const [key,label] of [['course_distance','距離適性（コース未評価）'],['pace','展開・脚質'],['jockey_stable','騎手・厩舎'],['rotation','ローテ']]){
+  for(const [key,label] of [['course_distance','距離適性（コース未評価）'],['ground','重馬場適性（条件付き）'],['pace','展開・脚質'],['jockey_stable','騎手・厩舎'],['rotation','ローテ']]){
    const v=h.factors[key];
    horse.append(dom('p',label+'：'+(v.points===null?'未評価':
     v.points.toFixed(2)+'/'+v.weight+'点 '+v.grade+'（仮）'),v.grade==='未評価'?'muted':'grade '+v.grade));
@@ -1458,7 +1464,7 @@ function renderTenHeader(p){
   const el=dom('div',undefined,'ten-weight');
   el.append(dom('span',f.label),dom('b',f.weight+'点'));host.append(el);
  }
- $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、距離適性17・展開17・騎手厩舎10・ローテ1は資料が揃った馬を追加自動採点。各馬の欄に得点と理由を表示します。総合100点の採点は未完成です。';
+ $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、距離適性17・馬場12（稍重以上のみ）・展開17・騎手厩舎10・ローテ1は資料が揃った馬を追加参考採点。各馬の欄に得点と理由を表示します。総合100点の採点は未完成です。';
 }
 // Grades on a racecard are observations from the existing two-factor
 // source, not a horse ranking or a predicted winner. Never substitute 0 for
@@ -2851,7 +2857,7 @@ function render(input,day){
     Object.entries(SOURCE_SIGNAL_LABELS).map(([key,label])=>
      label+' '+item.sourceSignals[key]+'/'+item.runnerCount+'頭').join('／')+
     '。コードや指数の値から勝率・適性を自動推定したものではありません。','muted'));
-   detail.append(dom('p','距離適性・展開・騎手厩舎・ローテの参考採点は、このRの自動採点欄で確認できます。コース実績・馬場適性は未評価で、総合100点は未完成。','muted'));
+   detail.append(dom('p','距離適性・馬場・展開・騎手厩舎・ローテの参考採点は、このRの自動採点欄で確認できます。コース実績・馬場適性は未評価で、総合100点は未完成。','muted'));
   }else{
    detail.append(dom('p','追加8項目の資料確認は未完了（予想・買い目とは別）。','muted'));
   }
