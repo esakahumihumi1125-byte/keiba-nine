@@ -85,6 +85,15 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoTcyTchStatus" class="muted" role="status">本人操作でのみ4資料を比較します。自動では照会しません。</p>
 <div id="autoTcyTchRaces"></div>
 </div>
+<details class="owner-five-sparse-panel">
+<summary>過去の調教指数と実際の着順を参考照合（任意）</summary>
+<p class="muted">JRDBの過去競走馬情報（dky）と過去成績（dse）を同じ馬で照合します。選んだ過去1日につき追加2照会。<strong>今週の追切指数と同一指標ではなく、JRA公式結果や時系列検証も未確認</strong>の研究です。正式な調教30点・買い目・回収率に使用しません。</p>
+<label for="autoHistoricalTrainingDay">比較する過去開催日（日本時間）</label>
+<input id="autoHistoricalTrainingDay" type="date">
+<button id="autoHistoricalTrainingCheck" type="button">この過去1日の調教指数と着順を比較（追加2照会）</button>
+<p id="autoHistoricalTrainingStatus" class="muted" role="status">本人がボタンを押すまで追加照会しません。初期設定は前週日曜日です。</p>
+<div id="autoHistoricalTrainingRaces"></div>
+</details>
 </details>
 <details id="autoFiveSparsePanel" class="owner-five-sparse-panel">
 <summary>近走未評価でも境界が変わらない参考3連単・発走前記録</summary>
@@ -8836,6 +8845,167 @@ $('autoTcyTchCompare').onclick=async()=>{
  }finally{
   if(seq===trainingCompareSeq)button.disabled=false;
  }
+};
+const HIST_TRAIN_ATTEMPT_PREFIX='keiba-nine-owner-historical-training-day-attempt-v1-';
+function initializeHistoricalTrainingDay(){
+ // Default to last COMPLETED Sunday. Never send paid calls on page load.
+ const today=jstToday(),noon=new Date(today+'T12:00:00Z');
+ const shift=noon.getUTCDay()||7;
+ noon.setUTCDate(noon.getUTCDate()-shift);
+ $('autoHistoricalTrainingDay').value=noon.toISOString().slice(0,10);
+ const yesterday=new Date(today+'T12:00:00Z');
+ yesterday.setUTCDate(yesterday.getUTCDate()-1);
+ $('autoHistoricalTrainingDay').max=yesterday.toISOString().slice(0,10);
+}
+function validateHistoricalTrainingReport(raw,day){
+ if(!raw||raw.version!=='owner-historical-training-index-check-1'||
+    raw.date!==day||!Number.isInteger(raw.raceCount)||
+    raw.raceCount<0||raw.raceCount>120||
+    !Array.isArray(raw.races)||raw.races.length!==raw.raceCount||
+    !raw.summary||typeof raw.summary!=='object'||
+    !raw.ineligibleReasons||typeof raw.ineligibleReasons!=='object'||
+    !Array.isArray(raw.sourceRequestsRequired)||
+    raw.sourceRequestsRequired.join('|')!=='dky|dse'||
+    raw.researchOnly!==true||raw.privateOwnerOnly!==true||
+    raw.rawProviderRowsIncluded!==false||
+    raw.horseNumbersIncluded!==false||raw.oddsUsed!==false||
+    raw.trainingSource!=='dky_training_index_not_tcy_tch'||
+    raw.providerResultSource!=='jrdb_dse_not_independent_jra'||
+    raw.prestartFeatureSnapshotVerified!==false||
+    raw.independentJraVerified!==false||
+    raw.outOfTimeValidated!==false||raw.calibrationReady!==false||
+    raw.formalTrainingScore30Ready!==false||
+    raw.overallPredictionReady!==false||raw.bettingReady!==false||
+    raw.actualPurchase!==false||raw.changesExistingTickets!==false||
+    raw.changesExistingReceipts!==false||raw.changesExistingRoi!==false||
+    raw.additionalProviderReadsAfterTwo!==0)
+  throw Error('過去調教研究の資料形式が不正');
+ const keys=['registered','trainingIndexRecorded','resultRowsMatched',
+   'numericFinishRecorded','runnersWithBoth','eligibleRaces',
+   'uniqueIndexTopWon','indexFinishConcordantPairs',
+   'indexFinishDiscordantPairs'],
+       total=Object.fromEntries(keys.map(k=>[k,0])),
+       reasons=['too_few_runners','training_index_missing',
+        'race_result_incomplete','single_winner_unconfirmed',
+        'top_training_index_tied'],held=Object.fromEntries(reasons.map(k=>[k,0])),
+       tracks=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']),
+       seen=new Set();
+ for(const race of raw.races){
+  const id=race?.track+'|'+race?.race,
+        n=race?.registered,
+        eligible=race?.retrospectiveComparisonEligible;
+  if(!race||seen.has(id)||!tracks.has(race.track)||
+     !Number.isInteger(race.race)||race.race<1||race.race>12||
+     !Number.isInteger(n)||n<1||n>18||
+     ['trainingIndexRecorded','resultRowsMatched',
+      'numericFinishRecorded','runnersWithBoth'].some(k=>
+       !Number.isInteger(race[k])||race[k]<0||race[k]>n)||
+     race.runnersWithBoth>Math.min(race.trainingIndexRecorded,
+                                   race.numericFinishRecorded)||
+     typeof eligible!=='boolean'||
+     !Number.isInteger(race.concordantPairs)||race.concordantPairs<0||
+     !Number.isInteger(race.discordantPairs)||race.discordantPairs<0||
+     race.concordantPairs+race.discordantPairs>n*(n-1)/2||
+     race.officialJraVerified!==false||
+     race.prestartFeatureSnapshotVerified!==false||
+     race.outOfTimeValidated!==false||race.bettingReady!==false)
+    throw Error('過去調教研究のレース集計に不正');
+  seen.add(id);
+  for(const k of keys.slice(0,5))total[k]+=race[k];
+  if(eligible){
+   if(n<4||race.trainingIndexRecorded!==n||
+      race.numericFinishRecorded!==n||
+      race.runnersWithBoth!==n||race.ineligibleReason!==null||
+      typeof race.topIndexWinnerObserved!=='boolean')
+    throw Error('過去調教研究の選抜条件が不正');
+   total.eligibleRaces++;
+   total.uniqueIndexTopWon+=Number(race.topIndexWinnerObserved);
+   total.indexFinishConcordantPairs+=race.concordantPairs;
+   total.indexFinishDiscordantPairs+=race.discordantPairs;
+  }else{
+   if(!reasons.includes(race.ineligibleReason)||
+      race.topIndexWinnerObserved!==null||
+      race.concordantPairs!==0||race.discordantPairs!==0)
+    throw Error('比較保留レースを成果に数えています');
+   held[race.ineligibleReason]++;
+  }
+ }
+ if(keys.some(k=>raw.summary[k]!==total[k])||
+    Object.keys(raw.ineligibleReasons).some(k=>!reasons.includes(k))||
+    reasons.some(k=>(raw.ineligibleReasons[k]||0)!==held[k])||
+    raw.summary.eligibleRaces+Object.values(held).reduce((a,b)=>a+b,0)
+       !==raw.raceCount)
+  throw Error('過去調教研究の集計値に矛盾');
+ return raw.races;
+}
+initializeHistoricalTrainingDay();
+$('autoHistoricalTrainingCheck').onclick=async()=>{
+ const button=$('autoHistoricalTrainingCheck'),
+   chosen=$('autoHistoricalTrainingDay').value,
+   day=chosen.replaceAll('-','');
+ const today=jstToday().replaceAll('-','');
+ const d=new Date(chosen+'T12:00:00Z'),
+       n=new Date(jstToday()+'T12:00:00Z');
+ if(!/^20\d{2}-\d{2}-\d{2}$/.test(chosen)||
+    !Number.isFinite(d.valueOf())||
+    d.toISOString().slice(0,10)!==chosen||
+    day>=today||(n-d)/86400000>180){
+  $('autoHistoricalTrainingStatus').textContent=
+   '過去180日以内の終了済み開催日を選択してください。追加照会0回。';
+  return;
+ }
+ const marker=HIST_TRAIN_ATTEMPT_PREFIX+day;
+ try{
+  if(localStorage.getItem(marker)==='attempted'){
+   $('autoHistoricalTrainingStatus').textContent=
+    'この端末では選択日を既に1回照会しました。二重の有料照会を防ぐため再取得しません。';
+   return;
+  }
+  // First-write before any potential provider reads, fail closed when
+  // private device storage cannot prove the one-day attempt.
+  localStorage.setItem(marker,'attempted');
+  if(localStorage.getItem(marker)!=='attempted')throw Error('not_persistent');
+ }catch(_){
+  $('autoHistoricalTrainingStatus').textContent=
+   '照会回数を端末に記録できないため、安全のため追加照会0回。';
+  return;
+ }
+ button.disabled=true;
+ $('autoHistoricalTrainingRaces').replaceChildren();
+ $('autoHistoricalTrainingStatus').textContent=
+  '本人の操作でJRDB過去調教・着順を2照会中。自動再照会なし…';
+ try{
+  const resp=await fetch('/api/jrdb/historical-training-check?date='+
+    encodeURIComponent(day),{credentials:'same-origin',cache:'no-store',
+     headers:{'X-Keiba-Request':'private','Accept':'application/json'}});
+  const data=await resp.json();
+  if(!resp.ok)throw Error('provider_not_ready');
+  const races=validateHistoricalTrainingReport(data,day);
+  if(chosen!==$('autoHistoricalTrainingDay').value)return;
+  for(const row of races){
+   const status=row.retrospectiveComparisonEligible
+     ?'指数最上位の1着 '+(row.topIndexWinnerObserved?'確認':'該当なし')+
+       '／順位比較 '+row.concordantPairs+'対'+row.discordantPairs
+     :'判定保留（データ欠損・同順位など）';
+   $('autoHistoricalTrainingRaces').append(dom('p',
+    row.track+' '+row.race+'R｜調教指数 '+
+    row.trainingIndexRecorded+'/'+row.registered+
+    '頭／着順 '+row.numericFinishRecorded+
+    '頭｜'+status,'muted'));
+  }
+  $('autoHistoricalTrainingStatus').textContent=
+   '過去'+data.raceCount+'Rの資料を確認。比較可能 '+
+   data.summary.eligibleRaces+'R／指数最上位が1着 '+
+   data.summary.uniqueIndexTopWon+'R。過去JRDB資料の参考集計であり、'+
+   '発走前スナップショット・正式30点・JRA公式・回収率は未検証。';
+ }catch(_){
+  if(chosen===$('autoHistoricalTrainingDay').value){
+   $('autoHistoricalTrainingRaces').replaceChildren();
+   $('autoHistoricalTrainingStatus').textContent=
+    '過去調教資料の照合に失敗。安全のため同じ日の自動再照会はしません。'+
+    '既存の予想・記録は変更していません。';
+  }
+ }finally{button.disabled=false;}
 };
 function validatePrestartBody(raw,day){
  if(!raw||raw.version!=='private-prestart-body-1'||raw.date!==day||
