@@ -4403,6 +4403,37 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(full.get('autoRaces').children[0].children.length,36);
  assert.equal(full.requests.length,paidRequestsBeforePick);
  assert.equal(full.storage.get(STORAGE),archivedBeforePick);
+ // A smaller one-venue 12R day with only one eligible draft must also
+ // open on that draft; 11 held races stay available from the 全場 tab.
+ // Navigating either view must neither re-read JRDB nor mutate receipts.
+ const smallDay=full36RaceDraft();
+ smallDay.races=smallDay.races.slice(0,12);
+ smallDay.raceCount=12;smallDay.draftCount=1;smallDay.holdCount=11;
+ smallDay.holdReasons={after_provisional_off:11};
+ smallDay.tenFactorPreview.races=smallDay.tenFactorPreview.races.slice(0,12);
+ smallDay.tenFactorPreview.raceCount=12;
+ smallDay.raceContext.races=smallDay.raceContext.races.slice(0,12);
+ smallDay.raceContext.raceCount=12;
+ smallDay.raceContext.courseInfoPresentCount=12;
+ smallDay.raceContext.goingAvailableCount=12;
+ smallDay.sourcePassport.races=smallDay.sourcePassport.races.slice(0,12);
+ smallDay.sourcePassport.raceCount=12;
+ const small=boot();
+ await new Promise(r=>setImmediate(r));
+ small.setServerRaw(smallDay);
+ await small.get('autoRun').onclick();
+ assert.match(small.get('autoSummary').textContent,/12R中、研究用自動案 1R／見送り 11R/);
+ assert.equal(small.get('autoRaces').children[0].children.length,1);
+ assert.match(small.get('autoViewingStatus').textContent,/下書き 1Rを表示/);
+ const smallRequests=small.requests.length;
+ const smallStore=small.storage.get(STORAGE);
+ small.get('autoVenues').children[0].onclick();
+ assert.equal(small.get('autoRaces').children[0].children.length,12);
+ small.get('autoVenues').children.at(-1).onclick();
+ assert.equal(small.get('autoRaces').children[0].children.length,1);
+ assert.equal(small.requests.length,smallRequests);
+ assert.equal(small.storage.get(STORAGE),smallStore);
+ assert.equal(small.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // Simulate the largest prestart page payload from the private HTTP
  // service: 36 separate 40-point receipts. After a refresh, none may grow,
  // turn into an actual purchase, or be hidden by a duplicated receipt.
