@@ -5342,8 +5342,11 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     ground:{weight:12,score:null,points:null,grade:'未評価',reason:'ground_good_not_scored'}
    }}))}]};
  comparable.comparableFactorResearch={
-  version:'owner-comparable-factor-formation-1',date:day,raceCount:1,
-  reviewedHeldRaces:1,unsignedReferenceCount:1,researchOnly:true,privateOwnerOnly:true,
+  version:'owner-comparable-factor-formation-2',date:day,raceCount:1,
+  reviewedHeldRaces:1,unsignedReferenceCount:1,minimumComparableWeight:70,
+  diagnostics:{ineligible:0,time_unavailable:0,roster_mismatch:0,training_missing:0,
+   factor_invalid:0,insufficient_shared_weight:0,tie_or_point_limit:0,preview:1},
+  researchOnly:true,privateOwnerOnly:true,
   officialJraVerified:false,formalTenFactorReady:false,predictionReady:false,
   bettingReady:false,ticketsIssued:0,newProviderRequests:0,changesExistingDrafts:false,
   changesExistingReceipts:false,changesExistingRoi:false,
@@ -5364,11 +5367,18 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(comparableView.get('autoComparableFactorRaces').children.length,1);
  assert.match(comparableView.get('autoComparableFactorRaces').children[0].children[0].textContent,/研究用 40点/);
  assert.match(comparableView.get('autoReferencePulse').textContent,/共通評価 1件/);
+ assert.match(comparableView.get('autoComparableFactorStatus').textContent,/検査1R／表示できる研究参考1R／調教不足0R/);
  assert.equal(comparableView.storage.get(STORAGE),compStore);
  assert.equal(comparableView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  const forgedComparable=structuredClone(comparable);
  forgedComparable.comparableFactorResearch.races[0].first=[1,3];
  comparableView.setServerRaw(forgedComparable);
+ await comparableView.get('autoRun').onclick();
+ assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
+ assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
+ const forgedCounts=structuredClone(comparable);
+ forgedCounts.comparableFactorResearch.diagnostics.training_missing=1;
+ comparableView.setServerRaw(forgedCounts);
  await comparableView.get('autoRun').onclick();
  assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
  assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);

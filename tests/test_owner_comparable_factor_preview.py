@@ -75,6 +75,11 @@ class ComparableResearchTests(unittest.TestCase):
         untouched = copy.deepcopy((original, automatic))
         result = self.run_model(original, automatic)
         self.assertEqual(result['unsignedReferenceCount'], 1)
+        self.assertEqual(result['minimumComparableWeight'], 70)
+        self.assertEqual(result['diagnostics']['preview'], 1)
+        self.assertEqual(result['reviewedHeldRaces'], sum(result['diagnostics'].values()))
+        self.assertTrue(all(isinstance(n, int) and n >= 0
+                            for n in result['diagnostics'].values()))
         item = result['races'][0]
         self.assertEqual(item['comparedWeight'], 75)
         self.assertEqual(item['excludedKeys'], ['recent', 'ground'])
@@ -107,8 +112,16 @@ class ComparableResearchTests(unittest.TestCase):
                 automatic['races'][0]['horses'][0]['factors']['pace']['points'] = float('nan')
             elif adjustment == 'conflict_roster':
                 automatic['races'][0]['horses'][0]['number'] = 13
-            self.assertEqual(self.run_model(report, automatic)['unsignedReferenceCount'], 0,
-                             adjustment)
+            expected = {'missing_training': 'training_missing',
+                        'missing_pace': 'insufficient_shared_weight',
+                        'missing_staff': 'insufficient_shared_weight',
+                        'unknown_score': 'factor_invalid',
+                        'conflict_roster': 'roster_mismatch'}[adjustment]
+            result = self.run_model(report, automatic)
+            self.assertEqual(result['unsignedReferenceCount'], 0, adjustment)
+            self.assertEqual(result['diagnostics'][expected], 1, adjustment)
+            self.assertEqual(result['reviewedHeldRaces'],
+                             sum(result['diagnostics'].values()))
 
     def test_gate_prestart_held_and_unverified(self):
         for change in ('late', 'signed', 'withdrawal', 'already_draft',
@@ -125,7 +138,10 @@ class ComparableResearchTests(unittest.TestCase):
                 with self.assertRaises(CoverageError):
                     self.run_model(report, automatic, now)
             else:
-                self.assertEqual(self.run_model(report, automatic, now)['unsignedReferenceCount'], 0)
+                output = self.run_model(report, automatic, now)
+                self.assertEqual(output['unsignedReferenceCount'], 0)
+                self.assertEqual(output['diagnostics']['time_unavailable'],
+                                 int(change == 'late'))
 
     def test_no_number_based_tie_break_and_low_coverage(self):
         report, automatic = fixture()
@@ -138,7 +154,9 @@ class ComparableResearchTests(unittest.TestCase):
                 v = horse['factors'][key]
                 v['points'] = point
                 v['score'] = round(point * 100 / v['weight'], 4)
-        self.assertEqual(self.run_model(report, automatic)['unsignedReferenceCount'], 0)
+        output = self.run_model(report, automatic)
+        self.assertEqual(output['unsignedReferenceCount'], 0)
+        self.assertEqual(output['diagnostics']['tie_or_point_limit'], 1)
 
     def test_recent_when_all_known_changes_comparison_weight_but_not_existing_draft(self):
         report, automatic = fixture()
