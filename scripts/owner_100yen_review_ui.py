@@ -26,6 +26,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="provisionalCheck" type="button">固定3連単とJRDB暫定着順を参考照合</button>
 <p id="provisionalStatus" class="muted" role="status">まだ照合していません。自動で成績APIは呼びません。</p>
 <div id="provisionalRaces"></div></section>
+<section id="providerPayoffReference"><h2>JRDB払戻で100円仮想収支を参考照合</h2>
+<p class="muted">発走前に保存した署名付き研究用3連単だけを、JRDBの払戻資料（/thj）と照合します。<strong>実購入・JRA公式独立確認・正式な回収率ではありません。</strong>欠損・返還・組番が読めない場合は保留にします。ここを押した時だけJRDBを最大1回照会。既存記録は変更しません。</p>
+<button id="thjCheck" type="button">保存した3連単の仮想払戻を照合（1回）</button>
+<p id="thjStatus" class="muted" role="status">未実行。JRDBへの払戻照会はしていません。</p>
+<div id="thjSummary" class="summary"></div><div id="thjRaces"></div>
+</section>
 <details id="jraResultCandidatePanel"><summary>JRAの結果ページを1Rだけ読み取る（候補・任意）</summary>
 <p class="muted">JRAのレース結果ページのURLを公式サイトからコピーして入力してください。開催日の翌日以降に選択した1Rを1回確認し、<b>同じ日の署名付き発走前3連単があれば、候補の組み合わせと参考比較</b>します。固定記録がない場合はJRA形式の候補だけ表示。公式結果の最終認証・返還確認・的中証明は未完成で、仮想収支には加算しません。</p>
 <label for="jraResultTrack">競馬場</label>
@@ -267,6 +273,7 @@ function showPreliminary(data){
 }
 let preliminaryRequest=0;
 function clearPreliminary(){
+ clearThj();
  preliminaryRequest++;
  $('provisionalRaces').replaceChildren();
  $('provisionalStatus').textContent='まだ照合していません。自動で成績APIは呼びません。';
@@ -305,6 +312,120 @@ $('provisionalCheck').onclick=async()=>{
  }
 };
 
+const THJ_VERSION='owner-prestart-thj-100yen-reference-1';
+let thjRequest=0;
+function clearThj(){
+ thjRequest++;
+ $('thjSummary').replaceChildren();
+ $('thjRaces').replaceChildren();
+ $('thjStatus').textContent='未実行。JRDBへの払戻照会はしていません。';
+ $('thjCheck').disabled=false;
+}
+function checkThj(raw,day,expected){
+ if(!raw||raw.version!==THJ_VERSION||raw.date!==day||
+    raw.source!=='jrdb_thj_provider_reference'||raw.unitYen!==100||
+    raw.researchOnly!==true||raw.privateOwnerOnly!==true||
+    raw.officialJraVerified!==false||raw.payoutOfficiallyVerified!==false||
+    raw.actualPurchase!==false||raw.predictionReady!==false||
+    raw.changesExistingReceipts!==false||
+    raw.writesPersistentResults!==false||
+    ![0,1].includes(raw.providerReadCount)||
+    !Array.isArray(raw.races)||raw.raceCount!==raw.races.length||
+    raw.raceCount!==expected.size||raw.raceCount<1||raw.raceCount>36||
+    !Number.isInteger(raw.observedRaces)||!Number.isInteger(raw.pendingRaces)||
+    raw.observedRaces+raw.pendingRaces!==raw.raceCount||
+    !Number.isInteger(raw.reviewedInvestedYen)||raw.reviewedInvestedYen<0||
+    !Number.isInteger(raw.reviewedReturnedYen)||raw.reviewedReturnedYen<0||
+    !Number.isInteger(raw.reviewedProfitYen)||
+    !Number.isInteger(raw.pendingStakeYen)||raw.pendingStakeYen<0||
+    !Number.isInteger(raw.providerMatchedRaces)||raw.providerMatchedRaces<0)
+  throw Error('JRDB払戻資料の形式を確認できません');
+ const seen=new Set(), allowed=new Set([
+  'pending','refund_review','format_review','provider_observed']);
+ let observed=0,invested=0,returned=0,pending=0,hits=0;
+ for(const r of raw.races){
+  const key=r?.track+'|'+r?.race;
+  if(seen.has(key)||!Number.isInteger(r?.race)||r.race<1||r.race>12||
+     expected.get(key)!==r.trifectaPoints||!allowed.has(r.status)||
+     r.officialJraVerified!==false)
+   throw Error('JRDB払戻レースを照合できません');
+  seen.add(key);
+  if(r.status==='provider_observed'){
+   if(r.investedYen!==100*r.trifectaPoints||
+      !Number.isInteger(r.returnedYen)||r.returnedYen<0||
+      !Number.isInteger(r.providerMatchedTickets)||r.providerMatchedTickets<0||
+      r.providerMatchedTickets>6)
+    throw Error('JRDB払戻計算に矛盾');
+   observed++;invested+=r.investedYen;returned+=r.returnedYen;
+   hits+=Number(r.providerMatchedTickets>0);
+  }else{
+   if(r.investedYen!==null||r.returnedYen!==null||
+      r.providerMatchedTickets!==null)
+    throw Error('未確定払戻を集計に含めません');
+   pending+=r.trifectaPoints*100;
+  }
+ }
+ if(raw.observedRaces!==observed||raw.pendingRaces!==raw.raceCount-observed||
+    raw.reviewedInvestedYen!==invested||
+    raw.reviewedReturnedYen!==returned||
+    raw.reviewedProfitYen!==returned-invested||
+    raw.pendingStakeYen!==pending||
+    raw.providerMatchedRaces!==hits||
+    (raw.providerReadCount===0&&observed!==0)||
+    (invested===0?raw.reviewedRoiPercent!==null:
+      typeof raw.reviewedRoiPercent!=='number'||
+      !Number.isFinite(raw.reviewedRoiPercent)||
+      Math.abs(raw.reviewedRoiPercent-returned*100/invested)>0.011))
+  throw Error('JRDB払戻合計が一致しません');
+ return raw;
+}
+$('thjCheck').onclick=async()=>{
+ const day=$('day').value,seq=++thjRequest,button=$('thjCheck');
+ $('thjSummary').replaceChildren();$('thjRaces').replaceChildren();
+ if(!validDay(day)){
+  $('thjStatus').textContent='開催日を正しく選んでください。';return;
+ }
+ button.disabled=true;
+ $('thjStatus').textContent='固定記録の署名確認後、JRDBの払戻資料を照合中…';
+ try{
+  const {receipts,source}=await signedForPreliminary(day);
+  if(seq!==thjRequest||$('day').value!==day)return;
+  const expected=expectedPreliminaryRaces(receipts,day);
+  const resp=await fetch('/api/owner-prestart-thj-review',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},
+   body:JSON.stringify({date:day,receipts})
+  });
+  if(!resp.ok)throw Error('JRDB source unavailable');
+  const data=checkThj(await resp.json(),day,expected);
+  if(seq!==thjRequest||$('day').value!==day)return;
+  $('thjSummary').append(
+   stat('JRDB払戻確認済み',data.observedRaces+'R'),
+   stat('要確認・結果待ち',data.pendingRaces+'R'),
+   stat('参考投資（確認済みのみ）',yen(data.reviewedInvestedYen)),
+   stat('JRDB参考払戻',yen(data.reviewedReturnedYen)),
+   stat('参考収支',data.observedRaces?yen(data.reviewedProfitYen):'未確定'),
+   stat('JRDB参考回収率',pct(data.reviewedRoiPercent))
+  );
+  const labels={pending:'払戻未取得',refund_review:'返還確認が必要',
+   format_review:'組番形式確認が必要',provider_observed:'JRDB払戻資料あり'};
+  for(const row of data.races){
+   $('thjRaces').append(el('p',row.track+' '+row.race+'R｜'+
+     labels[row.status]+'｜3連単 '+row.trifectaPoints+'点'+
+     (row.status==='provider_observed'?
+      '｜参考払戻 '+yen(row.returnedYen):'｜仮想収支は保留'),'muted'));
+  }
+  $('thjStatus').textContent=source+' '+data.raceCount+'Rを対象にJRDB払戻'+
+    data.observedRaces+'Rを参考照合。未確定'+data.pendingRaces+
+    'Rは収支から除外。JRA公式結果は独立未確認、実購入なし。'+
+    '保存済みの3連単・正式収支には反映していません。';
+ }catch(_){
+  if(seq===thjRequest)
+   $('thjStatus').textContent='JRDB払戻を安全に照合できませんでした。'+
+     '買い目・保存済み記録・正式収支は変更していません。';
+ }finally{if(seq===thjRequest)button.disabled=false;}
+};
 async function readReport(day){
  // A durable private archive wins when configured; if no archived races exist,
  // older local-only signed research receipts remain readable as a fallback.
