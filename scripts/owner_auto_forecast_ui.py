@@ -1386,8 +1386,11 @@ function renderAutomaticFactors(row){
  panel.append(dom('p','既存のJRDB資料から算出。採点ルールは検証前で、総合100点・勝率ではありません。'+
   '距離評価はコース実績を含みません。買い目にはまだ反映していません。','muted'));
  for(const h of row.horses){
-  const horse=dom('div',undefined,'ten-horse');
-  horse.append(dom('b',h.number+'番'));
+  const horse=dom('details',undefined,'ten-horse');
+  const brief=[['course_distance','距離'],['pace','展開'],['jockey_stable','騎手厩舎'],['rotation','ローテ']]
+   .map(([key,label])=>label+':'+(h.factors[key].points===null?'未評価':
+    h.factors[key].points.toFixed(2)+'点')).join('｜');
+  horse.append(dom('summary',h.number+'番｜'+brief));
   for(const [key,label] of [['course_distance','距離適性（コース未評価）'],['pace','展開・脚質'],['jockey_stable','騎手・厩舎'],['rotation','ローテ']]){
    const v=h.factors[key];
    horse.append(dom('p',label+'：'+(v.points===null?'未評価':
@@ -1397,6 +1400,9 @@ function renderAutomaticFactors(row){
   panel.append(horse);
  }
  return panel;
+}
+function eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock){
+ return Boolean(automatic&&!elapsed&&!changedLock&&!draftExpiredOnDevice(day,race.postTime));
 }
 function renderTenHorse(h,source,automatic){
  const additions=automatic?.factors||{};
@@ -1452,7 +1458,7 @@ function renderTenHeader(p){
   const el=dom('div',undefined,'ten-weight');
   el.append(dom('span',f.label),dom('b',f.weight+'点'));host.append(el);
  }
- $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、展開17・騎手厩舎10・ローテ1は資料が揃った馬を追加自動採点。各馬の欄に得点と理由を表示します。総合100点の採点は未完成です。';
+ $('autoTenStatus').textContent='正式配点100点／10項目。調教30点＋近走3点は仮説ランクから自動採点（最大33点）、距離適性17・展開17・騎手厩舎10・ローテ1は資料が揃った馬を追加自動採点。各馬の欄に得点と理由を表示します。総合100点の採点は未完成です。';
 }
 // Grades on a racecard are observations from the existing two-factor
 // source, not a horse ranking or a predicted winner. Never substitute 0 for
@@ -2748,7 +2754,7 @@ function render(input,day){
       '頭・A '+race.runners.filter(h=>h.training==='A').length+'頭（仮）':'')));
   detail.append(title);
   const automatic=automaticFactorRace(data,day,race);
-  if(automatic&&!race.runners.length&&!elapsed&&!changedLock&&!draftExpiredOnDevice(day,race.postTime))
+  if(eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock))
    detail.append(renderAutomaticFactors(automatic));
   const course=courseRows.get(race.track+'|'+race.race);
   const condition=course.goingAvailable?course.going+'（JRDB資料）':'馬場未確認';
@@ -2845,7 +2851,7 @@ function render(input,day){
     Object.entries(SOURCE_SIGNAL_LABELS).map(([key,label])=>
      label+' '+item.sourceSignals[key]+'/'+item.runnerCount+'頭').join('／')+
     '。コードや指数の値から勝率・適性を自動推定したものではありません。','muted'));
-   detail.append(dom('p','コース距離・馬場適性は未接続。追加3項目の算出結果は、このRの自動採点欄で確認できます。総合採点は未完成。','muted'));
+   detail.append(dom('p','距離適性・展開・騎手厩舎・ローテの参考採点は、このRの自動採点欄で確認できます。コース実績・馬場適性は未評価で、総合100点は未完成。','muted'));
   }else{
    detail.append(dom('p','追加8項目の資料確認は未完了（予想・買い目とは別）。','muted'));
   }
