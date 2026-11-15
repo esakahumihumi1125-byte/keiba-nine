@@ -2553,7 +2553,7 @@ function renderComparableFactorResearch(data,day){
  const p=data.comparableFactorResearch;
  if(p===undefined){status.textContent='追加研究は未取得です。';return;}
  try{
-  if(!p||p.version!=='owner-comparable-factor-formation-1'||
+  if(!p||p.version!=='owner-comparable-factor-formation-2'||
     p.date!==day||p.raceCount!==data.raceCount||
     p.researchOnly!==true||p.privateOwnerOnly!==true||
     p.officialJraVerified!==false||p.formalTenFactorReady!==false||
@@ -2564,7 +2564,18 @@ function renderComparableFactorResearch(data,day){
     !Number.isInteger(p.reviewedHeldRaces)||p.reviewedHeldRaces<0||
     p.reviewedHeldRaces>data.holdCount||
     !Array.isArray(p.races)||p.unsignedReferenceCount!==p.races.length||
-    p.races.length>data.holdCount)throw Error('comparable_header');
+    p.races.length>data.holdCount||
+    p.minimumComparableWeight!==70||
+    !p.diagnostics||typeof p.diagnostics!=='object')throw Error('comparable_header');
+  const causes=['ineligible','time_unavailable','roster_mismatch',
+    'training_missing','factor_invalid','insufficient_shared_weight',
+    'tie_or_point_limit','preview'];
+  if(Object.keys(p.diagnostics).sort().join('|')!==causes.slice().sort().join('|')||
+     causes.some(key=>!Number.isInteger(p.diagnostics[key])||
+      p.diagnostics[key]<0||p.diagnostics[key]>data.holdCount)||
+     causes.reduce((sum,key)=>sum+p.diagnostics[key],0)!==p.reviewedHeldRaces||
+     p.diagnostics.preview!==p.unsignedReferenceCount)
+   throw Error('comparable_diagnostics');
   const originals=new Map(data.races.map(r=>[r.track+'|'+r.race,r])),
    grades={S:3,A:2,B:1,C:0},
    keys=['training','recent','course_distance','pace','ground','jockey_stable','rotation'],
@@ -2624,9 +2635,16 @@ function renderComparableFactorResearch(data,day){
    cards.push(card);
   }
   host.replaceChildren(...cards);
-  status.textContent=cards.length?'根拠のそろう見送りRから研究参考 '+cards.length+
-   'R。未確認項目の0点補完なし。':
-   '共通評価が70点分以上そろう参考0R。見送りを維持します。';
+  const counts=p.diagnostics;
+  status.textContent='見送りRの内訳：検査'+p.reviewedHeldRaces+'R／'+
+    '表示できる研究参考'+cards.length+'R／'+
+    '調教不足'+counts.training_missing+'R／'+
+    '全馬共通の評価不足'+counts.insufficient_shared_weight+'R／'+
+    '同点・点数条件'+counts.tie_or_point_limit+'R／'+
+    '頭数などの不一致'+counts.roster_mismatch+'R／'+
+    '資料形式不一致'+counts.factor_invalid+'R／'+
+    '発走時刻経過等'+counts.time_unavailable+'R。'+
+    'これは正式予想件数ではありません。';
  }catch(_){
   host.replaceChildren();
   status.textContent='比較材料が安全に検証できず、参考候補は非表示です。';
