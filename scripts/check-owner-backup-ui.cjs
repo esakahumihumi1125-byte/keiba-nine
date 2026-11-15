@@ -16,8 +16,9 @@ const keys=[
  'keiba-nine-owner-research6-draft-receipts-v1',
  'keiba-nine-owner-staff-study-sessions-v1',
  'keiba-nine-owner-workout-order-locks-v1',
- 'keiba-nine-owner-workout-pair-observations-v1'
-],format='keiba-nine-owner-local-all-v11';
+ 'keiba-nine-owner-workout-pair-observations-v1',
+ 'keiba-nine-owner-sparse-five-reference-receipts-v1'
+],format='keiba-nine-owner-local-all-v12';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -153,13 +154,27 @@ const workoutPair={signature:'8'.repeat(64),snapshot:{
  sourcePublicationVerified:false,modelCalibrated:false,
  predictionReady:false,actualPurchase:false
 }};
+const sparseReference={signature:'9'.repeat(64),snapshot:{
+ version:'owner-sparse-five-reference-receipt-1',
+ date:'20990109',track:'東京',race:1,
+ sourceKind:'prestart-sparse-recent-79-research-record',
+ capturedAt:'2099-01-09T07:15:00+09:00',
+ scheduledOffAt:'2099-01-09T09:55:00+09:00',
+ policyVersion:'research-6',runnerCount:7,missingRecentCount:7,
+ first:r6First,second:r6Second,third:r6Third,
+ tickets:r6Tickets,points:40,amountYen:4000,
+ researchOnly:true,scoreCalibrated:false,
+ officialJraVerified:false,predictionReady:false,
+ bettingReady:false,actualPurchase:false
+}};
 const fixture=()=>({
  [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],
  [keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],
  [keys[6]]:[signedReceipt],[keys[7]]:[reboundWatch],
  [keys[8]]:[coreStudy],[keys[9]]:[fiveStudy],
  [keys[10]]:[research6Draft],[keys[11]]:[staffStudy],
- [keys[12]]:[workoutOrder],[keys[13]]:[workoutPair]
+ [keys[12]]:[workoutOrder],[keys[13]]:[workoutPair],
+ [keys[14]]:[sparseReference]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -208,7 +223,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[],[keys[11]]:[],[keys[12]]:[],[keys[13]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[],[keys[11]]:[],[keys[12]]:[],[keys[13]]:[],[keys[14]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -258,7 +273,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
  assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
- assert.match(e('backupPreview').textContent,/元の14種類の記録へ戻しました/);
+ assert.match(e('backupPreview').textContent,/元の15種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
@@ -370,8 +385,63 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(boot({...fixture(),[keys[12]]:[workoutOrder,workoutOrder]})
   .el('backupDownload').disabled,true,'duplicated workout study blocked');
  assert.match(boot(fixture()).el('backupSummary').textContent,/調教順位固定1R/);
+ // v11 (14-section) backup must preserve the newer signed sparse
+ // research records, and v12 must round-trip them without modification.
+ const legacy14=fixture();delete legacy14[keys[14]];
+ const old14=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v11',
+  exportedAt:'2099-01-08T23:00:00Z',sections:legacy14}));
+ const currentSparse=boot(fixture());
+ const originalSparse=currentSparse.storage.get(keys[14]);
+ currentSparse.el('backupFile').files=[old14];
+ await currentSparse.el('backupFile').onchange();await flush();
+ assert.equal(currentSparse.el('backupRestore').disabled,false);
+ assert.match(currentSparse.el('backupPreview').textContent,/旧14種類のバックアップ/);
+ currentSparse.el('backupRestore').onclick();
+ assert.equal(currentSparse.storage.get(keys[14]),originalSparse,
+  'old v11 cannot erase separate signed prestart sparse research');
+ assert.match(boot(fixture()).el('backupSummary').textContent,
+  /近走未評価の発走前研究例1R/);
+ const restoreSparse=boot({...fixture(),[keys[14]]:[]});
+ restoreSparse.el('backupFile').files=[fakeFile(JSON.stringify({
+  format,exportedAt:'2099-01-08T23:00:00Z',sections:fixture()
+ }))];
+ await restoreSparse.el('backupFile').onchange();await flush();
+ assert.equal(restoreSparse.el('backupRestore').disabled,false);
+ restoreSparse.el('backupRestore').onclick();
+ assert.deepEqual(JSON.parse(restoreSparse.storage.get(keys[14])),
+  [sparseReference],'v12 restores signed research with original HMAC');
+ assert.equal(restoreSparse.storage.has('keiba-nine-owner-actual-roi-v1'),false);
+ for(const damaged of [
+  {...sparseReference,signature:'INVALID'},
+  {...sparseReference,snapshot:{...sparseReference.snapshot,actualPurchase:true}},
+  {...sparseReference,snapshot:{...sparseReference.snapshot,
+   officialJraVerified:true}},
+  {...sparseReference,snapshot:{...sparseReference.snapshot,points:39}},
+  {...sparseReference,snapshot:{...sparseReference.snapshot,
+   capturedAt:'2099-01-09T12:00:00+09:00'}},
+  {...sparseReference,snapshot:{...sparseReference.snapshot,
+   tickets:[[1,1,2],...sparseReference.snapshot.tickets.slice(1)]}},
+  {...sparseReference,snapshot:{...sparseReference.snapshot,
+   first:[2,1]}}
+ ]){
+  assert.equal(boot({...fixture(),[keys[14]]:[damaged]})
+   .el('backupDownload').disabled,true,
+   'damaged sparse signed research cannot be exported');
+  const instance=boot(fixture()),before=[...instance.storage.entries()];
+  instance.el('backupFile').files=[fakeFile(JSON.stringify({
+   format,exportedAt:'2099-01-08T23:00:00Z',
+   sections:{...fixture(),[keys[14]]:[damaged]}
+  }))];
+  await instance.el('backupFile').onchange();await flush();
+  assert.equal(instance.el('backupRestore').disabled,true,
+   'damaged sparse signed research cannot be imported');
+  assert.deepEqual([...instance.storage.entries()],before);
+ }
+ assert.equal(boot({...fixture(),[keys[14]]:
+  [sparseReference,sparseReference]}).el('backupDownload').disabled,true,
+  'duplicate same-day research records are blocked');
  // v10 (13-section) backup must not destroy postrace HMAC observations.
- const old13sections=fixture();delete old13sections[keys[13]];
+ const old13sections=fixture();for(const k of keys.slice(13))delete old13sections[k];
  const old13=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v10',
   exportedAt:'2099-01-08T23:00:00Z',sections:old13sections}));
  const currentPairs=boot(fixture()),pairBefore=currentPairs.storage.get(keys[13]);

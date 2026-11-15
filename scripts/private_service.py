@@ -1504,7 +1504,7 @@ def create_app(settings=None):
                 '<section><h2>調教・近走・適性・血統・展開を評価</h2><p class="muted">手入力した5項目から暫定のS/A/B/Cと総合評価順を計算し、3連単下書きへ渡せます。</p><a href="/my-scorecard">5項目の評価表を開く（自動AI予想ではありません）</a></section><section id="formationPanel">')
             notebook = notebook.replace(
                 '<section id="savedPanel">',
-                '<section><h2>本人用の一括バックアップ</h2><p class="muted">端末を変える前に、下書き・実購入記録・署名付きの巻き返し候補など8種類をまとめて保存できます。</p><a href="/owner-backup">8種類をまとめてバックアップ・復元</a></section><section id="savedPanel">')
+                '<section><h2>本人用の一括バックアップ</h2><p class="muted">端末を変える前に、下書き・実購入記録・署名付きの研究例など15種類を端末内でまとめて保存できます。</p><a href="/owner-backup">15種類をまとめてバックアップ・復元</a></section><section id="savedPanel">')
             notebook = notebook.replace(
                 '<script src="/my-tickets.js" defer></script>',
                 '<script src="/my-tickets.js?v=drafts-v2" defer></script>'
