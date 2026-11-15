@@ -124,6 +124,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>3. 競馬場・レースを選ぶ</h2>
 <p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
 <p id="autoRaceQuickSummary" class="auto-race-quick" role="status">予想は未取得です。</p>
+<details id="autoFixedQuickPanel" class="owner-fixed-quick">
+<summary id="autoFixedQuickTitle">この端末の発走前固定：確認中</summary>
+<p class="muted">以前に発走前固定した研究用3連単の<strong>閲覧専用履歴</strong>です。新しい予想・正式10項目採点・JRA公式照合・実購入ではありません。署名の真正性は別の検証ボタンで確認します。</p>
+<p id="autoFixedQuickStatus" class="muted" role="status">この端末の固定記録を確認中です。</p>
+<div id="autoFixedQuickRaces"></div>
+</details>
 <details class="owner-race-diagnostics"><summary>全Rの内訳・資料状況</summary><p id="autoSummary" class="muted">未取得</p></details><div id="autoVenues" class="venue-tabs" role="group" aria-label="競馬場を絞り込む"></div>
 <label for="autoRacePick">見たいレースを選ぶ（全場・全Rから選択）</label>
 <select id="autoRacePick" disabled><option value="">全Rを一覧表示</option></select>
@@ -350,6 +356,13 @@ main{padding-bottom:65px}
  background:#102f4d;border-radius:11px;color:#f1d48c;
  font-weight:850;font-size:18px;line-height:1.48;overflow-wrap:anywhere}
 .auto-race-quick{font-size:16px;margin:10px 0}
+.owner-fixed-quick{margin:10px 0;border:1px solid #7995af;
+ padding:10px;border-radius:12px;background:#142c44}
+.owner-fixed-quick>summary{font-weight:800;color:#f3d58e;font-size:15px}
+.owner-fixed-card{margin:9px 0;padding:9px;border:1px solid #587b9b;
+ border-radius:9px;background:#102439}
+.owner-fixed-card .picks{margin:5px 0;font-size:17px}
+.owner-fixed-card details{margin-top:7px;font-size:13px}
 .owner-instructions,.owner-research-tools{margin:12px 0}
 .owner-research-tools>summary{font-size:15px}
 .quick-links{margin:7px 0}
@@ -3068,6 +3081,58 @@ function showFixedHistory(day){
  }catch(_){
   root.replaceChildren();
   label.textContent='固定記録の形式が不正です。既存記録は変更せず、バックアップを確認してください。';
+ }
+}
+function renderFixedQuick(day,expand=false){
+ // A saved prestart record is always history, not a newly produced pick.
+ // Read-only: no provider read, ledger write, HMAC issuance, purchase or
+ // official-result attestation.
+ const panel=$('autoFixedQuickPanel'),rows=$('autoFixedQuickRaces'),
+  title=$('autoFixedQuickTitle'),status=$('autoFixedQuickStatus');
+ rows.replaceChildren();
+ title.textContent='この端末の発走前固定：確認中';
+ if(!/^20[0-9]{6}$/.test(day)){
+  status.textContent='開催日を選択してください。記録は変更しません。';
+  panel.open=false;return 0;
+ }
+ try{
+  const raw=localStorage.getItem(RECEIPTS_KEY);
+  if(!raw){
+   title.textContent='この端末の発走前固定：0R';
+   status.textContent='選択日の保存記録はありません。Safariとホーム画面の保存領域は異なることがあります。';
+   panel.open=false;return 0;
+  }
+  if(raw.length>650000)throw Error('oversized_store');
+  // Cross-day corruption must never be promoted as a valid saved ticket.
+  validateStoredResearchLedger(JSON.parse(raw));
+  const saved=selectedReceiptsForVerification(day).map(x=>x.snapshot)
+   .sort((a,b)=>a.track.localeCompare(b.track,'ja')||a.race-b.race);
+  title.textContent='この端末の発走前固定：'+saved.length+'R（追加照会なし）';
+  status.textContent=saved.length
+   ?'最初に固定した研究用買い目をそのまま表示。署名は未検証／JRA公式未照合／実購入なし。'
+   :'この日の固定記録はありません。既存の保存内容は変更していません。';
+  for(const record of saved){
+   const picks=record.trifectaTickets;
+   const card=dom('div',undefined,'owner-fixed-card');
+   card.append(dom('p',record.track+' '+record.race+'R｜発走前に固定した3連単 '+
+    picks.length+'点（100円換算 '+(picks.length*100).toLocaleString('ja-JP')+'円）','muted'));
+   for(const [i,label] of ['1着','2着','3着'].entries()){
+    const horses=[...new Set(picks.map(x=>x[i]))].sort((a,b)=>a-b);
+    card.append(dom('p',label+'に含む：'+horses.map(n=>n+'番').join('・'),'picks'));
+   }
+   const exact=dom('details');
+   exact.append(dom('summary','固定した '+picks.length+'点の組み合わせ'));
+   exact.append(dom('p',picks.map(t=>t.join('→')).join(' / '),'ticket-list'));
+   card.append(exact);
+   rows.append(card);
+  }
+  panel.open=Boolean(expand&&saved.length);
+  return saved.length;
+ }catch(_){
+  rows.replaceChildren();
+  title.textContent='この端末の固定記録：確認が必要';
+  status.textContent='保存記録に不整合があるため非表示。元のデータは変更しません。バックアップと署名確認をお願いします。';
+  panel.open=false;return 0;
  }
 }
 function draftExpiredOnDevice(day,postTime){
@@ -5823,6 +5888,7 @@ $('autoDay').onchange=()=>{
  $('autoSavedStatus').textContent=localReceiptStatus(
   $('autoDay').value.replaceAll('-',''));
  showFixedHistory($('autoDay').value.replaceAll('-',''));
+ renderFixedQuick($('autoDay').value.replaceAll('-',''),true);
  $('autoStatus').textContent='開催日を選んでな。';
 };
 // Weekend shortcuts only change the date. They do not read paid data.
@@ -6373,6 +6439,7 @@ $('autoRun').onclick=async()=>{
      body.archiveConflictCount+'R。'+localStatus
    :'サーバー保存は未設定。'+localStatus;
   showFixedHistory(day);
+  renderFixedQuick(day,displayed.visibleCount===0);
   $('autoRecordSafety').textContent=recordRetentionStatus(body,day);
   // A valid HTTP response is NOT proof of a successful forecast.
   // In particular /tra=0 only means the provider returned no programme;
@@ -6436,6 +6503,7 @@ $('autoRun').onclick=async()=>{
    ?'研究記録の端末保存はできませんでした。以前の固定記録は変更していません。'
    :'再分析に失敗。'+localReceiptStatus(day);
   showFixedHistory(day);
+  renderFixedQuick(day,true);
   $('autoFixedConsistency').textContent=storageFailure
    ?'【保存記録の確認が必要】端末への新規固定に失敗したため、新しい買い目は表示していません。以前の固定済み研究記録は変更していません。'
    :'今回の再分析結果は未確認です。以前の固定済み研究記録は変更していません。';
@@ -8228,6 +8296,7 @@ refreshWatchResultsAvailability();
 $('autoSavedStatus').textContent=localReceiptStatus(
  $('autoDay').value.replaceAll('-',''));
 showFixedHistory($('autoDay').value.replaceAll('-',''));
+renderFixedQuick($('autoDay').value.replaceAll('-',''),true);
 updateReviewLink();
 // If the iPhone PWA stays open over midnight, the next foreground visit
 // automatically selects the NEW JST calendar day and triggers once.
@@ -8287,6 +8356,7 @@ function resumeOwnerDay(){
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
  $('autoSavedStatus').textContent=localReceiptStatus(today.replaceAll('-',''));
  showFixedHistory(today.replaceAll('-',''));
+ renderFixedQuick(today.replaceAll('-',''),true);
  $('autoStatus').textContent='新しい日付を選択しました。';
  autoFetchOnRegularRaceDay();
 }
@@ -8363,6 +8433,7 @@ function showRecentlyFixedWithoutProvider(day,label){
  const count=recentWeekendFixedRead(day);
  if(!count)return false;
  showFixedHistory(day);
+ renderFixedQuick(day,true);
  $('autoSavedStatus').textContent=localReceiptStatus(day);
  $('autoSummary').textContent='新規未取得｜端末内の発走前固定 '+count+'R';
  $('autoEasyPulse').textContent='端末に固定済みの研究記録 '+count+
