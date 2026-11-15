@@ -1266,6 +1266,43 @@ function trainingCrosscheck(){
    additionalProviderRequestsAfterFour:0
  };
 }
+function trainingHistorical(date='20981230'){
+ const rows=[{
+  track:'東京',race:1,registered:4,trainingIndexRecorded:4,
+  resultRowsMatched:4,numericFinishRecorded:4,runnersWithBoth:4,
+  retrospectiveComparisonEligible:true,ineligibleReason:null,
+  topIndexWinnerObserved:true,concordantPairs:6,discordantPairs:0,
+  officialJraVerified:false,prestartFeatureSnapshotVerified:false,
+  outOfTimeValidated:false,bettingReady:false
+ },{
+  track:'京都',race:1,registered:3,trainingIndexRecorded:3,
+  resultRowsMatched:3,numericFinishRecorded:3,runnersWithBoth:3,
+  retrospectiveComparisonEligible:false,ineligibleReason:'too_few_runners',
+  topIndexWinnerObserved:null,concordantPairs:0,discordantPairs:0,
+  officialJraVerified:false,prestartFeatureSnapshotVerified:false,
+  outOfTimeValidated:false,bettingReady:false
+ }];
+ return {
+  version:'owner-historical-training-index-check-1',date,raceCount:2,
+  races:rows,
+  summary:{registered:7,trainingIndexRecorded:7,resultRowsMatched:7,
+   numericFinishRecorded:7,runnersWithBoth:7,eligibleRaces:1,
+   uniqueIndexTopWon:1,indexFinishConcordantPairs:6,
+   indexFinishDiscordantPairs:0},
+  ineligibleReasons:{too_few_runners:1},
+  sourceRequestsRequired:['dky','dse'],researchOnly:true,
+  privateOwnerOnly:true,rawProviderRowsIncluded:false,
+  horseNumbersIncluded:false,oddsUsed:false,
+  trainingSource:'dky_training_index_not_tcy_tch',
+  providerResultSource:'jrdb_dse_not_independent_jra',
+  prestartFeatureSnapshotVerified:false,independentJraVerified:false,
+  outOfTimeValidated:false,calibrationReady:false,
+  formalTrainingScore30Ready:false,overallPredictionReady:false,
+  bettingReady:false,actualPurchase:false,
+  changesExistingTickets:false,changesExistingReceipts:false,
+  changesExistingRoi:false,additionalProviderReadsAfterTwo:0
+ };
+}
 function prestart(){
  const result={
   version:'private-prestart-body-1',date:day,raceCount:1,
@@ -1334,6 +1371,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   prestartResponse=prestart(),prestartOk=true,
   mainWorkoutResponse=mainWorkouts(),mainWorkoutOk=true,
   trainingCrosscheckResponse=trainingCrosscheck(),trainingCrosscheckOk=true,
+  historicalTrainingResponse=trainingHistorical(),historicalTrainingOk=true,
   configured=true,connectionOK=true,connectionCount=1,
   receiptVerificationOk=true,coreVerificationOk=true,
   coreProviderCorrupt=false,fiveExposureCorrupt=false,
@@ -1467,6 +1505,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   };
   if(url==='/api/jrdb/history')
    return {ok:historyOk,json:async()=>structuredClone(historicalResponse)};
+  if(url.startsWith('/api/jrdb/historical-training-check?'))
+   return {ok:historicalTrainingOk,
+    json:async()=>structuredClone(historicalTrainingResponse)};
   if(url.startsWith('/api/jrdb/training-source-crosscheck?'))
    return {ok:trainingCrosscheckOk&&url.endsWith('date='+day),
     json:async()=>structuredClone(trainingCrosscheckResponse)};
@@ -1775,6 +1816,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setMainWorkoutOk:x=>mainWorkoutOk=x,
   setTrainingCrosscheck:x=>trainingCrosscheckResponse=x,
   setTrainingCrosscheckOk:x=>trainingCrosscheckOk=x,
+  setHistoricalTraining:x=>historicalTrainingResponse=x,
+  setHistoricalTrainingOk:x=>historicalTrainingOk=x,
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
   setCoreVerificationOk:x=>coreVerificationOk=x,
@@ -5598,6 +5641,49 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(forgedR6.get('autoFiveQuickSaved').children.length,0,
   'invalid 79-point frozen ticket cannot be promoted in main view');
  assert.match(forgedR6.get('autoFiveQuickStatus').textContent,/不整合/);
+ // Historical /dky training index vs /dse finish requires explicit
+ // click, is one-date bounded, cannot affect rankings or earlier receipts,
+ // and cannot silently repeat a potentially billable date query.
+ const retrospective=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(retrospective.requests.filter(x=>
+  x.url.startsWith('/api/jrdb/historical-training-check?')).length,0);
+ retrospective.get('autoHistoricalTrainingDay').value='2098-12-30';
+ const initialStorage=[...retrospective.storage.entries()];
+ await retrospective.get('autoHistoricalTrainingCheck').onclick();
+ assert.equal(retrospective.requests.filter(x=>
+  x.url==='/api/jrdb/historical-training-check?date=20981230').length,1);
+ assert.match(retrospective.get('autoHistoricalTrainingStatus').textContent,
+  /過去2Rの資料を確認。比較可能 1R／指数最上位が1着 1R/);
+ assert.equal(retrospective.get('autoHistoricalTrainingRaces').children.length,2);
+ assert.match(retrospective.get('autoHistoricalTrainingRaces').children[0].textContent,
+  /調教指数 4\/4頭／着順 4頭/);
+ assert.ok(retrospective.storage.has(
+  'keiba-nine-owner-historical-training-day-attempt-v1-20981230'));
+ assert.ok([...initialStorage].every(([k,v])=>retrospective.storage.get(k)===v));
+ await retrospective.get('autoHistoricalTrainingCheck').onclick();
+ assert.equal(retrospective.requests.filter(x=>
+  x.url.startsWith('/api/jrdb/historical-training-check?')).length,1,
+  'same historical day never auto-bills a second read');
+ assert.match(retrospective.get('autoHistoricalTrainingStatus').textContent,
+  /既に1回照会/);
+ const tamperedHistorical=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ tamperedHistorical.get('autoHistoricalTrainingDay').value='2098-12-30';
+ const forgedPast=trainingHistorical();
+ forgedPast.races[0].topIndexWinnerObserved=false;
+ tamperedHistorical.setHistoricalTraining(forgedPast);
+ await tamperedHistorical.get('autoHistoricalTrainingCheck').onclick();
+ assert.equal(tamperedHistorical.get('autoHistoricalTrainingRaces').children.length,0);
+ assert.match(tamperedHistorical.get('autoHistoricalTrainingStatus').textContent,
+  /照合に失敗/);
+ const lateHistorical=boot();
+ lateHistorical.get('autoHistoricalTrainingDay').value='2099-01-01';
+ await lateHistorical.get('autoHistoricalTrainingCheck').onclick();
+ assert.equal(lateHistorical.requests.filter(x=>
+  x.url.startsWith('/api/jrdb/historical-training-check?')).length,0);
+ assert.match(lateHistorical.get('autoHistoricalTrainingStatus').textContent,
+  /過去180日以内/);
  // /tcy + /tch cross-check must run ONLY when the owner taps the
  // four-source button. Count mismatches do not create formal training grades.
  const pairStudy=boot();
