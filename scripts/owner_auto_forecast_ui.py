@@ -1339,13 +1339,20 @@ const AUTO_FACTOR_REASONS=Object.freeze({
  rotation_14_56:'前走から14〜56日：間隔を80/100とする仮説',
  rotation_7_90:'前走から7〜90日（14〜56日以外）：65/100とする仮説',
  rotation_outside:'前走から7日未満または90日超：50/100とする仮説',
- previous_date_missing:'前走日が未確認。新馬も0点にしません'
+ previous_date_missing:'前走日が未確認。新馬も0点にしません',
+ course_context_missing:'芝・ダートまたは距離の情報不足。障害戦は研究対象外',
+ distance_code_missing:'距離適性コード不明のため未評価（0点扱いしない）',
+ distance_only_versatile:'万能型の距離適性コード。コース実績は未反映',
+ distance_only_match:'距離帯と適性コードが一致する仮説。コース実績は未反映',
+ distance_only_adjacent:'隣接する距離帯の仮説。コース実績は未反映',
+ distance_only_far:'距離帯に差がある仮説。コース実績は未反映'
 });
 function automaticFactorRace(data,day,race){
  const a=data.automaticFactorScores;
  if(!a)return null; // Older server/cached responses remain usable.
- if(a.version!=='owner-automatic-factor-scores-1'||a.policyVersion!=='research-6'||
-    a.date!==day.replaceAll('-','')||a.maximumPoints!==28||
+ if(a.version!=='owner-automatic-factor-scores-2'||a.policyVersion!=='research-6'||
+    a.date!==day.replaceAll('-','')||a.maximumPoints!==45||
+    !Array.isArray(a.factorKeys)||a.factorKeys.join('|')!=='pace|jockey_stable|rotation|course_distance'||
     a.modelCalibrated!==false||a.officialJraVerified!==false||
     a.overallPredictionReady!==false||a.newProviderRequests!==0||
     !Array.isArray(a.races)||a.races.length>120||
@@ -1358,9 +1365,9 @@ function automaticFactorRace(data,day,race){
  const seen=new Set();
  for(const h of row.horses){
   if(!Number.isInteger(h.number)||h.number<1||h.number>18||seen.has(h.number)||
-     !h.factors||Object.keys(h.factors).sort().join('|')!=='jockey_stable|pace|rotation')return null;
+     !h.factors||Object.keys(h.factors).sort().join('|')!=='course_distance|jockey_stable|pace|rotation')return null;
   seen.add(h.number);
-  for(const [key,weight] of [['pace',17],['jockey_stable',10],['rotation',1]]){
+  for(const [key,weight] of [['course_distance',17],['pace',17],['jockey_stable',10],['rotation',1]]){
    const v=h.factors[key];
    if(!v||v.weight!==weight||!Object.hasOwn(AUTO_FACTOR_REASONS,v.reason))return null;
    if(v.score===null){if(v.points!==null||v.grade!=='未評価')return null;}
@@ -1375,13 +1382,13 @@ function automaticFactorRace(data,day,race){
 }
 function renderAutomaticFactors(row){
  const panel=dom('details',undefined,'automatic-factors');
- panel.append(dom('summary','自動採点：展開・騎手厩舎・ローテ（最大28点分）'));
+ panel.append(dom('summary','自動採点：距離適性・展開・騎手厩舎・ローテ（最大45点分）'));
  panel.append(dom('p','既存のJRDB資料から算出。採点ルールは検証前で、総合100点・勝率ではありません。'+
-  '買い目にはまだ反映していません。','muted'));
+  '距離評価はコース実績を含みません。買い目にはまだ反映していません。','muted'));
  for(const h of row.horses){
   const horse=dom('div',undefined,'ten-horse');
   horse.append(dom('b',h.number+'番'));
-  for(const [key,label] of [['pace','展開・脚質'],['jockey_stable','騎手・厩舎'],['rotation','ローテ']]){
+  for(const [key,label] of [['course_distance','距離適性（コース未評価）'],['pace','展開・脚質'],['jockey_stable','騎手・厩舎'],['rotation','ローテ']]){
    const v=h.factors[key];
    horse.append(dom('p',label+'：'+(v.points===null?'未評価':
     v.points.toFixed(2)+'/'+v.weight+'点 '+v.grade+'（仮）'),v.grade==='未評価'?'muted':'grade '+v.grade));
