@@ -1761,6 +1761,66 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   '/api/jrdb/owner-auto-draft?date=20990103');
  assert.equal(friday.storage.has(STORAGE),false);
 
+ // Opt-in 5-factor history on a real Saturday LOCAL morning. The
+ // source date matches the selected JST day; no network at page load
+ // without a user-owned persisted consent, and no uncontrolled repeats.
+ const AUTO_FIVE_CONSENT='keiba-nine-owner-five-weekend-consent-v1';
+ const AUTO_FIVE_ONCE='keiba-nine-owner-five-weekend-attempt-v1';
+ const weekendFixture=JSON.parse(JSON.stringify(resultWith('a'.repeat(64)))
+  .replaceAll('20990101','20990103').replaceAll('2099-01-01','2099-01-03'));
+ const weekendClock='2099-01-03T00:00:00Z'; // Saturday 09:00 JST
+ const plainWeekend=boot({manualWeekday:false,initialClock:weekendClock,
+  initialServerRaw:weekendFixture});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(plainWeekend.get('autoFiveWeekendOptIn').checked,false);
+ assert.equal(plainWeekend.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
+ assert.equal(plainWeekend.storage.has(AUTO_FIVE_ONCE),false);
+ const consentWeekend=boot({manualWeekday:false,initialClock:weekendClock,
+  initialServerRaw:weekendFixture,
+  seedStorage:new Map([[AUTO_FIVE_CONSENT,'enabled']])});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(consentWeekend.get('autoFiveWeekendOptIn').checked,true);
+ assert.equal(consentWeekend.storage.get(AUTO_FIVE_ONCE),'20990103');
+ assert.equal(consentWeekend.requests.filter(x=>x.url==='/api/jrdb/history').length,1,
+  'persistent explicit opt-in causes at most one 16-call historic check');
+ assert.match(consentWeekend.get('autoFiveWeekendStatus').textContent,
+  /自動追加照合を1回試行|自動追加照合を1回実行済み/);
+ assert.equal(consentWeekend.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const reloadWeekend=boot({manualWeekday:false,initialClock:weekendClock,
+  initialServerRaw:weekendFixture,seedStorage:consentWeekend.storage});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(reloadWeekend.requests.filter(x=>x.url==='/api/jrdb/history').length,0,
+  'reopened iPhone never repeats a paid history read for the same day');
+ assert.equal(reloadWeekend.storage.get(AUTO_FIVE_ONCE),'20990103');
+ const switched=boot({manualWeekday:false,initialClock:weekendClock,
+  initialServerRaw:weekendFixture});
+ await new Promise(resolve=>setImmediate(resolve));
+ switched.get('autoFiveWeekendOptIn').checked=true;
+ switched.get('autoFiveWeekendOptIn').onchange();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(switched.storage.get(AUTO_FIVE_CONSENT),'enabled');
+ assert.equal(switched.requests.filter(x=>x.url==='/api/jrdb/history').length,1,
+  'one direct user opt-in runs once if a prestart daily feed is already loaded');
+ switched.get('autoFiveWeekendOptIn').checked=false;
+ switched.get('autoFiveWeekendOptIn').onchange();
+ assert.equal(switched.storage.has(AUTO_FIVE_CONSENT),false);
+ assert.equal(switched.requests.filter(x=>x.url==='/api/jrdb/history').length,1);
+ const afterOffWeekend=boot({manualWeekday:false,
+  initialClock:'2099-01-03T10:00:00Z',
+  initialServerRaw:weekendFixture,
+  seedStorage:new Map([[AUTO_FIVE_CONSENT,'enabled']])});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(afterOffWeekend.requests.filter(x=>x.url==='/api/jrdb/history').length,0,
+  'after provisional off, opt-in cannot turn a past race into new forecast');
+ assert.equal(afterOffWeekend.storage.has(AUTO_FIVE_ONCE),false);
+ const withExtraStaff=boot({manualWeekday:false,
+  initialClock:weekendClock,initialServerRaw:weekendFixture,
+  seedStorage:new Map([[AUTO_FIVE_CONSENT,'enabled']])});
+ withExtraStaff.get('autoHistoryStaffSample').checked=true;
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(withExtraStaff.requests.filter(x=>x.url==='/api/jrdb/history').length,0,
+  'optional staff lookup cannot break auto five-factor 16-request limit');
+ assert.equal(withExtraStaff.storage.has(AUTO_FIVE_ONCE),false);
  // Explain the existing missing-factor hold by fixed source reason codes,
  // never by inventing a zero grade or running more billed provider queries.
  const gapsView=boot({manualWeekday:false});
