@@ -73,6 +73,13 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">ONでもアプリを開いた時だけ実行（バックグラウンドなし）。開催日ごとに過去番組・馬場を最大16回、失敗時の自動再試行なし。発走前のレースがなければ照会せず、翌開催日以降もOFFに変更できます。正式10項目・JRA公式照合ではありません。</p>
 <p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
 <div id="autoFiveQuickSaved"></div>
+<details class="owner-five-sparse-panel" id="autoMainWorkoutPanel">
+<summary>JRDB本追切の調教資料を確認（任意・調教30点の根拠）</summary>
+<p class="muted">本人が押した時だけJRDBの番組・出走馬・本追切データを計3回取得。追切日・終い・追切指数の記録有無を登録馬と照合します。指数値・調教タイム・オッズは表示せず、採点・3連単・結果は変更しません。</p>
+<button id="autoMainWorkoutCheck" type="button" disabled>当日のJRDB本追切を照合（追加3照会）</button>
+<p id="autoMainWorkoutStatus" class="muted" role="status">基本資料の取得後、発走前の当日だけ照合できます。</p>
+<div id="autoMainWorkoutRaces"></div>
+</details>
 <details id="autoFiveSparsePanel" class="owner-five-sparse-panel">
 <summary>近走未評価でも境界が変わらない参考3連単・発走前記録</summary>
 <p class="muted">近走3点が未評価でも、S〜Cのどれになっても候補区切りが変わらない場合だけの研究参考例です。残り4項目は全頭観測済み。<strong>正式10項目予想・馬券推奨・実購入・確定回収率ではありません。</strong></p>
@@ -3531,6 +3538,7 @@ const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 const SPARSE_RESEARCH_STORAGE='keiba-nine-owner-sparse-five-reference-receipts-v1';
 const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
 let fiveQuickReadDay='';
+let tchStudySeq=0;
 const AUTO_FIVE_CONSENT_KEY='keiba-nine-owner-five-weekend-consent-v1';
 const AUTO_FIVE_ONCE_KEY='keiba-nine-owner-five-weekend-attempt-v1';
 let request=0,followingToday=true,preflightSeq=0,
@@ -3585,6 +3593,11 @@ function clearHistory(){
  historyRosters=new Map();historyReboundWatch=new Map();historyStyles=new Map();
  historyGrades=new Map();historyStatuses=new Map();
  $('autoHistoryAudit').disabled=true;
+ tchStudySeq++;
+ $('autoMainWorkoutCheck').disabled=true;
+ $('autoMainWorkoutRaces').replaceChildren();
+ $('autoMainWorkoutStatus').textContent=
+  '基本資料の取得後、発走前の当日だけ本追切を照合できます。';
  renderSparseFiveReference(null,$('autoDay').value.replaceAll('-',''));
  renderSavedSparse($('autoDay').value.replaceAll('-',''));
  fiveQuickReadDay='';
@@ -6792,6 +6805,7 @@ $('autoRun').onclick=async()=>{
   historyStatuses=new Map(body.races.map(r=>[r.track+'|'+r.race,r.status]));
   $('autoHistoryAudit').disabled=historyCoordinates.size===0;
   $('autoFiveQuick').disabled=historyCoordinates.size===0;
+  $('autoMainWorkoutCheck').disabled=historyCoordinates.size===0;
   $('autoFiveQuickStatus').textContent=historyCoordinates.size
    ?'追加5項目の過去比較は未実行。上のボタンで最大16回照会します。'
    :'JRDB番組が0Rのため5項目の追加照会は不要です。';
@@ -8605,6 +8619,119 @@ $('autoFiveWeekendOptIn').onchange=()=>{
  }
 };
 // Never use source count alone to grade body condition or change a ticket.
+function validateMainWorkoutEvidence(raw,day){
+ const eligible=historyCoordinates;
+ if(!raw||raw.version!=='owner-main-workout-tch-evidence-1'||
+    raw.date!==day||raw.raceCount!==eligible.size||
+    !Array.isArray(raw.races)||raw.races.length!==eligible.size||
+    raw.sourceFamily!=='jrdb_tch_owner_prestart'||
+    !Array.isArray(raw.sourceRequestsRequired)||
+    raw.sourceRequestsRequired.join('|')!=='tra|tky|tch'||
+    raw.researchOnly!==true||raw.privateOwnerOnly!==true||
+    raw.horseIdsIncluded!==false||raw.rawWorkoutValuesIncluded!==false||
+    raw.oddsUsed!==false||raw.officialJraVerified!==false||
+    raw.modelCalibrated!==false||raw.trainingGradeReady!==false||
+    raw.overallPredictionReady!==false||raw.bettingReady!==false||
+    raw.actualPurchase!==false||raw.changesExistingTickets!==false||
+    raw.changesExistingReceipts!==false||raw.changesExistingRoi!==false||
+    raw.additionalPaidReadsAfterSource!==0||
+    !raw.summary||typeof raw.summary!=='object')
+  throw Error('本追切の資料契約に不整合');
+ const sums={workoutRows:0,runnersWithWorkout:0,
+    runnersWithRecentWorkout:0,runnersWithIndex:0,
+    runnersWithDatedIndexTime:0},seen=new Set();
+ for(const r of raw.races){
+  const id=r?.track+'|'+r?.race;
+  if(!eligible.has(id)||seen.has(id)||
+     !Number.isInteger(r.registered)||r.registered<0||r.registered>18||
+     !Number.isInteger(r.sourceWorkoutRows)||r.sourceWorkoutRows<0||
+     r.sourceWorkoutRows>r.registered*30||
+     !Array.isArray(r.runners)||r.runners.length!==r.registered||
+     r.workoutIndexCalibrated!==false||r.officialJraVerified!==false||
+     r.trainingGradeReady!==false||r.trifectaReady!==false)
+   throw Error('本追切のレース番号が不正');
+  seen.add(id);
+  const counts={runnersWithWorkout:0,runnersWithRecentWorkout:0,
+                runnersWithIndex:0,runnersWithFinalTime:0,
+                runnersWithDatedIndexTime:0};
+  const numbers=new Set();
+  for(const h of r.runners){
+   if(!h||Object.keys(h).length!==10||
+      !Number.isInteger(h.number)||h.number<1||h.number>18||
+      numbers.has(h.number)||h.trainingGrade!=='未評価'||
+      h.trainingScore30!==null||h.modelCalibrated!==false||
+      ['mainWorkoutsRecorded','datedWorkoutRecorded',
+       'withinSevenDaysRecorded','mainIndexRecorded',
+       'finalTimeRecorded','datedIndexTimePairRecorded']
+      .some(k=>typeof h[k]!=='boolean')||
+      (h.datedWorkoutRecorded&&!h.mainWorkoutsRecorded)||
+      (h.withinSevenDaysRecorded&&!h.datedWorkoutRecorded)||
+      ((h.mainIndexRecorded||h.finalTimeRecorded)&&
+        !h.mainWorkoutsRecorded)||
+      (h.datedIndexTimePairRecorded&&
+       !(h.datedWorkoutRecorded&&h.mainIndexRecorded&&h.finalTimeRecorded)))
+    throw Error('本追切の馬番と観測状態が不正');
+   numbers.add(h.number);
+   counts.runnersWithWorkout+=Number(h.mainWorkoutsRecorded);
+   counts.runnersWithRecentWorkout+=Number(h.withinSevenDaysRecorded);
+   counts.runnersWithIndex+=Number(h.mainIndexRecorded);
+   counts.runnersWithFinalTime+=Number(h.finalTimeRecorded);
+   counts.runnersWithDatedIndexTime+=Number(h.datedIndexTimePairRecorded);
+  }
+  if(Object.keys(counts).some(k=>r[k]!==counts[k])||
+     r.sourceWorkoutRows<r.runnersWithWorkout)
+   throw Error('本追切の頭数合計が不正');
+  for(const k of Object.keys(sums))
+   sums[k]+=k==='workoutRows'?r.sourceWorkoutRows:r[k];
+ }
+ if(seen.size!==eligible.size||
+    Object.keys(sums).some(k=>raw.summary[k]!==sums[k]))
+  throw Error('本追切の全R合計が不一致');
+ return raw.races;
+}
+$('autoMainWorkoutCheck').onclick=async()=>{
+ const btn=$('autoMainWorkoutCheck'),day=$('autoDay').value.replaceAll('-','');
+ if(btn.disabled)return;
+ if(historyDay!==day||!/^20[0-9]{6}$/.test(day)){
+  $('autoMainWorkoutStatus').textContent=
+   '開催日の基本資料を確認してから実行してください。追加JRDB照会0回。';
+  return;
+ }
+ const seq=++tchStudySeq;
+ btn.disabled=true;
+ $('autoMainWorkoutRaces').replaceChildren();
+ $('autoMainWorkoutStatus').textContent=
+  '本人操作でJRDB本追切を照合中（番組・出走馬・本追切の最大3照会）…';
+ try{
+  const reply=await fetch('/api/jrdb/main-workout-evidence?date='+
+    encodeURIComponent(day),{credentials:'same-origin',cache:'no-store',
+      headers:{'X-Keiba-Request':'private','Accept':'application/json'}});
+  const data=await reply.json();
+  if(seq!==tchStudySeq||day!==$('autoDay').value.replaceAll('-',''))return;
+  if(!reply.ok)throw Error('本追切の追加資料が利用できません');
+  const races=validateMainWorkoutEvidence(data,day);
+  for(const r of races){
+   $('autoMainWorkoutRaces').append(dom('p',
+    r.track+' '+r.race+'R｜本追切 '+r.runnersWithWorkout+'/'+r.registered+
+    '頭／7日以内 '+r.runnersWithRecentWorkout+
+    '頭／追切指数 '+r.runnersWithIndex+
+    '頭／日付・指数・終いが揃う '+r.runnersWithDatedIndexTime+
+    '頭（調教30点は未評価）','muted'));
+  }
+  $('autoMainWorkoutStatus').textContent=
+   '本追切を'+data.raceCount+'R照合。記録あり '+
+   data.summary.runnersWithWorkout+'頭／追切指数あり '+
+   data.summary.runnersWithIndex+'頭。資料取得は予想採点ではなく、'+
+   'JRA公式未照合。買い目・保存履歴・回収率は変更していません。';
+ }catch(_){
+  if(seq===tchStudySeq){
+   $('autoMainWorkoutRaces').replaceChildren();
+   $('autoMainWorkoutStatus').textContent=
+    '本追切資料の確認は保留。本人専用のJRDB接続・当日発走前・資料形式を確認。'+
+    '買い目・保存・回収率は無変更です。';
+  }
+ }finally{if(seq===tchStudySeq)btn.disabled=false;}
+};
 function validatePrestartBody(raw,day){
  if(!raw||raw.version!=='private-prestart-body-1'||raw.date!==day||
     !Number.isInteger(raw.raceCount)||raw.raceCount<0||raw.raceCount>120||
