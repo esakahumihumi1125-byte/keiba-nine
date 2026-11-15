@@ -1243,6 +1243,29 @@ function mainWorkouts(){
   additionalPaidReadsAfterSource:0
  };
 }
+function trainingCrosscheck(){
+ const row={track:'東京',race:1,registered:7,tcyComplete:4,tchComplete:3,
+   bothComplete:2,tcyOnly:2,tchOnly:1,neither:2,
+   tchWorkoutPresent:5,tchRecentWorkoutPresent:3,
+   bothSourcesForEveryRunner:false,trainingGradeCalibrated:false,
+   formalTrainingScore30Ready:false,jraOfficialVerified:false,
+   trifectaReady:false};
+ return {version:'owner-training-tcy-tch-crosscheck-1',date:day,
+   raceCount:1,races:[row],
+   summary:Object.fromEntries(['registered','tcyComplete','tchComplete',
+     'bothComplete','tcyOnly','tchOnly','neither','tchWorkoutPresent',
+     'tchRecentWorkoutPresent'].map(k=>[k,row[k]])),
+   sourceRequestsRequired:['tra','tky','tcy','tch'],
+   researchOnly:true,privateOwnerOnly:true,
+   rawWorkoutValuesIncluded:false,horseIdentifiersIncluded:false,
+   oddsUsed:false,indexValuesCompared:false,
+   jraOfficialVerified:false,trainingGradeCalibrated:false,
+   formalTrainingScore30Ready:false,overallPredictionReady:false,
+   bettingReady:false,actualPurchase:false,changesExistingTickets:false,
+   changesExistingReceipts:false,changesExistingRoi:false,
+   additionalProviderRequestsAfterFour:0
+ };
+}
 function prestart(){
  const result={
   version:'private-prestart-body-1',date:day,raceCount:1,
@@ -1310,6 +1333,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
   mainWorkoutResponse=mainWorkouts(),mainWorkoutOk=true,
+  trainingCrosscheckResponse=trainingCrosscheck(),trainingCrosscheckOk=true,
   configured=true,connectionOK=true,connectionCount=1,
   receiptVerificationOk=true,coreVerificationOk=true,
   coreProviderCorrupt=false,fiveExposureCorrupt=false,
@@ -1443,6 +1467,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   };
   if(url==='/api/jrdb/history')
    return {ok:historyOk,json:async()=>structuredClone(historicalResponse)};
+  if(url.startsWith('/api/jrdb/training-source-crosscheck?'))
+   return {ok:trainingCrosscheckOk&&url.endsWith('date='+day),
+    json:async()=>structuredClone(trainingCrosscheckResponse)};
   if(url.startsWith('/api/jrdb/main-workout-evidence?'))
    return {ok:mainWorkoutOk&&url.endsWith('date='+day),
     json:async()=>structuredClone(mainWorkoutResponse)};
@@ -1746,6 +1773,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
   setMainWorkout:x=>mainWorkoutResponse=x,
   setMainWorkoutOk:x=>mainWorkoutOk=x,
+  setTrainingCrosscheck:x=>trainingCrosscheckResponse=x,
+  setTrainingCrosscheckOk:x=>trainingCrosscheckOk=x,
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
   setCoreVerificationOk:x=>coreVerificationOk=x,
@@ -5569,6 +5598,34 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(forgedR6.get('autoFiveQuickSaved').children.length,0,
   'invalid 79-point frozen ticket cannot be promoted in main view');
  assert.match(forgedR6.get('autoFiveQuickStatus').textContent,/不整合/);
+ // /tcy + /tch cross-check must run ONLY when the owner taps the
+ // four-source button. Count mismatches do not create formal training grades.
+ const pairStudy=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(pairStudy.get('autoTcyTchCompare').disabled,false);
+ assert.equal(pairStudy.requests.filter(x=>
+  x.url.startsWith('/api/jrdb/training-source-crosscheck?')).length,0);
+ const savedBeforeCrosscheck=[...pairStudy.storage.entries()];
+ await pairStudy.get('autoTcyTchCompare').onclick();
+ assert.equal(pairStudy.requests.filter(x=>
+  x.url==='/api/jrdb/training-source-crosscheck?date='+day).length,1);
+ assert.match(pairStudy.get('autoTcyTchStatus').textContent,
+  /調教2資料を1Rで照合。両方揃う 2\/7頭/);
+ assert.equal(pairStudy.get('autoTcyTchRaces').children.length,1);
+ assert.match(pairStudy.get('autoTcyTchRaces').children[0].textContent,
+  /東京 1R｜両方の資料が揃う 2\/7頭／調教分析のみ 2頭／本追切のみ 1頭／どちらも不足 2頭/);
+ assert.deepEqual([...pairStudy.storage.entries()],savedBeforeCrosscheck);
+ const malformedCrosscheck=trainingCrosscheck();
+ malformedCrosscheck.races[0].bothComplete=6;
+ pairStudy.setTrainingCrosscheck(malformedCrosscheck);
+ await pairStudy.get('autoTcyTchCompare').onclick();
+ assert.equal(pairStudy.get('autoTcyTchRaces').children.length,0);
+ assert.match(pairStudy.get('autoTcyTchStatus').textContent,/比較を保留/);
+ assert.deepEqual([...pairStudy.storage.entries()],savedBeforeCrosscheck);
+ pairStudy.get('autoDay').value='2099-01-03';
+ pairStudy.get('autoDay').onchange();
+ assert.equal(pairStudy.get('autoTcyTchCompare').disabled,true);
+ assert.equal(pairStudy.get('autoTcyTchRaces').children.length,0);
  // Main-workout /tch research is strictly explicit and does not alter
  // ranking, signed first-written bets, purchases or provider history.
  const tchView=boot();
