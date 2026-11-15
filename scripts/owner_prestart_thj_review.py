@@ -19,10 +19,10 @@ VENUES = {
     "05": "東京", "06": "中山", "07": "中京", "08": "京都",
     "09": "阪神", "10": "小倉",
 }
-RACEKEY = re.compile(r"(?:0[1-9]|10)[0-9]{2}[0-9a-f]{2}(?:0[1-9]|1[0-2])\\Z", re.ASCII)
-DAY = re.compile(r"20[0-9]{2}-[0-9]{2}-[0-9]{2}\\Z", re.ASCII)
-COMPACT = re.compile(r"[0-9]{6}\\Z", re.ASCII)
-DASHED = re.compile(r"[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}\\Z", re.ASCII)
+RACEKEY = re.compile(r"(?:0[1-9]|10)[0-9]{2}[0-9a-f]{2}(?:0[1-9]|1[0-2])\Z", re.ASCII)
+DAY = re.compile(r"20[0-9]{2}-[0-9]{2}-[0-9]{2}\Z", re.ASCII)
+COMPACT = re.compile(r"[0-9]{6}\Z", re.ASCII)
+DASHED = re.compile(r"[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}\Z", re.ASCII)
 
 
 def _triple(value):
