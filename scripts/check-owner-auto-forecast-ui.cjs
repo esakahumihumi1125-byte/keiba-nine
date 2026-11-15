@@ -5600,7 +5600,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  sparseView.get('autoDay').value='2099-01-03';
  sparseView.get('autoDay').onchange();
  assert.equal(sparseView.get('autoFiveSparseSaved').children.length,0,
-  'a different day cannot show old reference as today's pick');
+  "a different day cannot show old reference as today's pick");
  sparseView.get('autoDay').value=date;sparseView.get('autoDay').onchange();
  assert.equal(sparseView.get('autoFiveSparseSaved').children.length,1);
  const corruptSparse=structuredClone(sparseEntry);
