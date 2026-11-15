@@ -172,7 +172,9 @@ def verify_cross_band_observations(receipts, prestart, secret, day):
         if not isinstance(item,dict) or set(item) != {"snapshot","signature"}:
             raise WorkoutLockError("Invalid cross-band receipt")
         snap = item["snapshot"]
-        coord = snap.get("track"),snap.get("race") if isinstance(snap,dict) else (None,None)
+        if not isinstance(snap,dict):
+            raise WorkoutLockError("Invalid cross-band stored snapshot")
+        coord = (snap.get("track"), snap.get("race"))
         original = known.get(coord)
         if (coord in seen or original is None
                 or _validate(snap,original)[0] != day
