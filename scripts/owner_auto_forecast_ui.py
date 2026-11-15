@@ -131,6 +131,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">このボタンはJRDBの暫定発走時刻順です。JRA公式の発走時刻・取消を確認してください。</p>
 <p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
 <div id="autoRaces"></div>
+<p id="autoReferencePulse" class="muted" role="status">見送りレースの参考候補は未取得です。</p>
+<button id="autoReferenceOpen" type="button" class="secondary-cta" disabled>資料不足でも確認できる参考候補を見る</button>
 <details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
 <p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
 <div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
@@ -1860,6 +1862,11 @@ function clearDraftShortcut(){
  next.disabled=true;
  next.textContent='次の下書きRへ（未取得）';
  next.onclick=null;
+ // The fallback link must never survive a date change, failed fetch or
+ // stale response. It does not create or sign a new forecast.
+ $('autoReferenceOpen').disabled=true;
+ $('autoReferenceOpen').onclick=null;
+ $('autoReferencePulse').textContent='見送りレースの参考候補は未取得です。';
 }
 // iPhone Safari may stay on one race screen while the clock passes an off.
 // Hide fresh, unpurchased research formations at the earliest JRDB
@@ -2494,6 +2501,38 @@ function render(input,day){
  renderHeldTie48(data,day);
  renderTkyTrainingStudy(data,day);
  renderTkyArrowFormations(data,day);
+ // Existing server research already has its own strict race/roster/time
+ // validation inside each renderer. Surface only those *visible* cards;
+ // never turn a held race into a signed or purchased 3連単.
+ const referencePanels=[
+  {id:'autoUncertainRecentRaces',panel:'autoUncertainRecentPanel',label:'近走不足'},
+  {id:'autoHeldTie48Races',panel:'autoHeldTie48Panel',label:'同点見送り'},
+  {id:'autoTkyArrowFormationRows',panel:'autoTkyArrowFormationPanel',label:'調教矢印'}
+ ].map(item=>({...item,count:$(item.id).children.length}))
+  .filter(item=>item.count>0);
+ const referenceButton=$('autoReferenceOpen');
+ const referenceCount=referencePanels.reduce((sum,item)=>sum+item.count,0);
+ $('autoReferencePulse').textContent=referenceCount
+  ?'見送りのうち参考候補 '+referenceCount+'件（'+
+   referencePanels.map(item=>item.label+' '+item.count+'件').join('／')+
+   '）。正式予想・固定買い目・購入対象ではありません。'
+  :'見送りレースから発走前に確認できる参考候補は0件。欠損を0点に補完しません。';
+ referenceButton.disabled=referenceCount===0;
+ referenceButton.onclick=()=>{
+  if(referenceCount===0||latestDisplayedReport!==data||
+     latestDisplayedDay!==day||
+     $('autoDay').value.replaceAll('-','')!==day){
+   referenceButton.disabled=true;
+   $('autoReferencePulse').textContent='表示期間が変わりました。古い参考候補は開けません。';
+   return;
+  }
+  // No network request, localStorage write, HMAC signing, or new ticket.
+  const selected=$(referencePanels[0].panel);
+  $('autoResearchTools').open=true;
+  selected.open=true;
+  if(typeof selected.scrollIntoView==='function')
+   selected.scrollIntoView({behavior:'smooth',block:'start'});
+ };
  renderWorkoutQuick(data,day);
  const materialByRace=validatedRunnerSourceEvidence(data);
  $('autoEvidenceGapReport').textContent=evidenceGapSummary(data,materialByRace);
