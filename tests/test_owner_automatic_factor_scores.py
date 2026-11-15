@@ -45,6 +45,32 @@ class AutomaticFactorTests(unittest.TestCase):
         for private in ('horse_id', 'racekey', 'jockey_index', 'stable_index', '20261031'):
             self.assertNotIn(private, json.dumps(out))
 
+    def test_distance_research_provisional_no_extra_claims(self):
+        data = fixture()
+        data[0][0].update(surface='芝', distance_m=1600)
+        for row, code in zip(data[1], ('5', '1', '2', '6')):
+            row['distance_aptitude_cd1'] = code
+        original = copy.deepcopy(data)
+        out = self.score(data)
+        got = [h['factors']['course_distance'] for h in out['races'][0]['horses']]
+        self.assertEqual([x['points'] for x in got], [14.45, 11.05, 11.05, 12.75])
+        self.assertEqual([x['grade'] for x in got], ['S', 'B', 'B', 'A'])
+        self.assertEqual(out['maximumPoints'], 45)
+        self.assertEqual(out['version'], 'owner-automatic-factor-scores-2')
+        self.assertFalse(out['officialJraVerified'])
+        self.assertFalse(out['overallPredictionReady'])
+        self.assertEqual(data, original)
+        data[1][0]['distance_aptitude_cd1'] = None
+        missing = self.score(data)['races'][0]['horses'][0]['factors']['course_distance']
+        self.assertIsNone(missing['points'])
+        self.assertEqual(missing['reason'], 'distance_code_missing')
+        data[0][0]['surface'] = '障害'
+        self.assertTrue(all(h['factors']['course_distance']['points'] is None
+                            for h in self.score(data)['races'][0]['horses']))
+        data[0][0].update(surface='芝', distance_m=4000)
+        self.assertTrue(all(h['factors']['course_distance']['points'] is None
+                            for h in self.score(data)['races'][0]['horses']))
+
     def test_odds_and_popularity_have_no_effect(self):
         data = fixture()
         before = self.score(data)
