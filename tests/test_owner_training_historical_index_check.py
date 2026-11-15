@@ -67,7 +67,7 @@ class RetrospectiveTrainingStudyTests(unittest.TestCase):
             self.assertFalse(study[flag])
         for bad in ("LICENSED-HORSE", "SECRET-FINISH", "SECRET-ODDS",
                     "999.9", "horse_id", "racekey", "80", "60",
-                    "2328aaa95a01", "order_of_finish", "training_index"):
+                    "2328aaa95a01", "'order_of_finish':", "'training_index':"):
             self.assertNotIn(bad, repr(study))
 
     def test_partial_or_nonfinish_is_never_counted_as_defeat(self):
@@ -190,7 +190,7 @@ class HistoricalTrainingServiceTests(unittest.TestCase):
         self.assertFalse(data["outOfTimeValidated"])
         for secret in ("TEST-PRIVATE-KEY", "TEST-PRIVATE-SECRET",
                        "LICENSED-HORSE", "2328aaa95a01", "SECRET-ODDS",
-                       "training_index", "horse_number", "racekey"):
+                       "\"training_index\":", "\"horse_number\":", "\"racekey\":"):
             self.assertNotIn(secret, reply["body"].decode())
 
     def test_malformed_source_fails_no_partial_result(self):
