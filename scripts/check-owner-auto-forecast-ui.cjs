@@ -1686,9 +1686,26 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
      modelCalibrated:false,predictionReady:false,actualPurchase:false
     }
    }));
+   const crossBandObservationReceipts=req.receipts.map((entry,i)=>({
+    signature:'3'.repeat(64),snapshot:{
+     version:'owner-workout-cross-band-observation-1',
+     date:req.date,track:entry.snapshot.track,race:entry.snapshot.race,
+     sourceKind:'jrdb-tse-cross-band-training-research',
+     observedAt:'2099-01-01T13:00:00+09:00',
+     scheduledOffAt:entry.snapshot.scheduledOffAt,
+     prestartSignature:entry.signature,
+     runnerCount:entry.snapshot.raceRunnerCount,
+     crossBandPairs:structuredClone(races[i].crossBandPairs),
+     researchOnly:true,officialJraVerified:false,
+     resultSourceComplete:true,sourcePublicationVerified:false,
+     modelCalibrated:false,predictionReady:false,actualPurchase:false
+    }
+   }));
    return {ok:true,json:async()=>({
     pairObservationReceipts,
     pairObservationReceiptCount:pairObservationReceipts.length,
+    crossBandObservationReceipts,
+    crossBandObservationReceiptCount:crossBandObservationReceipts.length,
     version:'owner-workout-order-provider-pairs-1',date:req.date,
     sourceKind:'jrdb-tse-provisional-workout-order-pair-review',
     sourceReadCount:1,raceCount:races.length,races,
@@ -1702,6 +1719,23 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     actualPurchase:false,roiPercent:null,payoutVerified:false,
     researchOnly:true,privateOwnerOnly:true
    })};
+  }
+  if(url==='/api/owner-workout-cross-band-verify'){
+   const req=JSON.parse(options.body||'{}');
+   const valid=req.receipts?.length>0&&req.receipts?.length===
+    req.prestartReceipts?.length&&req.receipts?.every(entry=>
+     entry.signature==='3'.repeat(64)&&req.prestartReceipts.some(x=>
+      x.signature===entry.snapshot.prestartSignature&&
+      x.snapshot.track===entry.snapshot.track&&
+      x.snapshot.race===entry.snapshot.race));
+   return {ok:!!valid,json:async()=>valid?{
+    version:'owner-workout-cross-band-verify-1',date:req.date,
+    verifiedRaceCount:req.receipts.length,serverSigned:true,
+    researchOnly:true,privateOwnerOnly:true,providerCalls:0,
+    officialJraVerified:false,calibrationReady:false,
+    formalTrainingScore30Ready:false,bettingReady:false,
+    actualPurchase:false,changesExistingReceipts:false
+   }:{error:'invalid synthetic cross-band signature'}};
   }
   if(url==='/api/owner-workout-pair-verify'){
    const req=JSON.parse(options.body||'{}');
@@ -5162,6 +5196,24 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(lockedView.requests.filter(x=>
   x.url==='/api/owner-workout-order-provider-check').length,1,
   'cross-band analysis reuses existing result read, no new JRDB call');
+ const CROSS_KEY='keiba-nine-owner-workout-cross-band-observations-v1';
+ const signedCross=JSON.parse(lockedView.storage.get(CROSS_KEY));
+ assert.equal(signedCross.length,1);
+ assert.equal(signedCross[0].snapshot.prestartSignature,lockedRows[0].signature);
+ assert.equal(signedCross[0].snapshot.crossBandPairs['S>A'].concordant,
+  4,'cross-band counts match frozen training bands');
+ assert.match(lockedView.get('autoWorkoutCrossHistory').textContent,
+  /1開催日・1R／上位評価が先着/);
+ assert.equal(lockedView.get('autoWorkoutCrossVerify').disabled,false);
+ const beforeCrossVerification=lockedView.requests.filter(x=>
+  x.url==='/api/owner-workout-order-provider-check').length;
+ await lockedView.get('autoWorkoutCrossVerify').onclick();
+ assert.match(lockedView.get('autoWorkoutCrossVerifyStatus').textContent,
+  /署名を検証済み。JRDB追加照会0回/);
+ assert.equal(lockedView.requests.filter(x=>
+  x.url==='/api/owner-workout-order-provider-check').length,
+  beforeCrossVerification,
+  'cross-band HMAC verification cannot add a paid JRDB call');
  const PAIR_KEY='keiba-nine-owner-workout-pair-observations-v1';
  const firstPairs=JSON.parse(lockedView.storage.get(PAIR_KEY));
  assert.equal(firstPairs.length,1);
@@ -5179,6 +5231,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await lockedView.get('autoWorkoutProviderCheck').onclick();
  assert.equal(lockedView.storage.get(PAIR_KEY),JSON.stringify(firstPairs),
   'same race re-read must not overwrite signed first provisional result');
+ assert.equal(lockedView.storage.get(CROSS_KEY),JSON.stringify(signedCross),
+  'same race re-read must not overwrite first signed cross-band result');
  assert.match(lockedView.get('autoWorkoutProviderStatus').textContent,/前回の記録を保持 1R/);
  const forgedCross=boot({manualWeekday:false,
   seedStorage:[[LOCK_KEY,JSON.stringify(lockedRows)]]});

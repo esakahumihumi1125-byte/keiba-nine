@@ -58,6 +58,9 @@ from owner_workout_order_provider_pairs import compare_workout_order_with_provid
 from owner_workout_pair_receipts import (
     issue_workout_pair_observations, verify_workout_pair_observations,
 )
+from owner_workout_cross_band_receipts import (
+    issue_cross_band_observations, verify_cross_band_observations,
+)
 from owner_ten_factor_contract import ten_factor_contract
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
@@ -3429,6 +3432,8 @@ def create_app(settings=None):
                         original, [], day, now=stamp, source_read_count=0)
                     pending['pairObservationReceipts'] = []
                     pending['pairObservationReceiptCount'] = 0
+                    pending['crossBandObservationReceipts'] = []
+                    pending['crossBandObservationReceiptCount'] = 0
                     return response('200 OK', pending)
             except (WorkoutLockError, ValueError, TypeError, KeyError, OverflowError):
                 return response('400 Bad Request', {
@@ -3439,12 +3444,58 @@ def create_app(settings=None):
                     original, source, day, now=stamp)
                 observations = issue_workout_pair_observations(
                     report, original, secret, now=stamp)
+                cross_observations = issue_cross_band_observations(
+                    report, original, secret, now=stamp)
                 report['pairObservationReceipts'] = observations
                 report['pairObservationReceiptCount'] = len(observations)
+                report['crossBandObservationReceipts'] = cross_observations
+                report['crossBandObservationReceiptCount'] = len(cross_observations)
             except (JRDBError, WorkoutLockError, ValueError, TypeError, KeyError):
                 return response('502 Bad Gateway', {
                     'error': 'JRDB暫定結果との比較に失敗しました。発走前記録は無変更です。'})
             return response('200 OK', report)
+        if method == 'POST' and path == '/api/owner-workout-cross-band-verify':
+            # Server-only offline HMAC verification of *previous* postrace
+            # cross-band observations. No provider requests or writes.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人用の調教研究記録のみ確認できます。'})
+            if (environ.get('QUERY_STRING','')
+                    or environ.get('CONTENT_TYPE','').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '調教ランク間研究の検証形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH','0'))
+                if not 0 < size <= 250000:
+                    raise WorkoutLockError('Invalid cross-band verifier length')
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise WorkoutLockError('Truncated research record')
+                request = json.loads(raw)
+                if not isinstance(request,dict) or set(request) != {
+                        'date','prestartReceipts','receipts'}:
+                    raise WorkoutLockError('Invalid cross-band verifier fields')
+                secret = (archive_signing_secret(settings)
+                          if archive_enabled(settings) else password)
+                original = verify_workout_locks(
+                    request['prestartReceipts'], secret, request['date'])
+                verified = verify_cross_band_observations(
+                    request['receipts'],original,secret,request['date'])
+            except (WorkoutLockError, ValueError, TypeError, KeyError, OverflowError):
+                return response('400 Bad Request', {
+                    'error':'調教ランク間研究の署名を検証できませんでした。'})
+            return response('200 OK', {
+                'version':'owner-workout-cross-band-verify-1',
+                'date':request['date'],'verifiedRaceCount':len(verified),
+                'serverSigned':True,'researchOnly':True,
+                'privateOwnerOnly':True,'providerCalls':0,
+                'officialJraVerified':False,'calibrationReady':False,
+                'formalTrainingScore30Ready':False,'bettingReady':False,
+                'actualPurchase':False,'changesExistingReceipts':False,
+            })
         if method == 'POST' and path == '/api/owner-workout-pair-verify':
             # Verify BOTH HMAC domains locally. No source lookups, logging,
             # score assignment, ticket edits, purchase, or server writes.
