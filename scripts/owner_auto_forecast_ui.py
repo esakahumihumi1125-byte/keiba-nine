@@ -64,6 +64,15 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </details>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <p id="autoEasyPulse" class="auto-easy-pulse" role="status">開催日を取得すると、予想あり・見送りの件数を表示します。</p>
+<nav class="quick-links" aria-label="画面内の移動">
+<a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
+<a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
+<div class="owner-quick-research">
+<p id="autoReferencePulse" class="muted" role="status">見送りレースの参考候補は未取得です。</p>
+<button id="autoReferenceOpen" type="button" class="secondary-cta" disabled>資料不足でも確認できる参考候補を見る</button>
+<button id="autoWorkoutQuickOpen" type="button" class="secondary-cta" disabled>全場の調教S/Aを確認（未取得）</button>
+<p class="muted">「買い目あり」は研究用3連単。「参考候補」は見送りRの署名なし研究例。「調教S/A」は馬番の仮評価だけ。いずれも正式10項目・JRA公式照合・購入ではありません。</p>
+</div>
 <section id="autoFiveQuickSection" class="owner-five-quick">
 <h3>JRDB 5項目の3連単研究（追加分析）</h3>
 <p class="muted">調教30・近走3・コース17・展開17・馬場12の79点分を比較。正式100点予想ではありません。過去番組・馬場のJRDB追加照会は最大16回。ボタンを押すまで照会しません。</p>
@@ -104,9 +113,6 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoFiveSparseSaved"></div>
 </details>
 </section>
-<nav class="quick-links" aria-label="画面内の移動">
-<a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
-<a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
 <h2>2. 今日の予想状況</h2>
 <details id="autoDayDiagnostics"><summary>取得状況・見送り内訳を詳しく見る</summary>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
@@ -177,8 +183,6 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">このボタンはJRDBの暫定発走時刻順です。JRA公式の発走時刻・取消を確認してください。</p>
 <p id="autoViewingStatus" class="muted" role="status">レースを取得すると選択できます。</p>
 <div id="autoRaces"></div>
-<p id="autoReferencePulse" class="muted" role="status">見送りレースの参考候補は未取得です。</p>
-<button id="autoReferenceOpen" type="button" class="secondary-cta" disabled>資料不足でも確認できる参考候補を見る</button>
 <details id="autoHoldPanel"><summary>見送りの理由からレースを探す</summary>
 <p class="muted">発走済み・資料不足・候補同点などの原因別に、そのレースだけを表示します。再分析や新しい買い目は作りません。</p>
 <div id="autoHoldReasons" class="venue-tabs" role="group" aria-label="見送り理由で絞り込む"></div>
@@ -2021,6 +2025,10 @@ function clearDraftShortcut(){
  $('autoTrainingFeedStatus').textContent='調教元データの行数・馬番照合状況はまだ未確認です。';
  $('autoWorkoutQuickRows').replaceChildren();
  $('autoWorkoutQuickStatus').textContent='未取得。追加照会なしで一覧を作ります。';
+ const workoutJump=$('autoWorkoutQuickOpen');
+ workoutJump.disabled=true;
+ workoutJump.textContent='全場の調教S/Aを確認（未取得）';
+ workoutJump.onclick=null;
  $('autoUncertainRecentHint').textContent='近走不足の追加研究：未取得。';
  $('autoUncertainRecentStatus').textContent='レース取得前。追加資料を勝手に補完しません。';
  const next=$('autoNextDraft');
@@ -2658,6 +2666,27 @@ function renderWorkoutQuick(data,day){
   picks.push(button);
  }
  host.replaceChildren(...picks);
+ const jump=$('autoWorkoutQuickOpen');
+ jump.disabled=picks.length===0;
+ jump.textContent=picks.length?
+  '全場の調教S/Aを確認（参考 '+picks.length+'R）':
+  '全場の調教S/Aを確認（該当0R）';
+ jump.onclick=()=>{
+  if(jump.disabled)return;
+  // Never reopen stale or changed-day data, nor create a new provider read.
+  if(latestDisplayedReport!==data||latestDisplayedDay!==day||
+     $('autoDay').value.replaceAll('-','')!==day||
+     !rows.some(r=>!draftExpiredOnDevice(day,r.postTime))){
+   jump.disabled=true;
+   jump.textContent='調教S/Aは期限切れ・日付変更のため再確認が必要';
+   return;
+  }
+  $('autoResearchTools').open=true;
+  const panel=$('autoWorkoutQuickPanel');
+  panel.open=true;
+  if(typeof panel.scrollIntoView==='function')
+   panel.scrollIntoView({behavior:'smooth',block:'start'});
+ };
  status.textContent=picks.length
   ?'発走予定時刻前の調教S/A参考 '+picks.length+'R。'+
    '表示は調教だけの仮評価で、総合予想の買い目や勝負度ではありません。'
