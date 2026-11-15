@@ -4964,9 +4964,23 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(boundedCard[0].children[1].textContent,/1着候補 1・2/);
  assert.equal(sparse.storage.get(STORAGE),sparseStore);
  assert.equal(sparse.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // The very same already-validated reference is reachable directly from
+ // the race screen, without another paid read or a new bet/receipt.
+ const refButton=sparse.get('autoReferenceOpen');
+ assert.equal(refButton.disabled,false);
+ assert.match(sparse.get('autoReferencePulse').textContent,/参考候補 1件/);
+ const beforeRefReads=sparse.requests.length;
+ refButton.onclick();
+ assert.equal(sparse.get('autoResearchTools').open,true);
+ assert.equal(sparse.get('autoUncertainRecentPanel').open,true);
+ assert.equal(sparse.requests.length,beforeRefReads);
+ assert.equal(sparse.storage.get(STORAGE),sparseStore);
+ assert.equal(sparse.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  sparse.get('autoDay').value='2099-01-02';
  sparse.get('autoDay').onchange();
  assert.equal(sparse.get('autoUncertainRecentRaces').children.length,0);
+ assert.equal(sparse.get('autoReferenceOpen').disabled,true);
+ assert.match(sparse.get('autoReferencePulse').textContent,/未取得/);
  assert.match(sparse.get('autoEasyPulse').textContent,/予想は未取得/);
  assert.match(sparse.get('autoRaceQuickSummary').textContent,/予想は未取得/);
  assert.match(sparse.get('autoUncertainRecentStatus').textContent,/取得前/);
