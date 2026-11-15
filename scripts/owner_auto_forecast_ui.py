@@ -68,6 +68,9 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h3>JRDB 5項目の3連単研究（追加分析）</h3>
 <p class="muted">調教30・近走3・コース17・展開17・馬場12の79点分を比較。正式100点予想ではありません。過去番組・馬場のJRDB追加照会は最大16回。ボタンを押すまで照会しません。</p>
 <button id="autoFiveQuick" type="button" disabled>5項目の研究用3連単を追加分析（最大16照会）</button>
+<label class="auto-five-consent"><input id="autoFiveWeekendOptIn" type="checkbox"> 土日の当日、アプリを開いて基本データを取得したら、5項目の追加分析も自動で1回だけ実行する</label>
+<p id="autoFiveWeekendStatus" class="muted" role="status">自動追加分析はOFF。許可するまで追加のJRDB履歴照会はしません。</p>
+<p class="muted">ONでもアプリを開いた時だけ実行（バックグラウンドなし）。開催日ごとに過去番組・馬場を最大16回、失敗時の自動再試行なし。発走前のレースがなければ照会せず、翌開催日以降もOFFに変更できます。正式10項目・JRA公式照合ではありません。</p>
 <p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
 <div id="autoFiveQuickSaved"></div>
 </section>
@@ -367,6 +370,10 @@ main{padding-bottom:65px}
  border-radius:12px;background:#132d45}
 .owner-five-quick h3{margin:0;font-size:17px;color:#edd28b}
 .owner-five-quick button{min-height:47px;width:100%;font-weight:800}
+.auto-five-consent{display:flex;align-items:flex-start;gap:9px;
+ font-size:15px;font-weight:700;margin:12px 0 4px}
+.auto-five-consent input{width:21px;height:21px;min-width:21px;
+ margin:2px 0 0;accent-color:#83bee9}
 .owner-five-quick-card{margin:8px 0;padding:10px;border:1px solid #567c9d;
  border-radius:10px;background:#0e2439}
 .owner-five-quick-card .picks{font-size:17px;margin:6px 0}
@@ -3509,6 +3516,8 @@ const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
 let fiveQuickReadDay='';
+const AUTO_FIVE_CONSENT_KEY='keiba-nine-owner-five-weekend-consent-v1';
+const AUTO_FIVE_ONCE_KEY='keiba-nine-owner-five-weekend-attempt-v1';
 let request=0,followingToday=true,preflightSeq=0,
  latestDisplayedDay='',latestDisplayedReport=null,latestReadAtMs=0,
  latestExpiredDraftCount=0,historySeq=0,watchResultSeq=0,
@@ -6522,6 +6531,10 @@ $('autoRun').onclick=async()=>{
    $('autoStatus').textContent='発走前の研究用暫定案 '+visibleDrafts+
     'Rを確認。正式10項目の予想・JRA公式照合は未完了です。';
   }
+  // Optional paid history is only allowed AFTER the base-day response
+  // and all local receipt checks finished without throwing.
+  if(seq===request&&day===$('autoDay').value.replaceAll('-',''))
+   maybeAutoFiveFromBasic(body,day);
  }catch(error){if(seq===request){
   latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
  latestReadAtMs=0;showSnapshotFreshness();
@@ -8154,6 +8167,97 @@ $('autoFiveQuick').onclick=async()=>{
    '5項目の追加照合を完了できませんでした。以前の固定買い目は変更していません。';
  }finally{
   if(day===$('autoDay').value.replaceAll('-',''))button.disabled=false;
+ }
+};
+// A one-time, explicit iPhone opt-in to a *single* bounded history
+// comparison when the authenticated owner page is opened on a normal
+// Saturday/Sunday before at least one provisional off. Never a background
+// fetch, never a scheduler, never a pre-authorization of horse purchases.
+function fiveWeekendConsent(){
+ try{return localStorage.getItem(AUTO_FIVE_CONSENT_KEY)==='enabled';}
+ catch(_){return false;}
+}
+function fiveWeekendAlreadyAttempted(day){
+ try{return localStorage.getItem(AUTO_FIVE_ONCE_KEY)===day;}
+ catch(_){return true;} // Storage unavailable -> no automatic paid calls.
+}
+function markFiveWeekendAttempt(day){
+ try{
+  localStorage.setItem(AUTO_FIVE_ONCE_KEY,day);
+  return localStorage.getItem(AUTO_FIVE_ONCE_KEY)===day;
+ }catch(_){return false;}
+}
+function maybeAutoFiveFromBasic(body,day){
+ if(!fiveWeekendConsent()||$('autoFiveWeekendOptIn').checked!==true)return;
+ const date=jstToday().replaceAll('-',''),
+  weekendDay=new Date(day.slice(0,4)+'-'+day.slice(4,6)+'-'+
+   day.slice(6,8)+'T12:00:00Z');
+ if(day!==date||Number.isNaN(weekendDay.valueOf())||
+    ![0,6].includes(weekendDay.getUTCDay())||
+    !body||body.date!==day||!Array.isArray(body.races)||
+    body.raceCount!==body.races.length||body.raceCount===0||
+    historyDay!==day||$('autoHistoryAudit').disabled||
+    $('autoFiveQuick').disabled)return;
+ if(fiveWeekendAlreadyAttempted(day)){
+  $('autoFiveWeekendStatus').textContent=
+   'この端末で本日分の自動追加分析は既に開始済み（再実行0回）。結果は上の保存済み買い目で確認。必要なら手動で再分析できます。';
+  return;
+ }
+ if(!body.races.some(r=>typeof r.postTime==='string'&&
+                        !draftExpiredOnDevice(day,r.postTime))){
+  $('autoFiveWeekendStatus').textContent=
+   '対象日の発走前レースがないため5項目の自動追加照会0回。過去の買い目は変更しません。';
+  return;
+ }
+ // A staff opt-in can add 2-6 more billable API reads; it never belongs
+ // in this strictly capped automatic 16-read history workflow.
+ if($('autoHistoryStaffSample').checked===true){
+  $('autoFiveWeekendStatus').textContent=
+   '騎手・厩舎の追加照合がONのため、最大16回を超えないよう自動実行は中止。追加照会0回。';
+  return;
+ }
+ // First-write the attempt marker BEFORE the first payable provider call.
+ // If local persistence fails, no hidden paid query is permitted.
+ if(!markFiveWeekendAttempt(day)){
+  $('autoFiveWeekendStatus').textContent=
+   '端末に当日1回の実行記録を保存できず、自動追加照会を中止。必要なら手動実行してください。';
+  return;
+ }
+ $('autoFiveWeekendStatus').textContent=
+  '本人が許可した土日当日の5項目照合を実行中（JRDB追加最大16回・自動再試行なし）…';
+ // The same one-tap path and HMAC first-write validation as manual use.
+ // The marker remains even on failure to prevent accidental repeat billing.
+ void $('autoFiveQuick').onclick().then(()=>{
+  if(day!==$('autoDay').value.replaceAll('-',''))return;
+  $('autoFiveWeekendStatus').textContent=fiveQuickReadDay===day
+   ?'本日分の5項目研究の自動追加照合を1回実行済み。発走前の保存済み買い目は上に表示。正式予想ではありません。'
+   :'本日分の自動追加照合を1回試行しましたが完了を確認できません。自動再試行はせず、以前の記録を維持。';
+ }).catch(()=>{
+  if(day===$('autoDay').value.replaceAll('-',''))
+   $('autoFiveWeekendStatus').textContent=
+    '5項目の自動照合でエラー。再照会を防ぐため今日は自動再試行しません。';
+ });
+}
+$('autoFiveWeekendOptIn').checked=fiveWeekendConsent();
+$('autoFiveWeekendStatus').textContent=fiveWeekendConsent()
+ ?'自動追加分析ON：通常の土日当日、本人用アプリを開いた時のみ最大16回の追加JRDB照会。'
+ :'自動追加分析OFF：許可するまで5項目の追加JRDB照会は自動実行しません。';
+$('autoFiveWeekendOptIn').onchange=()=>{
+ const enabled=$('autoFiveWeekendOptIn').checked===true;
+ try{
+  if(enabled)localStorage.setItem(AUTO_FIVE_CONSENT_KEY,'enabled');
+  else localStorage.removeItem(AUTO_FIVE_CONSENT_KEY);
+  if(fiveWeekendConsent()!==enabled)throw Error('opt_in_write_failed');
+  $('autoFiveWeekendStatus').textContent=enabled
+   ?'自動追加分析を許可しました。当日分の基本データがあれば発走前に1回だけ実行します。'
+   :'自動追加分析をOFFにしました。新しい自動JRDB履歴照会は行いません。';
+  if(enabled&&latestDisplayedDay===$('autoDay').value.replaceAll('-','')&&
+     latestDisplayedReport)
+   maybeAutoFiveFromBasic(latestDisplayedReport,latestDisplayedDay);
+ }catch(_){
+  $('autoFiveWeekendOptIn').checked=false;
+  $('autoFiveWeekendStatus').textContent=
+   '自動設定を保存できませんでした。安全のため自動JRDB履歴照会はOFF。';
  }
 };
 // Never use source count alone to grade body condition or change a ticket.
