@@ -2639,6 +2639,22 @@ def create_app(settings=None):
                         report['comparableFactorResearch'] = preview_comparable_factor_holds(
                             report, report['automaticFactorScores'], day,
                             now=final_prestart_checked_at)
+                        # Counts only; useful for the next live weekend.
+                        # No day, venue, horse, wager, paid record or URL.
+                        comp = report['comparableFactorResearch']
+                        counts = comp['diagnostics']
+                        logging.warning(
+                            'KEIBA_COMPARABLE_FACTOR_SUMMARY reviewed=%s previews=%s '
+                            'training_missing=%s insufficient_shared_weight=%s '
+                            'tie_or_point_limit=%s roster_mismatch=%s '
+                            'factor_invalid=%s time_unavailable=%s ineligible=%s '
+                            'jra=unverified formal=ungraded',
+                            comp['reviewedHeldRaces'], comp['unsignedReferenceCount'],
+                            counts['training_missing'],
+                            counts['insufficient_shared_weight'],
+                            counts['tie_or_point_limit'], counts['roster_mismatch'],
+                            counts['factor_invalid'], counts['time_unavailable'],
+                            counts['ineligible'])
                     except (CoverageError, ValueError, TypeError, KeyError):
                         logging.warning('KEIBA_COMPARABLE_FACTOR_RESEARCH=unavailable')
                 stage = 'tky_training_study'
