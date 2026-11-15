@@ -63,6 +63,7 @@ from owner_workout_cross_band_receipts import (
 )
 from owner_ten_factor_contract import ten_factor_contract
 from owner_automatic_factor_scores import automatic_factor_scores
+from owner_comparable_factor_preview import preview_comparable_factor_holds
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
 from jrdb_owner_draft_materials import (
@@ -2631,6 +2632,15 @@ def create_app(settings=None):
                         race_context=report.get('raceContext'))
                 except (CoverageError, ValueError, TypeError, KeyError):
                     logging.warning('KEIBA_AUTOMATIC_FACTOR_SCORES=unavailable')
+                # Research only: never replace held 2-factor drafts or issue
+                # receipts. Reuse today's five hypothesis scores; zero reads.
+                if 'automaticFactorScores' in report:
+                    try:
+                        report['comparableFactorResearch'] = preview_comparable_factor_holds(
+                            report, report['automaticFactorScores'], day,
+                            now=final_prestart_checked_at)
+                    except (CoverageError, ValueError, TypeError, KeyError):
+                        logging.warning('KEIBA_COMPARABLE_FACTOR_RESEARCH=unavailable')
                 stage = 'tky_training_study'
                 try:
                     report['tkyTrainingStudy'] = tky_training_index_study(
