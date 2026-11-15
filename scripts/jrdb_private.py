@@ -71,7 +71,19 @@ def _fetch_endpoint(endpoint, parameters, *, timeout_seconds=CORE_SOURCE_SOCKET_
         raise JRDBError("JRDB retrieval is disabled in GitHub Actions")
     if not isinstance(parameters, dict):
         raise JRDBError("Invalid JRDB request parameters")
-    if endpoint in ('dra', 'dka', 'dky', 'dse'):
+    if endpoint in ('dky', 'dse') and set(parameters) == {
+            "start_racedate", "end_racedate"}:
+        # The only permitted non-racekey historical scan: ONE past day
+        # of training or finish records. No ranges, partial dates or wildcards.
+        day = parameters["start_racedate"]
+        if (not isinstance(day, str) or day != parameters["end_racedate"]
+                or len(day) != 8 or not day.isascii() or not day.isdigit()):
+            raise JRDBError("Expected one exact historical race date")
+        try:
+            datetime.datetime.strptime(day, "%Y%m%d")
+        except ValueError:
+            raise JRDBError("Invalid historical calendar date") from None
+    elif endpoint in ('dra', 'dka', 'dky', 'dse'):
         racekey = parameters.get("racekey")
         if (set(parameters) != {"racekey"} or not isinstance(racekey, str)
                 or len(racekey) != 8
@@ -251,3 +263,13 @@ def fetch_main_workout_detail(racedate):
     invoking this reader; never a background or implicit paid request.
     """
     return _fetch_day("tch", racedate)
+
+
+def fetch_one_historical_day_training(day):
+    """Owner opt-in; /dky for exactly one past calendar day (no date range)."""
+    return _fetch_endpoint('dky', {'start_racedate': day, 'end_racedate': day})
+
+
+def fetch_one_historical_day_finishes(day):
+    """Owner opt-in; /dse for the same one day. Not JRA independent results."""
+    return _fetch_endpoint('dse', {'start_racedate': day, 'end_racedate': day})
