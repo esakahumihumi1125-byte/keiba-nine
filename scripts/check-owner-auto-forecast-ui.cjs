@@ -5429,6 +5429,14 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(r6Proof.get('autoResearch6DraftSaveStatus').textContent,/初回固定した新79点/);
  assert.equal(r6Proof.get('autoResearch6DraftVerify').disabled,false);
  assert.equal(r6Proof.get('autoResearch6DraftSaved').children.length,1);
+ // 79-point first-write signed research is visible on the forecast home,
+ // even if the older two-factor automatic main feed is not reloaded.
+ const fiveCard=r6Proof.get('autoFiveQuickSaved').children;
+ assert.equal(fiveCard.length,1);
+ assert.match(fiveCard[0].children[0].textContent,/東京 1R.*40点/);
+ assert.match(fiveCard[0].children[1].textContent,/1着 1・2番/);
+ assert.match(fiveCard[0].children[4].children[1].textContent,/1→2→3/);
+ assert.match(r6Proof.get('autoFiveQuickStatus').textContent,/署名の真正性.*未検証/);
  const r6Original=r6Proof.storage.get(R6_STORAGE);
  await r6Proof.get('autoResearch6DraftVerify').onclick();
  assert.match(r6Proof.get('autoResearch6DraftVerifyStatus').textContent,/署名を確認：1R/);
@@ -5444,6 +5452,40 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  forgedR6.get('autoDay').onchange();
  assert.equal(forgedR6.get('autoResearch6DraftVerify').disabled,true);
  assert.match(forgedR6.get('autoResearch6DraftSaveStatus').textContent,/確認できません/);
+ assert.equal(forgedR6.get('autoFiveQuickSaved').children.length,0,
+  'invalid 79-point frozen ticket cannot be promoted in main view');
+ assert.match(forgedR6.get('autoFiveQuickStatus').textContent,/不整合/);
+ // An explicit 5-factor button reuses the existing history pipeline
+ // and never bills for historic reads merely on initial app opening.
+ const quick79=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(quick79.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
+ assert.equal(quick79.get('autoFiveQuick').disabled,true,
+  'history reads require a verified basic programme first');
+ await quick79.get('autoRun').onclick();
+ assert.equal(quick79.get('autoFiveQuick').disabled,false);
+ assert.equal(quick79.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
+ const prevQuickStorage=quick79.storage.get(STORAGE);
+ await quick79.get('autoFiveQuick').onclick();
+ assert.equal(quick79.requests.filter(x=>x.url==='/api/jrdb/history').length,1);
+ assert.deepEqual(JSON.parse(quick79.requests.find(x=>x.url==='/api/jrdb/history')
+  .options.body),{date:day,limit:8});
+ assert.match(quick79.get('autoFiveQuickStatus').textContent,/5項目の過去照合完了/);
+ assert.equal(quick79.get('autoFiveQuickSaved').children.length,0,
+  'no signed 79-point draft in synthetic hold-only history');
+ await quick79.get('autoFiveQuick').onclick();
+ assert.equal(quick79.requests.filter(x=>x.url==='/api/jrdb/history').length,1,
+  'second same-day quick click never triggers another 16-read historical query');
+ assert.match(quick79.get('autoFiveQuickStatus').textContent,/追加JRDB照会0回/);
+ assert.equal(quick79.storage.get(STORAGE),prevQuickStorage);
+ const quickStaff=boot();
+ await new Promise(resolve=>setImmediate(resolve));
+ await quickStaff.get('autoRun').onclick();
+ quickStaff.get('autoHistoryStaffSample').checked=true;
+ await quickStaff.get('autoFiveQuick').onclick();
+ assert.equal(quickStaff.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
+ assert.match(quickStaff.get('autoFiveQuickStatus').textContent,
+  /最大16回に収めるにはチェックを外して/);
  // A legitimate server-signed response can arrive AFTER a race has begun.
  // Never newly save or display that formation; keep other pre-off races.
  const delayed=boot();
