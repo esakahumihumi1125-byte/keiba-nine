@@ -7571,7 +7571,7 @@ $('autoWorkoutProviderCheck').onclick=async()=>{
    'JRDB暫定着順の全頭照合 '+result.studiedRaceCount+'/'+result.raceCount+
    'R。結果が欠けるRは保留。JRA公式の結果・勝率・30点配点の校正・回収率は未確認。'+
    '既存の予想・購入記録は変更していません。'+
-   '同ランク内結果は初回固定 '+stored.added+'R／既存 '+stored.previous+
+   '検証用結果は初回固定 '+stored.added+'R／前回の記録を保持 '+stored.previous+
    'R。ランク間の比較も初回固定 '+crossStored.added+
    'R／既存 '+crossStored.previous+'R。';
  }catch(_){
