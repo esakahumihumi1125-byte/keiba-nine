@@ -17,8 +17,9 @@ const keys=[
  'keiba-nine-owner-staff-study-sessions-v1',
  'keiba-nine-owner-workout-order-locks-v1',
  'keiba-nine-owner-workout-pair-observations-v1',
- 'keiba-nine-owner-sparse-five-reference-receipts-v1'
-],format='keiba-nine-owner-local-all-v12';
+ 'keiba-nine-owner-sparse-five-reference-receipts-v1',
+ 'keiba-nine-owner-workout-cross-band-observations-v1'
+],format='keiba-nine-owner-local-all-v13';
 const source={race:1,postTime:'09:55',expected:3,horses:['架空A','架空B','架空C']};
 const first={date:'2099-01-09',track:'東京',race:1,first:[1],second:[2],third:[3],savedAt:'2099-01-08T12:00:00+09:00'};
 const purchase={...first,id:'draft-001',unit:100,stake:100,payout:null,purchasedAt:'2099-01-09T09:00:00+09:00'};
@@ -167,6 +168,25 @@ const sparseReference={signature:'9'.repeat(64),snapshot:{
  officialJraVerified:false,predictionReady:false,
  bettingReady:false,actualPurchase:false
 }};
+const workoutCross={signature:'3'.repeat(64),snapshot:{
+ version:'owner-workout-cross-band-observation-1',
+ date:'20990109',track:'東京',race:1,
+ sourceKind:'jrdb-tse-cross-band-training-research',
+ observedAt:'2099-01-09T11:00:00+09:00',
+ scheduledOffAt:'2099-01-09T09:55:00+09:00',
+ prestartSignature:workoutOrder.signature,runnerCount:3,
+ crossBandPairs:{
+  'S>A':{concordant:2,discordant:0},
+  'S>B':{concordant:0,discordant:0},
+  'S>C':{concordant:0,discordant:0},
+  'A>B':{concordant:0,discordant:0},
+  'A>C':{concordant:0,discordant:0},
+  'B>C':{concordant:0,discordant:0}
+ },
+ researchOnly:true,officialJraVerified:false,resultSourceComplete:true,
+ sourcePublicationVerified:false,modelCalibrated:false,
+ predictionReady:false,actualPurchase:false
+}};
 const fixture=()=>({
  [keys[0]]:[first],[keys[1]]:[purchase],[keys[2]]:[mail],
  [keys[3]]:[memo],[keys[4]]:[factor],[keys[5]]:[preday],
@@ -174,7 +194,8 @@ const fixture=()=>({
  [keys[8]]:[coreStudy],[keys[9]]:[fiveStudy],
  [keys[10]]:[research6Draft],[keys[11]]:[staffStudy],
  [keys[12]]:[workoutOrder],[keys[13]]:[workoutPair],
- [keys[14]]:[sparseReference]
+ [keys[14]]:[sparseReference],
+ [keys[15]]:[workoutCross]
 });
 function boot(initial=fixture()){
  const storage=new Map(Object.entries(initial).map(([k,v])=>[k,JSON.stringify(v)]));
@@ -273,7 +294,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  const original=[...page.storage.entries()];
  e('backupRestore').onclick();
  assert.deepEqual([...page.storage.entries()],original,'quota failure rolls back all 6 sections');
- assert.match(e('backupPreview').textContent,/元の15種類の記録へ戻しました/);
+ assert.match(e('backupPreview').textContent,/元の16種類の記録へ戻しました/);
  assert.equal(e('backupRestore').disabled,true);
  // A corrupted local section blocks export until the user resolves it.
  const corrupted=boot({...fixture(),[keys[1]]:[{...purchase,payout:-1}]});
