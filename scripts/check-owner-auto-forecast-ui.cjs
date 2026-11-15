@@ -4998,7 +4998,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const soloCards=soloView.get('autoUncertainRecentRaces').children;
  assert.equal(soloCards.length,1);
  assert.match(soloCards[0].children[1].textContent,/1着候補 1／2着候補 1・2・3・4/);
- assert.match(soloCards[0].children.at(-1).textContent,/1頭軸の参考例/);
+ assert.ok(soloCards[0].children.some(x=>
+  /1頭軸の参考例/.test(x.textContent||'')),
+  'one-horse reference note stays visible alongside all-runners warning');
+ assert.match(soloCards[0].children.at(-1).textContent,/3着候補にはこのレースの全頭/);
  assert.equal(soloView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(soloView.storage.has(STORAGE),false);
  // Widened 2nd/3rd groups from ALREADY held missing-recent races:
