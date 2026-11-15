@@ -37,6 +37,24 @@ def _candidate(race):
     ranked, missing_recent = [], 0
     for h in race["horses"]:
         bands = h["bands"]
+        # Every observed four-factor grade must agree with the original
+        # independently computed 34-point course/pace and 12-point going
+        # subtotals. A partial five-factor score alone is null and cannot
+        # detect alteration of a known band. Fail closed on that gap.
+        pair = ("course_distance", "pace")
+        pair_raw = (None if any(bands[k] == "未評価" for k in pair)
+                    else sum(WEIGHTS[k] * POINTS[bands[k]] for k in pair))
+        going_raw = (None if bands["ground"] == "未評価"
+                     else WEIGHTS["ground"] * POINTS[bands["ground"]])
+        if (h.get("coursePaceEvidenceRawThirdPoints") != pair_raw
+                or h.get("coursePaceEvidenceScore34") != (
+                    None if pair_raw is None else round(pair_raw / 3, 2))
+                or h.get("coursePaceEvidenceNotFormalGrade") is not True
+                or h.get("goingEvidenceRawThirdPoints") != going_raw
+                or h.get("goingEvidenceScore12") != (
+                    None if going_raw is None else round(going_raw / 3, 2))
+                or h.get("goingEvidenceNotFormalGrade") is not True):
+            raise CoverageError("Sparse observed bands differ from original subtotals")
         missing = [key for key in KEYS if bands[key] == "未評価"]
         if any(key != RECENT for key in missing):
             return None, "other_factors_missing"
