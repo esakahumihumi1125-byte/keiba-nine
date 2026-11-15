@@ -2726,6 +2726,16 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const workoutRows=workoutDigest.get('autoWorkoutQuickRows').children;
  assert.equal(workoutRows.length,1);
  assert.match(workoutRows[0].textContent,/東京1R｜調教S 1・2番／A 3・4番/);
+ const workoutJump=workoutDigest.get('autoWorkoutQuickOpen');
+ assert.equal(workoutJump.disabled,false);
+ assert.match(workoutJump.textContent,/参考 1R/);
+ const beforeJumpReads=workoutDigest.requests.length;
+ const beforeJumpStore=workoutDigest.storage.get(STORAGE);
+ workoutJump.onclick();
+ assert.equal(workoutDigest.get('autoResearchTools').open,true);
+ assert.equal(workoutDigest.get('autoWorkoutQuickPanel').open,true);
+ assert.equal(workoutDigest.requests.length,beforeJumpReads);
+ assert.equal(workoutDigest.storage.get(STORAGE),beforeJumpStore);
  assert.match(workoutDigest.get('autoWorkoutQuickStatus').textContent,
   /発走予定時刻前の調教S\/A参考 1R/);
  const workoutRequests=workoutDigest.requests.length;
@@ -2747,6 +2757,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  workoutDigest.get('autoDay').onchange();
  assert.equal(workoutDigest.get('autoWorkoutQuickRows').children.length,0);
  assert.match(workoutDigest.get('autoWorkoutQuickStatus').textContent,/未取得/);
+ assert.equal(workoutDigest.get('autoWorkoutQuickOpen').disabled,true);
+ assert.equal(workoutDigest.get('autoWorkoutQuickOpen').onclick,null);
  const evidenceView=boot({initialServerRaw:annotated});
  await new Promise(r=>setImmediate(r));
  assert.equal(evidenceView.requests.length,1);
