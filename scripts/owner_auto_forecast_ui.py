@@ -234,7 +234,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section id="fixedHistorySection">
 <h2>4. 発走前に固定した買い目</h2>
 <p class="muted">最初に保存した買い目は再分析で上書きしません。</p>
-<details><summary>調教S/A/B/C内の指数順位を発走前に固定して結果と比較（研究用）</summary>
+<details><summary>発走前の調教S/A/B/Cを結果と比較（ランク間＋同ランク内の研究）</summary>
 <p class="muted">通常のJRDB資料取得時、まだ発走していないレースの「同じ調教評価内での指数順」を、本人用サーバーが署名してこの端末に初回固定します。指数の原数値・架空の30点得点・3連単は保存しません。Safariとホーム画面の保存領域は異なる場合があります。</p>
 <p id="autoWorkoutLockStatus" class="muted" role="status">選択日の発走前調教順位記録は未確認です。</p>
 <button id="autoWorkoutProviderCheck" type="button" disabled>固定した調教順位をJRDB暫定着順と比較（任意・結果取得1回）</button>
@@ -243,7 +243,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoWorkoutPairHistory" class="muted" role="status">過去日の暫定結果を積み上げた研究記録はまだありません。</p>
 <button id="autoWorkoutPairVerify" type="button" disabled>保存した結果の署名を確認（JRDB追加取得0回）</button>
 <p id="autoWorkoutPairVerifyStatus" class="muted" role="status">同じiPhoneに結果の初回固定記録がある場合だけ確認できます。</p>
-<p class="muted">指数順と実際の着順が一致・不一致だったペア数だけを集計。資料不足、取消、着順不一致は保留です。正式30点、勝率、JRA公式結果、回収率、馬券変更には利用しません。端末保存を削除すると研究記録は失われます。</p>
+<p class="muted">発走前に固定したランクを使い、S対A・A対Bなどのランク間の先着関係と、同ランク内の指数順を別々に調査。取消・着順欠損は保留。ランク間の結果は今回の画面だけの未署名参考集計で、保存済みの同ランク内記録や正式30点、JRA公式結果、回収率は変更しません。</p>
 </details>
 <button id="autoReceiptVerify" type="button">この日の固定買い目をサーバーで署名確認</button>
 <p id="autoReceiptVerifyStatus" class="muted" role="status">未確認。端末内の署名付き研究記録だけを本人用サーバーで検証します。原データの追加取得や買い目の変更はありません。</p>
@@ -7268,6 +7268,9 @@ function validateWorkoutProviderComparison(value,receipts,day){
     value.newScoringRubric!==false||value.bettingReady!==false||
     value.predictionReady!==false||value.actualPurchase!==false||
     value.roiPercent!==null||value.payoutVerified!==false||
+    value.crossBandHypothesisOnly!==true||
+    value.crossBandResultsSigned!==false||
+    value.sourceReadsForCrossBand!==0||
     ![0,1].includes(value.sourceReadCount)||
     !Array.isArray(value.races)||value.raceCount!==receipts.length||
     value.races.length!==receipts.length||
@@ -7281,6 +7284,10 @@ function validateWorkoutProviderComparison(value,receipts,day){
  }));
  const totals=Object.fromEntries(bands.map(b=>
   [b,{concordant:0,discordant:0,equalIndexExcluded:0}]));
+ const keys=['S>A','S>B','S>C','A>B','A>C','B>C'];
+ const crossTotals=Object.fromEntries(keys.map(k=>[
+   k,{concordant:0,discordant:0}
+ ]));
  const rows=[],used=new Set();
  let studied=0;
  for(const row of value.races){
@@ -7296,6 +7303,24 @@ function validateWorkoutProviderComparison(value,receipts,day){
    if(row.comparedRunnerCount!==p.raceRunnerCount||
       !row.pairCounts||Object.keys(row.pairCounts).sort().join(',')!=='A,B,C,S')
     throw Error('比較人数の不一致');
+   if(!row.crossBandPairs||
+      Object.keys(row.crossBandPairs).sort().join(',')!==
+       keys.slice().sort().join(','))
+    throw Error('異なる調教ランク間の比較形式が不正');
+   for(const k of keys){
+    const pair=row.crossBandPairs[k],labels=k.split('>');
+    if(!pair||Object.keys(pair).sort().join(',')!=='concordant,discordant'||
+       !Number.isInteger(pair.concordant)||
+       !Number.isInteger(pair.discordant)||
+       pair.concordant<0||pair.discordant<0)
+     throw Error('調教ランク間の比較数が不正');
+    const expectedPairs=p.horses.filter(h=>h.trainingBand===labels[0]).length*
+      p.horses.filter(h=>h.trainingBand===labels[1]).length;
+    if(pair.concordant+pair.discordant!==expectedPairs)
+     throw Error('調教ランク間の比較母数が不一致');
+    crossTotals[k].concordant+=pair.concordant;
+    crossTotals[k].discordant+=pair.discordant;
+   }
    for(const b of bands){
     const pairs=row.pairCounts[b];
     if(!pairs||Object.keys(pairs).sort().join(',')!==
@@ -7314,7 +7339,8 @@ function validateWorkoutProviderComparison(value,receipts,day){
      throw Error('調教比較ペア母数不一致');
     for(const k of Object.keys(totals[b]))totals[b][k]+=pairs[k];
    }
-  }else if(row.comparedRunnerCount!==0||row.pairCounts!==null){
+  }else if(row.comparedRunnerCount!==0||row.pairCounts!==null||
+            row.crossBandPairs!==null){
    throw Error('保留レースに比較件数');
   }
   rows.push(row);
@@ -7327,7 +7353,14 @@ function validateWorkoutProviderComparison(value,receipts,day){
   for(const k of Object.keys(totals[b]))
    if(value.observedPairsByTrainingBand[b]?.[k]!==totals[b][k])
     throw Error('調教比較の集計値不一致');
- return {rows,totals};
+ if(!value.observedCrossBandPairs||
+    Object.keys(value.observedCrossBandPairs).sort().join(',')!==
+      keys.slice().sort().join(',')||
+    keys.some(k=>value.observedCrossBandPairs[k]?.concordant!==
+      crossTotals[k].concordant||
+      value.observedCrossBandPairs[k]?.discordant!==crossTotals[k].discordant))
+  throw Error('調教S/A/B/Cランク間の合計が不一致');
+ return {rows,totals,crossTotals};
 }
 $('autoWorkoutProviderCheck').onclick=async()=>{
  const day=$('autoDay').value.replaceAll('-','');
@@ -7352,7 +7385,7 @@ $('autoWorkoutProviderCheck').onclick=async()=>{
   if(seq!==workoutProviderSeq||
      day!==$('autoDay').value.replaceAll('-',''))return;
   if(!response.ok)throw Error('provider_workout_result_failed');
-  const {rows,totals}=validateWorkoutProviderComparison(result,receipts,day);
+  const {rows,totals,crossTotals}=validateWorkoutProviderComparison(result,receipts,day);
   const stored=saveWorkoutPairReceipts(result,receipts,day);
   const cards=[];
   for(const row of rows){
@@ -7368,6 +7401,22 @@ $('autoWorkoutProviderCheck').onclick=async()=>{
    cards.unshift(dom('p','調教の同評価内：指数順と暫定着順が一致 '+same+
     '組／不一致 '+opposite+'組／元の指数同点で判定対象外 '+
     equal+'組。全頭の発走前固定があるレースだけの比較。','muted'));
+  }
+  if(result.studiedRaceCount){
+   const order=['S>A','S>B','S>C','A>B','A>C','B>C'];
+   const agree=order.reduce((v,k)=>v+crossTotals[k].concordant,0);
+   const disagree=order.reduce((v,k)=>v+crossTotals[k].discordant,0);
+   cards.push(dom('p','異なる調教ランクの順序：S>A>B>Cの仮説に沿った先着 '+
+    agree+'組／逆転 '+disagree+'組。'+
+    'ランク間の値は今回の画面だけの未署名参考集計（JRDB追加照会0回）。'+
+    '正式30点・JRA公式判定ではありません。','muted'));
+   const details=dom('details');
+   details.append(dom('summary','S対A・A対Bなど6組の内訳'));
+   for(const key of order)
+    details.append(dom('p',key+'：想定順で先着 '+
+     crossTotals[key].concordant+'組／逆転 '+
+     crossTotals[key].discordant+'組','muted'));
+   cards.push(details);
   }
   $('autoWorkoutProviderSummary').replaceChildren(...cards);
   $('autoWorkoutProviderStatus').textContent=
