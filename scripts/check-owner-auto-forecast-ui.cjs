@@ -13,9 +13,9 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  vm.runInContext(js.slice(start,end)+'\nglobalThis.checkAuto=automaticFactorRace;',sandbox);
  const score=(weight)=>({score:80,points:weight*.8,grade:'A',weight,reason:'staff_relative_midrank'});
  const row={track:'東京',race:1,postTime:'12:00',status:'scored',reason:null,
-  horses:[1,2,3,4].map(number=>({number,factors:{pace:score(17),jockey_stable:score(10),rotation:score(1)}}))};
- const data={automaticFactorScores:{version:'owner-automatic-factor-scores-1',policyVersion:'research-6',
-  date:'20990101',maximumPoints:28,capturedAt:'2099-01-01T09:00:00+09:00',
+  horses:[1,2,3,4].map(number=>({number,factors:{course_distance:{...score(17),reason:'distance_only_match'},pace:score(17),jockey_stable:score(10),rotation:score(1)}}))};
+ const data={automaticFactorScores:{version:'owner-automatic-factor-scores-2',policyVersion:'research-6',
+  date:'20990101',maximumPoints:45,factorKeys:['pace','jockey_stable','rotation','course_distance'],capturedAt:'2099-01-01T09:00:00+09:00',
   modelCalibrated:false,officialJraVerified:false,overallPredictionReady:false,
   newProviderRequests:0,races:[row]}};
  const check=value=>sandbox.checkAuto(value,'2099-01-01',row);
@@ -29,6 +29,8 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
   x=>x.races[0].horses[0].factors.pace.grade='S',
   x=>x.races[0].horses[0].factors.pace.score=null,
   x=>x.races[0].horses[0].factors.rotation.reason='<script>',
+   x=>x.races[0].horses[0].factors.course_distance.reason='unsafe',
+   x=>x.factorKeys.push('invalid'),
  ]){const bad=structuredClone(data);mutate(bad.automaticFactorScores);assert.equal(check(bad),null);}
  const missing=structuredClone(data);
  missing.automaticFactorScores.races[0].horses[0].factors.rotation=
