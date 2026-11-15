@@ -54,7 +54,7 @@ def _fetch_endpoint(endpoint, parameters, *, timeout_seconds=CORE_SOURCE_SOCKET_
     Historical requests must specify exactly one existing race key, never a
     date range or an unconstrained search.
     """
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'thj', 'dra', 'dka', 'dky', 'dse'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tch', 'tze', 'tka', 'tpd', 'tse', 'thj', 'dra', 'dka', 'dky', 'dse'):
         raise JRDBError('Unsupported JRDB endpoint')
     # A smaller socket wait is permitted ONLY for the optional /tka
     # supplement. Never silently change the four core sources or open
@@ -157,7 +157,7 @@ def _fetch_endpoint(endpoint, parameters, *, timeout_seconds=CORE_SOURCE_SOCKET_
 
 def _fetch_day(endpoint, racedate, *, timeout_seconds=CORE_SOURCE_SOCKET_TIMEOUT_SECONDS):
     """Private current-week reader; historic endpoints cannot use this."""
-    if endpoint not in ('tra', 'tky', 'tcy', 'tze', 'tka', 'tpd', 'tse', 'thj'):
+    if endpoint not in ('tra', 'tky', 'tcy', 'tch', 'tze', 'tka', 'tpd', 'tse', 'thj'):
         raise JRDBError("Unsupported current-day endpoint")
     return _fetch_endpoint(endpoint, {"racedate": racedate},
                            timeout_seconds=timeout_seconds)
@@ -242,3 +242,12 @@ def fetch_finished_race_payoffs(racedate):
     raw rows, popularity or keys to the browser, logs or client records.
     """
     return _fetch_day('thj', racedate)
+
+
+def fetch_main_workout_detail(racedate):
+    """Private manual-only /tch workout source. Never expose licensed rows.
+
+    The owner service explicitly authenticates and rate-bounds calls before
+    invoking this reader; never a background or implicit paid request.
+    """
+    return _fetch_day("tch", racedate)
