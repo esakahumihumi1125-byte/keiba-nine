@@ -4086,7 +4086,7 @@ function renderSparseFiveReference(refs,day){
  }
  status.textContent=current
   ?'近走不明でも境界が安定した研究参考例 '+current+
-   'R（発走前のみ）。買い目の固定・署名・購入・結果集計はしません。'
+   'R（発走前のみ）。この表示は署名なし。サーバーで発走前研究記録として署名できた場合のみ初回固定。正式予想・実購入・結果集計とは別です。'
   :'参考例は0R。全頭の他4項目が不足、順位境界が変動する、または発走後の場合は表示しません。';
  $('autoFiveSparsePanel').open=current>0;
 }
