@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-100yen-review.js','utf8');
 function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=null,
- jraResultFixture=null,receiptVerifyFixture=null,thjFixture=null){
+ jraResultFixture=null,receiptVerifyFixture=null,thjFixture=null,clockISO=null){
  const elements=new Map(),requests=[],storage=new Map();
  let pending=null;
  function node(tag){
@@ -52,8 +52,12 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
   };
   throw Error('Unexpected backend request');
  };
+ const TestDate=clockISO?class extends Date {
+  constructor(...args){super(...(args.length?args:[clockISO]));}
+  static now(){return Date.parse(clockISO);}
+ }:Date;
  const context={document,localStorage,location:{search:query},fetch,
-   Date,Intl,JSON,Number,Object,Array,String,RegExp,Set,Map,Error,Promise};
+   Date:TestDate,Intl,JSON,Number,Object,Array,String,RegExp,Set,Map,Error,Promise};
  vm.runInNewContext(js,context);
  return {get,requests,storage,delay:p=>{pending=p}};
 }
@@ -67,6 +71,27 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.match(a.get('status').textContent,/未登録/);
  assert.equal(a.get('load').disabled,false);
  assert.equal(a.storage.size,0);
+ // Monday JST: default to Sunday and select either weekend day in one tap.
+ // No JRDB/JRA paid lookup, ticket mutation or new purchase is allowed.
+ const monday=boot('',null,null,null,null,null,null,'2026-11-15T23:10:00Z');
+ await new Promise(r=>setImmediate(r));
+ assert.equal(monday.get('day').value,'2026-11-15');
+ const mondayReads=monday.requests.length;
+ monday.get('recentSaturday').onclick();
+ await new Promise(r=>setImmediate(r));
+ assert.equal(monday.get('day').value,'2026-11-14');
+ assert.equal(monday.requests.length,mondayReads+2);
+ assert.ok(monday.requests.slice(mondayReads).every(x=>
+  x.url.startsWith('/api/owner-100yen-')));
+ monday.get('recentSunday').onclick();
+ await new Promise(r=>setImmediate(r));
+ assert.equal(monday.get('day').value,'2026-11-15');
+ assert.equal(monday.requests.length,mondayReads+4);
+ assert.equal(monday.storage.size,0);
+ // Saturday JST defaults to Saturday, never a future Sunday.
+ const saturday=boot('',null,null,null,null,null,null,'2026-11-20T23:10:00Z');
+ await new Promise(r=>setImmediate(r));
+ assert.equal(saturday.get('day').value,'2026-11-21');
  // JRA official result candidates are an explicit read-only ONE-race
  // observation: never run automatically or certify a payout/ROI.
  const officialURL='https://www.jra.go.jp/JRADB/accessS.html?'+
@@ -266,6 +291,15 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  const d=boot('?date=2099-01-02',fake);
  await new Promise(r=>setImmediate(r));
  assert.equal(d.get('races').children.length,1);
+ const dashboard=d.get('summary').children;
+ assert.equal(dashboard[2].children[1].textContent,'7,000円');
+ assert.equal(dashboard[3].children[1].textContent,'4,000円');
+ assert.equal(dashboard[6].children[1].textContent,'0.0%');
+ // Results awaiting verification must not count as realized loss or ROI.
+ const badStake=boot('?date=2099-01-02',{...fake,pendingStakeYen:-100});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(badStake.get('summary').children.length,0);
+ assert.match(badStake.get('status').textContent,/安全な集計ができません/);
  const t=d.get('races').children[0].children[0];
  const head=t.children[0].children[0];
  assert.ok(head.children.some(x=>x.textContent==='3連単の検証'));
