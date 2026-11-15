@@ -1981,7 +1981,7 @@ function renderUncertainRecent(data,day){
    const groups=[row.first,row.second,row.third];
    if(groups.some((g,j)=>!Array.isArray(g)||
        g.length<(j===0?1:j===1?2:3)||
-       g.length>(j===0?3:j===1?8:12)||
+       g.length>(j===0?3:j===1?8:18)||
        new Set(g).size!==g.length||
        g.some(n=>!Number.isInteger(n)||!setRoster.has(n)))||
       groups.some((g,j)=>j>0&&groups[j-1].some(n=>!g.includes(n)))||
@@ -2030,7 +2030,10 @@ function renderUncertainRecent(data,day){
     };
     if(candidates(5,10).length)
      throw Error('unknown_recent_wide_legacy_preferred');
-    const wide=candidates(8,12).sort((a,b)=>
+    // Keep the old <=12 3rd tier whenever it is possible. Only then
+    // expand to 18 while still requiring every cutoff to be provable.
+    const shortWide=candidates(8,12);
+    const wide=(shortWide.length?shortWide:candidates(8,18)).sort((a,b)=>
        Number(30<=b.points&&b.points<=40)-
         Number(30<=a.points&&a.points<=40)||
        Number(41<=b.points&&b.points<=48)-
@@ -2064,6 +2067,8 @@ function renderUncertainRecent(data,day){
     '調教の暫定評価で単独トップが、近走の未評価S〜Cのどの場合でも入れ替わらないため、1頭軸の参考例を表示。正式な1着予想・購入指示ではありません。','muted'));
    if(row.second.length>5||row.third.length>10)card.append(dom('p',
     '近走が欠けた馬を仮にCや最下位にせず、候補境界が不変な場合だけ2着・3着の同評価群を拡張。最大48点の署名なし参考。','muted'));
+   if(row.third.length===base.runners.length)card.append(dom('p',
+    '注意：3着候補にはこのレースの全頭が含まれます。全頭を高評価した意味ではなく、近走不足と同点を保留した研究例です。','muted'));
 
    cards.push(card);
   }
