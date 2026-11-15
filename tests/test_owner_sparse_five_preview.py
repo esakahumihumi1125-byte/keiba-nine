@@ -18,8 +18,33 @@ SPARSE = [
 ]
 
 
+def add_original_subtotals(study):
+    # The real new-weight research always includes separately computed
+    # 34-point course/pace and 12-point going observations.
+    from owner_new_weight_five_research import WEIGHTS
+    from evaluation_policy import POINTS
+    for race in study["races"]:
+        for h in race["horses"]:
+            bands = h["bands"]
+            pair = ("course_distance", "pace")
+            cp = (None if any(bands[k] == "未評価" for k in pair)
+                  else sum(WEIGHTS[k] * POINTS[bands[k]] for k in pair))
+            going = (None if bands["ground"] == "未評価"
+                     else WEIGHTS["ground"] * POINTS[bands["ground"]])
+            h.update(
+                coursePaceEvidenceRawThirdPoints=cp,
+                coursePaceEvidenceScore34=None if cp is None else round(cp / 3, 2),
+                coursePaceEvidenceNotFormalGrade=True,
+                goingEvidenceRawThirdPoints=going,
+                goingEvidenceScore12=None if going is None else round(going / 3, 2),
+                goingEvidenceNotFormalGrade=True,
+            )
+    return study
+
+
 def run_sparse(bands=SPARSE, *, now=NOW):
     programme, study = materials(bands)
+    add_original_subtotals(study)
     drafts = calculate(programme, study, now=now)
     return preview_sparse_five_holds(
         programme, study, drafts, DAY, now=now)
@@ -28,6 +53,7 @@ def run_sparse(bands=SPARSE, *, now=NOW):
 class SparseFiveReferenceTests(unittest.TestCase):
     def test_recover_stable_40_point_reference_when_all_recent_missing(self):
         p, s = materials(SPARSE)
+        add_original_subtotals(s)
         drafts = calculate(p, s)
         self.assertEqual((drafts["draftCount"], drafts["holdCount"]), (0, 1))
         self.assertEqual(drafts["races"][0]["reason"], "incomplete_five_factors")
@@ -94,6 +120,7 @@ class SparseFiveReferenceTests(unittest.TestCase):
 
     def test_only_existing_incomplete_signed_hold_is_scanned(self):
         p, s = materials(SPARSE)
+        add_original_subtotals(s)
         drafts = calculate(p, s)
         forged = copy.deepcopy(drafts)
         forged["races"][0]["status"] = "five_factor_research_draft"
@@ -110,6 +137,7 @@ class SparseFiveReferenceTests(unittest.TestCase):
 
     def test_malformed_band_or_study_score_rejected(self):
         p, s = materials(SPARSE)
+        add_original_subtotals(s)
         d = calculate(p, s)
         s["races"][0]["horses"][0]["bands"]["course_distance"] = "C"
         with self.assertRaises(CoverageError):
