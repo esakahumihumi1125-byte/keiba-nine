@@ -241,9 +241,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoWorkoutProviderStatus" class="muted" role="status">固定記録がある開催日だけ確認できます。結果照会はボタンを押した時だけです。</p>
 <div id="autoWorkoutProviderSummary"></div>
 <p id="autoWorkoutPairHistory" class="muted" role="status">過去日の暫定結果を積み上げた研究記録はまだありません。</p>
+<p id="autoWorkoutCrossHistory" class="muted" role="status">調教ランク間の固定研究記録はまだありません。</p>
+<button id="autoWorkoutCrossVerify" type="button" disabled>保存したランク間比較の署名を確認（JRDB追加0回）</button>
+<p id="autoWorkoutCrossVerifyStatus" class="muted" role="status">初回固定済みランク間比較のみ再確認できます。</p>
 <button id="autoWorkoutPairVerify" type="button" disabled>保存した結果の署名を確認（JRDB追加取得0回）</button>
 <p id="autoWorkoutPairVerifyStatus" class="muted" role="status">同じiPhoneに結果の初回固定記録がある場合だけ確認できます。</p>
-<p class="muted">発走前に固定したランクを使い、S対A・A対Bなどのランク間の先着関係と、同ランク内の指数順を別々に調査。取消・着順欠損は保留。ランク間の結果は今回の画面だけの未署名参考集計で、保存済みの同ランク内記録や正式30点、JRA公式結果、回収率は変更しません。</p>
+<p class="muted">発走前に固定したランクを使い、S対A・A対Bなどのランク間の先着関係と、同ランク内の指数順を別々に調査。取消・着順欠損は保留。ランク間も独立した署名で端末に初回固定し、複数開催日で比較できます。正式30点・JRA公式結果・回収率・既存買い目は変更しません。</p>
 </details>
 <button id="autoReceiptVerify" type="button">この日の固定買い目をサーバーで署名確認</button>
 <p id="autoReceiptVerifyStatus" class="muted" role="status">未確認。端末内の署名付き研究記録だけを本人用サーバーで検証します。原データの追加取得や買い目の変更はありません。</p>
@@ -258,7 +261,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoHistory"></div>
 <p class="muted">端末内の固定済み買い目を読み取り専用で表示します。
 署名はこの画面では検証していません。後付け予想ではありません。</p>
-<a href="/owner-backup">15種類の記録をバックアップ・復元する</a>
+<a href="/owner-backup">16種類の記録をバックアップ・復元する</a>
 </section>
 <details class="advanced-panel"><summary>追加分析・詳しい設定（必要なときだけ）</summary>
 <section>
@@ -581,7 +584,8 @@ function missingFactorHoldBreakdown(data){
 const RECEIPTS_KEY='keiba-nine-owner-server-receipts-v1';
 const WORKOUT_LOCK_STORAGE='keiba-nine-owner-workout-order-locks-v1';
 const WORKOUT_PAIR_STORAGE='keiba-nine-owner-workout-pair-observations-v1';
-let workoutProviderSeq=0,workoutPairVerifySeq=0;
+const WORKOUT_CROSS_STORAGE='keiba-nine-owner-workout-cross-band-observations-v1';
+let workoutProviderSeq=0,workoutPairVerifySeq=0,workoutCrossVerifySeq=0;
 // Safe, fixed server diagnostics. Do not display raw provider error text.
 const FAILURE_STAGE={
  programme:'番組取得・形式確認',entries:'出走馬取得',training:'調教取得',
@@ -3432,6 +3436,146 @@ function saveWorkoutPairReceipts(result,receipts,day){
  showSavedWorkoutPairHistory(day);
  return {added,previous};
 }
+// New independent HMAC domain: pairs across different original training
+// grades. Kept completely separate from the older within-grade receipts.
+const CROSS_GRADE_KEYS=['S>A','S>B','S>C','A>B','A>C','B>C'];
+function validateWorkoutCrossReceipt(entry,prestart){
+ const p=entry?.snapshot,b=prestart?.snapshot;
+ const fields=['version','date','track','race','sourceKind','observedAt',
+  'scheduledOffAt','prestartSignature','runnerCount','crossBandPairs',
+  'researchOnly','officialJraVerified','resultSourceComplete',
+  'sourcePublicationVerified','modelCalibrated','predictionReady',
+  'actualPurchase'];
+ if(!p||!b||Object.keys(entry).sort().join(',')!=='signature,snapshot'||
+    !/^[a-f0-9]{64}$/.test(entry.signature||'')||
+    Object.keys(p).sort().join(',')!==fields.sort().join(',')||
+    p.version!=='owner-workout-cross-band-observation-1'||
+    p.sourceKind!=='jrdb-tse-cross-band-training-research'||
+    p.researchOnly!==true||p.officialJraVerified!==false||
+    p.resultSourceComplete!==true||p.sourcePublicationVerified!==false||
+    p.modelCalibrated!==false||p.predictionReady!==false||
+    p.actualPurchase!==false||p.date!==b.date||p.track!==b.track||
+    p.race!==b.race||p.scheduledOffAt!==b.scheduledOffAt||
+    p.prestartSignature!==prestart.signature||
+    p.runnerCount!==b.raceRunnerCount||
+    !Number.isFinite(Date.parse(p.observedAt))||
+    Date.parse(p.observedAt)<Date.parse(p.scheduledOffAt))
+  throw Error('ランク間の署名記録に不整合');
+ if(!p.crossBandPairs||
+    Object.keys(p.crossBandPairs).sort().join(',')!==
+     CROSS_GRADE_KEYS.slice().sort().join(','))
+  throw Error('ランク間の比較ペア種が不正');
+ for(const key of CROSS_GRADE_KEYS){
+  const row=p.crossBandPairs[key],labels=key.split('>');
+  if(!row||Object.keys(row).sort().join(',')!=='concordant,discordant'||
+     !Number.isInteger(row.concordant)||!Number.isInteger(row.discordant)||
+     row.concordant<0||row.discordant<0||
+     row.concordant+row.discordant!==
+       b.horses.filter(h=>h.trainingBand===labels[0]).length*
+       b.horses.filter(h=>h.trainingBand===labels[1]).length)
+   throw Error('ランク間の比較母数が発走前評価と不一致');
+ }
+ return p;
+}
+function savedWorkoutCrossEntries(day){
+ const raw=localStorage.getItem(WORKOUT_CROSS_STORAGE);
+ if(raw&&raw.length>440000)throw Error('ランク間研究記録の容量上限');
+ const all=JSON.parse(raw||'[]');
+ if(!Array.isArray(all)||all.length>360)
+  throw Error('ランク間研究記録の件数が不正');
+ const lockRaw=localStorage.getItem(WORKOUT_LOCK_STORAGE);
+ if(lockRaw&&lockRaw.length>450000)throw Error('調教順位固定の容量上限');
+ const locks=JSON.parse(lockRaw||'[]');
+ if(!Array.isArray(locks)||locks.length>360)
+  throw Error('調教順位固定の形式不正');
+ const before=new Map();
+ for(const row of locks){
+  const p=validateWorkoutLockReceipt(row),id=p.date+'|'+p.track+'|'+p.race;
+  if(before.has(id))throw Error('調教順位固定の重複');
+  before.set(id,row);
+ }
+ const seen=new Set(),selected=[],days=new Set(),totals=
+  Object.fromEntries(CROSS_GRADE_KEYS.map(k=>[
+    k,{concordant:0,discordant:0}]));
+ for(const entry of all){
+  const p=entry?.snapshot;
+  if(!p)throw Error('ランク間研究記録の内容不正');
+  const id=p.date+'|'+p.track+'|'+p.race;
+  if(seen.has(id))throw Error('ランク間研究記録の二重固定');
+  seen.add(id);validateWorkoutCrossReceipt(entry,before.get(id));
+  days.add(p.date);
+  if(p.date===day)selected.push(entry);
+  for(const k of CROSS_GRADE_KEYS){
+   totals[k].concordant+=p.crossBandPairs[k].concordant;
+   totals[k].discordant+=p.crossBandPairs[k].discordant;
+  }
+ }
+ if(selected.length>36)throw Error('調教ランク間の同日件数が不正');
+ return {all,selected,seen,days:days.size,totals};
+}
+function showSavedWorkoutCrossHistory(day){
+ try{
+  const d=savedWorkoutCrossEntries(day);
+  $('autoWorkoutCrossVerify').disabled=!d.selected.length;
+  const good=Object.values(d.totals).reduce((a,r)=>a+r.concordant,0);
+  const opposite=Object.values(d.totals).reduce((a,r)=>a+r.discordant,0);
+  $('autoWorkoutCrossHistory').textContent=
+   '調教ランク間の初回固定：'+d.days+'開催日・'+d.all.length+
+   'R／上位評価が先着 '+good+'組／逆転 '+opposite+
+   '組。複数ペアは独立した試行ではありません。'+
+   '保存済み記録の署名は未再検証、JRA公式結果・調教30点は未確認。';
+ }catch(_){
+  $('autoWorkoutCrossVerify').disabled=true;
+  $('autoWorkoutCrossHistory').textContent=
+   'ランク間研究記録の整合性を確認できません。元のデータは変更していません。';
+ }
+}
+function saveWorkoutCrossReceipts(result,receipts,day){
+ if(!Array.isArray(result.crossBandObservationReceipts)||
+    result.crossBandObservationReceiptCount!==
+      result.crossBandObservationReceipts.length||
+    result.crossBandObservationReceiptCount!==result.studiedRaceCount||
+    result.crossBandObservationReceiptCount>36)
+  throw Error('ランク間研究の署名件数が不正');
+ const originals=new Map(receipts.map(row=>{
+  const p=validateWorkoutLockReceipt(row);
+  return [p.track+'|'+p.race,row];
+ }));
+ const studied=new Map(result.races.filter(r=>
+  r.providerStatus==='complete_provisional_order').map(r=>
+  [r.track+'|'+r.race,r]));
+ const counted=new Set();
+ for(const row of result.crossBandObservationReceipts){
+  const p=row?.snapshot,id=p?.track+'|'+p?.race;
+  if(!p||p.date!==day||counted.has(id)||!studied.has(id))
+   throw Error('ランク間研究の対象R不正');
+  counted.add(id);
+  validateWorkoutCrossReceipt(row,originals.get(id));
+  for(const k of CROSS_GRADE_KEYS)
+   if(JSON.stringify(p.crossBandPairs[k])!==
+      JSON.stringify(studied.get(id).crossBandPairs[k]))
+    throw Error('ランク間署名の結果ペアが不一致');
+ }
+ if(counted.size!==studied.size)
+  throw Error('ランク間研究記録の対象数が不一致');
+ const {all,seen}=savedWorkoutCrossEntries(day);
+ const next=all.slice();let added=0,previous=0;
+ for(const item of result.crossBandObservationReceipts){
+  const p=item.snapshot,id=p.date+'|'+p.track+'|'+p.race;
+  if(seen.has(id)){previous++;continue;}
+  next.push(item);seen.add(id);added++;
+ }
+ if(next.length>360)throw Error('ランク間研究の保存上限');
+ if(added){
+  const payload=JSON.stringify(next);
+  if(payload.length>440000)throw Error('ランク間研究の容量上限');
+  localStorage.setItem(WORKOUT_CROSS_STORAGE,payload);
+  if(localStorage.getItem(WORKOUT_CROSS_STORAGE)!==payload)
+   throw Error('ランク間研究の保存再確認失敗');
+ }
+ showSavedWorkoutCrossHistory(day);
+ return {added,previous};
+}
 function validateWorkoutLockReceipt(receipt){
  const p=receipt?.snapshot;
  if(!p||typeof receipt.signature!=='string'||
@@ -6221,6 +6365,7 @@ $('autoDay').value=jstToday();
 highlightSelectedWeekend();
 showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
 showSavedWorkoutPairHistory($('autoDay').value.replaceAll('-',''));
+showSavedWorkoutCrossHistory($('autoDay').value.replaceAll('-',''));
 updateJraReleaseGuide();updateJraCrosscheck();
 function updateReviewLink(){
  const day=$('autoDay').value;
@@ -6242,6 +6387,7 @@ $('autoDay').onchange=()=>{
  $('autoWorkoutProviderStatus').textContent='選択日の署名付き調教研究記録がある場合のみ暫定結果を照合できます。';
  showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
  showSavedWorkoutPairHistory($('autoDay').value.replaceAll('-',''));
+showSavedWorkoutCrossHistory($('autoDay').value.replaceAll('-',''));
  ++preflightSeq;
  $('autoPreflight').disabled=false;
  $('autoPreflightStatus').textContent='選択日が変わりました。無料診断は未実行です。';
@@ -7387,6 +7533,8 @@ $('autoWorkoutProviderCheck').onclick=async()=>{
   if(!response.ok)throw Error('provider_workout_result_failed');
   const {rows,totals,crossTotals}=validateWorkoutProviderComparison(result,receipts,day);
   const stored=saveWorkoutPairReceipts(result,receipts,day);
+  // Research in a different HMAC domain; no changes to old results.
+  const crossStored=saveWorkoutCrossReceipts(result,receipts,day);
   const cards=[];
   for(const row of rows){
    const card=dom('p',row.track+row.race+'R：'+
@@ -7423,7 +7571,9 @@ $('autoWorkoutProviderCheck').onclick=async()=>{
    'JRDB暫定着順の全頭照合 '+result.studiedRaceCount+'/'+result.raceCount+
    'R。結果が欠けるRは保留。JRA公式の結果・勝率・30点配点の校正・回収率は未確認。'+
    '既存の予想・購入記録は変更していません。'+
-   '検証用結果は初回固定 '+stored.added+'R／前回の記録を保持 '+stored.previous+'R。';
+   '同ランク内結果は初回固定 '+stored.added+'R／既存 '+stored.previous+
+   'R。ランク間の比較も初回固定 '+crossStored.added+
+   'R／既存 '+crossStored.previous+'R。';
  }catch(_){
   if(seq===workoutProviderSeq){
    $('autoWorkoutProviderSummary').replaceChildren();
@@ -7476,6 +7626,51 @@ $('autoWorkoutPairVerify').onclick=async()=>{
  }finally{
   if(seq===workoutPairVerifySeq&&day===$('autoDay').value.replaceAll('-',''))
    showSavedWorkoutPairHistory(day);
+ }
+};
+$('autoWorkoutCrossVerify').onclick=async()=>{
+ const day=$('autoDay').value.replaceAll('-','');
+ const button=$('autoWorkoutCrossVerify');
+ if(button.disabled)return;
+ button.disabled=true;
+ const seq=++workoutCrossVerifySeq;
+ $('autoWorkoutCrossVerifyStatus').textContent='調教ランク間の署名をサーバーで確認中（追加照会0回）…';
+ try{
+  const selected=savedWorkoutCrossEntries(day).selected;
+  if(!selected.length)throw Error('no_cross_history');
+  const ids=new Set(selected.map(x=>x.snapshot.track+'|'+x.snapshot.race));
+  const prestart=savedWorkoutLocksDay(day).selected.filter(x=>
+   ids.has(x.snapshot.track+'|'+x.snapshot.race));
+  if(prestart.length!==selected.length)throw Error('missing_prestart');
+  const body=JSON.stringify({date:day,prestartReceipts:prestart,receipts:selected});
+  if(body.length>250000)throw Error('too_large');
+  const response=await fetch('/api/owner-workout-cross-band-verify',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body});
+  const value=await response.json();
+  if(seq!==workoutCrossVerifySeq||day!==$('autoDay').value.replaceAll('-',''))return;
+  if(!response.ok||value.version!=='owner-workout-cross-band-verify-1'||
+     value.date!==day||value.verifiedRaceCount!==selected.length||
+     value.serverSigned!==true||value.researchOnly!==true||
+     value.privateOwnerOnly!==true||value.providerCalls!==0||
+     value.officialJraVerified!==false||
+     value.calibrationReady!==false||
+     value.formalTrainingScore30Ready!==false||
+     value.bettingReady!==false||value.actualPurchase!==false||
+     value.changesExistingReceipts!==false)
+   throw Error('cross_band_signature_bad');
+  $('autoWorkoutCrossVerifyStatus').textContent=
+   '選択日のランク間研究 '+selected.length+
+   'Rのサーバー署名を検証済み。JRDB追加照会0回。'+
+   'JRA公式照合・正式30点採点ではありません。';
+ }catch(_){
+  if(seq===workoutCrossVerifySeq)
+   $('autoWorkoutCrossVerifyStatus').textContent=
+    'ランク間研究記録の署名を確認できません。元の記録を消さずバックアップを確認してください。';
+ }finally{
+  if(seq===workoutCrossVerifySeq&&day===$('autoDay').value.replaceAll('-',''))
+   showSavedWorkoutCrossHistory(day);
  }
 };
 $('autoFiveProviderCheck').onclick=async()=>{
