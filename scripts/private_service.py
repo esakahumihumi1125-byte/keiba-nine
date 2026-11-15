@@ -22,6 +22,8 @@ from jrdb_private import (fetch_race_program, fetch_horse_entries,
                           fetch_training_analysis, fetch_main_workout_detail, fetch_recent_runs,
                           fetch_venue_conditions, fetch_prestart_body, fetch_finished_race_results,
                           fetch_finished_race_payoffs,
+                          fetch_one_historical_day_training,
+                          fetch_one_historical_day_finishes,
                           fetch_historical_race_program,
                           fetch_historical_venue_conditions, fetch_historical_runner_staff,
                           fetch_historical_finished_runners, JRDBError, approved_api_base)
@@ -33,6 +35,7 @@ from jrdb_day_materials_progress import summarize_day_materials
 from jrdb_prestart_body import audit_prestart_body
 from jrdb_main_workout_evidence import audit_main_workouts
 from owner_training_source_crosscheck import crosscheck_training_sources
+from owner_training_historical_index_check import compare_one_historical_training_day
 from owner_body_one_evidence_preflight import body_one_evidence_preflight
 from jrdb_day_pipeline_ui import HTML as DAY_PIPELINE_HTML, JS as DAY_PIPELINE_JS, CSS as DAY_PIPELINE_CSS
 from jrdb_selected_race_readiness import selected_race_readiness
@@ -2164,6 +2167,37 @@ def create_app(settings=None):
                 return response('502 Bad Gateway', {
                     'error': '全レースの資料を安全に一括照合できませんでした。'})
             return response('200 OK', report)
+        if method == 'GET' and path == '/api/jrdb/historical-training-check':
+            # Explicit research-only two-provider-call historical ONE-DAY
+            # audit. An old /dky index is not a pre-off frozen tcy/tch score;
+            # no threshold fitting, betting, actual ROI or grade promotion.
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or settings.get('KEIBA_HISTORY_ENABLED') != '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'
+                    or not all(isinstance(settings.get(k), str) and settings[k].strip()
+                               for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {
+                    'error': '過去調教資料の本人専用研究接続は未設定です。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''), keep_blank_values=True)
+            if (set(query) != {'date'} or len(query['date']) != 1
+                    or not _valid_date(query['date'][0])):
+                return response('400 Bad Request', {
+                    'error': '比較する過去開催日を1日だけ指定してください。'})
+            day = query['date'][0]
+            today = _now_in_jst()[:10].replace('-', '')
+            if (day >= today
+                    or (datetime.strptime(today, '%Y%m%d') -
+                        datetime.strptime(day, '%Y%m%d')).days > 180):
+                return response('400 Bad Request', {
+                    'error': '過去180日以内の終了済み開催日を指定してください。'})
+            try:
+                study = compare_one_historical_training_day(
+                    fetch_one_historical_day_training(day),
+                    fetch_one_historical_day_finishes(day), day)
+            except (JRDBError, CoverageError, ValueError, KeyError, TypeError):
+                return response('502 Bad Gateway', {
+                    'error': '過去の調教指数と着順を安全に照合できませんでした。'})
+            return response('200 OK', study)
         if method == 'GET' and path == '/api/jrdb/training-source-crosscheck':
             # The owner must explicitly opt in to four separate same-day
             # /tra,/tky,/tcy,/tch licensed reads. Nothing is cached, billed
