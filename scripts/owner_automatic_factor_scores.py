@@ -10,8 +10,8 @@ from evaluation_policy import OWNER_FORMAL_FACTORS, OWNER_FORMAL_POLICY_VERSION
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import audit_evidence_coverage
 
-VERSION = 'owner-automatic-factor-scores-2'
-FACTORS = ('pace', 'jockey_stable', 'rotation', 'course_distance')
+VERSION = 'owner-automatic-factor-scores-3'
+FACTORS = ('pace', 'jockey_stable', 'rotation', 'course_distance', 'ground')
 JST = timezone(timedelta(hours=9))
 
 
@@ -64,11 +64,59 @@ def _distance_aptitude_only(race, entry):
             (40, 'distance_only_far'))
 
 
-def automatic_factor_scores(programme, entries, recent, day, *, now):
+def _ground_condition_research(race, entry, context):
+    """Study muddy-going codes only when the same-race /tka going is present.
+
+    A good-going race receives no synthetic ground score; JRDB heavy-ground
+    aptitude is not evidence of performance on a fast, dry or firm track.
+    """
+    if not isinstance(context, dict) or context.get('conditionProviderFetchStatus') != 'received':
+        return None, 'ground_going_unknown'
+    if (context.get('track') != race.get('track')
+            or context.get('race') != race.get('race')
+            or context.get('surface') != race.get('surface')
+            or context.get('surface') not in ('芝', 'ダート')
+            or context.get('conditionSnapshotPresent') is not True
+            or context.get('goingAvailable') is not True):
+        return None, 'ground_going_unknown'
+    going = context.get('going')
+    if going == '良':
+        return None, 'ground_good_not_scored'
+    if going not in ('稍重', '重', '不良'):
+        return None, 'ground_going_unknown'
+    mudder = entry.get('mudder_cd')
+    if type(mudder) is not str or mudder not in ('1', '2', '3'):
+        return None, 'ground_mudder_code_missing'
+    # Provisional 0-100 rule, NOT provider ability points or a win chance.
+    table = {'稍重': {'1': 80, '2': 65, '3': 45},
+             '重': {'1': 90, '2': 70, '3': 35},
+             '不良': {'1': 90, '2': 70, '3': 35}}
+    return table[going][mudder], 'ground_soft_mudder_' + mudder
+
+
+def automatic_factor_scores(programme, entries, recent, day, *, now, race_context=None):
     if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
         raise CoverageError('Server clock must include timezone')
     audit_evidence_coverage(programme, entries, [], recent, day)
     target = datetime.strptime(day, '%Y%m%d').date()
+    # Optional normalized, already-fetched /tka context: no new provider read.
+    going_by_race = {}
+    if (isinstance(race_context, dict)
+            and race_context.get('version') == 'race-context-1'
+            and race_context.get('conditionProviderFetchStatus') == 'received'
+            and type(race_context.get('raceCount')) is int
+            and isinstance(race_context.get('races'), list)
+            and race_context['raceCount'] == len(race_context['races'])
+            and len(race_context['races']) <= 120):
+        for ctx in race_context['races']:
+            if not isinstance(ctx, dict):
+                going_by_race = {}
+                break
+            coordinate = ctx.get('track'), ctx.get('race')
+            if coordinate in going_by_race:
+                going_by_race = {}
+                break
+            going_by_race[coordinate] = {**ctx, 'conditionProviderFetchStatus': 'received'}
     by_number = {(e['racekey'], e['horse_number']): e for e in entries}
     by_id = {(e['racekey'], e['horse_id']): e for e in entries if e.get('horse_id')}
     history = {}
@@ -131,8 +179,11 @@ def automatic_factor_scores(programme, entries, recent, day, *, now):
             staff = ((_percentile(jockeys[i], jockeys) + _percentile(stables[i], stables)) / 2
                      if staff_complete else None)
             distance_score, distance_reason = _distance_aptitude_only(race, entry)
+            ground_score, ground_reason = _ground_condition_research(
+                race, entry, going_by_race.get((race['track'], race['race'])))
             slots = {
                 'course_distance': _slot('course_distance', distance_score, distance_reason),
+                'ground': _slot('ground', ground_score, ground_reason),
                 'pace': _slot('pace', pace_values[scenario][styles[i]] if known_styles else None,
                               'pace_' + scenario if known_styles else 'styles_missing'),
                 'jockey_stable': _slot('jockey_stable', staff,
