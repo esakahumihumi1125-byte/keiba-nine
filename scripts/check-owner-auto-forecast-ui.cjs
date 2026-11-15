@@ -5321,6 +5321,61 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /初回固定に失敗/);
  // Sparse recent research is strictly a *separate* unsigned display.
  // Never promote held candidates to a draft, sign them or fetch a source.
+ // The independent 70-point comparison must be view-only, date-gated
+ // and reject forged race candidates without saving receipts or re-fetching.
+ const comparable=boundedRecentFixture(),compRace=comparable.races[0];
+ compRace.horseCount=compRace.runners.length; // complete declared roster as in live /tra
+ const mkFactor=(w,x,reason)=>({weight:w,score:x,points:Number((x*w/100).toFixed(4)),
+  grade:x>=85?'S':x>=70?'A':x>=55?'B':'C',reason});
+ comparable.automaticFactorScores={
+  version:'owner-automatic-factor-scores-3',policyVersion:'research-6',date:day,
+  capturedAt:'2099-01-01T09:00:00+09:00',maximumPoints:57,
+  factorKeys:['pace','jockey_stable','rotation','course_distance','ground'],
+  modelCalibrated:false,officialJraVerified:false,overallPredictionReady:false,
+  newProviderRequests:0,
+  races:[{track:'東京',race:1,postTime:compRace.postTime,status:'scored',reason:null,
+   horses:compRace.runners.map(h=>({number:h.number,factors:{
+    course_distance:mkFactor(17,90-h.number*5,'distance_only_match'),
+    pace:mkFactor(17,90-h.number*5,'pace_balanced'),
+    jockey_stable:mkFactor(10,90-h.number*5,'staff_relative_midrank'),
+    rotation:mkFactor(1,80,'rotation_14_56'),
+    ground:{weight:12,score:null,points:null,grade:'未評価',reason:'ground_good_not_scored'}
+   }}))}]};
+ comparable.comparableFactorResearch={
+  version:'owner-comparable-factor-formation-1',date:day,raceCount:1,
+  reviewedHeldRaces:1,unsignedReferenceCount:1,researchOnly:true,privateOwnerOnly:true,
+  officialJraVerified:false,formalTenFactorReady:false,predictionReady:false,
+  bettingReady:false,ticketsIssued:0,newProviderRequests:0,changesExistingDrafts:false,
+  changesExistingReceipts:false,changesExistingRoi:false,
+  races:[{track:'東京',race:1,postTime:compRace.postTime,
+   status:'comparable_research_only',first:[1,2],second:[1,2,3,4,5],
+   third:[1,2,3,4,5,6,7],points:40,
+   comparedKeys:['training','course_distance','pace','jockey_stable','rotation'],
+   comparedWeight:75,excludedKeys:['recent','ground'],
+   tiesNeverSplit:true,missingNeverImputed:true,officialJraVerified:false,
+   formalScoreReady:false,bettingReady:false,receiptIssued:false,actualPurchase:false}]
+ };
+ const comparableView=boot({manualWeekday:false});
+ await new Promise(r=>setImmediate(r));
+ comparableView.setServerRaw(comparable);
+ const compReads=comparableView.requests.length,compStore=comparableView.storage.get(STORAGE);
+ await comparableView.get('autoRun').onclick();
+ assert.equal(comparableView.requests.length,compReads+1);
+ assert.equal(comparableView.get('autoComparableFactorRaces').children.length,1);
+ assert.match(comparableView.get('autoComparableFactorRaces').children[0].children[0].textContent,/研究用 40点/);
+ assert.match(comparableView.get('autoReferencePulse').textContent,/共通評価 1件/);
+ assert.equal(comparableView.storage.get(STORAGE),compStore);
+ assert.equal(comparableView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const forgedComparable=structuredClone(comparable);
+ forgedComparable.comparableFactorResearch.races[0].first=[1,3];
+ comparableView.setServerRaw(forgedComparable);
+ await comparableView.get('autoRun').onclick();
+ assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
+ assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
+ comparableView.get('autoDay').value='2099-01-02';
+ comparableView.get('autoDay').onchange();
+ assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
+ assert.match(comparableView.get('autoComparableFactorStatus').textContent,/未取得/);
  const sparse=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  const sparseResult=boundedRecentFixture();

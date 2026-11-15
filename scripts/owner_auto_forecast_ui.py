@@ -212,6 +212,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <details><summary>資料不足のレース別内訳を見る</summary>
 <div id="autoMissingFactorRaces"></div>
 </details></details>
+<details id="autoComparableFactorPanel"><summary>調教＋比較可能な評価で3連単を研究（最大48点）</summary>
+<p class="muted">見送りレースでも、全馬に同じ評価項目が70点分以上そろう場合だけ研究候補を表示。近走が欠けたら全馬の比較から除外し、0点扱いしません。正式100点の予想・JRA公式照合・購入・固定記録・収支には反映しません。</p>
+<p id="autoComparableFactorStatus" class="muted" role="status">追加研究は未取得です。</p>
+<div id="autoComparableFactorRaces"></div>
+</details>
 <details id="autoUncertainRecentPanel"><summary>近走資料が少ないRの研究候補（署名・購入なし）</summary>
 <p class="muted">近走3点の不足をC・0点扱いせず、欠けている評価がどんなS/A/B/Cでも、調教30点による候補グループが変わらない場合に限り、参考のフォーメーションを表示します。単独の調教最上位馬が明確な場合のみ1頭軸の研究例も扱いますが、勝ち馬の保証ではありません。正式10項目採点でもJRA公式出走確認でもなく、実際の購入・固定記録・仮想収支に入れません。</p>
 <p id="autoUncertainRecentStatus" class="muted" role="status">レース取得前。追加資料を勝手に補完しません。</p>
@@ -2018,6 +2023,8 @@ function clearDraftShortcut(){
  shortcut.onclick=null;
  $('autoUncertainRecentRaces').replaceChildren();
  $('autoHeldTie48Races').replaceChildren();
+ $('autoComparableFactorRaces').replaceChildren();
+ $('autoComparableFactorStatus').textContent='追加研究は未取得です。';
  $('autoTkyTrainingRows').replaceChildren();
  $('autoTkyTrainingStatus').textContent='発走前の資料が未取得です。';
  $('autoHeldTie48Hint').textContent='同点見送りの48点以内参考：未取得。';
@@ -2068,6 +2075,7 @@ function armAutomaticOffTimer(data,day){
  const referenced=new Set([
   ...(data.uncertainRecentResearch?.races||[]),
   ...(data.heldTie48Research?.races||[]),
+  ...(data.comparableFactorResearch?.races||[]),
   ...(data.tkyTrainingStudy?.races||[]),
   ...(data.tkyArrowFormationPreview?.races||[])
  ].map(r=>r.track+'|'+r.race));
@@ -2539,6 +2547,91 @@ function renderTkyArrowFormations(data,day){
   status.textContent='調教矢印の参考グループの照合に不整合があり非表示。既存の馬券・記録は無変更。';
  }
 }
+function renderComparableFactorResearch(data,day){
+ const host=$('autoComparableFactorRaces'),status=$('autoComparableFactorStatus');
+ host.replaceChildren();
+ const p=data.comparableFactorResearch;
+ if(p===undefined){status.textContent='追加研究は未取得です。';return;}
+ try{
+  if(!p||p.version!=='owner-comparable-factor-formation-1'||
+    p.date!==day||p.raceCount!==data.raceCount||
+    p.researchOnly!==true||p.privateOwnerOnly!==true||
+    p.officialJraVerified!==false||p.formalTenFactorReady!==false||
+    p.predictionReady!==false||p.bettingReady!==false||
+    p.ticketsIssued!==0||p.newProviderRequests!==0||
+    p.changesExistingDrafts!==false||p.changesExistingReceipts!==false||
+    p.changesExistingRoi!==false||
+    !Number.isInteger(p.reviewedHeldRaces)||p.reviewedHeldRaces<0||
+    p.reviewedHeldRaces>data.holdCount||
+    !Array.isArray(p.races)||p.unsignedReferenceCount!==p.races.length||
+    p.races.length>data.holdCount)throw Error('comparable_header');
+  const originals=new Map(data.races.map(r=>[r.track+'|'+r.race,r])),
+   grades={S:3,A:2,B:1,C:0},
+   keys=['training','recent','course_distance','pace','ground','jockey_stable','rotation'],
+   weights={training:30,recent:3,course_distance:17,pace:17,ground:12,jockey_stable:10,rotation:1};
+  const seen=new Set(),cards=[];
+  for(const row of p.races){
+   const id=row?.track+'|'+row?.race,base=originals.get(id);
+   if(!row||seen.has(id)||!base||base.status!=='hold'||
+     !['missing_factors','ambiguous_equal_grade_boundary'].includes(base.reason)||
+     row.status!=='comparable_research_only'||row.postTime!==base.postTime||
+     row.tiesNeverSplit!==true||row.missingNeverImputed!==true||
+     row.officialJraVerified!==false||row.formalScoreReady!==false||
+     row.bettingReady!==false||row.receiptIssued!==false||
+     row.actualPurchase!==false||!Number.isInteger(row.points)||
+     row.points<12||row.points>48)throw Error('comparable_race');
+   seen.add(id);
+   const auto=automaticFactorRace(data,day,base);
+   if(!auto||!Array.isArray(base.runners)||base.runners.length!==auto.horses.length||
+      base.runners.length!==base.horseCount)throw Error('comparable_roster');
+   const map=new Map(auto.horses.map(h=>[h.number,h.factors])),
+     roster=new Set(base.runners.map(h=>h.number));
+   if(map.size!==base.runners.length||roster.size!==base.runners.length||
+      [...map.keys()].some(n=>!roster.has(n))||
+      base.runners.some(h=>!Object.hasOwn(grades,h.training)))throw Error('comparable_training');
+   const available=['training'];
+   if(base.runners.every(h=>Object.hasOwn(grades,h.recent)))available.push('recent');
+   for(const k of keys.slice(2))
+    if(auto.horses.every(h=>h.factors[k].points!==null))available.push(k);
+   if(!Array.isArray(row.comparedKeys)||!Array.isArray(row.excludedKeys)||
+      JSON.stringify(available)!==JSON.stringify(row.comparedKeys)||
+      JSON.stringify(keys.filter(k=>!available.includes(k)))!==JSON.stringify(row.excludedKeys)||
+      row.comparedWeight!==available.reduce((sum,k)=>sum+weights[k],0)||
+      row.comparedWeight<70)throw Error('comparable_weights');
+   const ranked=base.runners.map(h=>{
+    let point=weights.training*grades[h.training]/3;
+    if(available.includes('recent'))point+=weights.recent*grades[h.recent]/3;
+    for(const k of available.slice(1))if(k!=='recent')point+=map.get(h.number)[k].points;
+    return {number:h.number,score:Math.round(point*10000)};
+   }).sort((a,b)=>b.score-a.score||a.number-b.number);
+   const groups=[row.first,row.second,row.third];
+   if(groups.some((g,i)=>!Array.isArray(g)||g.length<(i===0?1:i===1?2:3)||
+     g.length>(i===0?3:i===1?8:18)||
+     JSON.stringify(g)!==JSON.stringify(ranked.slice(0,g.length).map(h=>h.number))||
+     (g.length<ranked.length&&ranked[g.length-1].score===ranked[g.length].score))||
+     groups[1].length<=groups[0].length||groups[2].length<groups[1].length||
+     row.points!==groups[0].length*(groups[1].length-1)*(groups[2].length-2))
+    throw Error('comparable_shape');
+   if(draftExpiredOnDevice(day,base.postTime))continue;
+   const card=dom('details');
+   card.append(dom('summary',row.track+' '+row.race+'R｜研究用 '+row.points+
+     '点（共通配点'+row.comparedWeight+'点分）'));
+   card.append(dom('p','1着 '+row.first.join('・')+'番／2着 '+
+     row.second.join('・')+'番／3着 '+row.third.join('・')+'番','picks'));
+   card.append(dom('p','全馬共通の評価：'+available.join('・')+
+     '。欠けた項目は全馬から除外。正式100点・勝率・JRA公式照合ではありません。'+
+     '買い目の署名・保存・購入・仮想収支は行いません。','muted'));
+   cards.push(card);
+  }
+  host.replaceChildren(...cards);
+  status.textContent=cards.length?'根拠のそろう見送りRから研究参考 '+cards.length+
+   'R。未確認項目の0点補完なし。':
+   '共通評価が70点分以上そろう参考0R。見送りを維持します。';
+ }catch(_){
+  host.replaceChildren();
+  status.textContent='比較材料が安全に検証できず、参考候補は非表示です。';
+ }
+}
 function renderHeldTie48(data,day){
  const host=$('autoHeldTie48Races'),
   hint=$('autoHeldTie48Hint'),status=$('autoHeldTie48Status');
@@ -2698,12 +2791,14 @@ function render(input,day){
  const workoutOrder=validateWorkoutIndexOrder(data,day);
  renderUncertainRecent(data,day);
  renderHeldTie48(data,day);
+ renderComparableFactorResearch(data,day);
  renderTkyTrainingStudy(data,day);
  renderTkyArrowFormations(data,day);
  // Existing server research already has its own strict race/roster/time
  // validation inside each renderer. Surface only those *visible* cards;
  // never turn a held race into a signed or purchased 3連単.
  const referencePanels=[
+  {id:'autoComparableFactorRaces',panel:'autoComparableFactorPanel',label:'共通評価'},
   {id:'autoUncertainRecentRaces',panel:'autoUncertainRecentPanel',label:'近走不足'},
   {id:'autoHeldTie48Races',panel:'autoHeldTie48Panel',label:'同点見送り'},
   {id:'autoTkyArrowFormationRows',panel:'autoTkyArrowFormationPanel',label:'調教矢印'}
