@@ -184,6 +184,9 @@ class AutomaticFactorTests(unittest.TestCase):
             self.assertEqual(len(result['automaticFactorScores']['races'][0]['horses']), 4)
             self.assertEqual(result['comparableFactorResearch']['unsignedReferenceCount'], 0)
             self.assertEqual(result['comparableFactorResearch']['newProviderRequests'], 0)
+            self.assertEqual(result['comparableFactorResearch']['minimumComparableWeight'], 70)
+            self.assertEqual(sum(result['comparableFactorResearch']['diagnostics'].values()),
+                             result['comparableFactorResearch']['reviewedHeldRaces'])
             self.assertFalse(result['comparableFactorResearch']['bettingReady'])
             self.assertEqual(
                 result['automaticFactorScores']['races'][0]['horses'][0]['factors']['ground']['points'],
