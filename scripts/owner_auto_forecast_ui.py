@@ -64,6 +64,13 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </details>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <p id="autoEasyPulse" class="auto-easy-pulse" role="status">開催日を取得すると、予想あり・見送りの件数を表示します。</p>
+<section id="autoFiveQuickSection" class="owner-five-quick">
+<h3>JRDB 5項目の3連単研究（追加分析）</h3>
+<p class="muted">調教30・近走3・コース17・展開17・馬場12の79点分を比較。正式100点予想ではありません。過去番組・馬場のJRDB追加照会は最大16回。ボタンを押すまで照会しません。</p>
+<button id="autoFiveQuick" type="button" disabled>5項目の研究用3連単を追加分析（最大16照会）</button>
+<p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
+<div id="autoFiveQuickSaved"></div>
+</section>
 <nav class="quick-links" aria-label="画面内の移動">
 <a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
 <a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
@@ -356,6 +363,13 @@ main{padding-bottom:65px}
  background:#102f4d;border-radius:11px;color:#f1d48c;
  font-weight:850;font-size:18px;line-height:1.48;overflow-wrap:anywhere}
 .auto-race-quick{font-size:16px;margin:10px 0}
+.owner-five-quick{margin:13px 0;padding:12px;border:1px solid #6c91ac;
+ border-radius:12px;background:#132d45}
+.owner-five-quick h3{margin:0;font-size:17px;color:#edd28b}
+.owner-five-quick button{min-height:47px;width:100%;font-weight:800}
+.owner-five-quick-card{margin:8px 0;padding:10px;border:1px solid #567c9d;
+ border-radius:10px;background:#0e2439}
+.owner-five-quick-card .picks{font-size:17px;margin:6px 0}
 .owner-fixed-quick{margin:10px 0;border:1px solid #7995af;
  padding:10px;border-radius:12px;background:#142c44}
 .owner-fixed-quick>summary{font-weight:800;color:#f3d58e;font-size:15px}
@@ -3494,6 +3508,7 @@ const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
 const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
+let fiveQuickReadDay='';
 let request=0,followingToday=true,preflightSeq=0,
  latestDisplayedDay='',latestDisplayedReport=null,latestReadAtMs=0,
  latestExpiredDraftCount=0,historySeq=0,watchResultSeq=0,
@@ -3546,6 +3561,10 @@ function clearHistory(){
  historyRosters=new Map();historyReboundWatch=new Map();historyStyles=new Map();
  historyGrades=new Map();historyStatuses=new Map();
  $('autoHistoryAudit').disabled=true;
+ fiveQuickReadDay='';
+ $('autoFiveQuick').disabled=true;
+ $('autoFiveQuickStatus').textContent='基本資料の取得前です。過去番組は追加照会していません。';
+ renderFiveQuickSaved($('autoDay').value.replaceAll('-',''));
  $('autoHistoryAuditRaces').replaceChildren();
  $('autoHistoryAuditStatus').textContent='暫定予想の取得後に利用できます。';
  $('autoHistoryStaffStatus').textContent='過去1Rの騎手・厩舎追加照合はまだ未実行。';
@@ -3920,6 +3939,38 @@ function savedResearch6DraftDay(day){
  }
  if(picked.length>36)throw Error('一日分の79点下書きが多すぎます');
  return {all,picked};
+}
+function renderFiveQuickSaved(day,expanded=false){
+ // Only already signed AND locally first-locked 79-point research tickets
+ // are displayed here. Never turn an unverified score/unsaved suggestion
+ // into a primary forecast; no provider access, no storage writes.
+ const root=$('autoFiveQuickSaved'),label=$('autoFiveQuickStatus');
+ root.replaceChildren();
+ try{
+  const records=savedResearch6DraftDay(day).picked;
+  for(const entry of records){
+   const p=entry.snapshot,card=dom('div',undefined,'owner-five-quick-card');
+   card.append(dom('p',p.track+' '+p.race+'R｜保存済み研究用3連単 '+
+    p.points+'点（100円換算 '+p.amountYen.toLocaleString('ja-JP')+
+    '円）','muted'));
+   card.append(dom('p','1着 '+p.first.join('・')+'番','picks'),
+    dom('p','2着 '+p.second.join('・')+'番','picks'),
+    dom('p','3着 '+p.third.join('・')+'番','picks'));
+   const detail=dom('details');
+   detail.append(dom('summary','発走前に固定した全'+p.points+'点を確認'));
+   detail.append(dom('p',p.tickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
+   card.append(detail);root.append(card);
+  }
+  label.textContent=records.length
+   ?'この端末に発走前固定済み '+records.length+
+    'R。署名の真正性はこの表示では未検証／JRA公式未照合。以前の買い目を変更していません。'
+   :'この日の79点3連単の固定記録は0Rです。資料不足・発走後・同点保留の可能性があります。';
+  return records.length;
+ }catch(_){
+  root.replaceChildren();
+  label.textContent='79点の端末内研究記録に不整合があります。買い目は非表示、元データは変更していません。';
+  return 0;
+ }
 }
 function showSavedResearch6Drafts(day){
  $('autoResearch6DraftSaved').replaceChildren();
@@ -6430,6 +6481,11 @@ $('autoRun').onclick=async()=>{
   ]));
   historyStatuses=new Map(body.races.map(r=>[r.track+'|'+r.race,r.status]));
   $('autoHistoryAudit').disabled=historyCoordinates.size===0;
+  $('autoFiveQuick').disabled=historyCoordinates.size===0;
+  $('autoFiveQuickStatus').textContent=historyCoordinates.size
+   ?'追加5項目の過去比較は未実行。上のボタンで最大16回照会します。'
+   :'JRDB番組が0Rのため5項目の追加照会は不要です。';
+  renderFiveQuickSaved(day);
   $('autoHistoryAuditStatus').textContent=historyCoordinates.size
    ?'必要なときに過去の同条件資料を確認できます。':'この開催日のレースはありません。';
   // render already calculated *visible* new picks, including first-write
@@ -8040,6 +8096,11 @@ $('autoHistoryAudit').onclick=async()=>{
    }
    $('autoHistoryAuditRaces').append(card);
   }
+  fiveQuickReadDay=day;
+  // The HMAC verification and first-write snapshot happened above.
+  // Date changes invalidate every in-flight study. The visible list is
+  // strictly the locally frozen snapshot, not raw provider data.
+  renderFiveQuickSaved(day,true);
   $('autoHistoryAuditStatus').textContent='過去番組の追加照合 '+raw.draCalls+
    '回／馬場 '+raw.dkaCalls+'回。未取得の過去レース '+raw.deferredPastRaces+
    '件。'+(raw.historyComplete?'指定範囲を照合済み。':'履歴に未確認あり。')+
@@ -8051,7 +8112,49 @@ $('autoHistoryAudit').onclick=async()=>{
   $('autoHistoryAuditStatus').textContent=
    '過去資料の照合ができません。履歴機能の設定・資料形式を確認してください。'+
    '予想と固定済みの買い目は変更していません。';
+  renderFiveQuickSaved(day);
+  $('autoFiveQuickStatus').textContent=
+   'JRDBの5項目追加照合を完了できませんでした。新しい79点買い目は作成せず、以前の固定記録は変更していません。';
  }}finally{if(seq===historySeq&&day===historyDay)button.disabled=false;}
+};
+// Prominent one-tap path to the EXISTING bounded owner-history pipeline.
+// No automatic paid history access on page open, after off, or navigation.
+$('autoFiveQuick').onclick=async()=>{
+ const button=$('autoFiveQuick'),day=$('autoDay').value.replaceAll('-','');
+ if(button.disabled||!/^20[0-9]{6}$/.test(day))return;
+ if(fiveQuickReadDay===day){
+  renderFiveQuickSaved(day,true);
+  $('autoFiveQuickStatus').textContent+='（この画面では追加JRDB照会0回）';
+  return;
+ }
+ if($('autoHistoryAudit').disabled||historyDay!==day){
+  $('autoFiveQuickStatus').textContent=
+   '基本資料を取得してから5項目の追加分析を実行できます。追加照会は0回。';
+  return;
+ }
+ // The staff beta checkbox adds 2-6 paid reads. This path advertises a
+ // strict 16-read cap; never silently opt the owner into the higher cost.
+ if($('autoHistoryStaffSample').checked===true){
+  $('autoFiveQuickStatus').textContent=
+   '騎手・厩舎の追加照合が選択されています。最大16回に収めるにはチェックを外してください。今回は追加照会0回。';
+  return;
+ }
+ button.disabled=true;
+ $('autoFiveQuickStatus').textContent='本人操作によりJRDB過去番組・馬場を最大16回照合中…';
+ try{
+  await $('autoHistoryAudit').onclick();
+  if(day!==$('autoDay').value.replaceAll('-',''))return;
+  if(fiveQuickReadDay===day){
+   const count=renderFiveQuickSaved(day,true);
+   $('autoFiveQuickStatus').textContent=
+    '5項目の過去照合完了。発走前の署名付き初回固定 '+count+
+    'R。資料不足や同点・発走済みは新規保存しません。'+
+    '正式10項目、JRA公式照合、実購入とは別です。';
+  }else $('autoFiveQuickStatus').textContent=
+   '5項目の追加照合を完了できませんでした。以前の固定買い目は変更していません。';
+ }finally{
+  if(day===$('autoDay').value.replaceAll('-',''))button.disabled=false;
+ }
 };
 // Never use source count alone to grade body condition or change a ticket.
 function validatePrestartBody(raw,day){
@@ -8297,6 +8400,7 @@ $('autoSavedStatus').textContent=localReceiptStatus(
  $('autoDay').value.replaceAll('-',''));
 showFixedHistory($('autoDay').value.replaceAll('-',''));
 renderFixedQuick($('autoDay').value.replaceAll('-',''),true);
+renderFiveQuickSaved($('autoDay').value.replaceAll('-',''));
 updateReviewLink();
 // If the iPhone PWA stays open over midnight, the next foreground visit
 // automatically selects the NEW JST calendar day and triggers once.
