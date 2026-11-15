@@ -182,6 +182,9 @@ class AutomaticFactorTests(unittest.TestCase):
             self.assertEqual(response['status'], '200 OK')
             result = json.loads(response['body'])
             self.assertEqual(len(result['automaticFactorScores']['races'][0]['horses']), 4)
+            self.assertEqual(result['comparableFactorResearch']['unsignedReferenceCount'], 0)
+            self.assertEqual(result['comparableFactorResearch']['newProviderRequests'], 0)
+            self.assertFalse(result['comparableFactorResearch']['bettingReady'])
             self.assertEqual(
                 result['automaticFactorScores']['races'][0]['horses'][0]['factors']['ground']['points'],
                 10.8)
