@@ -244,7 +244,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(page.urls[1],'revoked:blob:test');
  const before=[...page.storage.entries()];
  const goodBackup={format,exportedAt:'2099-01-08T23:00:00Z',sections:{
-  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[],[keys[11]]:[],[keys[12]]:[],[keys[13]]:[],[keys[14]]:[]
+  ...fixture(),[keys[0]]:[],[keys[1]]:[],[keys[2]]:[],[keys[3]]:[],[keys[4]]:[],[keys[5]]:[],[keys[6]]:[],[keys[7]]:[],[keys[8]]:[],[keys[9]]:[],[keys[10]]:[],[keys[11]]:[],[keys[12]]:[],[keys[13]]:[],[keys[14]]:[],[keys[15]]:[]
  }};
  let file=fakeFile(JSON.stringify(goodBackup));
  e('backupFile').files=[file];await e('backupFile').onchange();await flush();
@@ -408,7 +408,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.match(boot(fixture()).el('backupSummary').textContent,/調教順位固定1R/);
  // v11 (14-section) backup must preserve the newer signed sparse
  // research records, and v12 must round-trip them without modification.
- const legacy14=fixture();delete legacy14[keys[14]];
+ const legacy14=fixture();for(const k of keys.slice(14))delete legacy14[k];
  const old14=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v11',
   exportedAt:'2099-01-08T23:00:00Z',sections:legacy14}));
  const currentSparse=boot(fixture());
@@ -461,6 +461,39 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  assert.equal(boot({...fixture(),[keys[14]]:
   [sparseReference,sparseReference]}).el('backupDownload').disabled,true,
   'duplicate same-day research records are blocked');
+ // A previous v12 backup cannot erase a new cross-grade signed
+ // postrace observation that only v13 knows about.
+ const oldV12=fixture();delete oldV12[keys[15]];
+ const oldV12file=fakeFile(JSON.stringify({
+  format:'keiba-nine-owner-local-all-v12',
+  exportedAt:'2099-01-08T23:00:00Z',sections:oldV12
+ }));
+ const v12Restore=boot(fixture()),oldCross=v12Restore.storage.get(keys[15]);
+ v12Restore.el('backupFile').files=[oldV12file];
+ await v12Restore.el('backupFile').onchange();await flush();
+ assert.equal(v12Restore.el('backupRestore').disabled,false);
+ assert.match(v12Restore.el('backupPreview').textContent,/旧15種類のバックアップ/);
+ v12Restore.el('backupRestore').onclick();
+ assert.equal(v12Restore.storage.get(keys[15]),oldCross,
+  'v12 import must preserve the newer cross-band signed evidence');
+ assert.match(boot(fixture()).el('backupSummary').textContent,/調教ランク間固定1R/);
+ for(const corrupt of [
+  {...workoutCross,signature:'INVALID'},
+  {...workoutCross,snapshot:{...workoutCross.snapshot,actualPurchase:true}},
+  {...workoutCross,snapshot:{...workoutCross.snapshot,
+   prestartSignature:'0'.repeat(64)}},
+  {...workoutCross,snapshot:{...workoutCross.snapshot,
+   crossBandPairs:{...workoutCross.snapshot.crossBandPairs,
+    'S>A':{concordant:0,discordant:1}}}},
+  {...workoutCross,snapshot:{...workoutCross.snapshot,
+   observedAt:'2099-01-09T08:00:00+09:00'}}
+ ]){
+  const invalid=boot({...fixture(),[keys[15]]:[corrupt]});
+  assert.equal(invalid.el('backupDownload').disabled,true,
+   'tampered cross-grade postrace evidence must block export');
+ }
+ assert.equal(boot({...fixture(),[keys[15]]:[workoutCross,workoutCross]})
+  .el('backupDownload').disabled,true,'duplicate cross-band records cannot export');
  // v10 (13-section) backup must not destroy postrace HMAC observations.
  const old13sections=fixture();for(const k of keys.slice(13))delete old13sections[k];
  const old13=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v10',
