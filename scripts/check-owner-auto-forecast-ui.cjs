@@ -4,6 +4,37 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
+// Optional numeric factors must not corrupt older snapshots or promote a total.
+{
+ const sandbox={};vm.createContext(sandbox);
+ const start=js.indexOf('const AUTO_FACTOR_REASONS=');
+ const end=js.indexOf('function renderTenHorse(',start);
+ assert.ok(start>=0&&end>start);
+ vm.runInContext(js.slice(start,end)+'\nglobalThis.checkAuto=automaticFactorRace;',sandbox);
+ const score=(weight)=>({score:80,points:weight*.8,grade:'A',weight,reason:'staff_relative_midrank'});
+ const row={track:'東京',race:1,postTime:'12:00',status:'scored',reason:null,
+  horses:[1,2,3,4].map(number=>({number,factors:{pace:score(17),jockey_stable:score(10),rotation:score(1)}}))};
+ const data={automaticFactorScores:{version:'owner-automatic-factor-scores-1',policyVersion:'research-6',
+  date:'20990101',maximumPoints:28,capturedAt:'2099-01-01T09:00:00+09:00',
+  modelCalibrated:false,officialJraVerified:false,overallPredictionReady:false,
+  newProviderRequests:0,races:[row]}};
+ const check=value=>sandbox.checkAuto(value,'2099-01-01',row);
+ assert.equal(check(data).horses.length,4);
+ assert.equal(check({}),null);
+ for(const mutate of [
+  x=>x.date='20990102', x=>x.officialJraVerified=true,
+  x=>x.races.push(structuredClone(row)),x=>x.races[0].postTime='13:00',
+  x=>x.races[0].horses[1].number=1,
+  x=>x.races[0].horses[0].factors.pace.points=17,
+  x=>x.races[0].horses[0].factors.pace.grade='S',
+  x=>x.races[0].horses[0].factors.pace.score=null,
+  x=>x.races[0].horses[0].factors.rotation.reason='<script>',
+ ]){const bad=structuredClone(data);mutate(bad.automaticFactorScores);assert.equal(check(bad),null);}
+ const missing=structuredClone(data);
+ missing.automaticFactorScores.races[0].horses[0].factors.rotation=
+  {score:null,points:null,grade:'未評価',weight:1,reason:'previous_date_missing'};
+ assert.equal(check(missing).horses[0].factors.rotation.points,null);
+}
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
@@ -2147,7 +2178,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /id="autoSnapshotAge"/);
  assert.equal(a.get('autoRun').disabled,false);
  assert.equal(a.get('autoHistoryAudit').disabled,false);
- assert.match(a.get('autoTenStatus').textContent,/最大33点.*残り8項目は未評価.*67点/);
+ assert.match(a.get('autoTenStatus').textContent,/最大33点.*展開17・騎手厩舎10・ローテ1.*総合100点の採点は未完成/);
  const scoreCard=a.get('autoRaces').children[0].children[0];
  const scorePanel=scoreCard.children.find(x=>x.className==='ten-horse');
  // Ten-factor horse details render beneath the synthetic race card.
@@ -3852,7 +3883,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(a.get('autoRaces').children[0].children[0].children
   .find(x=>x.className==='horse-research').children[1].textContent,
   /調教30：近走3での仮順位/);
- assert.match(a.get('autoTenStatus').textContent,/残り8項目は未評価/);
+ assert.match(a.get('autoTenStatus').textContent,/総合100点の採点は未完成/);
  assert.match(a.get('autoSummary').textContent,/馬場資料の存在 1R/);
  assert.match(a.get('autoSourceSummary').textContent,/資料進捗：1R中/);
  assert.match(a.get('autoSourceSummary').textContent,/調教の仮評価がある馬 7頭/);
@@ -4082,7 +4113,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /資料の有無（採点ではない）/);
  assert.match(secondPartial.children.map(x=>x.textContent||'').join(' '),
   /追加8項目の資料確認は未完了/);
- assert.match(partialView.get('autoTenStatus').textContent,/残り8項目は未評価/);
+ assert.match(partialView.get('autoTenStatus').textContent,/総合100点の採点は未完成/);
  assert.equal(partialView.storage.get(STORAGE),earlierPartial);
  assert.equal(partialView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // /tra returned zero races: no false "no racing" assertion, no
