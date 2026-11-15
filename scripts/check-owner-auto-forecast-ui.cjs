@@ -6,11 +6,11 @@ const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
 // Optional numeric factors must not corrupt older snapshots or promote a total.
 {
- const sandbox={};vm.createContext(sandbox);
+ const sandbox={draftExpiredOnDevice:()=>false};vm.createContext(sandbox);
  const start=js.indexOf('const AUTO_FACTOR_REASONS=');
  const end=js.indexOf('function renderTenHorse(',start);
  assert.ok(start>=0&&end>start);
- vm.runInContext(js.slice(start,end)+'\nglobalThis.checkAuto=automaticFactorRace;',sandbox);
+ vm.runInContext(js.slice(start,end)+'\nglobalThis.checkAuto=automaticFactorRace;globalThis.eligibleResearchFactorPanel=eligibleResearchFactorPanel;',sandbox);
  const score=(weight)=>({score:80,points:weight*.8,grade:'A',weight,reason:'staff_relative_midrank'});
  const row={track:'東京',race:1,postTime:'12:00',status:'scored',reason:null,
   horses:[1,2,3,4].map(number=>({number,factors:{course_distance:{...score(17),reason:'distance_only_match'},pace:score(17),jockey_stable:score(10),rotation:score(1)}}))};
@@ -20,6 +20,13 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
   newProviderRequests:0,races:[row]}};
  const check=value=>sandbox.checkAuto(value,'2099-01-01',row);
  assert.equal(check(data).horses.length,4);
+ const visible=sandbox.eligibleResearchFactorPanel;
+ const fullRace={postTime:'12:00',runners:[1,2,3,4]};
+ // Populated pre-start races must not hide the four-factor drilldown.
+ assert.equal(visible(check(data),'2099-01-01',fullRace,false,false),true);
+ assert.equal(visible(check(data),'2099-01-01',fullRace,true,false),false);
+ assert.equal(visible(check(data),'2099-01-01',fullRace,false,true),false);
+ assert.equal(visible(null,'2099-01-01',fullRace,false,false),false);
  assert.equal(check({}),null);
  for(const mutate of [
   x=>x.date='20990102', x=>x.officialJraVerified=true,
