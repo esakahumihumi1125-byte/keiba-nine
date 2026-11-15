@@ -441,7 +441,7 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
   [sparseReference,sparseReference]}).el('backupDownload').disabled,true,
   'duplicate same-day research records are blocked');
  // v10 (13-section) backup must not destroy postrace HMAC observations.
- const old13sections=fixture();delete old13sections[keys[13]];
+ const old13sections=fixture();for(const k of keys.slice(13))delete old13sections[k];
  const old13=fakeFile(JSON.stringify({format:'keiba-nine-owner-local-all-v10',
   exportedAt:'2099-01-08T23:00:00Z',sections:old13sections}));
  const currentPairs=boot(fixture()),pairBefore=currentPairs.storage.get(keys[13]);
