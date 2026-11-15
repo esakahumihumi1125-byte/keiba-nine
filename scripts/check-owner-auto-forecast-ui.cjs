@@ -5324,6 +5324,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  // The independent 70-point comparison must be view-only, date-gated
  // and reject forged race candidates without saving receipts or re-fetching.
  const comparable=boundedRecentFixture(),compRace=comparable.races[0];
+ compRace.horseCount=compRace.runners.length; // complete declared roster as in live /tra
  const mkFactor=(w,x,reason)=>({weight:w,score:x,points:Number((x*w/100).toFixed(4)),
   grade:x>=85?'S':x>=70?'A':x>=55?'B':'C',reason});
  comparable.automaticFactorScores={
@@ -5360,13 +5361,6 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const compReads=comparableView.requests.length,compStore=comparableView.storage.get(STORAGE);
  await comparableView.get('autoRun').onclick();
  assert.equal(comparableView.requests.length,compReads+1);
- console.log('COMPARABLE_DEBUG',JSON.stringify({
-  status:comparableView.get('autoComparableFactorStatus').textContent,
-  autoStatus:comparableView.get('autoStatus').textContent,
-  pulse:comparableView.get('autoReferencePulse').textContent,
-  horseCount:compRace.horseCount,runCount:compRace.runners.length,
-  postTime:compRace.postTime
- }));
  assert.equal(comparableView.get('autoComparableFactorRaces').children.length,1);
  assert.match(comparableView.get('autoComparableFactorRaces').children[0].children[0].textContent,/研究用 40点/);
  assert.match(comparableView.get('autoReferencePulse').textContent,/共通評価 1件/);
