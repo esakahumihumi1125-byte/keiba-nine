@@ -2854,13 +2854,12 @@ function render(input,day){
   button.onclick=()=>{select.value='';show('','',false,reason);};
   holdTabs.append(button);
  }
- // On a normal full 3-venue race day with only a handful of research
- // drafts, opening all 36 held cards hides the actual 1/2/3-place picks.
- // Show ONLY validated, still-prestart drafts by default. The "全場" and
- // each venue/held-reason tab still expose every original race on demand.
+ // When holds (or locally expired/blocked drafts) overwhelm a small
+ // set of eligible drafts, put the useful 1/2/3-place cards first — even
+ // on a one-venue 12R meeting. Keep the full programme available via 全場.
  // This is display-only: no JRDB read, receipt edit, scoring or purchase.
- const compactForecastFirst=data.raceCount>=24&&safeDraftCount>0&&
-  safeDraftCount<=8;
+ const compactForecastFirst=safeDraftCount>0&&safeDraftCount<=8&&
+  data.raceCount-safeDraftCount>=8;
  show('', '', compactForecastFirst);
  const breakdown=Object.entries(data.holdReasons).sort((a,b)=>b[1]-a[1])
   .map(([reason,count])=>SHORT_HOLDS[reason]+' '+count+'R').join('／');
