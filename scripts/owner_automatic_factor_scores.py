@@ -10,8 +10,8 @@ from evaluation_policy import OWNER_FORMAL_FACTORS, OWNER_FORMAL_POLICY_VERSION
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import audit_evidence_coverage
 
-VERSION = 'owner-automatic-factor-scores-1'
-FACTORS = ('pace', 'jockey_stable', 'rotation')
+VERSION = 'owner-automatic-factor-scores-2'
+FACTORS = ('pace', 'jockey_stable', 'rotation', 'course_distance')
 JST = timezone(timedelta(hours=9))
 
 
@@ -42,6 +42,26 @@ def _slot(key, value, reason):
     grade = 'S' if score >= 85 else 'A' if score >= 70 else 'B' if score >= 55 else 'C'
     return {'score': score, 'points': round(score * weight / 100, 4),
             'weight': weight, 'grade': grade, 'reason': reason}
+
+
+def _distance_aptitude_only(race, entry):
+    """Uncalibrated distance-only research, not proof of course suitability."""
+    distance = race.get('distance_m')
+    if (race.get('surface') not in ('芝', 'ダート') or type(distance) is not int
+            or not 800 <= distance <= 3600):
+        return None, 'course_context_missing'
+    code = entry.get('distance_aptitude_cd1')
+    bands = ('1', '5', '2', '3')
+    if type(code) is not str or code not in (*bands, '6'):
+        return None, 'distance_code_missing'
+    if code == '6':
+        return 75, 'distance_only_versatile'
+    target = ('1' if distance <= 1400 else '5' if distance <= 1800 else
+              '2' if distance <= 2400 else '3')
+    gap = abs(bands.index(code) - bands.index(target))
+    return ((85, 'distance_only_match') if gap == 0 else
+            (65, 'distance_only_adjacent') if gap == 1 else
+            (40, 'distance_only_far'))
 
 
 def automatic_factor_scores(programme, entries, recent, day, *, now):
@@ -110,7 +130,9 @@ def automatic_factor_scores(programme, entries, recent, day, *, now):
                         65 if 7 <= gap <= 90 else 50)
             staff = ((_percentile(jockeys[i], jockeys) + _percentile(stables[i], stables)) / 2
                      if staff_complete else None)
+            distance_score, distance_reason = _distance_aptitude_only(race, entry)
             slots = {
+                'course_distance': _slot('course_distance', distance_score, distance_reason),
                 'pace': _slot('pace', pace_values[scenario][styles[i]] if known_styles else None,
                               'pace_' + scenario if known_styles else 'styles_missing'),
                 'jockey_stable': _slot('jockey_stable', staff,
