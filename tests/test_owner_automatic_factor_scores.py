@@ -55,8 +55,8 @@ class AutomaticFactorTests(unittest.TestCase):
         got = [h['factors']['course_distance'] for h in out['races'][0]['horses']]
         self.assertEqual([x['points'] for x in got], [14.45, 11.05, 11.05, 12.75])
         self.assertEqual([x['grade'] for x in got], ['S', 'B', 'B', 'A'])
-        self.assertEqual(out['maximumPoints'], 45)
-        self.assertEqual(out['version'], 'owner-automatic-factor-scores-2')
+        self.assertEqual(out['maximumPoints'], 57)
+        self.assertEqual(out['version'], 'owner-automatic-factor-scores-3')
         self.assertFalse(out['officialJraVerified'])
         self.assertFalse(out['overallPredictionReady'])
         self.assertEqual(data, original)
@@ -70,6 +70,43 @@ class AutomaticFactorTests(unittest.TestCase):
         data[0][0].update(surface='芝', distance_m=4000)
         self.assertTrue(all(h['factors']['course_distance']['points'] is None
                             for h in self.score(data)['races'][0]['horses']))
+
+    def test_muddy_going_only_from_existing_verified_context(self):
+        data = fixture()
+        data[0][0].update(surface='芝', distance_m=1600)
+        for row, code in zip(data[1], ('1', '2', '3', None)):
+            row['mudder_cd'] = code
+        context = {
+            'version': 'race-context-1', 'raceCount': 1,
+            'conditionProviderFetchStatus': 'received',
+            'races': [{'track': '東京', 'race': 1, 'surface': '芝',
+                       'going': '重', 'goingAvailable': True,
+                       'conditionSnapshotPresent': True}]}
+        before = copy.deepcopy(data), copy.deepcopy(context)
+        out = automatic_factor_scores(*data, DAY, now=NOW, race_context=context)
+        ground = [h['factors']['ground'] for h in out['races'][0]['horses']]
+        self.assertEqual([x['points'] for x in ground], [10.8, 8.4, 4.2, None])
+        self.assertEqual([x['grade'] for x in ground], ['S', 'A', 'C', '未評価'])
+        self.assertEqual(out['maximumPoints'], 57)
+        self.assertEqual(out['newProviderRequests'], 0)
+        self.assertFalse(out['overallPredictionReady'])
+        self.assertEqual((data, context), before)
+        good = copy.deepcopy(context)
+        good['races'][0]['going'] = '良'
+        good_rows = automatic_factor_scores(*data, DAY, now=NOW, race_context=good)
+        self.assertTrue(all(h['factors']['ground']['points'] is None
+                            for h in good_rows['races'][0]['horses']))
+        for invalid in (None, {}, {'version': 'race-context-1',
+                                    'raceCount': 1, 'races': context['races'],
+                                    'conditionProviderFetchStatus': 'unavailable'}):
+            skipped = automatic_factor_scores(*data, DAY, now=NOW, race_context=invalid)
+            self.assertTrue(all(h['factors']['ground']['points'] is None
+                                for h in skipped['races'][0]['horses']))
+        mismatch = copy.deepcopy(context)
+        mismatch['races'][0]['track'] = '京都'
+        skipped = automatic_factor_scores(*data, DAY, now=NOW, race_context=mismatch)
+        self.assertTrue(all(h['factors']['ground']['points'] is None
+                            for h in skipped['races'][0]['horses']))
 
     def test_odds_and_popularity_have_no_effect(self):
         data = fixture()
@@ -125,6 +162,8 @@ class AutomaticFactorTests(unittest.TestCase):
     def test_private_http_route_reuses_existing_fetches(self):
         from contextlib import ExitStack
         p, e, z = fixture()
+        p[0].update(surface='芝', distance_m=1600)
+        e[0]['mudder_cd'] = '1'
         raw = [{'racekey': '05265501', 'racedate': DAY, 'post_time': '1000',
                 'headcount': 4, 'track_type': '1', 'distance': '1600', 'turn_cd': '2'}]
         config = {**SETTINGS, 'KEIBA_RENDER_PRIVATE_ONLY': '1', 'JRDB_PRIVATE_ENABLED': '1',
@@ -135,12 +174,17 @@ class AutomaticFactorTests(unittest.TestCase):
             mocks = [stack.enter_context(patch('private_service.' + name, return_value=value))
                      for name, value in [('fetch_race_program', raw), ('fetch_horse_entries', e),
                          ('fetch_training_analysis', []), ('fetch_recent_runs', z),
-                         ('fetch_venue_conditions', [])]]
+                         ('fetch_venue_conditions', [{
+                             'holdingkey': '052655', 'racedate': DAY,
+                             'turf_condition_cd': '3', 'dirt_condition_cd': '1'}])]]
             stack.enter_context(patch('private_service._now_in_jst', return_value=NOW.isoformat()))
             response = call(app, '/api/jrdb/owner-auto-draft', QUERY_STRING='date=' + DAY)
             self.assertEqual(response['status'], '200 OK')
             result = json.loads(response['body'])
             self.assertEqual(len(result['automaticFactorScores']['races'][0]['horses']), 4)
+            self.assertEqual(
+                result['automaticFactorScores']['races'][0]['horses'][0]['factors']['ground']['points'],
+                10.8)
             for mock in mocks: mock.assert_called_once()
             unauth = call(app, '/api/jrdb/owner-auto-draft', QUERY_STRING='date=' + DAY, auth='')
             self.assertEqual(unauth['status'], '401 Unauthorized')
