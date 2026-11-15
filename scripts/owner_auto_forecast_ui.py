@@ -73,6 +73,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">ONでもアプリを開いた時だけ実行（バックグラウンドなし）。開催日ごとに過去番組・馬場を最大16回、失敗時の自動再試行なし。発走前のレースがなければ照会せず、翌開催日以降もOFFに変更できます。正式10項目・JRA公式照合ではありません。</p>
 <p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
 <div id="autoFiveQuickSaved"></div>
+<details id="autoFiveSparsePanel" class="owner-five-sparse-panel">
+<summary>近走が未評価でも区切りが変わらない参考3連単（署名・保存なし）</summary>
+<p class="muted">近走3点の評価が不明でも、S〜Cのどれになっても1・2・3着候補の区切りが変わらないレースだけ表示します。残り4項目が全頭揃っている場合のみ。購入可能な予想ではなく、発走前に閲覧する研究例です。</p>
+<p id="autoFiveSparseStatus" class="muted" role="status">5項目の過去資料を取得すると参考候補を確認します。</p>
+<div id="autoFiveSparseRaces"></div>
+</details>
 </section>
 <nav class="quick-links" aria-label="画面内の移動">
 <a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
@@ -370,6 +376,12 @@ main{padding-bottom:65px}
  border-radius:12px;background:#132d45}
 .owner-five-quick h3{margin:0;font-size:17px;color:#edd28b}
 .owner-five-quick button{min-height:47px;width:100%;font-weight:800}
+.owner-five-sparse-panel{margin:9px 0;padding:10px;border:1px solid #426b8c;
+ background:#11273c;border-radius:10px}
+.owner-five-sparse-panel summary{font-size:14px;font-weight:750;color:#d3e4f5}
+.owner-five-sparse-card{margin:9px 0;padding:9px;border:1px solid #5782a2;
+ border-radius:8px}
+.owner-five-sparse-card .picks{font-size:16px;margin:4px 0}
 .auto-five-consent{display:flex;align-items:flex-start;gap:9px;
  font-size:15px;font-weight:700;margin:12px 0 4px}
 .auto-five-consent input{width:21px;height:21px;min-width:21px;
@@ -3570,6 +3582,7 @@ function clearHistory(){
  historyRosters=new Map();historyReboundWatch=new Map();historyStyles=new Map();
  historyGrades=new Map();historyStatuses=new Map();
  $('autoHistoryAudit').disabled=true;
+ renderSparseFiveReference(null,$('autoDay').value.replaceAll('-',''));
  fiveQuickReadDay='';
  $('autoFiveQuick').disabled=true;
  $('autoFiveQuickStatus').textContent='基本資料の取得前です。過去番組は追加照会していません。';
@@ -3948,6 +3961,130 @@ function savedResearch6DraftDay(day){
  }
  if(picked.length>36)throw Error('一日分の79点下書きが多すぎます');
  return {all,picked};
+}
+// A separate, unsigned observation that never becomes a HMAC receipt,
+// a formal ranking, a wager or an item in 100-yen official settlement.
+// Recompute all cutoff proof against validated 79-point research bands.
+function validateSparseFiveReference(raw){
+ const v=raw.sparseFiveRecentReferences;
+ if(v===undefined)return null; // Legacy /history fixture.
+ const refs=raw?.newWeightFiveResearch?.races,
+       held=raw?.research6FiveDrafts?.races;
+ if(!v||v.version!=='owner-sparse-five-79-reference-1'||
+    v.policyVersion!=='research-6'||v.date!==historyDay||
+    v.raceCount!==historyCoordinates.size||
+    !Number.isInteger(v.reviewedPrestartMissingFactorRaces)||
+    v.reviewedPrestartMissingFactorRaces<0||
+    !Number.isInteger(v.safeResearchPreviewCount)||
+    v.safeResearchPreviewCount<0||
+    v.safeResearchPreviewCount>v.reviewedPrestartMissingFactorRaces||
+    !Array.isArray(v.races)||v.races.length!==v.safeResearchPreviewCount||
+    v.researchOnly!==true||v.privateOwnerOnly!==true||
+    v.formalTenFactorReady!==false||v.officialJraVerified!==false||
+    v.predictionReady!==false||v.bettingReady!==false||
+    v.actualPurchase!==false||v.ticketsIssued!==0||
+    v.changesExistingReceipts!==false||
+    v.changesExistingTickets!==false||
+    v.changesExistingRoi!==false||v.newProviderRequests!==0||
+    !v.heldReasons||typeof v.heldReasons!=='object'||
+    !Array.isArray(refs)||!Array.isArray(held)||
+    refs.length!==historyCoordinates.size||
+    held.length!==historyCoordinates.size)
+  throw Error('未評価近走の参考資料形式が不正');
+ const reasons=new Set(['too_few_runners','other_factors_missing',
+                        'no_missing_recent','unstable_boundary']);
+ let withheld=0;
+ for(const [k,n] of Object.entries(v.heldReasons)){
+  if(!reasons.has(k)||!Number.isInteger(n)||n<0)throw Error('研究保留理由が不正');
+  withheld+=n;
+ }
+ if(withheld+v.safeResearchPreviewCount!==
+    v.reviewedPrestartMissingFactorRaces)
+  throw Error('研究参考件数が不一致');
+ const studied=new Map(refs.map(r=>[r.track+'|'+r.race,r])),
+       originals=new Map(held.map(r=>[r.track+'|'+r.race,r]));
+ if(studied.size!==refs.length||originals.size!==held.length)
+  throw Error('参考資料のレース重複');
+ const weights={training:30,course_distance:17,pace:17,ground:12,recent:3},
+       points={S:3,A:2,B:1,C:0},keys=Object.keys(weights);
+ const candidates=[],used=new Set();
+ for(const candidate of v.races){
+  const id=candidate?.track+'|'+candidate?.race,
+        source=studied.get(id),before=originals.get(id);
+  if(used.has(id)||!source||!before||
+     before.status!=='hold'||before.reason!=='incomplete_five_factors'||
+     candidate.status!=='bounded_missing_recent_reference'||
+     candidate.eachCutoffProvenForEveryRecentGrade!==true||
+     candidate.receiptIssued!==false||
+     candidate.predictionReady!==false||
+     candidate.officialJraVerified!==false||
+     candidate.bettingReady!==false||candidate.actualPurchase!==false||
+     !Number.isInteger(candidate.missingRecentCount)||
+     candidate.missingRecentCount<1||
+     !Array.isArray(candidate.first)||!Array.isArray(candidate.second)||
+     !Array.isArray(candidate.third)||!Number.isInteger(candidate.points)||
+     candidate.points<12||candidate.points>40||
+     !Array.isArray(source.horses)||source.horses.length<4||
+     source.horses.length>18||source.runnerCount!==source.horses.length||
+     before.runnerCount!==source.runnerCount)
+   throw Error('近走不明の参考馬番不一致');
+  used.add(id);
+  let missing=0;
+  const ranks=source.horses.map(h=>{
+   if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
+      !h.bands||keys.some(k=>!Object.hasOwn(points,h.bands[k])&&
+                             h.bands[k]!=='未評価'))
+    throw Error('参考馬の観測情報が不正');
+   const gaps=keys.filter(k=>h.bands[k]==='未評価');
+   if(gaps.some(k=>k!=='recent'))throw Error('近走以外の欠損を軽視できません');
+   missing+=gaps.length;
+   const floor=keys.reduce((s,k)=>s+(h.bands[k]==='未評価'?
+       0:weights[k]*points[h.bands[k]]),0);
+   return {number:h.number,floor,ceiling:floor+gaps.length*9};
+  });
+  if(new Set(ranks.map(x=>x.number)).size!==ranks.length||
+     missing!==candidate.missingRecentCount)
+   throw Error('未評価近走の頭数不一致');
+  ranks.sort((a,b)=>b.floor-a.floor||b.ceiling-a.ceiling||a.number-b.number);
+  const arrays=[candidate.first,candidate.second,candidate.third];
+  const [a,b,c]=arrays.map(x=>x.length);
+  if(a<1||a>3||b<=a||b>5||c<b||c>9||c>ranks.length||
+     a*(b-1)*(c-2)!==candidate.points||
+     arrays.some((v,i)=>new Set(v).size!==v.length||
+       v.some((n,j)=>n!==ranks[j].number))||
+     [a,b,c].some(n=>n<ranks.length&&
+       Math.min(...ranks.slice(0,n).map(x=>x.floor))<=
+       Math.max(...ranks.slice(n).map(x=>x.ceiling))))
+   throw Error('参考3連単の区切りは近走不明で変わり得る');
+  candidates.push({...candidate,postTime:before.postTime});
+ }
+ return candidates;
+}
+function renderSparseFiveReference(refs,day){
+ const root=$('autoFiveSparseRaces'),status=$('autoFiveSparseStatus');
+ root.replaceChildren();
+ if(refs===null){
+  status.textContent='この履歴資料には未評価近走の参考機能がありません。追加照会はしません。';
+  $('autoFiveSparsePanel').open=false;
+  return;
+ }
+ let current=0;
+ for(const r of refs){
+  if(!r.postTime||draftExpiredOnDevice(day,r.postTime))continue;
+  const box=dom('div',undefined,'owner-five-sparse-card');
+  box.append(dom('p',r.track+' '+r.race+'R｜参考'+r.points+
+    '点・近走未評価'+r.missingRecentCount+
+    '頭｜署名・保存なし／正式予想ではない','muted'));
+  box.append(dom('p','1着候補：'+r.first.join('・')+'番','picks'),
+   dom('p','2着候補：'+r.second.join('・')+'番','picks'),
+   dom('p','3着候補：'+r.third.join('・')+'番','picks'));
+  root.append(box);current++;
+ }
+ status.textContent=current
+  ?'近走不明でも境界が安定した研究参考例 '+current+
+   'R（発走前のみ）。買い目の固定・署名・購入・結果集計はしません。'
+  :'参考例は0R。全頭の他4項目が不足、順位境界が変動する、または発走後の場合は表示しません。';
+ $('autoFiveSparsePanel').open=current>0;
 }
 function renderFiveQuickSaved(day,expanded=false){
  // Only already signed AND locally first-locked 79-point research tickets
@@ -7370,6 +7507,9 @@ $('autoHistoryAudit').onclick=async()=>{
   if(seq!==historySeq)return;
   if(!res.ok)throw Error('履歴機能は利用不可');
   const rows=validateHistory(raw);
+  // This read-only preview is checked against the already-validated
+  // five-factor grades, never a client-supplied score or results feed.
+  const sparseFive=validateSparseFiveReference(raw);
   if(wantStaff&&staffBatch===3){
    const x=raw?.pastStaffBatch;
    const ints=['requestedRaceLimit','selectedPastRaceCount','providerReadCount',
@@ -8110,6 +8250,7 @@ $('autoHistoryAudit').onclick=async()=>{
    $('autoHistoryAuditRaces').append(card);
   }
   fiveQuickReadDay=day;
+  renderSparseFiveReference(sparseFive,day);
   // The HMAC verification and first-write snapshot happened above.
   // Date changes invalidate every in-flight study. The visible list is
   // strictly the locally frozen snapshot, not raw provider data.
@@ -8120,6 +8261,7 @@ $('autoHistoryAudit').onclick=async()=>{
    ' 予想・購入・保存済みの買い目は変更しません。';
  }catch(_){if(seq===historySeq){
   $('autoHistoryAuditRaces').replaceChildren();
+  renderSparseFiveReference(null,day);
   $('autoHistoryStaffStatus').textContent=
    '騎手・厩舎の資料確認に失敗。既存の買い目や成績は変更していません。';
   $('autoHistoryAuditStatus').textContent=
