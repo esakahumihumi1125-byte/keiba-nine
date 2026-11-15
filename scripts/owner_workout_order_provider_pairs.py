@@ -17,6 +17,9 @@ from owner_workout_order_receipts import (
 VERSION = "owner-workout-order-provider-pairs-1"
 MAX_ROWS = 2160
 MAX_RACES = 36
+# Grade-order hypothesis to evaluate, not a proven performance ordering.
+# These have disjoint source labels from numeric within-band index ranks.
+CROSS_BAND_PAIRS = ("S>A", "S>B", "S>C", "A>B", "A>C", "B>C")
 
 
 def compare_workout_order_with_provider(snapshots, rows, day, *,
@@ -74,6 +77,8 @@ def compare_workout_order_with_provider(snapshots, rows, day, *,
 
     summary = {grade: {"concordant": 0, "discordant": 0,
                        "equalIndexExcluded": 0} for grade in BANDS}
+    cross_summary = {key: {"concordant": 0, "discordant": 0}
+                     for key in CROSS_BAND_PAIRS}
     output = []
     for snap in frozen:
         coord = snap["track"], snap["race"]
@@ -86,6 +91,8 @@ def compare_workout_order_with_provider(snapshots, rows, day, *,
                 and set(group["places"]) == set(range(1, n + 1)))
         counts = {grade: {"concordant": 0, "discordant": 0,
                           "equalIndexExcluded": 0} for grade in BANDS}
+        cross_counts = {key: {"concordant": 0, "discordant": 0}
+                        for key in CROSS_BAND_PAIRS}
         if good:
             finishes = {number: place for place, number in group["places"].items()}
             for grade in BANDS:
@@ -102,11 +109,31 @@ def compare_workout_order_with_provider(snapshots, rows, day, *,
             for grade in BANDS:
                 for k in summary[grade]:
                     summary[grade][k] += counts[grade][k]
+            # This compares ranks across *different* original training
+            # S/A/B/C categories. It is not an extension of index ranks:
+            # within-band ties are not involved, nor is a 30pt score.
+            # Full-field finish order was already validated above.
+            for key in CROSS_BAND_PAIRS:
+                upper, lower = key.split(">")
+                high = [h for h in snap["horses"]
+                        if h["trainingBand"] == upper]
+                low = [h for h in snap["horses"]
+                       if h["trainingBand"] == lower]
+                for a in high:
+                    for b in low:
+                        metric = ("concordant"
+                                  if finishes[a["number"]] < finishes[b["number"]]
+                                  else "discordant")
+                        cross_counts[key][metric] += 1
+                        cross_summary[key][metric] += 1
+                if sum(cross_counts[key].values()) != len(high) * len(low):
+                    raise WorkoutLockError("Cross-band pair count mismatch")
         output.append({
             "track": coord[0], "race": coord[1],
             "providerStatus": "complete_provisional_order" if good else "pending",
             "comparedRunnerCount": n if good else 0,
             "pairCounts": counts if good else None,
+            "crossBandPairs": cross_counts if good else None,
             "officialJraVerified": False,
             "predictionVerified": False,
         })
@@ -118,6 +145,10 @@ def compare_workout_order_with_provider(snapshots, rows, day, *,
         "studiedRaceCount": sum(
             x["providerStatus"] == "complete_provisional_order" for x in output),
         "observedPairsByTrainingBand": summary,
+        "observedCrossBandPairs": cross_summary,
+        "crossBandHypothesisOnly": True,
+        "crossBandResultsSigned": False,
+        "sourceReadsForCrossBand": 0,
         "officialJraVerified": False, "accuracyVerified": False,
         "calibrationReady": False, "scoreReady": False,
         "newScoringRubric": False, "bettingReady": False,
@@ -127,5 +158,8 @@ def compare_workout_order_with_provider(snapshots, rows, day, *,
         "note": ("発走前に固定した調教指数の同ランク内順序とJRDB暫定着順の"
                  "一致・不一致ペア数を参考集計。元指数が同点の組は対象外。"
                  "資料欠落・取消等を含むレースは未集計。"
-                 "JRA公式結果未照合で、精度・勝率・30点の採点基準ではありません。"),
+                 "異なる調教S/A/B/C同士の優劣も同じ発走前記録と"
+                "JRDB暫定着順で比較するが、ランク間の集計はこの画面限りの"
+                "未署名研究値。追加JRDB照会0回。"
+                "JRA公式結果未照合で、精度・勝率・30点の採点基準ではありません。"),
     }
