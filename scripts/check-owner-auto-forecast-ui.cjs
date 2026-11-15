@@ -9,6 +9,7 @@ const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
 const R6_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
+const SPARSE_STORAGE='keiba-nine-owner-sparse-five-reference-receipts-v1';
 const day='20990101', date='2099-01-01';
 const pairs=[['S','S',8,'S'],['S','A',7,'A'],['A','A',6,'A'],
  ['A','B',5,'B'],['B','B',4,'B'],['B','C',3,'C'],['C','C',2,'C']];
@@ -1467,6 +1468,18 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     officialJraVerified:false,independentJraScheduleVerified:false,
     formalPredictionReady:false,resultComparisonReady:false,
     bettingReady:false,actualPurchase:false,autoPurchase:false
+   }:{error:'bad_signature'}};
+  }
+  if(url==='/api/owner-sparse-five-verify'){
+   const args=JSON.parse(options.body||'{}');
+   const ok=Array.isArray(args.receipts)&&args.receipts.length>0&&
+    args.receipts.every(x=>x.signature==='f'.repeat(64));
+   return {ok,json:async()=>ok?{
+    version:'owner-sparse-five-verify-1',serverSigned:true,
+    recordCount:args.receipts.length,
+    researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+    formalPredictionReady:false,resultComparisonReady:false,
+    bettingReady:false,actualPurchase:false,newProviderReads:0
    }:{error:'bad_signature'}};
   }
   if(url==='/api/owner-three-core-verify'){
@@ -5546,6 +5559,59 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(quickStaff.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
  assert.match(quickStaff.get('autoFiveQuickStatus').textContent,
   /最大16回に収めるにはチェックを外して/);
+ // The prestart 79-point sparse observation is a DISTINCT signature
+ // archive: no purchase, no ROI, and no backdated new candidate.
+ const sparseTickets=[];
+ for(const a of [1,2])for(const b of [1,2,3,4,5])
+  for(const c of [1,2,3,4,5,6,7])
+   if(a!==b&&a!==c&&b!==c)sparseTickets.push([a,b,c]);
+ const sparseEntry={signature:'f'.repeat(64),snapshot:{
+  version:'owner-sparse-five-reference-receipt-1',
+  date:day,track:'東京',race:1,
+  sourceKind:'prestart-sparse-recent-79-research-record',
+  capturedAt:'2099-01-01T09:00:00+09:00',
+  scheduledOffAt:'2099-01-01T12:00:00+09:00',
+  policyVersion:'research-6',
+  runnerCount:7,missingRecentCount:7,
+  first:[1,2],second:[1,2,3,4,5],
+  third:[1,2,3,4,5,6,7],
+  tickets:sparseTickets,points:40,amountYen:4000,
+  researchOnly:true,scoreCalibrated:false,
+  officialJraVerified:false,predictionReady:false,
+  bettingReady:false,actualPurchase:false
+ }};
+ const sparseStored=new Map([[SPARSE_STORAGE,JSON.stringify([sparseEntry])]]);
+ const sparseView=boot({manualWeekday:false,seedStorage:sparseStored});
+ sparseView.get('autoDay').value=date;
+ sparseView.get('autoDay').onchange();
+ assert.equal(sparseView.get('autoFiveSparseSaved').children.length,1,
+  'frozen sparse research must be visible in daily owner app after reopen');
+ assert.match(sparseView.get('autoFiveSparseSavedStatus').textContent,
+  /初回固定|発走前固定/);
+ assert.match(sparseView.get('autoFiveSparseSaved').children[0]
+  .children[0].textContent,/東京 1R.*40組/);
+ assert.match(sparseView.get('autoFiveSparseSaved').children[0]
+  .children[1].textContent,/1着 1・2番/);
+ assert.match(sparseView.get('autoFiveSparseSaved').children[0]
+  .children[4].children[1].textContent,/1→2→3/);
+ assert.equal(sparseView.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
+ assert.equal(sparseView.storage.get(SPARSE_STORAGE),sparseStored.get(SPARSE_STORAGE));
+ assert.equal(sparseView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ sparseView.get('autoDay').value='2099-01-03';
+ sparseView.get('autoDay').onchange();
+ assert.equal(sparseView.get('autoFiveSparseSaved').children.length,0,
+  "a different day cannot show old reference as today's pick");
+ sparseView.get('autoDay').value=date;sparseView.get('autoDay').onchange();
+ assert.equal(sparseView.get('autoFiveSparseSaved').children.length,1);
+ const corruptSparse=structuredClone(sparseEntry);
+ corruptSparse.snapshot.tickets[0]=[1,1,2];
+ const forgedStorage=new Map([[SPARSE_STORAGE,JSON.stringify([corruptSparse])]]);
+ const badSparse=boot({manualWeekday:false,seedStorage:forgedStorage});
+ badSparse.get('autoDay').value=date;badSparse.get('autoDay').onchange();
+ assert.equal(badSparse.get('autoFiveSparseSaved').children.length,0);
+ assert.match(badSparse.get('autoFiveSparseSavedStatus').textContent,/不整合/);
+ assert.equal(badSparse.storage.get(SPARSE_STORAGE),forgedStorage.get(SPARSE_STORAGE));
+ assert.equal(badSparse.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
  // A legitimate server-signed response can arrive AFTER a race has begun.
  // Never newly save or display that formation; keep other pre-off races.
  const delayed=boot();

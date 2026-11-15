@@ -91,6 +91,10 @@ from owner_research6_draft_receipts import (
     issue_research6_draft_receipts, verify_research6_draft_receipts,
     DraftReceiptError,
 )
+from owner_sparse_five_receipts import (
+    issue_sparse_reference_receipts, verify_sparse_reference_receipts,
+    SparseReferenceReceiptError,
+)
 from owner_staff_study_receipts import (
     issue_staff_study_receipt, verify_staff_study_receipts,
     StaffStudyReceiptError,
@@ -2913,6 +2917,13 @@ def create_app(settings=None):
                     preview['research6DraftCapture'] = issue_research6_draft_receipts(
                         preview, programme, password, date, now=stamp
                     )
+                # Separate HMAC research provenance from the ungraded
+                # sparse/near-missing recent preview. No signing on
+                # browser-provided scores, no new source calls, no bets.
+                if 'sparseFiveRecentReferences' in preview:
+                    preview['sparseFiveCapture'] = issue_sparse_reference_receipts(
+                        preview, programme, password, date, now=stamp
+                    )
                 if staff_sample:
                     # Only the prevalidated fixed first 1 or 3 historical
                     # races. No retries or arbitrary browser-supplied keys.
@@ -2949,7 +2960,7 @@ def create_app(settings=None):
             except (JRDBError, ProgrammeFormatError, CoverageError,
                     HistoryFetchError, WatchReceiptError, CoreReceiptError,
                     FiveCoreReceiptError, DraftReceiptError,
-                    StaffStudyReceiptError, ValueError,
+                    SparseReferenceReceiptError, StaffStudyReceiptError, ValueError,
                     TypeError, KeyError):
                 return response('502 Bad Gateway', {
                     'error': '過去馬場の照合に失敗しました。履歴や実接続を確認してください。'})
@@ -2990,6 +3001,42 @@ def create_app(settings=None):
                 'officialJraVerified': False, 'formalTenPointReady': False,
                 'bettingReady': False, 'actualPurchase': False,
                 'sourceProviderReadCount': 0,
+            })
+        if method == 'POST' and path == '/api/owner-sparse-five-verify':
+            # Verify only the first-written *research reference* HMAC.
+            # No JRDB source reads, result settlement, purchases or signing.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人用の発走前研究記録のみ検証できます。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {
+                    'error': '発走前研究記録の確認形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < size <= 250000:
+                    raise SparseReferenceReceiptError('Invalid verification size')
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise SparseReferenceReceiptError('Truncated research record')
+                args = json.loads(raw)
+                if not isinstance(args, dict) or set(args) != {'date', 'receipts'}:
+                    raise SparseReferenceReceiptError('Invalid research fields')
+                verified = verify_sparse_reference_receipts(
+                    args['receipts'], password, args['date'])
+            except (SparseReferenceReceiptError, ValueError, TypeError, KeyError):
+                return response('400 Bad Request', {
+                    'error': '発走前研究記録の署名を照合できませんでした。'})
+            return response('200 OK', {
+                'version': 'owner-sparse-five-verify-1',
+                'serverSigned': True, 'recordCount': len(verified),
+                'researchOnly': True, 'privateOwnerOnly': True,
+                'officialJraVerified': False, 'formalPredictionReady': False,
+                'bettingReady': False, 'actualPurchase': False,
+                'resultComparisonReady': False, 'newProviderReads': 0,
             })
         if method == 'POST' and path == '/api/owner-research6-draft-verify':
             # Verify captured research tickets ONLY. No client-supplied signing,

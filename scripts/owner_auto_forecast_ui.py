@@ -74,10 +74,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
 <div id="autoFiveQuickSaved"></div>
 <details id="autoFiveSparsePanel" class="owner-five-sparse-panel">
-<summary>近走が未評価でも区切りが変わらない参考3連単（署名・保存なし）</summary>
-<p class="muted">近走3点の評価が不明でも、S〜Cのどれになっても1・2・3着候補の区切りが変わらないレースだけ表示します。残り4項目が全頭揃っている場合のみ。購入可能な予想ではなく、発走前に閲覧する研究例です。</p>
+<summary>近走未評価でも境界が変わらない参考3連単・発走前記録</summary>
+<p class="muted">近走3点が未評価でも、S〜Cのどれになっても候補区切りが変わらない場合だけの研究参考例です。残り4項目は全頭観測済み。<strong>正式10項目予想・馬券推奨・実購入・確定回収率ではありません。</strong></p>
 <p id="autoFiveSparseStatus" class="muted" role="status">5項目の過去資料を取得すると参考候補を確認します。</p>
 <div id="autoFiveSparseRaces"></div>
+<p id="autoFiveSparseSavedStatus" class="muted" role="status">この端末の発走前固定研究例は未確認です。</p>
+<div id="autoFiveSparseSaved"></div>
 </details>
 </section>
 <nav class="quick-links" aria-label="画面内の移動">
@@ -3526,6 +3528,7 @@ const WATCH_STORAGE='keiba-nine-owner-rebound-watch-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
 const R6_DRAFT_STORAGE='keiba-nine-owner-research6-draft-receipts-v1';
+const SPARSE_RESEARCH_STORAGE='keiba-nine-owner-sparse-five-reference-receipts-v1';
 const STAFF_STUDY_STORAGE='keiba-nine-owner-staff-study-sessions-v1';
 let fiveQuickReadDay='';
 const AUTO_FIVE_CONSENT_KEY='keiba-nine-owner-five-weekend-consent-v1';
@@ -3583,6 +3586,7 @@ function clearHistory(){
  historyGrades=new Map();historyStatuses=new Map();
  $('autoHistoryAudit').disabled=true;
  renderSparseFiveReference(null,$('autoDay').value.replaceAll('-',''));
+ renderSavedSparse($('autoDay').value.replaceAll('-',''));
  fiveQuickReadDay='';
  $('autoFiveQuick').disabled=true;
  $('autoFiveQuickStatus').textContent='基本資料の取得前です。過去番組は追加照会していません。';
@@ -4082,9 +4086,169 @@ function renderSparseFiveReference(refs,day){
  }
  status.textContent=current
   ?'近走不明でも境界が安定した研究参考例 '+current+
-   'R（発走前のみ）。買い目の固定・署名・購入・結果集計はしません。'
+   'R（発走前のみ）。この表示は署名なし。サーバーで発走前研究記録として署名できた場合のみ初回固定。正式予想・実購入・結果集計とは別です。'
   :'参考例は0R。全頭の他4項目が不足、順位境界が変動する、または発走後の場合は表示しません。';
  $('autoFiveSparsePanel').open=current>0;
+}
+// Different HMAC domain from complete 79-point draft tickets. A proof
+// of prestart research capture only; never a formal recommendation or ROI.
+function validateSparseSavedEntry(entry){
+ if(!entry||typeof entry!=='object'||Array.isArray(entry)||
+    Object.keys(entry).sort().join(',')!=='signature,snapshot'||
+    typeof entry.signature!=='string'||!/^[a-f0-9]{64}$/.test(entry.signature))
+  throw Error('発走前研究例の署名形式不正');
+ const p=entry.snapshot;
+ const fields=['version','date','track','race','sourceKind','capturedAt',
+   'scheduledOffAt','policyVersion','runnerCount','missingRecentCount',
+   'first','second','third','tickets','points','amountYen',
+   'researchOnly','scoreCalibrated','officialJraVerified',
+   'predictionReady','bettingReady','actualPurchase'];
+ if(!p||typeof p!=='object'||Array.isArray(p)||
+    Object.keys(p).sort().join(',')!==fields.sort().join(',')||
+    p.version!=='owner-sparse-five-reference-receipt-1'||
+    p.sourceKind!=='prestart-sparse-recent-79-research-record'||
+    p.policyVersion!=='research-6'||p.researchOnly!==true||
+    p.scoreCalibrated!==false||p.officialJraVerified!==false||
+    p.predictionReady!==false||p.bettingReady!==false||
+    p.actualPurchase!==false||
+    typeof p.date!=='string'||!/^20\d{6}$/.test(p.date)||
+    !['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']
+       .includes(p.track)||
+    !Number.isInteger(p.race)||p.race<1||p.race>12||
+    !Number.isInteger(p.runnerCount)||p.runnerCount<4||p.runnerCount>18||
+    !Number.isInteger(p.missingRecentCount)||
+    p.missingRecentCount<1||p.missingRecentCount>p.runnerCount||
+    typeof p.capturedAt!=='string'||typeof p.scheduledOffAt!=='string'||
+    !/(?:Z|[+-]\d\d:\d\d)$/.test(p.capturedAt)||
+    !/(?:Z|[+-]\d\d:\d\d)$/.test(p.scheduledOffAt))
+  throw Error('発走前研究例の形が不正');
+ const locked=new Date(p.capturedAt),off=new Date(p.scheduledOffAt);
+ if(!Number.isFinite(locked.valueOf())||!Number.isFinite(off.valueOf())||
+    locked>=off||off-locked>7*86400000||
+    off.toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'})
+     .replaceAll('-','')!==p.date)
+  throw Error('発走前の研究時刻不一致');
+ const validNumbers=a=>Array.isArray(a)&&a.length>0&&
+  a.every(n=>Number.isInteger(n)&&n>=1&&n<=18)&&
+  new Set(a).size===a.length;
+ if(!validNumbers(p.first)||!validNumbers(p.second)||
+    !validNumbers(p.third)||p.first.length>3||
+    p.second.length<=p.first.length||p.second.length>5||
+    p.third.length<p.second.length||p.third.length>9||
+    p.third.length>p.runnerCount||
+    p.first.join('|')!==p.second.slice(0,p.first.length).join('|')||
+    p.second.join('|')!==p.third.slice(0,p.second.length).join('|'))
+  throw Error('参考候補の区切りが不正');
+ const tickets=[];
+ for(const a of p.first)for(const b of p.second)for(const c of p.third)
+  if(a!==b&&b!==c&&a!==c)tickets.push([a,b,c]);
+ if(!Array.isArray(p.tickets)||tickets.length<12||tickets.length>40||
+    JSON.stringify(tickets)!==JSON.stringify(p.tickets)||
+    p.points!==tickets.length||p.amountYen!==p.points*100)
+  throw Error('参考3連単の全組合せが不正');
+ return p;
+}
+function savedSparseDay(day){
+ if(!/^20\d{6}$/.test(day))throw Error('研究履歴の日付不正');
+ const raw=localStorage.getItem(SPARSE_RESEARCH_STORAGE);
+ if(raw&&raw.length>600000)throw Error('研究履歴が保存上限');
+ const rows=JSON.parse(raw||'[]');
+ if(!Array.isArray(rows)||rows.length>360)throw Error('研究履歴の配列不正');
+ const seen=new Set(),chosen=[];
+ for(const entry of rows){
+  const snap=validateSparseSavedEntry(entry),id=snap.date+'|'+snap.track+'|'+snap.race;
+  if(seen.has(id))throw Error('研究履歴の同日同R重複');
+  seen.add(id);
+  if(snap.date===day)chosen.push(entry);
+ }
+ if(chosen.length>36)throw Error('研究履歴の同日件数不正');
+ return {all:rows,chosen};
+}
+function renderSavedSparse(day){
+ const container=$('autoFiveSparseSaved'),status=$('autoFiveSparseSavedStatus');
+ container.replaceChildren();
+ try{
+  const {chosen}=savedSparseDay(day);
+  status.textContent=chosen.length
+   ?'この端末に発走前固定した近走未評価の研究例 '+chosen.length+
+     'R。サーバー署名は今は未再検証。正式予想・購入・回収率への反映はなし。'
+   :'選択日の発走前固定済み参考研究例は0R。';
+  for(const entry of chosen){
+   const p=entry.snapshot,box=dom('div',undefined,'owner-five-sparse-card');
+   box.append(dom('p',p.track+' '+p.race+'R｜発走前に固定した研究例 '+
+    p.points+'組｜近走未評価'+p.missingRecentCount+
+    '頭（参考100円換算'+p.amountYen.toLocaleString('ja-JP')+
+    '円・未購入）','muted'));
+   box.append(dom('p','1着 '+p.first.join('・')+'番','picks'),
+    dom('p','2着 '+p.second.join('・')+'番','picks'),
+    dom('p','3着 '+p.third.join('・')+'番','picks'));
+   const detail=dom('details');
+   detail.append(dom('summary','保存された参考組合せ '+p.points+'組'));
+   detail.append(dom('p',p.tickets.map(x=>x.join('→')).join(' / '),'ticket-list'));
+   box.append(detail);container.append(box);
+  }
+  if(chosen.length)$('autoFiveSparsePanel').open=true;
+  return chosen.length;
+ }catch(_){
+  container.replaceChildren();
+  status.textContent='保存済み近走未評価研究例の形式に不整合。表示せず、既存データを変更しません。';
+  return 0;
+ }
+}
+function validateSparseResearchCapture(capture,refs,day){
+ if(!capture||capture.version!=='owner-sparse-five-reference-receipt-1'||
+    capture.date!==day||capture.serverSigned!==true||
+    capture.researchOnly!==true||capture.privateOwnerOnly!==true||
+    capture.officialJraVerified!==false||
+    capture.predictionReady!==false||capture.bettingReady!==false||
+    capture.actualPurchase!==false||
+    capture.changesExistingReceipts!==false||
+    capture.changesExistingRoi!==false||
+    !Number.isInteger(capture.receiptCount)||capture.receiptCount<0||
+    capture.receiptCount>36||!Array.isArray(capture.receipts)||
+    capture.receipts.length!==capture.receiptCount||
+    !Number.isInteger(capture.expiredBeforeSigning)||
+    capture.expiredBeforeSigning<0||
+    capture.expiredBeforeSigning+capture.receiptCount>refs.length)
+  throw Error('未評価近走の研究署名件数が不正');
+ const byRace=new Map(refs.map(r=>[r.track+'|'+r.race,r])),seen=new Set();
+ for(const entry of capture.receipts){
+  const p=validateSparseSavedEntry(entry),id=p.track+'|'+p.race,r=byRace.get(id);
+  if(p.date!==day||seen.has(id)||!r||
+     r.status!=='bounded_missing_recent_reference'||
+     r.points!==p.points||r.missingRecentCount!==p.missingRecentCount||
+     p.runnerCount<Math.max(...r.third)||p.points!==p.amountYen/100||
+     r.postTime!==p.scheduledOffAt.substring(11,16)||
+     JSON.stringify(r.first)!==JSON.stringify(p.first)||
+     JSON.stringify(r.second)!==JSON.stringify(p.second)||
+     JSON.stringify(r.third)!==JSON.stringify(p.third))
+    throw Error('保存予定の参考例と元資料が一致しない');
+  seen.add(id);
+ }
+ return capture.receipts;
+}
+function saveSparseResearchOnce(receipts,day){
+ if(!receipts.length)return '発走前の近走未評価研究例は0R。';
+ const {all}=savedSparseDay(day),seen=new Set(all.map(x=>{
+  const p=x.snapshot;return p.date+'|'+p.track+'|'+p.race;
+ }));
+ const next=all.slice();let added=0,old=0,late=0;
+ for(const entry of receipts){
+  const p=validateSparseSavedEntry(entry),id=p.date+'|'+p.track+'|'+p.race;
+  if(seen.has(id)){old++;continue;}
+  if(draftExpiredOnDevice(day,p.scheduledOffAt.substring(11,16))){late++;continue;}
+  next.push(entry);seen.add(id);added++;
+ }
+ const payload=JSON.stringify(next);
+ if(next.length>360||payload.length>600000)throw Error('近走未評価の履歴保存上限');
+ if(added){
+  localStorage.setItem(SPARSE_RESEARCH_STORAGE,payload);
+  if(localStorage.getItem(SPARSE_RESEARCH_STORAGE)!==payload)
+   throw Error('固定記録を読み返せません');
+ }
+ return '近走未評価研究例の初回固定：新規'+added+
+  'R／既存'+old+'R／発走後の保存を中止'+late+
+  'R。以前の研究例は上書きしません。';
 }
 function renderFiveQuickSaved(day,expanded=false){
  // Only already signed AND locally first-locked 79-point research tickets
@@ -7510,6 +7674,8 @@ $('autoHistoryAudit').onclick=async()=>{
   // This read-only preview is checked against the already-validated
   // five-factor grades, never a client-supplied score or results feed.
   const sparseFive=validateSparseFiveReference(raw);
+  if(raw.sparseFiveCapture!==undefined&&sparseFive===null)
+   throw Error('参照資料がない研究署名');
   if(wantStaff&&staffBatch===3){
    const x=raw?.pastStaffBatch;
    const ints=['requestedRaceLimit','selectedPastRaceCount','providerReadCount',
@@ -7798,6 +7964,41 @@ $('autoHistoryAudit').onclick=async()=>{
   }
   showSavedResearch6Drafts(day);
   $('autoResearch6DraftSaveStatus').textContent=r6Message;
+  // A completely separate HMAC domain for bounded recent-unknown
+  // *research observations*. A signature attests capture time only.
+  // Verify server HMAC before local first-write. No purchase/ROI.
+  if(raw.sparseFiveCapture!==undefined){
+   try{
+    const entries=validateSparseResearchCapture(
+     raw.sparseFiveCapture,sparseFive,day);
+    if(entries.length){
+     const body=JSON.stringify({date:day,receipts:entries});
+     if(body.length>250000)throw Error('研究記録の検証サイズ超過');
+     const reply=await fetch('/api/owner-sparse-five-verify',{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+       'Accept':'application/json'},body
+     });
+     const checked=await reply.json();
+     if(seq!==historySeq||historyDay!==day)return;
+     if(!reply.ok||checked.version!=='owner-sparse-five-verify-1'||
+        checked.serverSigned!==true||checked.recordCount!==entries.length||
+        checked.researchOnly!==true||checked.privateOwnerOnly!==true||
+        checked.officialJraVerified!==false||
+        checked.formalPredictionReady!==false||
+        checked.resultComparisonReady!==false||
+        checked.bettingReady!==false||checked.actualPurchase!==false||
+        checked.newProviderReads!==0)
+      throw Error('研究例の署名検証失敗');
+    }
+    $('autoFiveSparseSavedStatus').textContent=
+     saveSparseResearchOnce(entries,day);
+   }catch(_){
+    $('autoFiveSparseSavedStatus').textContent=
+     '近走未評価研究例の署名検証または保存が失敗。以前の記録を変更していません。';
+   }
+  }
+  renderSavedSparse(day);
   // The server checks signatures, not just browser-provided timestamps.
   // Never send an outcome or an officialVerified flag from the device.
   let watchSaveStatus='発走前の署名付き候補はまだ固定できていません。';
@@ -8251,6 +8452,7 @@ $('autoHistoryAudit').onclick=async()=>{
   }
   fiveQuickReadDay=day;
   renderSparseFiveReference(sparseFive,day);
+  renderSavedSparse(day);
   // The HMAC verification and first-write snapshot happened above.
   // Date changes invalidate every in-flight study. The visible list is
   // strictly the locally frozen snapshot, not raw provider data.
