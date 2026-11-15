@@ -1208,6 +1208,41 @@ function withSupportSix(report){
  };
  return report;
 }
+function mainWorkouts(){
+ const runners=Array.from({length:7},(_,i)=>({
+  number:i+1,
+  mainWorkoutsRecorded:i<5,
+  datedWorkoutRecorded:i<3,
+  withinSevenDaysRecorded:i<3,
+  mainIndexRecorded:i<2,
+  finalTimeRecorded:i<2,
+  datedIndexTimePairRecorded:i===0,
+  trainingGrade:'未評価',trainingScore30:null,modelCalibrated:false
+ }));
+ return {
+  version:'owner-main-workout-tch-evidence-1',date:day,raceCount:1,
+  races:[{
+   track:'東京',race:1,registered:7,sourceWorkoutRows:5,
+   runnersWithWorkout:5,runnersWithRecentWorkout:3,
+   runnersWithIndex:2,runnersWithFinalTime:2,
+   runnersWithDatedIndexTime:1,runners,
+   workoutIndexCalibrated:false,officialJraVerified:false,
+   trainingGradeReady:false,trifectaReady:false
+  }],
+  summary:{workoutRows:5,runnersWithWorkout:5,
+   runnersWithRecentWorkout:3,runnersWithIndex:2,
+   runnersWithDatedIndexTime:1},
+  sourceRequestsRequired:['tra','tky','tch'],
+  sourceFamily:'jrdb_tch_owner_prestart',
+  researchOnly:true,privateOwnerOnly:true,
+  horseIdsIncluded:false,rawWorkoutValuesIncluded:false,oddsUsed:false,
+  officialJraVerified:false,modelCalibrated:false,
+  trainingGradeReady:false,overallPredictionReady:false,bettingReady:false,
+  actualPurchase:false,changesExistingTickets:false,
+  changesExistingReceipts:false,changesExistingRoi:false,
+  additionalPaidReadsAfterSource:0
+ };
+}
 function prestart(){
  const result={
   version:'private-prestart-body-1',date:day,raceCount:1,
@@ -1274,6 +1309,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  let next=initialServerRaw||resultWith('a'.repeat(64)),autoDraftFailure=null,historicalResponse=historical(),
   historyOk=true,providerCorrupt=false,holdFetch=null,
   prestartResponse=prestart(),prestartOk=true,
+  mainWorkoutResponse=mainWorkouts(),mainWorkoutOk=true,
   configured=true,connectionOK=true,connectionCount=1,
   receiptVerificationOk=true,coreVerificationOk=true,
   coreProviderCorrupt=false,fiveExposureCorrupt=false,
@@ -1407,6 +1443,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   };
   if(url==='/api/jrdb/history')
    return {ok:historyOk,json:async()=>structuredClone(historicalResponse)};
+  if(url.startsWith('/api/jrdb/main-workout-evidence?'))
+   return {ok:mainWorkoutOk&&url.endsWith('date='+day),
+    json:async()=>structuredClone(mainWorkoutResponse)};
   if(url.startsWith('/api/jrdb/prestart-body?'))
    return {ok:prestartOk&&url.endsWith('date='+day),
     json:async()=>structuredClone(prestartResponse)};
@@ -1705,6 +1744,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setAutoDraftFailure:x=>autoDraftFailure=x,
   setHistorical:x=>historicalResponse=x,setHistoryOk:x=>historyOk=x,
   setPrestart:x=>prestartResponse=x,setPrestartOk:x=>prestartOk=x,
+  setMainWorkout:x=>mainWorkoutResponse=x,
+  setMainWorkoutOk:x=>mainWorkoutOk=x,
   setConfigured:x=>configured=x,setConnectionOK:x=>connectionOK=x,
   setReceiptVerificationOk:x=>receiptVerificationOk=x,
   setCoreVerificationOk:x=>coreVerificationOk=x,
@@ -5528,6 +5569,36 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(forgedR6.get('autoFiveQuickSaved').children.length,0,
   'invalid 79-point frozen ticket cannot be promoted in main view');
  assert.match(forgedR6.get('autoFiveQuickStatus').textContent,/不整合/);
+ // Main-workout /tch research is strictly explicit and does not alter
+ // ranking, signed first-written bets, purchases or provider history.
+ const tchView=boot();
+ await new Promise(r=>setImmediate(r));
+ assert.equal(tchView.get('autoMainWorkoutCheck').disabled,false,
+  'manual /tch button enabled after basic roster validation');
+ assert.equal(tchView.requests.filter(x=>
+  x.url.startsWith('/api/jrdb/main-workout-evidence?')).length,0);
+ const tchStorageBefore=new Map(tchView.storage);
+ await tchView.get('autoMainWorkoutCheck').onclick();
+ assert.equal(tchView.requests.filter(x=>
+  x.url.startsWith('/api/jrdb/main-workout-evidence?date=')).length,1);
+ assert.match(tchView.get('autoMainWorkoutStatus').textContent,
+  /本追切を1R照合。記録あり 5頭／追切指数あり 2頭/);
+ assert.equal(tchView.get('autoMainWorkoutRaces').children.length,1);
+ assert.match(tchView.get('autoMainWorkoutRaces').children[0].textContent,
+  /東京 1R｜本追切 5\/7頭／7日以内 3頭／追切指数 2頭/);
+ assert.deepEqual([...tchView.storage.entries()],
+  [...tchStorageBefore.entries()],'/tch audit cannot modify fixed bets');
+ const forgedWorkout=mainWorkouts();
+ forgedWorkout.races[0].runners[0].trainingGrade='S';
+ tchView.setMainWorkout(forgedWorkout);
+ await tchView.get('autoMainWorkoutCheck').onclick();
+ assert.equal(tchView.get('autoMainWorkoutRaces').children.length,0);
+ assert.match(tchView.get('autoMainWorkoutStatus').textContent,/確認は保留/);
+ tchView.get('autoDay').value='2099-01-03';
+ tchView.get('autoDay').onchange();
+ assert.equal(tchView.get('autoMainWorkoutCheck').disabled,true,
+  'selected date switch invalidates any /tch paid-read eligibility');
+ assert.equal(tchView.get('autoMainWorkoutRaces').children.length,0);
  // An explicit 5-factor button reuses the existing history pipeline
  // and never bills for historic reads merely on initial app opening.
  const quick79=boot();
