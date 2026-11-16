@@ -17,6 +17,68 @@ CORE = ("training", "recent")
 MISSING_MODEL = ("pedigree", "draw_weight", "body_condition")
 SUPPORTED = set(VALUES)
 MAX_RACES = 120
+SOURCE_FIELDS = ("pedigree", "draw_weight", "jockey_stable", "rotation", "past_corner")
+BODY_STATUS = "raceday_bodyweight_not_available"
+
+
+def _source_materials(report):
+    """Only same-snapshot, redacted /tky presence flags; never infer a grade.
+
+    A missing or broken optional source audit yields NOT_CHECKED, not MISSING.
+    No material values, provider IDs or unsupported score percentages escape.
+    """
+    evidence = report.get("runnerSourceEvidence")
+    if (not isinstance(evidence, dict)
+            or evidence.get("version") != "owner-runner-source-hints-1"
+            or evidence.get("researchOnly") is not True
+            or evidence.get("privateOwnerOnly") is not True
+            or evidence.get("officialJraVerified") is not False
+            or evidence.get("overallPredictionReady") is not False
+            or evidence.get("bettingReady") is not False
+            or evidence.get("verifiedNewFactorCount") != 0
+            or evidence.get("newProviderRequests") != 0
+            or evidence.get("rawSourceRowsIncluded") is not False
+            or evidence.get("factorFields") != list(SOURCE_FIELDS)
+            or not isinstance(evidence.get("races"), list)
+            or evidence.get("raceCount") != len(evidence["races"])
+            or evidence["raceCount"] != len(report.get("races", []))):
+        return {}
+    try:
+        rows = _index(evidence["races"], "optional material")
+        if set(rows) != set(_index(report["races"], "draft")):
+            return {}
+        materials = {}
+        for key, race in rows.items():
+            if race.get("status") != "observed":
+                continue
+            numbers = _horses(race.get("runners"))
+            for value in numbers.values():
+                flags = value.get("observed")
+                if (value.get("verifiedFactorCount") != 0
+                        or not isinstance(flags, dict)
+                        or set(flags) != set(SOURCE_FIELDS)
+                        or any(type(v) is not bool for v in flags.values())):
+                    raise CoverageError("Malformed optional source flags")
+            materials[key] = numbers
+        return materials
+    except (CoverageError, ValueError, TypeError, KeyError):
+        return {}
+
+
+def _remaining_material(flags):
+    pedigree = "not_checked"
+    draw = "not_checked"
+    if isinstance(flags, dict):
+        presence = flags.get("observed")
+        if isinstance(presence, dict):
+            pedigree = ("fields_observed" if presence.get("pedigree") is True
+                        else "fields_missing")
+            draw = ("fields_observed" if presence.get("draw_weight") is True
+                    else "fields_missing")
+    return {
+        "pedigree": pedigree, "draw_weight": draw,
+        "body_condition": BODY_STATUS,
+    }
 
 
 def _index(rows, label):
@@ -48,7 +110,7 @@ def _horses(rows):
     return index
 
 
-def _race_coverage(draft, ten, optional):
+def _race_coverage(draft, ten, optional, source=None):
     """Either emit same-runner experimental coverage or hold that whole race."""
     held = {
         "track": draft["track"], "race": draft["race"],
@@ -72,6 +134,10 @@ def _race_coverage(draft, ten, optional):
                 or set(primary) != set(previews)
                 or len(primary) != ten.get("runnerCount")):
             return held
+        # Only the exact same active prestart horse set can supply source
+        # availability; a mismatch cannot masquerade as a negative field.
+        source_by_number = source if (isinstance(source, dict)
+                and set(source) == set(primary)) else {}
         results = []
         for number in primary:
             prior = previews[number]
@@ -141,6 +207,9 @@ def _race_coverage(draft, ten, optional):
                 "unassessedWeight": unknown,
                 "unassessedFactors": sorted(unscored, key=lambda k: (
                     -WEIGHTS[k], list(WEIGHTS).index(k))),
+                "remainingMaterialReadiness": _remaining_material(
+                    source_by_number.get(number)),
+                "remainingEvidenceIsNotScore": True,
                 "finalScore100": None,
                 "overallGrade": "未評価",
                 "overallRank": None,
@@ -182,8 +251,9 @@ def seven_factor_research_coverage(report):
     factor_by = _index(optional.get("races"), "optional")
     if set(main) != set(ten_by) or set(main) != set(factor_by):
         raise CoverageError("Seven-factor race coordinate mismatch")
+    materials = _source_materials(report)
     result = [
-        _race_coverage(r, ten_by[key], factor_by[key])
+        _race_coverage(r, ten_by[key], factor_by[key], materials.get(key))
         for key, r in main.items()
     ]
     return {
@@ -194,6 +264,8 @@ def seven_factor_research_coverage(report):
         "partialRaceCount": sum(r["status"] == "partial" for r in result),
         "maximumPossibleAssessedWeight": 90,
         "remainingUnmappedWeight": sum(WEIGHTS[k] for k in MISSING_MODEL),
+        "remainingFactorFieldsOnly": True,
+        "racedayBodyWeightFromDayRead": False,
         "modelCalibrated": False,
         "researchOnly": True, "privateOwnerOnly": True,
         "officialJraVerified": False, "overallPredictionReady": False,

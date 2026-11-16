@@ -1468,12 +1468,14 @@ function eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock){
 // Optional same-day, server-derived 33+57 research subtotal. Reject forged,
 // stale, missing or different-runner data. This cannot promote any runner to
 // a verified full-ten 100pt grade, nor change sealed 3連単 tickets.
-function sevenFactorRace(data,day,race,automatic){
+function sevenFactorRace(data,day,race,automatic,sourceMaterials){
  const p=data.sevenFactorCoverage;
  if(!p||!automatic||race.status!=='provisional_draft'||
     p.version!=='owner-seven-factor-coverage-1'||p.policyVersion!=='research-6'||
     p.date!==day.replaceAll('-','')||p.raceCount!==data.raceCount||
     p.maximumPossibleAssessedWeight!==90||p.remainingUnmappedWeight!==10||
+    (p.remainingFactorFieldsOnly!==undefined&&p.remainingFactorFieldsOnly!==true)||
+    (p.racedayBodyWeightFromDayRead!==undefined&&p.racedayBodyWeightFromDayRead!==false)||
     p.modelCalibrated!==false||p.researchOnly!==true||
     p.privateOwnerOnly!==true||p.officialJraVerified!==false||
     p.overallPredictionReady!==false||p.publishable!==false||
@@ -1515,6 +1517,22 @@ function sevenFactorRace(data,day,race,automatic){
    const factor=current.factors[key];
    if(factor.points===null)missing.push(key);
    else{capacity+=weights[key];subtotal+=factor.points;}
+  }
+  if(h.remainingMaterialReadiness!==undefined){
+   const m=h.remainingMaterialReadiness;
+   const flags=sourceMaterials?.get(h.number);
+   const valid=['not_checked','fields_observed','fields_missing'];
+   if(h.remainingEvidenceIsNotScore!==true||!m||
+      Object.keys(m).sort().join('|')!=='body_condition|draw_weight|pedigree'||
+      m.body_condition!=='raceday_bodyweight_not_available'||
+      !valid.includes(m.pedigree)||!valid.includes(m.draw_weight))return null;
+   for(const key of ['pedigree','draw_weight']){
+    // A source-confirmed status must match the independently validated
+    // availability flags (neither is a race-day fitness or grade claim).
+    if(m[key]!=='not_checked'&&
+       (!flags||m[key]!==(
+        flags[key]?'fields_observed':'fields_missing')))return null;
+   }
   }
   if(capacity!==h.assessedWeight||
      Math.abs(subtotal-h.researchSubtotal)>.0051||
@@ -1574,6 +1592,15 @@ function renderTenHorse(h,source,automatic,seven){
    const entry=TEN.find(([k])=>k===key);
    return entry[1]+entry[2]+'点';
   }).join('／')+'。ここでの点数は配点であり能力得点ではありません。','muted'));
+ if(seven?.remainingMaterialReadiness){
+  const m=seven.remainingMaterialReadiness;
+  const named=value=>value==='fields_observed'?'資料あり（採点未検証）':
+   value==='fields_missing'?'資料不足':'資料照合待ち';
+  details.append(dom('p','【残り3項目・計10点の資料】血統6点：'+
+   named(m.pedigree)+'／枠・斤量3点：'+named(m.draw_weight)+
+   '／当日馬体重1点：未取得。資料があっても適性評価とは別で、'+
+   '正式な配点10点分はすべて未評価です。','muted'));
+ }
  if(seven)details.append(dom('p',
   '研究用7項目の仮説を合算：採点できた'+seven.assessedWeight+
   '点枠で小計 '+seven.researchSubtotal.toFixed(2)+'点。未評価 '+
@@ -3093,7 +3120,8 @@ function render(input,day){
   advanceRaceMarkers.set(key,{node:title,base:baseRaceHeading});
   const automatic=automaticFactorRace(data,day,race);
   const eligible=eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock);
-  const seven=eligible?sevenFactorRace(data,day,race,automatic):null;
+  const seven=eligible?sevenFactorRace(data,day,race,automatic,
+   materialByRace.get(key)):null;
   if(eligible)detail.append(renderAutomaticFactors(automatic));
   const course=courseRows.get(race.track+'|'+race.race);
   const condition=course.goingAvailable?course.going+'（JRDB資料）':'馬場未確認';

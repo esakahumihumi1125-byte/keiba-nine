@@ -76,6 +76,36 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  const researchScore=check(data);
  const good=sandbox.checkSeven(sevenDay,'2099-01-01',provisional,researchScore);
  assert.equal(good.get(1).researchSubtotal,77.6);
+ // Remaining three slots are SOURCE availability, not 10pt aptitude.
+ const withMaterials=structuredClone(sevenDay);
+ withMaterials.sevenFactorCoverage.remainingFactorFieldsOnly=true;
+ withMaterials.sevenFactorCoverage.racedayBodyWeightFromDayRead=false;
+ for(const h of withMaterials.sevenFactorCoverage.races[0].horses){
+  h.remainingMaterialReadiness={
+   pedigree:'fields_observed',draw_weight:'fields_missing',
+   body_condition:'raceday_bodyweight_not_available'
+  };
+  h.remainingEvidenceIsNotScore=true;
+ }
+ const materialFlags=new Map([1,2,3,4].map(number=>[
+  number,{pedigree:true,draw_weight:false}
+ ]));
+ const verified=sandbox.checkSeven(withMaterials,'2099-01-01',
+  provisional,researchScore,materialFlags);
+ assert.equal(verified.get(1).remainingMaterialReadiness.pedigree,'fields_observed');
+ assert.equal(verified.get(1).remainingMaterialReadiness.draw_weight,'fields_missing');
+ assert.equal(verified.get(1).remainingMaterialReadiness.body_condition,
+  'raceday_bodyweight_not_available');
+ assert.equal(verified.get(1).finalScore100,null);
+ const wrongSource=new Map(materialFlags);
+ wrongSource.set(1,{pedigree:false,draw_weight:false});
+ assert.equal(sandbox.checkSeven(withMaterials,'2099-01-01',
+  provisional,researchScore,wrongSource),null);
+ const forged=structuredClone(withMaterials);
+ forged.sevenFactorCoverage.races[0].horses[0].
+  remainingMaterialReadiness.body_condition='ready';
+ assert.equal(sandbox.checkSeven(forged,'2099-01-01',
+  provisional,researchScore,materialFlags),null);
  const changed=structuredClone(sevenDay);
  changed.sevenFactorCoverage.races[0].horses[0].researchSubtotal=88;
  assert.equal(sandbox.checkSeven(changed,'2099-01-01',provisional,researchScore),null);
