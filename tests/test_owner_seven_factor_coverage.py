@@ -146,6 +146,96 @@ class SevenFactorCoverageTests(unittest.TestCase):
             output = seven_factor_research_coverage(bad)
             self.assertEqual(output["races"][0]["status"], "held")
 
+    def test_remaining_three_points_fields_observed_are_not_scores(self):
+        source = example()
+        flags = ("pedigree", "draw_weight", "jockey_stable",
+                 "rotation", "past_corner")
+        source["runnerSourceEvidence"] = {
+            "version": "owner-runner-source-hints-1",
+            "researchOnly": True, "privateOwnerOnly": True,
+            "officialJraVerified": False,
+            "overallPredictionReady": False, "bettingReady": False,
+            "verifiedNewFactorCount": 0, "newProviderRequests": 0,
+            "rawSourceRowsIncluded": False, "factorFields": list(flags),
+            "raceCount": 2, "races": [
+                {"track": "東京", "race": 1, "status": "observed",
+                 "runners": [
+                     {"number": n, "verifiedFactorCount": 0,
+                      "observed": {
+                          "pedigree": n % 2 == 1,
+                          "draw_weight": n != 1,
+                          "jockey_stable": True, "rotation": True,
+                          "past_corner": False,
+                      }} for n in (4, 2, 1, 3)]},
+                {"track": "京都", "race": 2, "status": "held", "runners": []},
+            ]
+        }
+        original = deepcopy(source)
+        result = seven_factor_research_coverage(source)
+        self.assertEqual(original, source, "no input mutation")
+        self.assertEqual(result["partialRaceCount"], 1)
+        self.assertTrue(result["remainingFactorFieldsOnly"])
+        self.assertFalse(result["racedayBodyWeightFromDayRead"])
+        one, two = result["races"][0]["horses"][:2]
+        self.assertEqual(one["remainingMaterialReadiness"], {
+            "pedigree": "fields_observed",
+            "draw_weight": "fields_missing",
+            "body_condition": "raceday_bodyweight_not_available",
+        })
+        self.assertEqual(two["remainingMaterialReadiness"]["pedigree"],
+                         "fields_missing")
+        self.assertEqual(two["remainingMaterialReadiness"]["draw_weight"],
+                         "fields_observed")
+        self.assertTrue(one["remainingEvidenceIsNotScore"])
+        self.assertEqual(one["assessedWeight"], 78)
+        self.assertEqual(one["unassessedWeight"], 22)
+        self.assertIsNone(one["finalScore100"])
+        self.assertEqual(one["overallGrade"], "未評価")
+
+    def test_bad_material_roster_is_unchecked_not_missing(self):
+        source = example()
+        source["runnerSourceEvidence"] = {
+            "version": "owner-runner-source-hints-1",
+            "researchOnly": True, "privateOwnerOnly": True,
+            "officialJraVerified": False,
+            "overallPredictionReady": False, "bettingReady": False,
+            "verifiedNewFactorCount": 0, "newProviderRequests": 0,
+            "rawSourceRowsIncluded": False,
+            "factorFields": ["pedigree", "draw_weight", "jockey_stable",
+                             "rotation", "past_corner"],
+            "raceCount": 2, "races": [
+                {"track": "東京", "race": 1, "status": "observed",
+                 "runners": [{
+                     "number": n, "verifiedFactorCount": 0,
+                     "observed": {
+                         "pedigree": True, "draw_weight": True,
+                         "jockey_stable": True, "rotation": True,
+                         "past_corner": True,
+                     },
+                 } for n in (1, 2, 3, 8)]},
+                {"track": "京都", "race": 2, "status": "held", "runners": []},
+            ],
+        }
+        result = seven_factor_research_coverage(source)
+        self.assertEqual(result["partialRaceCount"], 1)
+        for horse in result["races"][0]["horses"]:
+            self.assertEqual(horse["remainingMaterialReadiness"]["pedigree"],
+                             "not_checked")
+            self.assertEqual(horse["remainingMaterialReadiness"]["draw_weight"],
+                             "not_checked")
+            self.assertEqual(horse["remainingMaterialReadiness"]["body_condition"],
+                             "raceday_bodyweight_not_available")
+            self.assertIsNone(horse["finalScore100"])
+
+    def test_unavailable_material_is_not_false_no_data(self):
+        source = example()
+        result = seven_factor_research_coverage(source)
+        first = result["races"][0]["horses"][0]
+        self.assertEqual(first["remainingMaterialReadiness"], {
+            "pedigree": "not_checked", "draw_weight": "not_checked",
+            "body_condition": "raceday_bodyweight_not_available",
+        })
+
     def test_whole_day_identity_or_status_mutation_is_rejected(self):
         for edit in [
             lambda x: x.update(officialJraVerified=True),
