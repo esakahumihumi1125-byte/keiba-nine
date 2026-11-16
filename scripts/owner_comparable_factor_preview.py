@@ -78,10 +78,18 @@ def _formation(ranked):
     }
 
 
-def _candidate(base, automatic, day, now):
-    if (base.get('status') != 'hold'
-            or base.get('reason') not in
-            ('missing_factors', 'ambiguous_equal_grade_boundary')
+def _candidate(base, automatic, day, now, *, allow_provisional=False):
+    # The existing HELD pathway remains the default and is unchanged.
+    # A separate, explicitly read-only caller may compare races that
+    # already have an issued two-factor provisional draft, without EVER
+    # replacing, signing or adding to that draft's original ticket list.
+    appropriate = (
+        base.get('status') == 'provisional_draft'
+        if allow_provisional else
+        base.get('status') == 'hold' and base.get('reason') in
+        ('missing_factors', 'ambiguous_equal_grade_boundary')
+    )
+    if (not appropriate
             or automatic.get('status') != 'scored'
             or automatic.get('reason') is not None
             or automatic.get('track') != base.get('track')
@@ -167,7 +175,8 @@ def _candidate(base, automatic, day, now):
         return None, 'tie_or_point_limit'
     return {
         'track': base['track'], 'race': base['race'],
-        'postTime': off_text, 'status': 'comparable_research_only',
+        'postTime': off_text, 'status': ('provisional_comparable_research_only'
+                                       if allow_provisional else 'comparable_research_only'),
         **formation,
         'comparedKeys': keys, 'comparedWeight': capacity,
         'excludedKeys': [k for k in ('training', 'recent', *AUTO_FACTORS)
