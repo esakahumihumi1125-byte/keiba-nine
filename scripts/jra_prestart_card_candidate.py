@@ -30,7 +30,7 @@ TRACK_CODES = {
 # the fetched page, actual starters or absence of cancellations.
 CNAME_COORDINATE = re.compile(
     r"(?:sw|pw)01dd[de]01(0[1-9]|10)"
-    r"(20[0-9]{6})(0[1-9]|1[0-2])(20[0-9]{6})/([0-9A-Fa-f]{2})\\Z",
+    r"(20[0-9]{6})(0[1-9]|1[0-2])(20[0-9]{6})/([0-9A-Fa-f]{2})\Z",
     re.ASCII,
 )
 MAX_BYTES = 480_000
