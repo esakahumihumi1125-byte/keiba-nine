@@ -169,6 +169,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </details>
 </details>
 <p class="owner-official-shortcut"><a id="autoOfficialQuickLink" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式出馬表を開いて出走・取消・発走時刻を確認</a> <span class="muted">（手動確認・自動照合0R）</span></p>
+<p id="autoAdvanceHeadline" class="muted" role="status">JRA事前競馬番組（予定時刻・距離）：JRDB取得後に無料で自動比較。正式な最終照合ではありません。</p>
 <details><summary>取得・資料の詳しい状態</summary>
 <p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
 <p id="autoReadProof" class="muted" role="status">JRDB資料の照会状況は未確認です。番組0Rと全資料取得は別です。</p>
@@ -176,7 +177,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="#autoVenues">開催日のレース一覧に進む</a>
 <p class="muted"><a href="#autoHistoryAudit">過去の同条件照合へ進む</a>（旧85点の比較と新配点79点の研究用下書きを確認。追加の有料API取得は本人がボタンを押した時のみ）</p>
 <details id="autoAdvancePanel"><summary>JRA競馬番組の予定時刻・距離を全場まとめて比較（無料）</summary>
-<p class="muted">取得済みJRDB資料とJRA公表の事前競馬番組を、本人が押した時だけ公式予定ページ1回で比較します。これは発表当初の予定であり、出走馬・取消・当日馬場・変更後の最終発走時刻は証明できません。JRDBへの追加有料通信0回、買い目・固定記録は変更しません。</p>
+<p class="muted">JRDB全R取得が正常終了したとき、JRA公表の事前競馬番組を無料で1回だけ自動比較。下のボタンで再比較もできます。これは発表当初の予定であり、出走馬・取消・当日馬場・変更後の最終発走時刻は証明できません。JRDBへの追加有料通信0回、失敗時も既存予想・固定記録は変更しません。</p>
 <button id="autoAdvanceCompare" type="button">JRA予定時刻・コースを全場比較（無料）</button>
 <p id="autoAdvanceStatus" class="muted" role="status">開催日のJRDB資料を読み込んだ後に確認できます。</p>
 <p class="muted"><a id="autoAdvanceDirect" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の開催日程を直接開く（照合できない場合）</a></p>
@@ -6884,6 +6885,7 @@ function resetAdvanceProgramme(){
   link.textContent='JRA公式の開催日程を直接開く';
  }
  $('autoAdvanceCompare').disabled=false;
+ $('autoAdvanceHeadline').textContent='JRA事前競馬番組：未確認。最終出走・取消・馬場・発走時刻は別に確認してください。';
  $('autoAdvanceStatus').textContent='開催日またはJRDB受信資料が変わりました。JRA予定番組は未比較です。';
  $('autoAdvanceDifferences').replaceChildren();
 }
@@ -6902,6 +6904,7 @@ $('autoAdvanceCompare').onclick=async()=>{
  button.disabled=true;
  $('autoAdvanceDifferences').replaceChildren();
  status.textContent='JRA公表の予定競馬番組を確認中（無料・最終出馬表ではありません）…';
+ $('autoAdvanceHeadline').textContent='JRA事前競馬番組：無料で予定時刻・距離を比較中。正式な最終照合ではありません。';
  try{
   const response=await fetch('/api/jra/advance-programme?date='+
    encodeURIComponent(date),{
@@ -6990,6 +6993,7 @@ $('autoAdvanceCompare').onclick=async()=>{
   const host=$('autoAdvanceDifferences');
   for(const message of alerts)
    host.append(dom('p',message,'muted'));
+  $('autoAdvanceHeadline').textContent='JRA事前競馬番組の参考比較：差異 '+fieldDiffs+'項目・番組不一致 '+missingSlots+'R・未比較 '+unknown+'項目。正式な最終照合ではありません。';
   status.textContent='JRA事前番組 '+p.raceCount+'R／JRDB受信 '+source.raceCount+
    'R｜比較 '+compared+'項目・予定と一致 '+matched+
    '項目・差異 '+fieldDiffs+'項目・番組不一致 '+missingSlots+'R・未比較 '+unknown+'項目。'+
@@ -6998,6 +7002,7 @@ $('autoAdvanceCompare').onclick=async()=>{
  }catch(_){
   if(seq===advanceProgrammeSeq){
    $('autoAdvanceDifferences').replaceChildren();
+   $('autoAdvanceHeadline').textContent='JRA事前競馬番組：取得できず未確認。研究用予想・固定記録はそのままです。';
    status.textContent='JRA事前番組を自動取得できませんでした。'+
     '上の「JRA公式の競馬番組」を直接開いてください。'+
     '取得元が利用できない・ページ形式が変わった場合は未確認として扱います。'+
@@ -7554,8 +7559,14 @@ $('autoRun').onclick=async()=>{
   }
   // Optional paid history is only allowed AFTER the base-day response
   // and all local receipt checks finished without throwing.
-  if(seq===request&&day===$('autoDay').value.replaceAll('-',''))
+  if(seq===request&&day===$('autoDay').value.replaceAll('-','')){
    maybeAutoFiveFromBasic(body,day);
+   // A single FREE JRA calendar probe follows the explicit successful day
+   // read and receipt validation. Never repeat a paid provider read or
+   // block research forecasts when JRA's public site is unavailable.
+   // Advance programme differences are NOT final JRA racecard verification.
+   if(body.raceCount>0)void $('autoAdvanceCompare').onclick();
+  }
  }catch(error){if(seq===request){
   latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
  latestReadAtMs=0;showSnapshotFreshness();
