@@ -130,6 +130,28 @@ class AutomaticFactorTests(unittest.TestCase):
         data[2].pop()
         self.assertIsNone(self.score(data)['races'][0]['horses'][-1]['factors']['rotation']['points'])
 
+    def test_missing_beta_previous_date_does_not_erase_other_factor_scores(self):
+        for marker in ("00000000", "   ", "", None):
+            data = fixture()
+            data[2][0]["race_back_1_racedate"] = marker
+            before = copy.deepcopy(data)
+            report = self.score(data)
+            self.assertEqual(report["races"][0]["status"], "scored")
+            self.assertEqual(report["newProviderRequests"], 0)
+            horses = report["races"][0]["horses"]
+            self.assertIsNone(horses[0]["factors"]["rotation"]["points"])
+            self.assertEqual(horses[0]["factors"]["rotation"]["reason"],
+                             "previous_date_missing")
+            self.assertEqual(horses[1]["factors"]["rotation"]["points"], .8)
+            self.assertEqual(horses[0]["factors"]["jockey_stable"]["points"], 0)
+            self.assertIsNotNone(horses[0]["factors"]["pace"]["points"])
+            self.assertEqual(data, before)
+        for invalid in ("00000001", "20260230", "20261121"):
+            data = fixture()
+            data[2][0]["race_back_1_racedate"] = invalid
+            with self.assertRaises(CoverageError):
+                self.score(data)
+
     def test_missing_style_withholds_pace_for_whole_race(self):
         data = fixture()
         data[1][0]['foottype_cd'] = None

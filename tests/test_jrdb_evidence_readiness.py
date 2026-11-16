@@ -127,6 +127,22 @@ class EvidenceReadinessTests(unittest.TestCase):
         self.assertEqual(result["predictionsReady"], 0)
         self.assertEqual(result["races"][0]["trainingRecords"], 0)
 
+    def test_explicit_zero_date_is_not_a_historical_start(self):
+        from copy import deepcopy
+        baseline = sample()
+        for value in ("00000000", " ", "   ", "", None):
+            p, e, t, z = deepcopy(baseline)
+            z[0]["race_back_1_racedate"] = value
+            output = self.audit(p, e, t, z)
+            self.assertEqual(output["races"][0]["pastRunRecords"], 0)
+            self.assertEqual(output["unaccountedTotals"]["pastRuns"], 3)
+            self.assertFalse(output["predictionsReady"])
+        for value in ("00000001", "20260230", 0, "20261201"):
+            p, e, t, z = deepcopy(baseline)
+            z[0]["race_back_1_racedate"] = value
+            with self.assertRaises(CoverageError):
+                self.audit(p, e, t, z)
+
     def test_same_day_past_race_is_rejected(self):
         p, e, t, z = sample()
         z[0]["race_back_1_racedate"] = "20261101"
