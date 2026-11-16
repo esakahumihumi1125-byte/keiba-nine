@@ -2683,6 +2683,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await cardButton.onclick();
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/候補を照合できませんでした/);
  cardView.setOfficialCardNumbers(null);
+ await cardButton.onclick(); // Restore a valid read-only result after malformed-candidate test.
  assert.equal(cardView.storage.get(STORAGE),frozenCard);
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/出走馬・取消・馬場・公式データの真正性と最新性は未照合/);
  cardView.setOfficialCardCancellationCue(true);
