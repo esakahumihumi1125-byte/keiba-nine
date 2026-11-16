@@ -2370,6 +2370,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const quick=boot();
  await new Promise(r=>setImmediate(r));
  const quickSaved=quick.storage.get(STORAGE),quickBefore=quick.requests.length;
+ let unsuccessfulScrolls=0;
+ quick.get('forecastRacesSection').scrollIntoView=()=>unsuccessfulScrolls++;
  await quick.get('autoSaturdayQuick').onclick();
  assert.equal(quick.get('autoDay').value,'2099-01-03');
  assert.equal(quick.requests.length,quickBefore+1,
@@ -2381,6 +2383,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   'mismatched synthetic provider day must not corrupt first-write receipts');
  assert.equal(quick.get('autoSaturdayQuick').disabled,false);
  assert.equal(quick.get('autoRun').disabled,false);
+ assert.equal(unsuccessfulScrolls,0,'wrong-day provider response never scrolls to an old race');
  assert.equal(quick.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // For a correctly dated Saturday response, one tap both loads and
  // first-writes its own signed prestart draft. Repeated one-tap presses
@@ -2391,8 +2394,14 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   .replaceAll('20990101','20990103')
   .replaceAll('2099-01-01','2099-01-03'));
  successQuick.setServerRaw(saturdayRaw);
+ let oneTapScrolls=0;
+ successQuick.get('forecastRacesSection').scrollIntoView=(opts)=>{
+  assert.equal(opts.block,'start');oneTapScrolls++;
+ };
  const beforeSuccess=successQuick.requests.length;
  await successQuick.get('autoSaturdayQuick').onclick();
+ assert.equal(oneTapScrolls,1,
+  'manual Saturday 1-tap takes iPhone straight to checked race list');
  assert.equal(successQuick.get('autoDay').value,'2099-01-03');
  assert.equal(successQuick.requests.length,beforeSuccess+1);
  assert.match(successQuick.get('autoStatus').textContent,
@@ -2407,6 +2416,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(successQuick.storage.get(STORAGE),firstWrite);
  assert.match(successQuick.get('autoStatus').textContent,
   /土曜データ取得済み.*追加のJRDB照会は0回/);
+ assert.equal(oneTapScrolls,2,'cached one-tap reopens list without JRDB requests');
  // Cached Saturday data is still a historical prestart research record
  // after the clock reaches off-time. Even the top status must not falsely
  // advertise 1R as an active draft when one-tap reopens the local result.
