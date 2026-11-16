@@ -71,6 +71,7 @@ from owner_isolated_factor_scores import (
 )
 from owner_seven_factor_coverage import seven_factor_research_coverage
 from owner_comparable_factor_preview import preview_comparable_factor_holds
+from owner_provisional_factor_preview import preview_provisional_seven_factors
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
 from jrdb_owner_draft_materials import (
@@ -2713,6 +2714,24 @@ def create_app(settings=None):
                             counts['ineligible'])
                     except (CoverageError, ValueError, TypeError, KeyError):
                         logging.warning('KEIBA_COMPARABLE_FACTOR_RESEARCH=unavailable')
+                # Existing issued 2-factor research drafts can ALSO be
+                # compared with all currently observed common-source factors.
+                # This second read-only reference is not a replacement:
+                # no new issue/signature, change in rank, archive or ROI.
+                if 'automaticFactorScores' in report:
+                    stage = 'provisional_seven_factor_reference'
+                    try:
+                        report['provisionalFactorResearch'] = preview_provisional_seven_factors(
+                            report, report['automaticFactorScores'], day,
+                            now=final_prestart_checked_at)
+                        p7 = report['provisionalFactorResearch']
+                        logging.warning(
+                            'KEIBA_PROVISIONAL_SEVEN_FACTOR reviewed=%s '
+                            'previews=%s jra=unverified formal=ungraded',
+                            p7['reviewedPrestartDraftRaces'],
+                            p7['unsignedReferenceCount'])
+                    except (CoverageError, ValueError, TypeError, KeyError):
+                        logging.warning('KEIBA_PROVISIONAL_SEVEN_FACTOR=unavailable')
                 stage = 'tky_training_study'
                 try:
                     report['tkyTrainingStudy'] = tky_training_index_study(
