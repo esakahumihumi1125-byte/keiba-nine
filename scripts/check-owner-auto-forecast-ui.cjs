@@ -21,7 +21,7 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  const check=value=>sandbox.checkAuto(value,'2099-01-01',row);
  assert.equal(check(data).horses.length,4);
  const visible=sandbox.eligibleResearchFactorPanel;
- const fullRace={postTime:'12:00',runners:[1,2,3,4]};
+ const fullRace={postTime:'12:00',runners:[1,2,3,4].map(number=>({number}))};
  // Populated pre-start races must not hide the four-factor drilldown.
  assert.equal(visible(check(data),'2099-01-01',fullRace,false,false),true);
  assert.equal(visible(check(data),'2099-01-01',fullRace,true,false),false);
