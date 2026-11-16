@@ -97,7 +97,7 @@ class ComparableResearchTests(unittest.TestCase):
         self.assertEqual((original, automatic), untouched)
 
     def test_incomplete_core_sources_never_imputed(self):
-        for adjustment in ('missing_training', 'missing_pace', 'missing_staff',
+        for adjustment in ('missing_training', 'missing_pace',
                            'unknown_score', 'conflict_roster'):
             report, automatic = fixture()
             if adjustment == 'missing_training':
@@ -105,16 +105,12 @@ class ComparableResearchTests(unittest.TestCase):
             elif adjustment == 'missing_pace':
                 automatic['races'][0]['horses'][0]['factors']['pace'].update(
                     points=None, score=None, grade='未評価')
-            elif adjustment == 'missing_staff':
-                automatic['races'][0]['horses'][0]['factors']['jockey_stable'].update(
-                    points=None, score=None, grade='未評価')
             elif adjustment == 'unknown_score':
                 automatic['races'][0]['horses'][0]['factors']['pace']['points'] = float('nan')
             elif adjustment == 'conflict_roster':
                 automatic['races'][0]['horses'][0]['number'] = 13
             expected = {'missing_training': 'training_missing',
                         'missing_pace': 'insufficient_shared_weight',
-                        'missing_staff': 'insufficient_shared_weight',
                         'unknown_score': 'factor_invalid',
                         'conflict_roster': 'roster_mismatch'}[adjustment]
             result = self.run_model(report, automatic)
@@ -122,6 +118,57 @@ class ComparableResearchTests(unittest.TestCase):
             self.assertEqual(result['diagnostics'][expected], 1, adjustment)
             self.assertEqual(result['reviewedHeldRaces'],
                              sum(result['diagnostics'].values()))
+
+    def test_three_high_priority_64_point_core_unblocks_research_only(self):
+        original, automatic = fixture()
+        # A good-track /tka has NO ground ability grade; a missing staff
+        # field and previous-date rotation MUST NOT be made into C/0.
+        for horse in automatic['races'][0]['horses']:
+            for key in ('jockey_stable', 'rotation'):
+                horse['factors'][key].update(
+                    score=None, points=None, grade='未評価',
+                    reason='source_missing')
+        before = copy.deepcopy((original, automatic))
+        result = self.run_model(original, automatic)
+        self.assertEqual(result['version'], 'owner-comparable-factor-formation-3')
+        self.assertEqual(result['minimumComparableWeight'], 64)
+        self.assertEqual(result['unsignedReferenceCount'], 1)
+        self.assertEqual(result['diagnostics']['preview'], 1)
+        item = result['races'][0]
+        self.assertEqual(item['comparedWeight'], 64)
+        self.assertEqual(item['comparedKeys'],
+                         ['training', 'course_distance', 'pace'])
+        self.assertEqual(item['excludedKeys'],
+                         ['recent', 'ground', 'jockey_stable', 'rotation'])
+        self.assertEqual(item['first'], [1, 2])
+        self.assertTrue(12 <= item['points'] <= 48)
+        self.assertTrue(item['tiesNeverSplit'])
+        self.assertTrue(item['missingNeverImputed'])
+        self.assertFalse(item['receiptIssued'])
+        self.assertFalse(item['bettingReady'])
+        self.assertFalse(result['predictionReady'])
+        self.assertFalse(result['officialJraVerified'])
+        self.assertEqual(result['ticketsIssued'], 0)
+        self.assertEqual(result['newProviderRequests'], 0)
+        self.assertEqual((original, automatic), before)
+
+    def test_64_to_69_points_without_both_core_factors_must_hold(self):
+        report, automatic = fixture()
+        for horse in automatic['races'][0]['horses']:
+            factors = horse['factors']
+            factors['course_distance'].update(
+                points=None, score=None, grade='未評価')
+            factors['rotation'].update(
+                points=None, score=None, grade='未評価')
+            factors['ground'].update(
+                points=9, score=75, grade='A')
+        # The retained 30+17+12+10 = 69 points are not the intended
+        # workout/course/pace trio; this is NOT permission to relax all
+        # comparable evidence checks.
+        result = self.run_model(report, automatic)
+        self.assertEqual(result['unsignedReferenceCount'], 0)
+        self.assertEqual(result['diagnostics']['insufficient_shared_weight'], 1)
+        self.assertEqual(result['ticketsIssued'], 0)
 
     def test_gate_prestart_held_and_unverified(self):
         for change in ('late', 'signed', 'withdrawal', 'already_draft',
