@@ -62,6 +62,7 @@ from owner_workout_cross_band_receipts import (
     issue_cross_band_observations, verify_cross_band_observations,
 )
 from owner_ten_factor_contract import ten_factor_contract
+from owner_live_formal_gate_shadow import live_formal_gate_shadow
 from owner_recent_crossfeed_diagnostics import (
     recent_crossfeed_diagnostics, compact_recent_crossfeed_log,
 )
@@ -2772,6 +2773,17 @@ def create_app(settings=None):
                             report, now=final_prestart_checked_at)
                     except (CoverageError, ValueError, TypeError, KeyError):
                         logging.warning('KEIBA_SEVEN_FACTOR_COVERAGE=unavailable')
+                # Run the ACTUAL full-ten gate using today's vetted date,
+                # venue, race, horse-number and post-time coordinates. The
+                # JRDB 2+5 experimental grades are *never* promoted:
+                # formal assessments are all 未評価; JRA flags are false.
+                # No new provider calls, rank, ticket, receipt or wager.
+                stage = 'formal_ten_live_shadow'
+                try:
+                    report['formalGateShadow'] = live_formal_gate_shadow(
+                        report, day, now=final_prestart_checked_at)
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    logging.warning('KEIBA_FORMAL_TEN_SHADOW=unavailable')
                 # The missing 3-point recent factor may be bounded without
                 # assigning any imaginary grade. Only race groups invariant
                 # under ALL possible recent grades get a separate read-only
