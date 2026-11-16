@@ -5642,7 +5642,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(comparableView.get('autoReferencePulse').textContent,/共通評価 1件/);
  assert.match(comparableView.get('autoComparableFactorStatus').textContent,/検査1R／表示できる研究参考1R／調教不足0R/);
  // A validated reference is now usable directly from its ordinary R.
- const heldCard=comparableView.get('autoRaces').children[0];
+ const heldCard=comparableView.get('autoRaces').children[0].children[0];
  assert.match(heldCard.children[0].textContent,/参考候補あり（研究用・未購入）/);
  const inline=heldCard.children.find(node=>
   node.className==='inline-validated-research');
@@ -5688,7 +5688,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(comparableView.get('autoComparableFactorRaces').children.length,1);
  assert.match(comparableView.get('autoComparableFactorRaces').children[0].children[0].textContent,
   /研究用 40点（共通配点64点分）/);
- assert.ok(comparableView.get('autoRaces').children[0].children.some(node=>
+ assert.ok(comparableView.get('autoRaces').children[0].children[0].children.some(node=>
   node.className==='inline-validated-research'));
  assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,1);
  assert.equal(comparableView.storage.get(STORAGE),compStore);
@@ -5703,7 +5703,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
  // Forged comparable research must never appear inline; the independently
  // validated near-missing recent method may still be shown as fallback.
- const safeFallback=comparableView.get('autoRaces').children[0].
+ const safeFallback=comparableView.get('autoRaces').children[0].children[0].
   children.find(node=>node.className==='inline-validated-research');
  assert.ok(safeFallback);
  assert.doesNotMatch(safeFallback.children[0].textContent,/共通評価/);
