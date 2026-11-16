@@ -2758,6 +2758,17 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await new Promise(r=>setImmediate(r));
  const calendarBtn=calendar.get('autoAdvanceCompare');
  const calendarStored=calendar.storage.get(STORAGE);
+ const advanceRaceHeading=()=>{
+  let heading='';
+  const walk=node=>{
+   if(!node)return;
+   if(node.tag==='summary'&&/^東京 1R /.test(node.textContent))
+    heading=node.textContent;
+   for(const child of node.children||[])walk(child);
+  };
+  walk(calendar.get('autoRaces'));
+  return heading;
+ };
  const calendarStart=calendar.requests.length;
  await calendarBtn.onclick();
  assert.equal(calendar.requests.length,calendarStart+1);
@@ -2773,8 +2784,12 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(calendar.get('autoAdvanceDirect').href,
   'https://www.jra.go.jp/keiba/'); // Synthetic year 2099 intentionally unsupported.
  assert.equal(calendar.storage.get(STORAGE),calendarStored);
+ assert.match(advanceRaceHeading(),/^東京 1R /);
+ assert.doesNotMatch(advanceRaceHeading(),/JRA事前予定差異/,
+  'matching advance schedule must not claim final JRA verification');
  calendar.setAdvanceCalendarDiff(true);
  await calendarBtn.onclick();
+ assert.match(advanceRaceHeading(),/JRA事前予定差異・要確認/);
  assert.match(calendar.get('autoAdvanceStatus').textContent,/差異 1項目/);
  assert.ok(calendar.get('autoAdvanceDifferences').children.some(x=>
   /東京 1R.*発走時刻：JRDB 12:00／JRA予定 11:55/.test(x.textContent)));
@@ -2783,6 +2798,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await calendarBtn.onclick();
  assert.match(calendar.get('autoAdvanceStatus').textContent,/自動取得できませんでした/);
  assert.equal(calendar.get('autoAdvanceDifferences').children.length,0);
+ assert.doesNotMatch(advanceRaceHeading(),/JRA事前予定差異/,
+  'failed calendar refresh must clear an old race-level warning');
  calendar.get('autoDay').value='2099-01-02';
  calendar.get('autoDay').onchange();
  assert.match(calendar.get('autoAdvanceStatus').textContent,/未比較/);
