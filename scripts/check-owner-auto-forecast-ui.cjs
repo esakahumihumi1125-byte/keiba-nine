@@ -5530,7 +5530,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await comparableView.get('autoRun').onclick();
  assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
  assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
- assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,0);
+ // A forged comparable preview cannot hide a separately validated
+ // bounded-recent fallback. Show that method, not the forged one.
+ assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,1);
+ assert.match(comparableView.get('autoReferenceQuickRaces').children[0].children[0].textContent,/近走不足/);
  // Forged 69pt partial set without course/distance must NOT sneak
  // through the new 64pt exception.
  const nonCore=structuredClone(core64);
@@ -5552,21 +5555,30 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await comparableView.get('autoRun').onclick();
  assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
  assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
- assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,0);
+ // A forged comparable preview cannot hide a separately validated
+ // bounded-recent fallback. Show that method, not the forged one.
+ assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,1);
+ assert.match(comparableView.get('autoReferenceQuickRaces').children[0].children[0].textContent,/近走不足/);
  const forgedComparable=structuredClone(comparable);
  forgedComparable.comparableFactorResearch.races[0].first=[1,3];
  comparableView.setServerRaw(forgedComparable);
  await comparableView.get('autoRun').onclick();
  assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
  assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
- assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,0);
+ // A forged comparable preview cannot hide a separately validated
+ // bounded-recent fallback. Show that method, not the forged one.
+ assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,1);
+ assert.match(comparableView.get('autoReferenceQuickRaces').children[0].children[0].textContent,/近走不足/);
  const forgedCounts=structuredClone(comparable);
  forgedCounts.comparableFactorResearch.diagnostics.training_missing=1;
  comparableView.setServerRaw(forgedCounts);
  await comparableView.get('autoRun').onclick();
  assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
  assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
- assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,0);
+ // A forged comparable preview cannot hide a separately validated
+ // bounded-recent fallback. Show that method, not the forged one.
+ assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,1);
+ assert.match(comparableView.get('autoReferenceQuickRaces').children[0].children[0].textContent,/近走不足/);
  comparableView.get('autoDay').value='2099-01-02';
  comparableView.get('autoDay').onchange();
  assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,0);
