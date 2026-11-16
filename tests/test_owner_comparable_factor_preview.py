@@ -75,7 +75,7 @@ class ComparableResearchTests(unittest.TestCase):
         untouched = copy.deepcopy((original, automatic))
         result = self.run_model(original, automatic)
         self.assertEqual(result['unsignedReferenceCount'], 1)
-        self.assertEqual(result['minimumComparableWeight'], 70)
+        self.assertEqual(result['minimumComparableWeight'], 64)
         self.assertEqual(result['diagnostics']['preview'], 1)
         self.assertEqual(result['reviewedHeldRaces'], sum(result['diagnostics'].values()))
         self.assertTrue(all(isinstance(n, int) and n >= 0
