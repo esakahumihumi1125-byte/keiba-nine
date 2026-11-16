@@ -95,6 +95,17 @@ def live_formal_gate_shadow(report, day, *, now):
                 or ten_race.get("sourceGradeMode") != "two_factor_provisional_only"
                 or ten_race.get("trainingLedRecheckIsWinPick") is not False):
             raise CoverageError("Formal shadow cannot accept promoted evidence")
+        post = draft.get("postTime")
+        if type(post) is not str or not TIME.fullmatch(post):
+            unavailable.append(key)
+            continue
+        off = datetime.strptime(day + post, "%Y%m%d%H:%M").replace(tzinfo=JST)
+        # A completed race may intentionally have its runner list removed
+        # by the upstream safe expiry gate. Check the off-time FIRST,
+        # never reconstruct a roster from an expired signed research draft.
+        if now_jst >= off:
+            outside.append(key)
+            continue
         raw, shadows = draft.get("runners"), ten_race.get("horses")
         if not isinstance(raw, list) or not isinstance(shadows, list):
             raise CoverageError("Formal shadow expected redacted runner lists")
@@ -139,13 +150,8 @@ def live_formal_gate_shadow(report, day, *, now):
                for n in ids):
             unavailable.append(key)
             continue
-        post = draft.get("postTime")
-        if type(post) is not str or not TIME.fullmatch(post) or len(ids) < 4:
+        if len(ids) < 4:
             unavailable.append(key)
-            continue
-        off = datetime.strptime(day + post, "%Y%m%d%H:%M").replace(tzinfo=JST)
-        if now_jst >= off:
-            outside.append(key)
             continue
         # Important: 'owner_verified_prestart_v1' is an INTERNAL input
         # shape, NOT proof of origin. Approval flags stay explicitly FALSE
