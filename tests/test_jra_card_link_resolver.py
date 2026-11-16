@@ -64,6 +64,31 @@ class JraCardLinkTests(unittest.TestCase):
             self.assertIs(data[name], False)
         self.assertEqual(data["newJrdbRequests"], 0)
 
+    def test_known_ddd_prefix_and_spaced_official_race_labels(self):
+        # Both old ddd and current dde JRA URL variants have a real
+        # encoded date, venue and race. Spaces in display labels are safe.
+        seed = SEED.replace("pw01dde01", "pw01ddd01")
+        target = TARGET1.replace("sw01dde01", "sw01ddd01")
+        home = HOME_HTML.replace(SEED, seed).replace("京都11R", "京都 11 R")
+        page = SEED_HTML.replace(TARGET1, target).replace(
+            '">1R</a>', '">1 レース</a>')
+        get, calls = stub({HOME: home, seed: page})
+        report = resolve_racecard_link(
+            DAY, "京都", 1, today=date(2026, 11, 14), fetch_html=get)
+        self.assertEqual(report["officialRacecardUrl"], target)
+        self.assertEqual(calls, [HOME, seed])
+        self.assertFalse(report["officialStartersVerified"])
+        self.assertFalse(report["bettingReady"])
+        self.assertEqual(report["newJrdbRequests"], 0)
+
+    def test_different_race_is_not_accepted_as_spaced_anchor(self):
+        page = SEED_HTML.replace('">1R</a>', '">2 R</a>')
+        get, calls = stub({HOME: HOME_HTML, SEED: page})
+        with self.assertRaises(JraLinkResolutionError):
+            resolve_racecard_link(
+                DAY, "京都", 1, today=date(2026, 11, 14), fetch_html=get)
+        self.assertEqual(calls, [HOME, SEED])
+
     def test_homepage_featured_11r_requires_just_one_public_get(self):
         get, calls = stub({HOME: HOME_HTML})
         data = resolve_racecard_link(
