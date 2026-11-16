@@ -11,8 +11,8 @@ class SimpleForecastScreenTest(unittest.TestCase):
     def test_primary_flow(self):
         cues = [
             "<h2>1. 予想を見る</h2>",
-            "<h2>2. 今日の予想状況</h2>",
-            "<h2>3. 競馬場・レースを選ぶ</h2>",
+            "<h2>2. 予想を見る・競馬場を選ぶ</h2>",
+            "<h2>3. 公式情報・取得状況・詳しい分析</h2>",
             "<h2>4. 発走前に固定した買い目</h2>",
             "<summary>追加分析・詳しい設定（必要なときだけ）</summary>",
         ]
@@ -20,6 +20,12 @@ class SimpleForecastScreenTest(unittest.TestCase):
         self.assertEqual(offsets, sorted(offsets))
         self.assertIn('href="#autoVenues"', HTML)
         self.assertIn('href="#fixedHistorySection"', HTML)
+        self.assertLess(HTML.index('id="autoRaces"'),
+                        HTML.index('id="autoDayDiagnostics"'))
+        self.assertLess(HTML.index('id="autoRaces"'),
+                        HTML.index('id="autoFiveQuickSection"'))
+        self.assertIn('id="autoAdvancedResearch"', HTML)
+        self.assertIn('href="#forecastRacesSection">予想一覧をすぐ見る', HTML)
 
     def test_details_and_preserved_controls(self):
         for control in [
