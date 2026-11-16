@@ -220,7 +220,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoMissingFactorRaces"></div>
 </details></details>
 <details id="autoComparableFactorPanel"><summary>調教＋比較可能な評価で3連単を研究（最大48点）</summary>
-<p class="muted">見送りレースでも、全馬に同じ評価項目が70点分以上そろう場合だけ研究候補を表示。近走が欠けたら全馬の比較から除外し、0点扱いしません。正式100点の予想・JRA公式照合・購入・固定記録・収支には反映しません。</p>
+<p class="muted">見送りレースでも、全馬の調教30点・コース距離17点・展開脚質17点がそろう場合は、主要64点分を使って参考フォーメーションを検討します。それ以外は従来どおり共通の評価項目70点分以上が必要です。近走など欠けた項目は全馬から除外し、0点扱いしません。これは未校正の研究用で、正式100点予想・JRA公式照合・購入・固定記録・収支には反映しません。</p>
 <p id="autoComparableFactorStatus" class="muted" role="status">追加研究は未取得です。</p>
 <div id="autoComparableFactorRaces"></div>
 </details>
