@@ -132,6 +132,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoRecordSafety" class="muted" role="status">固定記録の保管状態：まだ確認していません。</p></details>
 <a href="#autoVenues">開催日のレース一覧に進む</a>
 <p class="muted"><a href="#autoHistoryAudit">過去の同条件照合へ進む</a>（旧85点の比較と新配点79点の研究用下書きを確認。追加の有料API取得は本人がボタンを押した時のみ）</p>
+<details id="autoAdvancePanel"><summary>JRA競馬番組の予定時刻・距離を全場まとめて比較（無料）</summary>
+<p class="muted">取得済みJRDB資料とJRA公表の事前競馬番組を、本人が押した時だけ公式予定ページ1回で比較します。これは発表当初の予定であり、出走馬・取消・当日馬場・変更後の最終発走時刻は証明できません。JRDBへの追加有料通信0回、買い目・固定記録は変更しません。</p>
+<button id="autoAdvanceCompare" type="button">JRA予定時刻・コースを全場比較（無料）</button>
+<p id="autoAdvanceStatus" class="muted" role="status">開催日のJRDB資料を読み込んだ後に確認できます。</p>
+<div id="autoAdvanceDifferences"></div>
+</details>
 <details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
 <p class="muted">本人が押した時だけJRA公式ページから開催場別の出馬表PDFリンクを探します。PDFの内容は自動解析しません。出走馬・取消・馬場・発走時刻を公式情報と自分で照合するための補助です。</p>
 <button id="autoOfficialPdf" type="button">選択日のJRA公式PDFリンクを探す</button>
@@ -6620,6 +6626,7 @@ $('autoDay').onchange=()=>{
  resetResolvedJraCard();
  $('autoOfficialCardUrl').value='';
  $('autoOfficialCardStatus').textContent='開催日を変更しました。JRA公式Web出馬表の候補は未確認です。';
+ resetAdvanceProgramme();
  workoutProviderSeq++;
  workoutPairVerifySeq++;
  $('autoWorkoutPairVerifyStatus').textContent='選択日を変更しました。研究結果の署名は未検証。';
@@ -6751,6 +6758,126 @@ async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
 }
 $('autoSaturdayQuick').onclick=()=>quickWeekendForecast(6,'autoSaturdayQuick','土曜',2);
 $('autoSundayQuick').onclick=()=>quickWeekendForecast(0,'autoSundayQuick','日曜',3);
+// Opt-in JRA advance programme: one fixed-site public GET, no JRDB calls.
+// Comparing published planned times to /tra does NOT certify official
+// starters, scratches, going, current off or final 10-factor readiness.
+let advanceProgrammeSeq=0;
+function resetAdvanceProgramme(){
+ advanceProgrammeSeq++;
+ $('autoAdvanceCompare').disabled=false;
+ $('autoAdvanceStatus').textContent='開催日またはJRDB受信資料が変わりました。JRA予定番組は未比較です。';
+ $('autoAdvanceDifferences').replaceChildren();
+}
+$('autoAdvanceCompare').onclick=async()=>{
+ const button=$('autoAdvanceCompare'),status=$('autoAdvanceStatus');
+ if(button.disabled)return;
+ const date=$('autoDay').value,day=date.replaceAll('-','');
+ const source=latestDisplayedReport;
+ if(!/^20\d{2}-\d{2}-\d{2}$/.test(date)||
+    !source||latestDisplayedDay!==day||
+    $('autoDay').value.replaceAll('-','')!==latestDisplayedDay){
+  status.textContent='先にこの開催日のJRDB全R資料を取得してください。JRAへの追加アクセスは0回。';
+  return;
+ }
+ const seq=++advanceProgrammeSeq;
+ button.disabled=true;
+ $('autoAdvanceDifferences').replaceChildren();
+ status.textContent='JRA公表の予定競馬番組を確認中（無料・最終出馬表ではありません）…';
+ try{
+  const response=await fetch('/api/jra/advance-programme?date='+
+   encodeURIComponent(date),{
+    credentials:'same-origin',cache:'no-store',
+    headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  if(seq!==advanceProgrammeSeq||date!==$('autoDay').value||
+     latestDisplayedReport!==source||latestDisplayedDay!==day)return;
+  if(!response.ok)throw Error('jra_advance_unavailable');
+  const p=await response.json();
+  if(seq!==advanceProgrammeSeq||date!==$('autoDay').value||
+     latestDisplayedReport!==source||latestDisplayedDay!==day)return;
+  const venues=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
+  if(!p||p.version!=='owner-jra-advance-programme-reference-1'||
+     p.date!==date||p.referenceKind!=='advance_schedule_not_final_racecard'||
+     !Array.isArray(p.races)||p.races.length<24||p.races.length>48||
+     p.raceCount!==p.races.length||!Number.isInteger(p.venueCount)||
+     p.venueCount<2||p.venueCount>4||
+     p.officialFinalCardVerified!==false||
+     p.officialStartersVerified!==false||p.officialScratchesVerified!==false||
+     p.officialGoingVerified!==false||p.officialPostTimeVerified!==false||
+     p.predictionReady!==false||p.bettingReady!==false||
+     p.existingTicketsChanged!==false||p.existingReceiptsChanged!==false||
+     p.newJrdbRequests!==0)
+   throw Error('jra_advance_contract');
+  const seen=new Set(),byVenue=new Map();
+  for(const row of p.races){
+   if(!row||!venues.has(row.track)||!Number.isInteger(row.race)||
+      row.race<1||row.race>12||
+      typeof row.postTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(row.postTime)||
+      !Number.isInteger(row.distanceM)||row.distanceM<600||row.distanceM>5000||
+      !(row.surface===null||row.surface==='芝'||row.surface==='ダート'))
+    throw Error('jra_advance_race');
+   const key=row.track+'|'+row.race;
+   if(seen.has(key))throw Error('jra_advance_duplicate');
+   seen.add(key);
+   byVenue.set(row.track,(byVenue.get(row.track)||0)+1);
+  }
+  if(byVenue.size!==p.venueCount||
+     [...byVenue.values()].some(n=>n!==12))
+   throw Error('jra_advance_incomplete');
+  if(!Array.isArray(source.races)||source.races.length!==source.raceCount)
+   throw Error('source_roster_mismatch');
+  const sourceBy=new Map(source.races.map(x=>[x.track+'|'+x.race,x]));
+  if(sourceBy.size!==source.races.length)
+   throw Error('duplicate_jrdb_slot');
+  const contextBy=new Map((source.raceContext?.races||[])
+   .map(x=>[x.track+'|'+x.race,x]));
+  const alerts=[];let matched=0,unknown=0,compared=0;
+  for(const row of p.races){
+   const key=row.track+'|'+row.race,original=sourceBy.get(key);
+   if(!original){unknown++;continue;}
+   const context=contextBy.get(key);
+   for(const [field,a,b,format] of [
+    ['発走時刻',original.postTime,row.postTime,x=>x],
+    ['距離',context?.distance_m,row.distanceM,x=>String(x)+'m'],
+    ['芝・ダート',context?.surface,row.surface,x=>x]
+   ]){
+    if(b===null||a===undefined||a===null||a==='未確認'){
+     unknown++;
+    }else{
+     compared++;
+     if(a!==b){
+      alerts.push(row.track+' '+row.race+'R｜'+field+
+       '：JRDB '+format(a)+'／JRA予定 '+format(b));
+     }else matched++;
+    }
+   }
+  }
+  for(const item of source.races){
+   if(!seen.has(item.track+'|'+item.race)){
+    unknown++;
+    alerts.push(item.track+' '+item.race+
+     'R｜JRA事前番組にないレース（変更・欠落の可能性を要確認）');
+   }
+  }
+  if(alerts.length>90)throw Error('too_many_alerts');
+  const host=$('autoAdvanceDifferences');
+  for(const message of alerts)
+   host.append(dom('p',message,'muted'));
+  status.textContent='JRA事前番組 '+p.raceCount+'R／JRDB受信 '+source.raceCount+
+   'R｜比較 '+compared+'項目・予定と一致 '+matched+
+   '項目・差異 '+alerts.length+'項目・未比較 '+unknown+'項目。'+
+   (alerts.length?'下に違いを表示。':'比較できた予定項目で差異はありません。')+
+   '【重要】事前の予定表との比較だけ。最終出走・取消・馬場・実際の発走時刻は未照合。';
+ }catch(_){
+  if(seq===advanceProgrammeSeq){
+   $('autoAdvanceDifferences').replaceChildren();
+   status.textContent='JRA事前番組を安全に比較できませんでした。'+
+    '公式の最新出馬表を直接確認してください。既存の予想・固定記録は無変更です。';
+  }
+ }finally{
+  if(seq===advanceProgrammeSeq)button.disabled=false;
+ }
+};
 // Optional, JRA-only HTML index lookup. Never use the PDF URL as evidence
 // of specific runners, scratches, going, off times, finalized picks or ROI.
 $('autoOfficialPdf').onclick=async()=>{
@@ -7148,6 +7275,7 @@ $('autoRun').onclick=async()=>{
  const button=$('autoRun');
  if(button.disabled)return;
  const seq=++request,day=$('autoDay').value.replaceAll('-','');
+ resetAdvanceProgramme();
  latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
  latestReadAtMs=0;showSnapshotFreshness();
  clearDraftShortcut();
