@@ -62,6 +62,9 @@ from owner_workout_cross_band_receipts import (
     issue_cross_band_observations, verify_cross_band_observations,
 )
 from owner_ten_factor_contract import ten_factor_contract
+from owner_recent_crossfeed_diagnostics import (
+    recent_crossfeed_diagnostics, compact_recent_crossfeed_log,
+)
 from owner_isolated_factor_scores import (
     isolated_automatic_factor_scores, reconcile_factor_rosters_with_drafts,
 )
@@ -2650,6 +2653,16 @@ def create_app(settings=None):
                     report, final_prestart_checked_at)
                 if expired_before_delivery:
                     report['tenFactorPreview'] = ten_factor_contract(report)
+                # Cross-check prior-result keys in the SAME /tky source with
+                # the /tze-derived recent evidence (never a new paid read).
+                # Post-off and withdrawn races remain held; this cannot sign
+                # new wagers or turn sparse evidence into official grades.
+                stage = 'recent_crossfeed_diagnostic'
+                try:
+                    report['recentCrossfeedDiagnostic'] = recent_crossfeed_diagnostics(
+                        programme, entries, report, day)
+                except (CoverageError, ValueError, TypeError, KeyError):
+                    logging.warning('KEIBA_RECENT_CROSSFEED=unavailable')
                 # /tky includes a separate analyst 'training_index' even
                 # when /tcy has no current workout records. Show only a
                 # read-only observed-order study for PRESTART held races.
@@ -2845,7 +2858,7 @@ def create_app(settings=None):
                     'KEIBA_AUTO_DRAFT_PIPELINE status=complete '
                     'programme=%s source_reads=%s drafts=%s holds=%s receipts=%s '
                     'material=%s course=%s hold_causes=%s factor_gaps=%s '
-                    'factor_gap_causes=%s unsigned_sparse_previews=%s '
+                    'factor_gap_causes=%s recent_crossfeed=%s unsigned_sparse_previews=%s '
                     'tie_boundary_rescues=%s unsigned_tie_48_previews=%s training_feed=%s '
                     'training_index_rows=%s expired_on_return=%s '
                     'jra=unverified formal=ungraded',
@@ -2858,6 +2871,7 @@ def create_app(settings=None):
                     compact_hold_diagnostics(report),
                     compact_factor_shortage_diagnostics(report),
                     compact_missing_reason_diagnostics(report),
+                    compact_recent_crossfeed_log(report.get('recentCrossfeedDiagnostic')),
                     report['uncertainRecentResearch']['safeResearchPreviewCount'],
                     sum(1 for row in report['races']
                         if row['status'] == 'provisional_draft'
