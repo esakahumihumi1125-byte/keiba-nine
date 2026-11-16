@@ -362,6 +362,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted" id="autoPolicy100Notice">ARC RACEの評価配点は<strong>10項目・合計100点</strong>です。下に表示する内訳は現行research-6の100点方式です。調教・近走はまだ研究用の仮評価、残り8項目とJRA公式照合は未完成のため、正式な総合得点や買い目には反映しません。過去の署名済み記録・研究用の下書きは変更しません。</p>
 
 <p id="autoTenStatus" class="muted" role="status">予想資料の取得後に表示します。</p>
+<p id="autoFormalShadowStatus" class="muted" role="status">正式10項目エンジンと当日資料の接続は未確認。発走前の実資料が揃うまで正式得点・買い目は出しません。</p>
 <div id="autoTenWeights" class="ten-weights"></div>
 <p class="muted">総合S：85点以上／A：70点以上／B：55点以上／C：55点未満。
 10項目の根拠がそろうまでは総合点・総合順位は「未評価」です。</p>
@@ -1679,6 +1680,54 @@ function renderTenHorse(h,source,automatic,seven){
   seven.unassessedWeight+'点枠は0点扱いせず、正式100点・S/A/B/C総合順位・'+
   '購入用予想には使いません。','muted'));
  return details;
+}
+// The real-day full-ten GATE is deliberately read-only: no trusted
+// 10-factor grades, no independently certified JRA, no formal tickets.
+// Validate every count and same-day race identity before presenting even
+// this optional progress marker. Old provider snapshots remain compatible.
+function formalGateShadowStatus(data,day){
+ const p=data.formalGateShadow;
+ const unavailable='正式10項目ゲート接続：この取得では未確認。正式採点・購入用買い目は未提供です。';
+ if(!p)return unavailable;
+ const count=k=>Number.isInteger(p[k])&&p[k]>=0&&p[k]<=36;
+ const expected=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+ const states=new Set(['blocked_missing_verified_evidence',
+  'past_off_no_retroactive_gate','roster_or_schedule_unavailable']);
+ if(p.version!=='owner-live-formal-shadow-1'||p.date!==day||
+    p.raceCount!==data.raceCount||p.raceCount>36||
+    !count('prestartFormalGateRuns')||!count('blockedMissingEvidenceRaces')||
+    !count('pastOffRaces')||!count('rosterOrTimeUnavailableRaces')||
+    p.prestartFormalGateRuns!==p.blockedMissingEvidenceRaces||
+    p.blockedMissingEvidenceRaces+p.pastOffRaces+
+     p.rosterOrTimeUnavailableRaces!==p.raceCount||
+    p.verifiedFormalFactorCount!==0||p.verifiedTotalScoreCount!==0||
+    p.formalTrifectaCount!==0||p.ticketsIssued!==0||
+    p.officialJraVerified!==false||p.overallPredictionReady!==false||
+    p.bettingReady!==false||p.newProviderRequests!==0||
+    p.changesExistingDrafts!==false||p.changesExistingReceipts!==false||
+    p.researchOnly!==true||p.privateOwnerOnly!==true||
+    !Array.isArray(p.races)||p.races.length!==p.raceCount||
+    expected.size!==data.raceCount)return unavailable;
+ const seen=new Set(),totals=[0,0,0];
+ for(const row of p.races){
+  if(!row||typeof row.track!=='string'||!Number.isInteger(row.race)||
+     !states.has(row.status)||row.formalScoreReady!==false||
+     row.officialJraVerified!==false||row.bettingReady!==false)return unavailable;
+  const key=row.track+'|'+row.race;
+  if(!expected.has(key)||seen.has(key))return unavailable;
+  seen.add(key);
+  totals[row.status==='blocked_missing_verified_evidence'?0:
+    row.status==='past_off_no_retroactive_gate'?1:2]++;
+ }
+ if(totals[0]!==p.blockedMissingEvidenceRaces||
+    totals[1]!==p.pastOffRaces||
+    totals[2]!==p.rosterOrTimeUnavailableRaces)return unavailable;
+ return '正式10項目ゲートへの当日資料接続：発走前の照合試験 '+
+  p.prestartFormalGateRuns+'/'+p.raceCount+'R／'+
+  '検証済み10項目 0／正式採点 0R／正式3連単 0点。'+
+  '発走済み '+p.pastOffRaces+'R・馬番/時刻不足 '+
+  p.rosterOrTimeUnavailableRaces+'R。'+
+  'JRDBの研究用S/A/B/Cは正式点に流用せず、JRA公式最終照合も未完了です。';
 }
 function renderTenHeader(p){
  const host=$('autoTenWeights');host.replaceChildren();
@@ -3163,6 +3212,7 @@ function render(input,day){
  const allOption=dom('option','全Rを一覧表示');allOption.value='';
  select.append(allOption);select.value='';
  host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
+ $('autoFormalShadowStatus').textContent=formalGateShadowStatus(data,day);
  // Release no-longer-visible horse summary references on every render.
  prestartBodyMarkers=new Map();
  // Warning display nodes are per render; all values are safe fixed phrases.
@@ -7058,6 +7108,7 @@ showSavedWorkoutCrossHistory($('autoDay').value.replaceAll('-',''));
  $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
+ $('autoFormalShadowStatus').textContent='開催日を変更しました。正式10項目ゲートへの接続は未確認です。';
  $('autoSavedStatus').textContent=localReceiptStatus(
   $('autoDay').value.replaceAll('-',''));
  showFixedHistory($('autoDay').value.replaceAll('-',''));
@@ -10438,6 +10489,7 @@ function resumeOwnerDay(){
  $('autoFixedConsistency').textContent='固定記録と下書きの差異は未確認。既存の記録は変更していません。';
  $('autoTenWeights').replaceChildren();
  $('autoTenStatus').textContent='10項目の評価を取得していません。';
+ $('autoFormalShadowStatus').textContent='開催日を変更しました。正式10項目ゲートへの接続は未確認です。';
  $('autoSavedStatus').textContent=localReceiptStatus(today.replaceAll('-',''));
  showFixedHistory(today.replaceAll('-',''));
  renderFixedQuick(today.replaceAll('-',''),true);
