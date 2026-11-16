@@ -4,6 +4,56 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
+// Live 10-factor gate status is a verified, read-only progress display.
+// A fabricated pass, missing race, stale date, extra row or nonzero ticket
+// must NEVER be shown as a real formal score or JRA verification.
+{
+ const sandbox={};vm.createContext(sandbox);
+ const start=js.indexOf('function formalGateShadowStatus(');
+ const end=js.indexOf('function renderTenHeader(',start);
+ assert.ok(start>0&&end>start);
+ vm.runInContext(js.slice(start,end)+'\nglobalThis.formalShadowCheck=formalGateShadowStatus;',sandbox);
+ const check=sandbox.formalShadowCheck;
+ const original={
+  raceCount:1,races:[{track:'東京',race:1,status:'provisional_draft'}],
+  formalGateShadow:{
+   version:'owner-live-formal-shadow-1',date:'20990101',raceCount:1,
+   prestartFormalGateRuns:1,blockedMissingEvidenceRaces:1,
+   pastOffRaces:0,rosterOrTimeUnavailableRaces:0,
+   verifiedFormalFactorCount:0,verifiedTotalScoreCount:0,
+   formalTrifectaCount:0,officialJraVerified:false,
+   overallPredictionReady:false,bettingReady:false,
+   researchOnly:true,privateOwnerOnly:true,newProviderRequests:0,
+   ticketsIssued:0,changesExistingDrafts:false,
+   changesExistingReceipts:false,
+   races:[{track:'東京',race:1,status:'blocked_missing_verified_evidence',
+    formalScoreReady:false,officialJraVerified:false,bettingReady:false}]
+  }
+ };
+ const good=check(original,'20990101');
+ assert.match(good,/発走前の照合試験 1\/1R/);
+ assert.match(good,/正式採点 0R／正式3連単 0点/);
+ assert.match(check({...original,formalGateShadow:undefined},'20990101'),
+  /未確認/);
+ assert.match(check(original,'20990102'),/未確認/);
+ for(const mutate of [
+  x=>x.formalTrifectaCount=1,
+  x=>x.verifiedTotalScoreCount=1,
+  x=>x.officialJraVerified=true,
+  x=>x.blockedMissingEvidenceRaces=0,
+  x=>x.races.push(structuredClone(x.races[0])),
+  x=>x.races[0].track='京都',
+  x=>x.races[0].status='review_only',
+  x=>x.races[0].formalScoreReady=true,
+  x=>x.newProviderRequests=1,
+ ]){
+  const fake=structuredClone(original);
+  mutate(fake.formalGateShadow);
+  assert.match(check(fake,'20990101'),/未確認/,
+   'inconsistent or upgraded source must fail UI display closed');
+ }
+ assert.equal(original.formalGateShadow.ticketsIssued,0);
+}
 // Optional numeric factors must not corrupt older snapshots or promote a total.
 {
  const sandbox={draftExpiredOnDevice:()=>false};vm.createContext(sandbox);
