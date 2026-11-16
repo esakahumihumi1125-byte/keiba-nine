@@ -111,3 +111,52 @@ def racecard_cancellation_cue(html):
                 and cells[2][1] and len(cells[2][1]) <= MAX_CELL_CHARS):
             return True
     return None
+
+
+def racecard_number_candidates(html):
+    """Read only visible horse-number *candidates* from one narrow racecard table.
+
+    Do not claim a complete field or absence of withdrawals: page contents may
+    be cached or partial. Invalid, ambiguous or scratched rows return None.
+    Names, raw HTML and other JRA table data never leave this function.
+    """
+    if type(html) is not str or not html or len(html) > 480000:
+        return None
+    reader = _HorseTableCells()
+    try:
+        reader.feed(html)
+        reader.close()
+    except Exception:
+        return None
+    targets = set()
+    for row in reader.rows:
+        cells = row["cells"]
+        if (len(cells) >= 3 and len(cells) <= 12
+                and all(tag == "th" for tag, _ in cells[:3])
+                and cells[0][1].replace(" ", "") in ("枠", "枠番")
+                and cells[1][1].replace(" ", "") == "馬番"
+                and cells[2][1].replace(" ", "").startswith("馬名")):
+            targets.add(row["table"])
+    if len(targets) != 1:
+        return None
+    table = next(iter(targets))
+    numbers = set()
+    for row in reader.rows:
+        if row["table"] != table:
+            continue
+        cells = row["cells"]
+        if cells and cells[0][0] == "th":
+            continue
+        if (not 3 <= len(cells) <= 12
+                or any(tag != "td" for tag, _ in cells[:3])
+                or not cells[2][1] or len(cells[2][1]) > MAX_CELL_CHARS):
+            return None
+        value = re.sub(r"\s+", "", cells[1][1])
+        if not re.fullmatch(r"(?:0?[1-9]|1[0-8])", value, re.ASCII):
+            # Includes 取消/除外: the original number cannot be recovered.
+            return None
+        number = int(value)
+        if number in numbers:
+            return None
+        numbers.add(number)
+    return sorted(numbers) if 2 <= len(numbers) <= 18 else None

@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from jra_racecard_cancellation_cue import racecard_cancellation_cue
+from jra_racecard_cancellation_cue import (
+    racecard_cancellation_cue, racecard_number_candidates,
+)
 from jra_prestart_card_candidate import parse_prestart_card_candidate
 from test_jra_prestart_card_candidate import MOBILE, DAY
 
@@ -27,6 +29,7 @@ class CancellationCueTests(unittest.TestCase):
         snapshot = parse_prestart_card_candidate(
             html, MOBILE, DAY, "京都", 1)
         self.assertIs(snapshot["cancellationCueCandidate"], True)
+        self.assertIsNone(snapshot["horseNumbersCandidate"])
         self.assertIs(snapshot["officialScratchesVerified"], False)
         self.assertIs(snapshot["officialStartersVerified"], False)
         self.assertIs(snapshot["bettingReady"], False)
@@ -41,6 +44,7 @@ class CancellationCueTests(unittest.TestCase):
         snapshot = parse_prestart_card_candidate(
             HEAD + no_marker, MOBILE, DAY, "京都", 1)
         self.assertIsNone(snapshot["cancellationCueCandidate"])
+        self.assertEqual(snapshot["horseNumbersCandidate"], [1, 2, 3])
         self.assertFalse(snapshot["officialScratchesVerified"])
 
     def test_past_race_and_unrelated_table_cancellation_ignored(self):
@@ -70,6 +74,33 @@ class CancellationCueTests(unittest.TestCase):
         <th>馬名</th></tr><tr><td>取消</td><td>unknown</td>
         <td>未確認</td></tr></table>"""
         self.assertIsNone(racecard_cancellation_cue(HEAD+without_rows))
+
+
+    def test_number_candidates_are_strict_not_completeness_or_official_status(self):
+        clean = HEAD + TABLE.replace("<td>取消</td>", "<td>2</td>")
+        self.assertEqual(racecard_number_candidates(clean), [1, 2, 3])
+        snap = parse_prestart_card_candidate(clean, MOBILE, DAY, "京都", 1)
+        self.assertEqual(snap["horseNumbersCandidate"], [1, 2, 3])
+        self.assertFalse(snap["officialStartersVerified"])
+        self.assertFalse(snap["officialScratchesVerified"])
+        self.assertFalse(snap["formalTenFactorReady"])
+        self.assertFalse(snap["bettingReady"])
+        self.assertNotIn("架空の馬", repr(snap))
+
+        variants = (
+            clean.replace("<td>2</td>", "<td>1</td>"),  # duplicates
+            clean.replace("<td>2</td>", "<td>19</td>"),  # invalid range
+            clean.replace("<td>2</td>", "<td>未定</td>"),
+            clean.replace("<td>2</td>", "<td>除外</td>"),
+            clean + clean[clean.index("<table>"):],  # two horse tables
+            clean.replace("<td>架空の馬B<span>取消</span></td>",
+                          "<td></td>"),  # missing horse-name cell
+            HEAD + "<script>" + clean[clean.index("<table>"):] + "</script>",
+            HEAD + "<table><tr><th>枠</th><th>馬番</th><th>馬名</th></tr></table>",
+        )
+        for html in variants:
+            with self.subTest(html=html[:80]):
+                self.assertIsNone(racecard_number_candidates(html))
 
 
 if __name__ == "__main__":
