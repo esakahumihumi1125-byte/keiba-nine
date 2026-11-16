@@ -6,6 +6,7 @@ URL from first-party links (not the horse table, data or odds). Never guess
 checksum-bearing CNAMEs. No JRDB API, secrets, persistence, or auto-poll.
 """
 from datetime import date, datetime, timedelta
+import re
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urljoin, urlsplit
 from urllib.request import Request, build_opener
@@ -86,7 +87,7 @@ def _validated_card_link(href, origin, day, track, race):
         target_day = day.replace("-", "")
         # The 2026 mobile/desktop D/E racecard token has a race coordinate
         # and integrity suffix. Reject other formats instead of guessing.
-        prefix = ("sw01dde01", "pw01dde01")
+        prefix = ("sw01dde01", "pw01dde01", "sw01ddd01", "pw01ddd01")
         if not token.startswith(prefix):
             return None
         stem = token[9:]
@@ -159,7 +160,7 @@ def resolve_racecard_link(day, track, race, *, today=None, fetch_html=None):
     # JRA links notable same-day races from its homepage. The label
     # provides the venue, while encoded CNAME provides its real coordinate.
     for label, href in _links(index):
-        if not label.startswith(track + "11R"):
+        if not re.match(r"^" + re.escape(track) + r"\s*11\s*[RＲ](?![0-9])", label):
             continue
         candidate = _validated_card_link(href, HOME, day, track, 11)
         if candidate and candidate not in candidates:
@@ -179,7 +180,7 @@ def resolve_racecard_link(day, track, race, *, today=None, fetch_html=None):
             raise JraLinkResolutionError("JRA seed racecard not identifiable") from None
         matches = []
         for label, href in _links(page):
-            if label != f"{race}R":
+            if not re.fullmatch(rf"0?{race}\s*(?:R|Ｒ|レース)", label):
                 continue
             candidate = _validated_card_link(href, seed, day, track, race)
             if candidate and candidate not in matches:
