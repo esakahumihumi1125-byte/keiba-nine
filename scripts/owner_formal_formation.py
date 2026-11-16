@@ -48,10 +48,16 @@ def formal_formation_sizes(ranked):
         if not complete(first):
             continue
         candidates = []
+        # Any second cutoff >=9 already exceeds 48 with the smallest
+        # permissible first tier: 1 * (9-1) * (9-2) == 56.
+        # The THIRD tier is different: with 1S / 3A / 6B / 4C, retaining
+        # the entire C band gives 1 * (4-1) * (14-2) == 36. An artificial
+        # 12-runner ceiling would discard that valid 30-40 point option.
+        # Examine through ALL 18 starters without splitting any equality.
         for second in range(first + 1, min(count, 8) + 1):
             if not complete(second):
                 continue
-            for third in range(max(3, second), min(count, 12) + 1):
+            for third in range(max(3, second), count + 1):
                 if not complete(third):
                     continue
                 # These candidate groups are nested: first ⊂ second ⊆ third.
