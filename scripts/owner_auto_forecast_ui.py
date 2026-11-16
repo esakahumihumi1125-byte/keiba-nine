@@ -3014,7 +3014,6 @@ function render(input,day){
    advanceWarning.textContent=advanceText;
    advanceWarning.hidden=false;
   }
-  detail.append(advanceWarning);
   advanceRaceMarkers.set(key,advanceWarning);
   const automatic=automaticFactorRace(data,day,race);
   if(eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock))
@@ -3028,6 +3027,8 @@ function render(input,day){
   // No formation can be recreated after the local provisional off-time.
   if(race.status==='provisional_draft'&&!elapsed&&!changedLock)
    detail.append(formation(race));
+  // The prestart formation retains its original first-visible position.
+  detail.append(advanceWarning);
   if(race.runners.length){
    const front=race.runners.filter(h=>h.pastFourthCorner==='frontObserved').length;
    const back=race.runners.filter(h=>h.pastFourthCorner==='backObserved').length;
