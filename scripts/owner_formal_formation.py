@@ -16,11 +16,14 @@ MIN_RUNNERS, MAX_RUNNERS = 4, 18
 def formal_formation_sizes(ranked):
     """Choose whole tied-score groups, prefer 30..40, never exceed 48.
 
-    Prefer two first-place horses when that boundary can be chosen without
-    splitting a real equality. Try three only when two cannot be selected,
-    then a single clear leader as a last resort. For small fields the natural
-    ticket count can be lower than thirty. A 41..48 point formation is a
-    fallback, not an invitation to increase an already good 30..40 ticket.
+    Normally prefer two first-place horses when that boundary can be
+    chosen without splitting a real equality. A single demonstrably clear
+    S-grade leader (at least a 10-point lead and an A-or-lower runner-up)
+    may instead take a whole-tier 30..40-point formation rather than an
+    otherwise necessary 41..48-point two-winner fallback. Three first-place
+    horses are considered only when two cannot be selected. This is a fixed
+    RESEARCH heuristic, not a calibrated reliability claim or proof of a
+    safe single-winner bet. For small fields fewer than thirty is normal.
     Returns (first, second, third) group sizes or None if ambiguous.
 
     This has NO authority to grade horses or approve betting. The caller must
@@ -44,6 +47,7 @@ def formal_formation_sizes(ranked):
             size == count or scores[size - 1] > scores[size]
         )
 
+    winners = {}
     for first in (2, 3, 1):
         if not complete(first):
             continue
@@ -67,9 +71,27 @@ def formal_formation_sizes(ranked):
                 if 1 <= points <= MAX_POINTS:
                     candidates.append((points, first, second, third))
         if candidates:
-            best = max(candidates, key=lambda row: (
+            winners[first] = max(candidates, key=lambda row: (
                 PREFERRED_LOW <= row[0] <= PREFERRED_HIGH,
                 row[0], row[3], -row[2]
             ))
-            return best[1:]
+    two = winners.get(2)
+    one = winners.get(1)
+    # Default two winners remain preferred. The clear-leader exception is
+    # deliberately strict: exact unrounded /3 integer scores, a complete
+    # top-1 boundary, S (>=85/100), A-or-below runner-up, and >=10/100
+    # lead. Otherwise turning a 48pt/two-winner research reference into a
+    # 36pt/single-winner reference would conceal material first-place risk.
+    strong_single = (
+        one is not None and two is not None
+        and scores[0] >= 255 and scores[1] < 255
+        and scores[0] - scores[1] >= 30
+        and PREFERRED_LOW <= one[0] <= PREFERRED_HIGH
+        and not PREFERRED_LOW <= two[0] <= PREFERRED_HIGH
+    )
+    if strong_single:
+        return one[1:]
+    for first in (2, 3, 1):
+        if first in winners:
+            return winners[first][1:]
     return None
