@@ -3029,6 +3029,10 @@ function render(input,day){
  }
  quickRows.sort((a,b)=>a.race.postTime.localeCompare(b.race.postTime)||
   a.race.track.localeCompare(b.race.track,'ja')||a.race.race-b.race.race);
+ // Reuse ONLY browser-validated and already rendered reference cards.
+ const referenceByRace=new Map(quickRows.map(item=>[
+  item.race.track+'|'+item.race.race,item
+ ]));
  for(const item of quickRows){
   const row=dom('div',undefined,'owner-reference-quick-card');
   row.append(dom('p',item.race.postTime+'予定（JRDB）｜'+
@@ -3134,6 +3138,7 @@ function render(input,day){
  for(const race of data.races){
   const key=race.track+'|'+race.race,
    changedLock=fixed.blocked.has(key),elapsed=deviceExpired.has(key);
+  const reference=race.status==='hold'?referenceByRace.get(key):null;
   const detail=dom('details'),title=dom('summary',
    race.track+' '+race.race+'R '+
    (race.status==='provisional_draft'
@@ -3141,7 +3146,8 @@ function render(input,day){
       changedLock?'固定済みとの不一致・再分析案非表示':
       '研究用自動案 '+race.points+'点｜1着候補 '+race.first.join('・')+'番'
     :'見送り'+(race.runners.length?'｜調教S '+race.runners.filter(h=>h.training==='S').length+
-      '頭・A '+race.runners.filter(h=>h.training==='A').length+'頭（仮）':'')));
+      '頭・A '+race.runners.filter(h=>h.training==='A').length+'頭（仮）':'')+
+      (reference?'｜参考候補あり（研究用・未購入）':'')));
   detail.append(title);
   // Warn in the collapsed race heading so the important status is visible.
   // Do not insert a child: existing formation/horse-analysis order stays intact.
@@ -3314,6 +3320,18 @@ function render(input,day){
    day.slice(4,6)+'-'+day.slice(6,8)+
    '&track='+encodeURIComponent(race.track)+'&race='+race.race;
   detail.append(manual);
+  if(reference){
+   // A read-only copy of already checked, visible research; never a
+   // second signing, betting, ticket handoff, or result-record action.
+   const study=dom('details',undefined,'inline-validated-research');
+   study.append(dom('summary','見送りRの参考1・2・3着（'+
+    reference.panel.label+'・研究用・購入連携なし）'));
+   for(const picks of reference.picks)study.append(dom('p',picks,'picks'));
+   study.append(dom('p','比較できた項目だけの研究用参考。'+
+    'JRA最終照合・正式100点採点・購入・固定・収支計算は未実施。'+
+    '発走予定時刻が過ぎたレースでは非表示になります。','muted'));
+   detail.append(study);
+  }
   const raceKey=race.track+'|'+race.race;
   nodes.push({key:raceKey,track:race.track,postTime:race.postTime,
    draft:race.status==='provisional_draft'&&!changedLock&&!elapsed,
@@ -3322,7 +3340,8 @@ function render(input,day){
    (race.status==='provisional_draft'
     ?elapsed?'発走時刻経過・新案非表示':
       changedLock?'固定済みと不一致・新案非表示':
-      '研究用下書き '+race.points+'点':'見送り'));
+      '研究用下書き '+race.points+'点':
+      reference?'見送り・参考候補あり（研究用）':'見送り'));
   option.value=raceKey;select.append(option);
   groups.set(race.track,(groups.get(race.track)||0)+1);
  }
@@ -3337,10 +3356,15 @@ function render(input,day){
   // Re-evaluate the local clock before exposing any on-screen formation.
   const expiredNow=data.races.filter(x=>x.status==='provisional_draft'&&
    draftExpiredOnDevice(day,x.postTime)).length;
-  if(expiredNow>deviceExpired.size){
+  // Research references must disappear on late user navigation, too.
+  const oldReferenceExpired=quickRows.some(item=>
+   draftExpiredOnDevice(day,item.race.postTime));
+  if(expiredNow>deviceExpired.size||oldReferenceExpired){
    latestExpiredDraftCount=expiredNow;
    render(data,day); // Display-only, no network or receipt writes.
-   $('autoStatus').textContent='受信後に発走時刻を過ぎた下書きを非表示に更新しました。';
+   $('autoStatus').textContent=oldReferenceExpired
+    ?'発走予定時刻を過ぎた見送りRの研究用参考候補を非表示にしました。固定履歴・買い目は変更していません。'
+    :'受信後に発走時刻を過ぎた下書きを非表示に更新しました。';
    return;
   }
   const frag=document.createDocumentFragment();
