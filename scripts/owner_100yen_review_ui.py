@@ -507,7 +507,11 @@ function validateJraCandidate(obj,day,track,race){
     !Array.isArray(obj.trifectaCandidates)||
     !Array.isArray(obj.trioCandidates)||
     obj.trifectaCandidates.length<1||obj.trifectaCandidates.length>18||
-    obj.trioCandidates.length<1||obj.trioCandidates.length>18)
+    obj.trioCandidates.length<1||obj.trioCandidates.length>18||
+    !['single_third_place','third_place_dead_heat',
+      'first_place_dead_heat','second_place_dead_heat'].includes(obj.podiumShape)||
+    obj.matchingTrifectaCount!==obj.trifectaCandidates.length||
+    obj.matchingTrioCount!==obj.trioCandidates.length)
    throw Error('Unverified result candidate');
  for(const [kind,rows] of [
   ['3連単',obj.trifectaCandidates],['3連複',obj.trioCandidates]]){
@@ -529,6 +533,17 @@ function validateJraCandidate(obj,day,track,race){
    seen.add(key);
   }
  }
+ // A displayed podium must imply the same unordered three-horse
+ // combinations as the exact 3連単 rows. Independent browser check
+ // rejects a forged payout even if the server claims podiumChecked=true.
+ const derived=new Set(obj.trifectaCandidates.map(row=>
+  row.ticket.slice().sort((a,b)=>a-b).join('-')));
+ const reported=new Set(obj.trioCandidates.map(row=>row.ticket.join('-')));
+ if(derived.size!==reported.size||derived.size!==obj.trioCandidates.length||
+    [...derived].some(key=>!reported.has(key))||
+    (obj.podiumShape==='single_third_place'&&obj.trifectaCandidates.length!==1)||
+    (obj.podiumShape!=='single_third_place'&&obj.trifectaCandidates.length<2))
+  throw Error('Result podium and payout candidate mismatch');
  return obj;
 }
 // Only the server can confirm an HMAC signed *prestart* receipt.
