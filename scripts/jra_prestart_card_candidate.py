@@ -11,6 +11,8 @@ import re
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from jra_racecard_cancellation_cue import racecard_cancellation_cue
+
 VERSION = "owner-jra-prestart-card-candidate-1"
 HOSTS = frozenset(("www.jra.go.jp", "jra.jp", "sp.jra.jp", "app.jra.jp", "own.jra.jp"))
 VENUES = frozenset(("札幌", "函館", "福島", "新潟", "東京", "中山",
@@ -169,6 +171,7 @@ def parse_prestart_card_candidate(html, url, requested_date, track, race):
         "race": race, "postTimeCandidate": f"{hour:02d}:{minute:02d}",
         "courseSurfaceCandidate": surface, "distanceMCandidate": distance,
         "goingCandidate": going, "goingCandidatePresent": going is not None,
+        "cancellationCueCandidate": racecard_cancellation_cue(html),
         "officialHostAllowlisted": True, "visibleRaceHeaderMatched": True,
         "pageContentsParsed": True, "independentSourceAuthenticated": False,
         "officialStartersVerified": False, "officialScratchesVerified": False,
@@ -176,9 +179,10 @@ def parse_prestart_card_candidate(html, url, requested_date, track, race):
         "formalTenFactorReady": False, "bettingReady": False,
         "changesExistingReceipts": False, "changesExistingTickets": False,
         "newJrdbProviderRequests": 0, "researchOnly": True,
-        "note": ("JRA出馬表ページの発走時刻・コースと掲載時の"
-                 "馬場状態候補のみ読取。JRAの真正性・最新性と正式な"
-                 "出走・取消・馬場・時刻の4項目照合は未完了。"),
+        "note": ("JRA出馬表の時刻・コース・掲載時の馬場状態と、"
+                 "馬番欄に明示された取消表示の手掛かりのみ読取。"
+                 "見つからなくても取消なしの証明ではなく、"
+                 "JRAの真正性・最新性・正式な4項目照合は未完了。"),
     }
 
 
