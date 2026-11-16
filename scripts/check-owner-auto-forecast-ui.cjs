@@ -10,7 +10,7 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  const start=js.indexOf('const AUTO_FACTOR_REASONS=');
  const end=js.indexOf('function renderTenHorse(',start);
  assert.ok(start>=0&&end>start);
- vm.runInContext(js.slice(start,end)+'\nglobalThis.checkAuto=automaticFactorRace;globalThis.eligibleResearchFactorPanel=eligibleResearchFactorPanel;',sandbox);
+ vm.runInContext(js.slice(start,end)+'\nglobalThis.checkAuto=automaticFactorRace;globalThis.checkSeven=sevenFactorRace;globalThis.eligibleResearchFactorPanel=eligibleResearchFactorPanel;',sandbox);
  const score=(weight)=>({score:80,points:weight*.8,grade:'A',weight,reason:'staff_relative_midrank'});
  const row={track:'東京',race:1,postTime:'12:00',status:'scored',reason:null,
   horses:[1,2,3,4].map(number=>({number,factors:{course_distance:{...score(17),reason:'distance_only_match'},ground:{...score(12),reason:'ground_soft_mudder_1'},pace:score(17),jockey_stable:score(10),rotation:score(1)}}))};
@@ -49,6 +49,42 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  missing.automaticFactorScores.races[0].horses[1].factors.ground=
   {score:null,points:null,grade:'未評価',weight:12,reason:'ground_good_not_scored'};
  assert.equal(check(missing).horses[1].factors.ground.points,null);
+ // Source-bound 7-factor subtotal: same 4 runners, only research coverage.
+ const partialRows=[1,2,3,4].map(number=>({
+  number,researchSubtotal:77.6,assessedWeight:90,unassessedWeight:10,
+  unassessedFactors:['pedigree','draw_weight','body_condition'],
+  finalScore100:null,overallGrade:'未評価',overallRank:null
+ }));
+ const sevenDay={
+  raceCount:1,tenFactorPreview:{races:[{
+   track:'東京',race:1,runnerCount:4,horses:[1,2,3,4].map(number=>({
+    number,provisionalScoreReady:true,provisionalPoints33:32
+   }))
+  }]},
+  sevenFactorCoverage:{
+   version:'owner-seven-factor-coverage-1',policyVersion:'research-6',
+   date:'20990101',raceCount:1,maximumPossibleAssessedWeight:90,
+   remainingUnmappedWeight:10,modelCalibrated:false,
+   researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+   overallPredictionReady:false,publishable:false,bettingReady:false,
+   autoPurchase:false,ticketsIssued:0,changesExistingDrafts:false,
+   changesExistingReceipts:false,newProviderRequests:0,
+   races:[{track:'東京',race:1,status:'partial',horses:partialRows}]
+  }
+ };
+ const provisional={...fullRace,track:'東京',race:1,status:'provisional_draft'};
+ const researchScore=check(data);
+ const good=sandbox.checkSeven(sevenDay,'2099-01-01',provisional,researchScore);
+ assert.equal(good.get(1).researchSubtotal,77.6);
+ const changed=structuredClone(sevenDay);
+ changed.sevenFactorCoverage.races[0].horses[0].researchSubtotal=88;
+ assert.equal(sandbox.checkSeven(changed,'2099-01-01',provisional,researchScore),null);
+ const official=structuredClone(sevenDay);
+ official.sevenFactorCoverage.officialJraVerified=true;
+ assert.equal(sandbox.checkSeven(official,'2099-01-01',provisional,researchScore),null);
+ assert.equal(sandbox.checkSeven(sevenDay,'2099-01-02',provisional,researchScore),null);
+ assert.equal(sandbox.checkSeven(sevenDay,'2099-01-01',
+  {...provisional,status:'hold'},researchScore),null);
 }
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
