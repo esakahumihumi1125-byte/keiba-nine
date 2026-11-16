@@ -54,6 +54,39 @@ class UncertainRecentResearchTests(unittest.TestCase):
         self.assertNotIn("racekey", repr(preview))
         self.assertNotIn("horse_id", repr(preview))
 
+    def test_four_horse_missing_recent_allows_stable_six_point_reference(self):
+        # A unique observed workout S stays first for any unknown 3pt
+        # recent grade, and the three A horses remain a whole tied group.
+        # A small field cannot always yield 12 combinations without
+        # inventing an arbitrary cutoff or including unsupported horses.
+        pairs = [("S", "未評価")] + [("A", "未評価")] * 3
+        original = build(pairs)
+        before = copy.deepcopy(original)
+        self.assertEqual(original["draftCount"], 0)
+        reference = preview_missing_recent_holds(
+            original, DAY, now=PRESTART)
+        self.assertEqual(reference["safeResearchPreviewCount"], 1)
+        row = reference["races"][0]
+        self.assertEqual(row["first"], [1])
+        self.assertEqual(row["second"], [1, 2, 3, 4])
+        self.assertEqual(row["third"], [1, 2, 3, 4])
+        self.assertEqual(row["points"], 6)
+        self.assertEqual(row["missingRecentCount"], 4)
+        self.assertTrue(row["eachCutoffProvenForAllRecentGrades"])
+        self.assertFalse(row["receiptIssued"])
+        self.assertFalse(row["predictionReady"])
+        self.assertFalse(row["officialJraVerified"])
+        self.assertEqual(reference["ticketsIssued"], 0)
+        self.assertEqual(reference["newProviderRequests"], 0)
+        self.assertEqual(original, before)
+
+    def test_small_field_still_holds_without_stable_winner_boundary(self):
+        pairs = [("S", "未評価")] * 4
+        reference = preview_missing_recent_holds(
+            build(pairs), DAY, now=PRESTART)
+        self.assertEqual(reference["safeResearchPreviewCount"], 0)
+        self.assertEqual(reference["races"], [])
+
     def test_unique_training_leader_allows_unsigned_one_horse_first_tier(self):
         # One S runner is ALWAYS ahead of four A and five B runners,
         # even if every missing recent grade takes its worst/best value.
