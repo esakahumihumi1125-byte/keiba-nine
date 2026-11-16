@@ -251,7 +251,8 @@ const research=()=>({
   observedFactorSlots:0,gradedNewFactors:0,officialJraVerified:false,races:[]},
  races:[{
   track:'東京',race:1,status:'provisional_draft',reason:'two_factor_only',
-  postTime:'12:00',researchOnly:true,officialJraVerified:false,
+  postTime:'12:00',horseCount:runners.length,
+  researchOnly:true,officialJraVerified:false,
   overallPredictionReady:false,bettingReady:false,autoPurchase:false,
   runners,first,second,third,tickets,points:40,amountYen:4000
  }]
