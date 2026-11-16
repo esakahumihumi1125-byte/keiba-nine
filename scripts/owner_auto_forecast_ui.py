@@ -1410,7 +1410,17 @@ function automaticFactorRace(data,day,race){
  if(rows.length!==1)return null;
  const row=rows[0];
  if(row.status!=='scored'||row.reason!==null||row.postTime!==race.postTime||
-    !Array.isArray(row.horses)||row.horses.length<4||row.horses.length>18)return null;
+    !Array.isArray(row.horses)||row.horses.length<4||row.horses.length>18||
+    !Array.isArray(race.runners)||race.runners.length!==row.horses.length)
+  return null;
+ // A five-factor research score must reference the exact same runner numbers
+ // as the already validated two-factor day snapshot, not just the same R.
+ const sourceNumbers=new Set();
+ for(const horse of race.runners){
+  if(!horse||!Number.isInteger(horse.number)||horse.number<1||
+     horse.number>18||sourceNumbers.has(horse.number))return null;
+  sourceNumbers.add(horse.number);
+ }
  const seen=new Set();
  for(const h of row.horses){
   if(!Number.isInteger(h.number)||h.number<1||h.number>18||seen.has(h.number)||
@@ -1427,6 +1437,8 @@ function automaticFactorRace(data,day,race){
    }
   }
  }
+ if(seen.size!==sourceNumbers.size||
+    [...seen].some(number=>!sourceNumbers.has(number)))return null;
  return row;
 }
 function renderAutomaticFactors(row){

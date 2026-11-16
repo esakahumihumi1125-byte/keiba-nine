@@ -102,3 +102,99 @@ def isolated_automatic_factor_scores(programme, entries, recent, day, *,
         "isolatedHeldRaces": sum(
             x["reason"] == "source_validation_failed" for x in races),
     }
+
+
+def reconcile_factor_rosters_with_drafts(factors, drafts):
+    """Quarantine research scores not bound to the same prestart runner list.
+
+    The five-factor /tky-/tze scorer independently excludes withdrawals,
+    while the signed two-factor pipeline can hold a race or return a different
+    runner set. An exact identity match is required before displaying these
+    experimental points beside any horse. A mismatch invalidates ONLY the
+    optional five-factor panel, never the primary signed draft or archive.
+    No source reads, new tickets, formal grades, or official claims.
+    """
+    if (not isinstance(factors, dict) or factors.get("version") != VERSION
+            or factors.get("overallPredictionReady") is not False
+            or factors.get("officialJraVerified") is not False
+            or factors.get("newProviderRequests") != 0
+            or not isinstance(factors.get("races"), list)
+            or not isinstance(drafts, dict)
+            or drafts.get("researchOnly") is not True
+            or drafts.get("officialJraVerified") is not False
+            or not isinstance(drafts.get("races"), list)
+            or len(factors["races"]) != len(drafts["races"])
+            or len(factors["races"]) > MAX_RACES):
+        raise CoverageError("Incompatible private research snapshots")
+
+    current = {}
+    for draft in drafts["races"]:
+        if (not isinstance(draft, dict)
+                or draft.get("track") not in TRACKS.values()
+                or type(draft.get("race")) is not int
+                or not 1 <= draft["race"] <= 12
+                or draft.get("status") not in ("hold", "provisional_draft")
+                or not isinstance(draft.get("runners"), list)
+                or len(draft["runners"]) > 18):
+            raise CoverageError("Invalid private research race")
+        key = draft["track"], draft["race"]
+        if key in current:
+            raise CoverageError("Duplicate private research race")
+        current[key] = draft
+
+    updated = []
+    seen = set()
+    for item in factors["races"]:
+        if not isinstance(item, dict):
+            raise CoverageError("Invalid additional factor race")
+        key = item.get("track"), item.get("race")
+        if (key not in current or key in seen
+                or item.get("status") not in ("held", "scored")
+                or not isinstance(item.get("horses"), list)
+                or len(item["horses"]) > 18):
+            raise CoverageError("Additional factor identity mismatch")
+        seen.add(key)
+        draft = current[key]
+        if item.get("postTime") != draft.get("postTime"):
+            raise CoverageError("Additional factor schedule mismatch")
+        if item["status"] != "scored":
+            if item["horses"]:
+                raise CoverageError("Held additional factors contain horses")
+            updated.append(item)
+            continue
+
+        # Reject duplicate or malformed numbers as an integrity failure;
+        # do not silently convert them to a set and claim all horses match.
+        def numbers(rows, field):
+            values = []
+            for row in rows:
+                if (not isinstance(row, dict) or type(row.get(field)) is not int
+                        or not 1 <= row[field] <= 18):
+                    raise CoverageError("Invalid research runner number")
+                values.append(row[field])
+            if len(set(values)) != len(values):
+                raise CoverageError("Duplicate research runner number")
+            return set(values)
+
+        actual = numbers(item["horses"], "number")
+        expected = numbers(draft["runners"], "number")
+        if (len(actual) != len(expected) or actual != expected
+                or len(actual) < 4):
+            updated.append({
+                "track": key[0], "race": key[1],
+                "postTime": item.get("postTime"),
+                "status": "held", "reason": "research_roster_mismatch",
+                "horses": [],
+            })
+        else:
+            updated.append(item)
+    if seen != set(current):
+        raise CoverageError("Missing additional factor race")
+    return {
+        **factors, "races": updated,
+        "isolatedHeldRaces": sum(
+            row["reason"] in ("source_validation_failed",
+                              "research_roster_mismatch")
+            for row in updated
+        ),
+    }

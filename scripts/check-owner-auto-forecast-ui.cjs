@@ -18,10 +18,11 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
   date:'20990101',maximumPoints:57,factorKeys:['pace','jockey_stable','rotation','course_distance','ground'],capturedAt:'2099-01-01T09:00:00+09:00',
   modelCalibrated:false,officialJraVerified:false,overallPredictionReady:false,
   newProviderRequests:0,races:[row]}};
- const check=value=>sandbox.checkAuto(value,'2099-01-01',row);
+ const fullRace={postTime:'12:00',runners:[1,2,3,4].map(number=>({number}))};
+ const check=value=>sandbox.checkAuto(value,'2099-01-01',
+  {...row,runners:fullRace.runners});
  assert.equal(check(data).horses.length,4);
  const visible=sandbox.eligibleResearchFactorPanel;
- const fullRace={postTime:'12:00',runners:[1,2,3,4]};
  // Populated pre-start races must not hide the four-factor drilldown.
  assert.equal(visible(check(data),'2099-01-01',fullRace,false,false),true);
  assert.equal(visible(check(data),'2099-01-01',fullRace,true,false),false);

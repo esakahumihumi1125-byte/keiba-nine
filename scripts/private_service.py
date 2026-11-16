@@ -62,7 +62,9 @@ from owner_workout_cross_band_receipts import (
     issue_cross_band_observations, verify_cross_band_observations,
 )
 from owner_ten_factor_contract import ten_factor_contract
-from owner_isolated_factor_scores import isolated_automatic_factor_scores
+from owner_isolated_factor_scores import (
+    isolated_automatic_factor_scores, reconcile_factor_rosters_with_drafts,
+)
 from owner_comparable_factor_preview import preview_comparable_factor_holds
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
@@ -2654,10 +2656,15 @@ def create_app(settings=None):
                 # assign fabricated 30pt scores, or create signed tickets.
                 # Reuse today's validated inputs; no extra provider reads.
                 try:
-                    report['automaticFactorScores'] = isolated_automatic_factor_scores(
+                    provisional_factors = isolated_automatic_factor_scores(
                         programme, entries, recent, day,
                         now=final_prestart_checked_at,
                         race_context=report.get('raceContext'))
+                    # Compare against the FINAL race-day draft/held roster,
+                    # including archive conflicts and expired races. A
+                    # mismatch quarantines only optional research points.
+                    report['automaticFactorScores'] = reconcile_factor_rosters_with_drafts(
+                        provisional_factors, report)
                     isolated = report['automaticFactorScores']['isolatedHeldRaces']
                     logging.warning(
                         'KEIBA_AUTOMATIC_FACTOR_ISOLATION invalid_races=%s '
