@@ -3005,16 +3005,12 @@ function render(input,day){
     :'見送り'+(race.runners.length?'｜調教S '+race.runners.filter(h=>h.training==='S').length+
       '頭・A '+race.runners.filter(h=>h.training==='A').length+'頭（仮）':'')));
   detail.append(title);
-  // Public JRA advance schedule is not a final racecard. Place differences
-  // beside research picks without touching grades, tickets or receipts.
-  const advanceWarning=dom('p','', 'hold jra-advance-warning');
-  advanceWarning.hidden=true;
-  const advanceText=advanceRaceWarnings.get(key);
-  if(advanceText){
-   advanceWarning.textContent=advanceText;
-   advanceWarning.hidden=false;
-  }
-  advanceRaceMarkers.set(key,advanceWarning);
+  // Warn in the collapsed race heading so the important status is visible.
+  // Do not insert a child: existing formation/horse-analysis order stays intact.
+  const baseRaceHeading=title.textContent;
+  if(advanceRaceWarnings.has(key))
+   title.textContent=baseRaceHeading+'｜⚠ JRA事前予定差異・要確認';
+  advanceRaceMarkers.set(key,{node:title,base:baseRaceHeading});
   const automatic=automaticFactorRace(data,day,race);
   if(eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock))
    detail.append(renderAutomaticFactors(automatic));
@@ -3027,8 +3023,6 @@ function render(input,day){
   // No formation can be recreated after the local provisional off-time.
   if(race.status==='provisional_draft'&&!elapsed&&!changedLock)
    detail.append(formation(race));
-  // The prestart formation retains its original first-visible position.
-  detail.append(advanceWarning);
   if(race.runners.length){
    const front=race.runners.filter(h=>h.pastFourthCorner==='frontObserved').length;
    const back=race.runners.filter(h=>h.pastFourthCorner==='backObserved').length;
@@ -6886,10 +6880,8 @@ let advanceProgrammeSeq=0;
 let advanceRaceWarnings=new Map(),advanceRaceMarkers=new Map();
 function clearAdvanceRaceWarnings(){
  advanceRaceWarnings.clear();
- for(const marker of advanceRaceMarkers.values()){
-  marker.textContent='';
-  marker.hidden=true;
- }
+ for(const marker of advanceRaceMarkers.values())
+  marker.node.textContent=marker.base;
 }
 function resetAdvanceProgramme(){
  advanceProgrammeSeq++;
@@ -7027,11 +7019,9 @@ $('autoAdvanceCompare').onclick=async()=>{
    key,'【JRA事前予定差異・最終未確認】'+labels.join('／')+
     '。JRA最新出馬表で再確認（研究用買い目・固定履歴は変更なし）。'
   ]));
-  for(const [key,marker] of advanceRaceMarkers){
-   const message=advanceRaceWarnings.get(key);
-   marker.textContent=message||'';
-   marker.hidden=!message;
-  }
+  for(const [key,marker] of advanceRaceMarkers)
+   marker.node.textContent=marker.base+
+    (advanceRaceWarnings.has(key)?'｜⚠ JRA事前予定差異・要確認':'');
   const host=$('autoAdvanceDifferences');
   for(const message of alerts)
    host.append(dom('p',message,'muted'));
