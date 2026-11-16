@@ -123,6 +123,64 @@ class FormalFormationTests(unittest.TestCase):
         self.assertEqual(incomplete["status"], "missing_evidence")
         self.assertEqual(incomplete["trifecta"]["points"], 0)
 
+    def test_strong_single_uses_36_instead_of_two_winner_48(self):
+        # Full evidence: 1S at 100pt, runner-up A at 80pt.
+        # 2 x 3 x 14 permits 48, but the strong-leader 1 x 4 x 14
+        # can safely stay within the owner's 30-40 point target.
+        expected = [300, 240, 237, 231] + [159] * 10
+        self.assertEqual(formal_formation_sizes(ranking(expected)), (1, 4, 14))
+        source = fixture()
+        source["horses"] = (
+            [horse(1),
+             horse(2, {"training": "B"}),
+             horse(3, {"training": "B", "recent": "A"}),
+             horse(4, {"training": "B", "recent": "C"})]
+            + [horse(n, {"training": "C", "pace": "C"})
+               for n in range(5, 15)]
+        )
+        source["independentJra"]["confirmedStarterNumbers"] = list(range(1, 15))
+        original = copy.deepcopy(source)
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(source, original)
+        self.assertEqual([r["weightedPoints"] for r in result["ranking"]], expected)
+        self.assertEqual(result["status"], "review_only")
+        tickets = result["trifecta"]
+        self.assertEqual(tickets["first"], [1])
+        self.assertEqual(tickets["second"], [1, 2, 3, 4])
+        self.assertEqual(tickets["third"], list(range(1, 15)))
+        self.assertEqual(tickets["points"], 36)
+        self.assertEqual(len({tuple(t) for t in tickets["tickets"]}), 36)
+        self.assertEqual(tickets["totalStakeYen"], 3600)
+        self.assertFalse(tickets["bettingReady"])
+        self.assertFalse(result["publishable"])
+        self.assertFalse(result["autoPurchase"])
+        source["independentJra"]["jra_scratches_verified"] = False
+        blocked = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(blocked["trifecta"]["points"], 0)
+        source["independentJra"]["jra_scratches_verified"] = True
+        del source["horses"][0]["assessments"]["recent"]
+        missing = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(missing["status"], "missing_evidence")
+        self.assertEqual(missing["trifecta"]["points"], 0)
+
+    def test_no_weak_or_tied_singleton_promoted_for_lower_stake(self):
+        # A small 1-point leader is NOT a trusted single, even if a
+        # 36-point single would be cheaper than the legal 48-point pair.
+        self.assertEqual(formal_formation_sizes(
+            ranking([300, 297, 294, 270] + [159] * 10)),
+            (2, 3, 14))
+        # Ten-point threshold alone is not enough when second still S.
+        self.assertEqual(formal_formation_sizes(
+            ranking([300, 270, 267, 261] + [159] * 10)),
+            (2, 3, 14))
+        # A clear S/A split with only a 9-point lead is not fixed first.
+        self.assertEqual(formal_formation_sizes(
+            ranking([270, 243, 240, 237] + [159] * 10)),
+            (2, 3, 14))
+        self.assertEqual(formal_formation_sizes(
+            ranking([255, 254, 251, 248] + [159] * 10)),
+            (2, 3, 14))
+
     def test_one_clear_leader_can_rescue_an_entire_equal_second_group(self):
         # Old strict 2/3-first boundary splits the second-place tier;
         # first=[clear 1], second=[1..5], third=[1..10] gives 32.
