@@ -1428,6 +1428,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   officialCardCancellationCue=null,officialCardNumbers=null,
   officialLinkPrefix='sw01dde01',
   officialLinkOk=true,officialLinkCorrupt=false,
+  advanceCalendarCorrupt=false,advanceCalendarDiff=false,
   preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
  let now=initialClock||'2099-01-01T00:00:00Z',onVisibility=null;
@@ -1530,6 +1531,27 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     formalTenFactorReady:false,bettingReady:false,
     changesExistingReceipts:false,changesExistingTickets:false,
     newJrdbProviderRequests:0,researchOnly:true
+   })};
+  }
+  if(url.startsWith('/api/jra/advance-programme?')){
+   const date=new URL('http://localhost'+url).searchParams.get('date');
+   const races=['東京','京都'].flatMap(track=>
+    Array.from({length:12},(_,i)=>({
+     track,race:i+1,
+     postTime:track==='東京'&&i===0
+      ?(advanceCalendarDiff?'11:55':'12:00'):'14:00',
+     distanceM:track==='東京'&&i===0?2000:1800,
+     surface:'芝'
+    })));
+   return {ok:true,json:async()=>({
+    version:'owner-jra-advance-programme-reference-1',date,
+    referenceKind:'advance_schedule_not_final_racecard',
+    raceCount:24,venueCount:2,races,
+    officialFinalCardVerified:advanceCalendarCorrupt,
+    officialStartersVerified:false,officialScratchesVerified:false,
+    officialGoingVerified:false,officialPostTimeVerified:false,
+    predictionReady:false,bettingReady:false,newJrdbRequests:0,
+    existingTicketsChanged:false,existingReceiptsChanged:false
    })};
   }
   if(url.startsWith('/api/jra/official-pdf-links?')){
@@ -1935,6 +1957,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setOfficialLinkPrefix:x=>officialLinkPrefix=x,
   setOfficialLinkOk:x=>officialLinkOk=x,
   setOfficialLinkCorrupt:x=>officialLinkCorrupt=x,
+  setAdvanceCalendarCorrupt:x=>advanceCalendarCorrupt=x,
+  setAdvanceCalendarDiff:x=>advanceCalendarDiff=x,
   setPreflightCorrupt:x=>preflightCorrupt=x,
   setPreflightBadKey:x=>preflightBadKey=x,
   setPreflightServerDate:x=>preflightServerDate=x,
@@ -2717,6 +2741,37 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  cardView.get('autoDay').onchange();
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/開催日を変更しました.*未確認/);
  assert.equal(cardView.storage.get(STORAGE),frozenCard);
+ // One opt-in, free public JRA *advance* calendar checks all 24
+ // scheduled positions against the already-loaded JRDB snapshot. This
+ // does NOT fetch paid data, sign tickets, or mark an official racecard.
+ const calendar=boot();
+ await new Promise(r=>setImmediate(r));
+ const calendarBtn=calendar.get('autoAdvanceCompare');
+ const calendarStored=calendar.storage.get(STORAGE);
+ const calendarStart=calendar.requests.length;
+ await calendarBtn.onclick();
+ assert.equal(calendar.requests.length,calendarStart+1);
+ assert.match(calendar.requests.at(-1).url,/^\/api\/jra\/advance-programme\?/);
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/JRA事前番組 24R/);
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/予定と一致 3項目/);
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/差異 0項目/);
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/未比較 23項目/);
+ assert.equal(calendar.storage.get(STORAGE),calendarStored);
+ calendar.setAdvanceCalendarDiff(true);
+ await calendarBtn.onclick();
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/差異 1項目/);
+ assert.match(calendar.get('autoAdvanceDifferences').children[0].textContent,
+  /東京 1R.*発走時刻：JRDB 12:00／JRA予定 11:55/);
+ assert.equal(calendar.storage.get(STORAGE),calendarStored);
+ calendar.setAdvanceCalendarCorrupt(true);
+ await calendarBtn.onclick();
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/安全に比較できませんでした/);
+ assert.equal(calendar.get('autoAdvanceDifferences').children.length,0);
+ calendar.get('autoDay').value='2099-01-02';
+ calendar.get('autoDay').onchange();
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/未比較/);
+ assert.equal(calendar.get('autoAdvanceDifferences').children.length,0);
+ assert.equal(calendar.storage.get(STORAGE),calendarStored);
  // One iPhone tap discovers a JRA official link and compares the
  // already-loaded JRDB time/course. Zero new paid /jrdb calls or writes.
  const discover=boot();
