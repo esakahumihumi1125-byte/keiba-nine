@@ -1488,7 +1488,7 @@ function sevenFactorRace(data,day,race,automatic,sourceMaterials){
       !Number.isInteger(p.heldPartialRaceCount))))return null;
  const rows=p.races.filter(r=>r.track===race.track&&r.race===race.race);
  if(rows.length!==1||rows[0].status!==(held?'partial_held':'partial')||
-    rows[0].heldResearchNeverFormsTickets!==true||
+    (held&&rows[0].heldResearchNeverFormsTickets!==true)||
     !Array.isArray(rows[0].horses)||
     rows[0].horses.length!==race.runners.length)return null;
  const ten=data.tenFactorPreview.races.find(r=>
