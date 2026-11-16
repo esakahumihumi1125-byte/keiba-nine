@@ -215,6 +215,33 @@ class UncertainRecentResearchTests(unittest.TestCase):
         self.assertEqual(preview["newProviderRequests"], 0)
         self.assertEqual(report, unchanged)
 
+    def test_wider_safe_tier_is_checked_before_settling_for_24_points(self):
+        # 1S / 3A / 6B / 4C with missing recent on all runners.
+        # A narrow <=10 third group yields only 24; including the complete
+        # C band (14 runners) gives the preferred 36, still <=48 and
+        # mathematically stable for every possible missing recent grade.
+        pairs = ([("S", "未評価")]
+                 + [("A", "未評価")] * 3
+                 + [("B", "未評価")] * 6
+                 + [("C", "未評価")] * 4)
+        source = build(pairs)
+        unchanged = copy.deepcopy(source)
+        result = preview_missing_recent_holds(source, DAY, now=PRESTART)
+        self.assertEqual(result["safeResearchPreviewCount"], 1)
+        row = result["races"][0]
+        self.assertEqual(row["first"], [1])
+        self.assertEqual(row["second"], [1, 2, 3, 4])
+        self.assertEqual(row["third"], list(range(1, 15)))
+        self.assertEqual(row["points"], 36)
+        self.assertEqual(row["missingRecentCount"], 14)
+        self.assertTrue(row["eachCutoffProvenForAllRecentGrades"])
+        self.assertFalse(row["receiptIssued"])
+        self.assertFalse(row["predictionReady"])
+        self.assertFalse(result["officialJraVerified"])
+        self.assertEqual(result["newProviderRequests"], 0)
+        self.assertEqual(result["ticketsIssued"], 0)
+        self.assertEqual(source, unchanged)
+
     def test_eighteen_runner_expansion_still_skips_over_48(self):
         # Cutting a tied eight-horse A group would misrepresent the model.
         # 1 S + 8 A + 9 B requires at least 56 combinations even
