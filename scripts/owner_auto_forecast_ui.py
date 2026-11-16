@@ -156,7 +156,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 <section id="autoDayDetailSection">
 <h2>3. 公式情報・取得状況・詳しい分析</h2>
-<p class="muted">毎週の通常操作は上の予想一覧だけでOK。JRA公式との確認や追加分析、記録の管理が必要な場合だけここを見てください。</p>
+<p class="muted">研究用3連単を見るだけなら、上の予想一覧から。馬券購入の判断前にはJRA公式の出走・取消・馬場・発走時刻を別に確認してください。追加分析と記録の管理もここから利用できます。</p>
 <details id="autoDayDiagnostics"><summary>取得状況・見送り内訳を詳しく見る</summary>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
 <p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
@@ -6793,6 +6793,17 @@ $('autoSunday').onclick=()=>chooseUpcomingJstDay(0);
 // A single, explicit owner gesture combines date selection and the
 // existing ONE guarded owner-auto-draft request. No extra probe/read, no
 // background schedule, and no second request while one is in flight.
+// A direct weekend tap goes straight to the useful race list only when
+// the matching day has actually been validated and rendered. A failed,
+ // stale or 0R provider response never jumps to a misleading forecast.
+function revealOneTapForecast(selectedDay){
+ if(!latestDisplayedReport||latestDisplayedReport.raceCount<=0||
+    latestDisplayedDay!==selectedDay||
+    $('autoDay').value.replaceAll('-','')!==selectedDay)return;
+ const main=$('forecastRacesSection');
+ if(typeof main.scrollIntoView==='function')
+  main.scrollIntoView({behavior:'smooth',block:'start'});
+}
 async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
  const button=$(buttonId);
  if(button.disabled)return;
@@ -6827,6 +6838,7 @@ async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
    showSnapshotFreshness();
    $('autoStatus').textContent='【'+label+'データ取得済み】この画面の取得済み研究結果を再表示しました。'+
     '追加のJRDB照会は0回。新しい資料を取得する場合は「全場・全Rを再分析する」を押してください。';
+   revealOneTapForecast(selectedDay);
   }catch(_){
    $('autoRaces').replaceChildren();
    $('autoStatus').textContent='保存済み情報の表示を確認できません。'+
@@ -6847,6 +6859,7 @@ async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
   // Exactly one authenticated auto-draft request. No probe, retry, or
   // background schedule; the owner must explicitly request reanalysis.
   await $('autoRun').onclick();
+  revealOneTapForecast(selectedDay);
  }finally{button.disabled=false;}
 }
 $('autoSaturdayQuick').onclick=()=>quickWeekendForecast(6,'autoSaturdayQuick','土曜',2);
