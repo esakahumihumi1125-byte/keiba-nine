@@ -3362,7 +3362,9 @@ function render(input,day){
   if(expiredNow>deviceExpired.size||oldReferenceExpired){
    latestExpiredDraftCount=expiredNow;
    render(data,day); // Display-only, no network or receipt writes.
-   $('autoStatus').textContent='受信後に発走時刻を過ぎた下書きを非表示に更新しました。';
+   $('autoStatus').textContent=oldReferenceExpired
+    ?'発走予定時刻を過ぎた見送りRの研究用参考候補を非表示にしました。固定履歴・買い目は変更していません。'
+    :'受信後に発走時刻を過ぎた下書きを非表示に更新しました。';
    return;
   }
   const frag=document.createDocumentFragment();
