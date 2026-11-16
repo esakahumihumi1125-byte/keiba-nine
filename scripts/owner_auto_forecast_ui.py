@@ -6768,6 +6768,7 @@ function resetAdvanceProgramme(){
  const d=$('autoDay').value;
  const link=$('autoAdvanceDirect');
  if(/^20\d{2}-\d{2}-\d{2}$/.test(d)&&
+    Number(d.slice(0,4))>=2020&&Number(d.slice(0,4))<=2035&&
     Number.isFinite(Date.parse(d+'T12:00:00Z'))&&
     new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d){
   const y=d.slice(0,4),m=d.slice(5,7),day=d.slice(8,10);
@@ -10126,6 +10127,7 @@ if(typeof document.addEventListener==='function')
  document.addEventListener('visibilitychange',resumeOwnerDay);
 if(typeof window!=='undefined'&&typeof window.addEventListener==='function')
  window.addEventListener('pageshow',event=>{if(event.persisted)resumeOwnerDay();});
+resetAdvanceProgramme(); // Safe default official calendar link on first load.
 // Opening an authenticated owner page auto-reads only on regular weekends.
 // Special weekday races are explicit manual reads. No polling or purchase.
 if(document.visibilityState!=='hidden')autoFetchOnRegularRaceDay();
