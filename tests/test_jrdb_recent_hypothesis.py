@@ -135,6 +135,28 @@ class RecentHypothesisTests(unittest.TestCase):
         self.assertEqual(result["topThree"], 2)
         self.assertEqual(result["grade"], "S")
 
+    def test_zero_dated_empty_beta_slot_is_not_a_run(self):
+        for marker in ("00000000", "   ", None):
+            p, e, z = fixture()
+            z[0].update({
+                "race_back_4_racedate": marker,
+                "race_back_4_order_of_finish": 0,
+                "race_back_4_idm": 0,
+                "race_back_4_later3f_time": 0,
+                "race_back_4_corner4_order": 0,
+            })
+            row = self.audit((p, e, z))[0]["byNumber"]["01"]
+            self.assertEqual(row["datedRuns"], 3)
+            self.assertEqual(row["grade"], "S")
+        # A nonzero performance beside a zero date is contradictory source
+        # evidence and must stop instead of inventing a historical start.
+        p, e, z = fixture()
+        z[0].update(race_back_4_racedate="00000000",
+                    race_back_4_order_of_finish=1,
+                    race_back_4_idm=60)
+        with self.assertRaises(CoverageError):
+            self.audit((p, e, z))
+
     def test_zero_finishing_position_is_not_a_top_three_finish(self):
         p, e, z = fixture()
         z[0]["race_back_1_order_of_finish"] = 0
