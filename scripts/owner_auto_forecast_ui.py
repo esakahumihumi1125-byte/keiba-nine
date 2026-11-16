@@ -1471,6 +1471,9 @@ function eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock){
 function sevenFactorRace(data,day,race,automatic,sourceMaterials){
  const p=data.sevenFactorCoverage;
  const held=race.status==='hold';
+ if(held&&(!['missing_factors','ambiguous_equal_grade_boundary'].includes(race.reason)||
+    !Array.isArray(race.tickets)||race.tickets.length!==0||
+    race.points!==0||race.amountYen!==0))return null;
  if(!p||!automatic||!(race.status==='provisional_draft'||held)||
     p.version!=='owner-seven-factor-coverage-1'||p.policyVersion!=='research-6'||
     p.date!==day.replaceAll('-','')||p.raceCount!==data.raceCount||
