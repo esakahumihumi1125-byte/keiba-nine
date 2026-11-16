@@ -2758,6 +2758,16 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await new Promise(r=>setImmediate(r));
  const calendarBtn=calendar.get('autoAdvanceCompare');
  const calendarStored=calendar.storage.get(STORAGE);
+ const advanceMarkers=()=>{
+  const found=[];
+  const walk=node=>{
+   if(!node)return;
+   if(typeof node.className==='string'&&node.className.includes('jra-advance-warning'))found.push(node);
+   for(const child of node.children||[])walk(child);
+  };
+  walk(calendar.get('autoRaces'));
+  return found;
+ };
  const calendarStart=calendar.requests.length;
  await calendarBtn.onclick();
  assert.equal(calendar.requests.length,calendarStart+1);
@@ -2773,8 +2783,15 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(calendar.get('autoAdvanceDirect').href,
   'https://www.jra.go.jp/keiba/'); // Synthetic year 2099 intentionally unsupported.
  assert.equal(calendar.storage.get(STORAGE),calendarStored);
+ assert.equal(advanceMarkers().length,1);
+ assert.equal(advanceMarkers()[0].hidden,true,
+  'matching JRA advance schedule is not official approval and shows no warning');
  calendar.setAdvanceCalendarDiff(true);
  await calendarBtn.onclick();
+ assert.equal(advanceMarkers().length,1);
+ assert.equal(advanceMarkers()[0].hidden,false);
+ assert.match(advanceMarkers()[0].textContent,/JRA事前予定差異・最終未確認/);
+ assert.match(advanceMarkers()[0].textContent,/発走時刻がJRA事前予定と不一致/);
  assert.match(calendar.get('autoAdvanceStatus').textContent,/差異 1項目/);
  assert.ok(calendar.get('autoAdvanceDifferences').children.some(x=>
   /東京 1R.*発走時刻：JRDB 12:00／JRA予定 11:55/.test(x.textContent)));
@@ -2783,6 +2800,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await calendarBtn.onclick();
  assert.match(calendar.get('autoAdvanceStatus').textContent,/自動取得できませんでした/);
  assert.equal(calendar.get('autoAdvanceDifferences').children.length,0);
+ assert.equal(advanceMarkers()[0].hidden,true,
+  'failed calendar refresh must clear old mismatch rather than certify anything');
  calendar.get('autoDay').value='2099-01-02';
  calendar.get('autoDay').onchange();
  assert.match(calendar.get('autoAdvanceStatus').textContent,/未比較/);
