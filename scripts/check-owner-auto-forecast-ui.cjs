@@ -2458,6 +2458,52 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(weekend.storage.get(STORAGE),preservedWeekend);
  assert.equal(weekend.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.match(weekend.get('autoJraCrosscheck').textContent,/JRDBの開催場 0場/);
+ // The official JRA schedule has an exceptional three-day race
+ // programme on 2026-11-21/22/23. Only the CONFIRMED Monday can appear:
+ // normal Mondays must not cost an accidental JRDB lookup.
+ const mondayEarly=boot({manualWeekday:false,
+  initialClock:'2026-11-17T00:00:00Z'}); // Tuesday 09:00 JST
+ await new Promise(r=>setImmediate(r));
+ assert.equal(mondayEarly.get('autoMondayQuick').hidden,false);
+ assert.equal(mondayEarly.get('autoMondayQuick').disabled,false);
+ assert.equal(mondayEarly.get('autoMonday').hidden,false);
+ const mondayEarlyReads=mondayEarly.requests.length;
+ const mondayEarlyStored=mondayEarly.storage.get(STORAGE);
+ await mondayEarly.get('autoMondayQuick').onclick();
+ assert.equal(mondayEarly.requests.length,mondayEarlyReads,
+  'the Monday shortcut never reads paid JRDB before Friday');
+ assert.match(mondayEarly.get('autoStatus').textContent,/金曜以降/);
+ mondayEarly.get('autoMonday').onclick();
+ assert.equal(mondayEarly.get('autoDay').value,'2026-11-23');
+ assert.equal(mondayEarly.get('autoMondayQuick').dataset.selected,'true');
+ assert.equal(mondayEarly.requests.length,mondayEarlyReads,
+  'date-only Monday never calls the paid provider');
+ assert.equal(mondayEarly.storage.get(STORAGE),mondayEarlyStored);
+ const mondayFriday=boot({manualWeekday:false,
+  initialClock:'2026-11-20T00:00:00Z'}); // Friday 09:00 JST
+ await new Promise(r=>setImmediate(r));
+ const mondayFriReads=mondayFriday.requests.length;
+ await mondayFriday.get('autoMondayQuick').onclick();
+ assert.equal(mondayFriday.get('autoDay').value,'2026-11-23');
+ assert.equal(mondayFriday.requests.length,mondayFriReads+1);
+ assert.equal(mondayFriday.requests.at(-1).url,
+  '/api/jrdb/owner-auto-draft?date=20261123');
+ assert.equal(mondayFriday.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.equal(mondayFriday.get('autoMondayQuick').disabled,false);
+ // Tuesday after the special meeting: the next Monday is not published
+ // as a racing date. Hide and guard both control paths, no JRDB read.
+ const noMonday=boot({manualWeekday:false,
+  initialClock:'2026-11-24T00:00:00Z'});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(noMonday.get('autoMondayQuick').hidden,true);
+ assert.equal(noMonday.get('autoMondayQuick').disabled,true);
+ assert.equal(noMonday.get('autoMonday').hidden,true);
+ const noMondayReads=noMonday.requests.length;
+ await noMonday.get('autoMondayQuick').onclick();
+ noMonday.get('autoMonday').onclick();
+ assert.equal(noMonday.requests.length,noMondayReads);
+ assert.match(noMonday.get('autoStatus').textContent,/JRA開催は未確認/);
+ assert.equal(noMonday.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // One-tap Saturday: NO fetch before Thursday, ONE guarded JRDB
  // request when eligible, and no mutation of previously signed tickets.
  const early=boot();

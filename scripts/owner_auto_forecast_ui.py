@@ -35,16 +35,18 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div class="owner-weekend-actions">
 <button id="autoSaturdayQuick" class="primary-cta" type="button">土曜の予想を取得・表示（1回）</button>
 <button id="autoSundayQuick" class="secondary-cta" type="button">日曜の予想を取得・表示（1回）</button>
+<button id="autoMondayQuick" class="secondary-cta" type="button" hidden disabled>月祝の予想を取得・表示（1回）</button>
 </div>
 <button id="autoRun" class="secondary-cta" type="button">全場・全Rを再分析する</button>
 <details class="owner-instructions"><summary>取得方法・通信設定の説明</summary>
-<p class="muted">土日の1タップ取得は直前の木曜以降。取得済みデータは開いている画面で再利用します。また、発走前固定済みの研究記録がある日は20分以内の再訪問でその履歴を表示し、再照会を控えます。新しい配信資料を見たい場合は「全場・全Rを再分析する」を押してください。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
+<p class="muted">土日の1タップ取得は直前の木曜以降。JRA発表済みの月曜祝日開催は金曜以降に1タップ取得できます。取得済みデータは開いている画面で再利用します。また、発走前固定済みの研究記録がある日は20分以内の再訪問でその履歴を表示し、再照会を控えます。新しい配信資料を見たい場合は「全場・全Rを再分析する」を押してください。JRDBのAPI照会には契約に応じた料金・制限があります。</p>
 <details><summary>日付だけを切り替える（追加照会なし）</summary>
 <div class="day-shortcuts" role="group" aria-label="週末の開催日を選ぶ">
 <button id="autoSaturday" type="button">次の土曜日を選ぶ</button>
 <button id="autoSunday" type="button">次の日曜日を選ぶ</button>
+<button id="autoMonday" type="button" hidden disabled>次の開催月曜日を選ぶ</button>
 </div>
-<p class="muted">土日ボタンは日付だけを切り替え、追加のJRDB照会をしません。</p></details>
+<p class="muted">日付を選ぶボタンは追加のJRDB照会をしません。月祝ボタンはJRA公表済みの対象日だけ表示します。その他の変則開催は開催日入力で選べます。</p></details>
 <details><summary>土曜の無料・設定事前診断（任意）</summary>
 <p class="muted">本人専用サービスの設定・選択日・サーバーの日本時間をチェック。JRDB・JRA・買い目APIは呼ばず、設定された秘密情報も表示しません。設定が揃っていてもJRDB実接続と10項目予想は未検証です。</p>
 <button id="autoPreflight" type="button">選択日の無料事前診断</button>
@@ -6967,7 +6969,14 @@ function updateJraCrosscheck(){
   'リンク未検出は開催なしを意味せず、リンク発見も馬番・取消・馬場・発走時刻の一致を証明しません。';
 }
 
-// The chosen date determines which weekend button is gold. Neither
+// The 2026 Monday race days are JRA-published exceptions, not every
+// Monday. A hidden/disabled shortcut must never trigger a paid JRDB call.
+// Official schedule: https://www.jra.go.jp/news/202509/092201.html
+// For later years, use the existing date picker until JRA confirms dates.
+const CONFIRMED_MONDAY_RACEDAYS=new Set([
+ '2026-01-12','2026-09-21','2026-10-12','2026-11-23'
+]);
+// The chosen date determines which shortcut is highlighted; neither
 // highlighting nor changing a date triggers a provider request.
 function highlightSelectedWeekend(){
  const selected=$('autoDay').value;
@@ -6976,6 +6985,14 @@ function highlightSelectedWeekend(){
   dt.toISOString().slice(0,10)===selected?dt.getUTCDay():-1;
  $('autoSaturdayQuick').dataset.selected=String(weekday===6);
  $('autoSundayQuick').dataset.selected=String(weekday===0);
+ const monday=nearestJstWeekday(1);
+ const canMonday=CONFIRMED_MONDAY_RACEDAYS.has(monday);
+ for(const id of ['autoMondayQuick','autoMonday']){
+  $(id).hidden=!canMonday;
+  $(id).disabled=!canMonday;
+ }
+ $('autoMondayQuick').dataset.selected=String(
+  canMonday&&weekday===1&&selected===monday);
 }
 $('autoDay').value=jstToday();
 highlightSelectedWeekend();
@@ -7067,6 +7084,13 @@ function chooseUpcomingJstDay(weekday){
 }
 $('autoSaturday').onclick=()=>chooseUpcomingJstDay(6);
 $('autoSunday').onclick=()=>chooseUpcomingJstDay(0);
+$('autoMonday').onclick=()=>{
+ if(!CONFIRMED_MONDAY_RACEDAYS.has(nearestJstWeekday(1))){
+  $('autoStatus').textContent='次の月曜日のJRA開催は未確認です。追加照会は0回。';
+  return;
+ }
+ chooseUpcomingJstDay(1);
+};
 // A single, explicit owner gesture combines date selection and the
 // existing ONE guarded owner-auto-draft request. No extra probe/read, no
 // background schedule, and no second request while one is in flight.
@@ -7089,11 +7113,16 @@ async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
   return;
  }
  const selected=nearestJstWeekday(weekday);
+ if(weekday===1&&!CONFIRMED_MONDAY_RACEDAYS.has(selected)){
+  $('autoStatus').textContent='月曜開催はJRA公表済みの日付だけ1タップ取得できます。追加のJRDB照会は0回。';
+  return;
+ }
  const releaseDate=new Date(selected+'T12:00:00Z');
  releaseDate.setUTCDate(releaseDate.getUTCDate()-daysBefore);
  const earliest=releaseDate.toISOString().slice(0,10);
  if(jstToday()<earliest){
-  $('autoStatus').textContent=label+'のクイック取得は木曜以降に利用できます。'+
+  $('autoStatus').textContent=label+'のクイック取得は'+
+   (weekday===1?'金曜':'木曜')+'以降に利用できます。'+
    'JRDB配信前の可能性があるため今回は有料照会していません。';
   return;
  }
@@ -7141,6 +7170,7 @@ async function quickWeekendForecast(weekday,buttonId,label,daysBefore){
 }
 $('autoSaturdayQuick').onclick=()=>quickWeekendForecast(6,'autoSaturdayQuick','土曜',2);
 $('autoSundayQuick').onclick=()=>quickWeekendForecast(0,'autoSundayQuick','日曜',3);
+$('autoMondayQuick').onclick=()=>quickWeekendForecast(1,'autoMondayQuick','月祝',3);
 // Opt-in JRA advance programme: one fixed-site public GET, no JRDB calls.
 // Comparing published planned times to /tra does NOT certify official
 // starters, scratches, going, current off or final 10-factor readiness.
