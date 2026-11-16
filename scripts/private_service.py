@@ -65,6 +65,7 @@ from owner_ten_factor_contract import ten_factor_contract
 from owner_isolated_factor_scores import (
     isolated_automatic_factor_scores, reconcile_factor_rosters_with_drafts,
 )
+from owner_seven_factor_coverage import seven_factor_research_coverage
 from owner_comparable_factor_preview import preview_comparable_factor_holds
 from owner_runner_source_hints import observe_owner_runner_sources
 from owner_day_source_passport import safe_owner_day_source_passport
@@ -2747,6 +2748,16 @@ def create_app(settings=None):
                 # Re-audit the FINAL response, which may now hold newly
                 # started races. No additional provider reads and no grades.
                 report['sourcePassport'] = safe_owner_day_source_passport(report)
+                # Aggregate only validated same-day provisional 33pt grades
+                # and the five existing uncalibrated 57pt research rules.
+                # This cannot rank, publish, verify JRA or issue tickets.
+                # A bad optional observation never blocks an older draft.
+                if 'automaticFactorScores' in report:
+                    stage = 'seven_factor_read_only'
+                    try:
+                        report['sevenFactorCoverage'] = seven_factor_research_coverage(report)
+                    except (CoverageError, ValueError, TypeError, KeyError):
+                        logging.warning('KEIBA_SEVEN_FACTOR_COVERAGE=unavailable')
                 # The missing 3-point recent factor may be bounded without
                 # assigning any imaginary grade. Only race groups invariant
                 # under ALL possible recent grades get a separate read-only
