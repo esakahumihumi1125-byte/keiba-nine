@@ -73,6 +73,8 @@ class JraPrestartCardCandidateTests(unittest.TestCase):
         self.assertEqual(result["postTimeCandidate"], "10:00")
         self.assertEqual(result["courseSurfaceCandidate"], "ダート")
         self.assertEqual(result["distanceMCandidate"], 1400)
+        self.assertIsNone(result["goingCandidate"])
+        self.assertIs(result["goingCandidatePresent"], False)
         self.assertTrue(result["visibleRaceHeaderMatched"])
         for flag in ("independentSourceAuthenticated", "officialStartersVerified",
                      "officialScratchesVerified", "officialGoingVerified",
@@ -82,6 +84,44 @@ class JraPrestartCardCandidateTests(unittest.TestCase):
             self.assertIs(result[flag], False)
         self.assertEqual(result["newJrdbProviderRequests"], 0)
         self.assertNotIn("オッズ", repr(result))
+
+    def test_displayed_going_is_optional_surface_specific_and_unverified(self):
+        # Actual JRA header style can display both the weather and the
+        # condition for this surface before the current race marker.
+        header = MOBILE_HTML.replace(
+            "<h2>1レース</h2>",
+            "<p>天候小雨 芝良 ダート不良</p><h2>1レース</h2>")
+        result = parse_prestart_card_candidate(
+            header, MOBILE, DAY, "京都", 1)
+        self.assertEqual(result["goingCandidate"], "不良")
+        self.assertTrue(result["goingCandidatePresent"])
+        self.assertFalse(result["officialGoingVerified"])
+        self.assertFalse(result["independentSourceAuthenticated"])
+        self.assertFalse(result["bettingReady"])
+        self.assertNotIn("天候", repr(result))
+        # Never guess 良 when only another surface appears in the header.
+        only_turf = MOBILE_HTML.replace(
+            "<h2>1レース</h2>", "<p>芝良</p><h2>1レース</h2>")
+        missing = parse_prestart_card_candidate(
+            only_turf, MOBILE, DAY, "京都", 1)
+        self.assertIsNone(missing["goingCandidate"])
+        self.assertFalse(missing["goingCandidatePresent"])
+        # A prior-run field, below the real heading, is not today's going.
+        past = MOBILE_HTML.replace(
+            "<div>枠 馬番 馬名 オッズ 馬体重</div>",
+            "<p>本賞金（万円）</p><div>前4走 ダート重</div>"
+            "<div>枠 馬番 馬名 オッズ 馬体重</div>")
+        no_history_guess = parse_prestart_card_candidate(
+            past, MOBILE, DAY, "京都", 1)
+        self.assertIsNone(no_history_guess["goingCandidate"])
+        for label in ("ダート不良 ダート重",
+                      "ダート良 ダート稍重"):
+            contradictory = MOBILE_HTML.replace(
+                "<h2>1レース</h2>",
+                f"<p>{label}</p><h2>1レース</h2>")
+            with self.subTest(label=label), self.assertRaises(JraPrestartCardError):
+                parse_prestart_card_candidate(
+                    contradictory, MOBILE, DAY, "京都", 1)
 
     def test_desktop_off_time_can_precede_race_number(self):
         result = parse_prestart_card_candidate(
