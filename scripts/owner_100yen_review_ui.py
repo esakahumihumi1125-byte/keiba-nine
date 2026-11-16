@@ -585,8 +585,20 @@ async function matchJraCandidateToLockedDraft(report,day,track,race,seq){
  const picks=new Set(chosen[0].snapshot.trifectaTickets.map(x=>x.join('-')));
  if(picks.size!==raceRow.trifectaPoints)throw Error('Ticket count mismatch');
  const matched=report.trifectaCandidates.filter(x=>picks.has(x.ticket.join('-')));
+ // Scenario only: a valid prestart HMAC receipt and a non-final,
+ // unverified *single-page* JRA payout candidate. Assume no refunds.
+ // Never promote this arithmetic to officially settled 100円 ROI.
+ const stakeYen=picks.size*100;
+ const candidateReturnedYen=matched.reduce((sum,row)=>sum+row.payoutYen,0);
+ const candidateDifferenceYen=candidateReturnedYen-stakeYen;
+ if(!Number.isSafeInteger(stakeYen)||stakeYen<100||stakeYen>4800||
+    !Number.isSafeInteger(candidateReturnedYen)||
+    candidateReturnedYen<0||candidateReturnedYen>18000000000||
+    !Number.isSafeInteger(candidateDifferenceYen))
+  throw Error('Unsafe unverified candidate arithmetic');
  return {kind:'matched',source,points:picks.size,matched,
-  candidateCount:report.trifectaCandidates.length};
+  candidateCount:report.trifectaCandidates.length,
+  stakeYen,candidateReturnedYen,candidateDifferenceYen};
 }
 $('jraResultCheck').onclick=async()=>{
  const seq=++jraCandidateRequest,day=$('day').value,
@@ -640,6 +652,17 @@ $('jraResultCheck').onclick=async()=>{
     for(const entry of compared.matched)
      holder.append(el('p','候補一致：'+entry.ticket.join('－')+
       '／100円あたり候補払戻 '+yen(entry.payoutYen),'muted'));
+    // The amount is NOT an official return, official ROI, actual purchase
+    // or an archived result: render transiently for this single race only.
+    const difference=(compared.candidateDifferenceYen>=0?'+':'−')+
+     yen(Math.abs(compared.candidateDifferenceYen));
+    holder.append(el('p',
+     '【未確定・参考計算】発走前固定の3連単 '+compared.points+
+     '点×100円＝'+yen(compared.stakeYen)+
+     '。表示したJRA払戻候補がすべて最終有効・返還0円と仮定した場合、'+
+     '参考払戻 '+yen(compared.candidateReturnedYen)+
+     '／参考差額 '+difference+'。'+
+     '最終結果・返還は未認証。公式回収率と記録には一切算入しません。','pending'));
     if(!compared.matched.length)
      holder.append(el('p',
       '一致する3連単候補はありません（結果が最終確定した証拠ではありません）。','muted'));

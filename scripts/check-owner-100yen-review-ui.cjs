@@ -136,6 +136,9 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
   /3連単 7－8－2：100円あたり 26,050円（候補）/);
  assert.match(observed.get('jraResultStatus').textContent,
   /正式的中・実購入・仮想収支には反映していません/);
+ assert.ok(!observed.get('jraResultCandidates').children.some(x=>
+  /【未確定・参考計算】/.test(x.textContent)),
+  'no verified prestart receipt means no investment/return scenario');
  assert.equal(observed.storage.size,0,'official candidate never writes storage');
  // For a real record, compare only after the existing server endpoint
  // has verified the original prestart HMAC receipt (no paid JRDB calls).
@@ -176,8 +179,13 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.equal(JSON.parse(matched.requests[4].opts.body).receipts.length,1);
  assert.match(matched.get('jraResultStatus').textContent,
   /予想内 1組（未確定）/);
- assert.match(matched.get('jraResultCandidates').children.at(-1).textContent,
-  /候補一致：7－8－2／100円あたり候補払戻 26,050円/);
+ assert.ok(matched.get('jraResultCandidates').children.some(x=>
+  /候補一致：7－8－2／100円あたり候補払戻 26,050円/.test(x.textContent)));
+ const singleScenario=matched.get('jraResultCandidates').children.at(-1).textContent;
+ assert.match(singleScenario,/【未確定・参考計算】/);
+ assert.match(singleScenario,/2点×100円＝200円/);
+ assert.match(singleScenario,/参考払戻 26,050円／参考差額 \+25,850円/);
+ assert.match(singleScenario,/公式回収率と記録には一切算入しません/);
  assert.equal(matched.storage.size,0);
  // Dead heat: multiple JRA candidate winners may both be in frozen tickets.
  const deadHeat={...candidate,podiumShape:'third_place_dead_heat',
@@ -198,6 +206,8 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  await multi.get('jraResultCheck').onclick();
  assert.match(multi.get('jraResultStatus').textContent,
   /結果候補 2組中、予想内 2組（未確定）/);
+ assert.match(multi.get('jraResultCandidates').children.at(-1).textContent,
+  /参考払戻 74,970円／参考差額 \+74,770円/);
  assert.equal(multi.storage.size,0);
  // JRA first place A/B dead heat: both ordered winning tickets, but
  // only the first one was sealed in the owner's immutable archive.
@@ -215,6 +225,8 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  await firstTied.get('jraResultCheck').onclick();
  assert.match(firstTied.get('jraResultStatus').textContent,
   /結果候補 2組中、予想内 1組（未確定）/);
+ assert.match(firstTied.get('jraResultCandidates').children.at(-1).textContent,
+  /参考払戻 29,050円／参考差額 \+28,850円/);
  assert.equal(firstTied.storage.size,0);
  // Second-place dead heat is also two ordered tickets but never
  // requires the subsequent fourth-place horse.
@@ -231,6 +243,8 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  await secondTied.get('jraResultCheck').onclick();
  assert.match(secondTied.get('jraResultStatus').textContent,/固定済み予想との比較は保留/);
  assert.equal(secondTied.storage.size,0);
+ assert.ok(!secondTied.get('jraResultCandidates').children.some(x=>
+  /【未確定・参考計算】/.test(x.textContent)));
  // A spoofed server envelope claiming a podium match cannot create a
  // contradictory 3連単/3連複 result, payout or apparent hit.
  const forgedTrio={...firstTie,
@@ -245,6 +259,7 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.match(badFirst.get('jraResultStatus').textContent,
   /安全に確認できませんでした/);
  assert.equal(badFirst.storage.size,0);
+ assert.equal(badFirst.get('jraResultCandidates').children.length,0);
  const forgedCount={...firstTie,matchingTrifectaCount:1};
  const badCount=boot('?date=2026-11-08',null,null,null,forgedCount);
  await new Promise(r=>setImmediate(r));
@@ -254,6 +269,21 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  await badCount.get('jraResultCheck').onclick();
  assert.equal(badCount.get('jraResultCandidates').children.length,0);
  assert.equal(badCount.storage.size,0);
+ // Even when the already signed formation missed the observed
+ // single-page candidate, a scenario is *negative*, never an official loss.
+ const missCandidate={...candidate,
+  trifectaCandidates:[{ticket:[2,7,8],payoutYen:2320}]};
+ const missed=boot('?date=2026-11-08',null,null,stored,missCandidate,verified);
+ await new Promise(r=>setImmediate(r));
+ missed.get('jraResultTrack').value='京都';
+ missed.get('jraResultRace').value='8';
+ missed.get('jraResultUrl').value=officialURL;
+ await missed.get('jraResultCheck').onclick();
+ assert.match(missed.get('jraResultStatus').textContent,
+  /結果候補 1組中、予想内 0組（未確定）/);
+ assert.ok(missed.get('jraResultCandidates').children.some(x=>
+  /参考払戻 0円／参考差額 −200円/.test(x.textContent)));
+ assert.equal(missed.storage.size,0);
  // Forged / contradictory server verification MUST NOT be a claimed hit.
  const forgedVerify={...verified,
   officialFeedConnected:true};
@@ -268,6 +298,8 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
   /予想内 1組/);
  assert.match(withheld.get('jraResultCandidates').children.at(-1).textContent,
   /判定保留/);
+ assert.ok(!withheld.get('jraResultCandidates').children.some(x=>
+  /【未確定・参考計算】/.test(x.textContent)));
  assert.equal(withheld.storage.size,0);
  // A signed receipt from a different race is never used for comparison.
  const unrelated=structuredClone(chosenReceipt);
