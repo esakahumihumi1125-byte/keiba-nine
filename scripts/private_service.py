@@ -2755,7 +2755,8 @@ def create_app(settings=None):
                 if 'automaticFactorScores' in report:
                     stage = 'seven_factor_read_only'
                     try:
-                        report['sevenFactorCoverage'] = seven_factor_research_coverage(report)
+                        report['sevenFactorCoverage'] = seven_factor_research_coverage(
+                            report, now=final_prestart_checked_at)
                     except (CoverageError, ValueError, TypeError, KeyError):
                         logging.warning('KEIBA_SEVEN_FACTOR_COVERAGE=unavailable')
                 # The missing 3-point recent factor may be bounded without
