@@ -229,7 +229,7 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  secondTied.get('jraResultRace').value='8';
  secondTied.get('jraResultUrl').value=officialURL;
  await secondTied.get('jraResultCheck').onclick();
- assert.match(secondTied.get('jraResultStatus').textContent,/未登録/);
+ assert.match(secondTied.get('jraResultStatus').textContent,/固定済み予想との比較は保留/);
  assert.equal(secondTied.storage.size,0);
  // A spoofed server envelope claiming a podium match cannot create a
  // contradictory 3連単/3連複 result, payout or apparent hit.
