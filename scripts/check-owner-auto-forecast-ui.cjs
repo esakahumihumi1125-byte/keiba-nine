@@ -1424,7 +1424,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   autoDraftOk=true,autoDraftNonJson=null,autoDraftNetworkFailure=false,
   officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
-  officialPdfOk=true,officialCardOffTime='12:00',
+  officialPdfOk=true,officialCardOffTime='12:00',officialCardGoing='重',
   officialLinkOk=true,officialLinkCorrupt=false,
   preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
@@ -1518,6 +1518,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     date:q.get('date'),track:q.get('track'),race:Number(q.get('race')),
     postTimeCandidate:officialCardOffTime,
     courseSurfaceCandidate:'芝',distanceMCandidate:2000,
+    goingCandidate:officialCardGoing,goingCandidatePresent:officialCardGoing!==null,
     officialHostAllowlisted:true,visibleRaceHeaderMatched:true,
     pageContentsParsed:true,independentSourceAuthenticated:false,
     officialStartersVerified:false,officialScratchesVerified:false,
@@ -1924,6 +1925,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setOfficialPdfLinks:x=>officialPdfLinks=x,
   setOfficialPdfOk:x=>officialPdfOk=x,
   setOfficialCardOffTime:x=>officialCardOffTime=x,
+  setOfficialCardGoing:x=>officialCardGoing=x,
   setOfficialLinkOk:x=>officialLinkOk=x,
   setOfficialLinkCorrupt:x=>officialLinkCorrupt=x,
   setPreflightCorrupt:x=>preflightCorrupt=x,
@@ -2663,7 +2665,18 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(cardView.requests.at(-1).url,/^\/api\/jra\/prestart-card-candidate\?/);
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/発走時刻候補は一致/);
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/コース条件候補は一致/);
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/馬場状態候補は一致（正式照合ではない）/);
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/出走馬・取消・馬場・公式データの真正性と最新性は未照合/);
+ cardView.setOfficialCardGoing('稍重');
+ await cardButton.onclick();
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/馬場状態候補に差あり（要確認）/);
+ cardView.setOfficialCardGoing(null);
+ await cardButton.onclick();
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/馬場状態候補なし（照合保留）/);
+ cardView.setOfficialCardGoing('不正');
+ await cardButton.onclick();
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/候補を照合できませんでした/);
+ cardView.setOfficialCardGoing('重');
  assert.equal(cardView.storage.get(STORAGE),frozenCard);
  cardView.setOfficialCardOffTime('13:00');
  await cardButton.onclick();
