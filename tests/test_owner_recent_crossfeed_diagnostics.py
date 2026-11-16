@@ -87,7 +87,8 @@ class CrossfeedTests(unittest.TestCase):
         out = recent_crossfeed_diagnostics(p, entries, draft, DAY)
         self.assertEqual(out["reasonCounts"]["no_prior_reference_visible"], 2)
         self.assertEqual(out["reasonCounts"]["more_prior_references_than_tze_runs"], 1)
-        self.assertEqual(draft["races"][0]["runners"][0]["recent"], "未評価")
+        self.assertEqual(next(h for h in draft["races"][0]["runners"]
+                              if h["number"] == 1)["recent"], "未評価")
 
     def test_unrecognized_or_duplicate_source_is_not_made_up(self):
         for variant in ("malformed_ref", "duplicate_ref", "missing_columns"):
