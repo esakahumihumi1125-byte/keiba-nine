@@ -136,6 +136,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">取得済みJRDB資料とJRA公表の事前競馬番組を、本人が押した時だけ公式予定ページ1回で比較します。これは発表当初の予定であり、出走馬・取消・当日馬場・変更後の最終発走時刻は証明できません。JRDBへの追加有料通信0回、買い目・固定記録は変更しません。</p>
 <button id="autoAdvanceCompare" type="button">JRA予定時刻・コースを全場比較（無料）</button>
 <p id="autoAdvanceStatus" class="muted" role="status">開催日のJRDB資料を読み込んだ後に確認できます。</p>
+<p class="muted"><a id="autoAdvanceDirect" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の開催日程を直接開く（照合できない場合）</a></p>
 <div id="autoAdvanceDifferences"></div>
 </details>
 <details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
@@ -6764,6 +6765,19 @@ $('autoSundayQuick').onclick=()=>quickWeekendForecast(0,'autoSundayQuick','日�
 let advanceProgrammeSeq=0;
 function resetAdvanceProgramme(){
  advanceProgrammeSeq++;
+ const d=$('autoDay').value;
+ const link=$('autoAdvanceDirect');
+ if(/^20\d{2}-\d{2}-\d{2}$/.test(d)&&
+    Number(d.slice(0,4))>=2020&&Number(d.slice(0,4))<=2035&&
+    Number.isFinite(Date.parse(d+'T12:00:00Z'))&&
+    new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d){
+  const y=d.slice(0,4),m=d.slice(5,7),day=d.slice(8,10);
+  link.href='https://www.jra.go.jp/keiba/calendar'+y+'/'+y+'/'+m+'/'+m+day+'.html';
+  link.textContent='JRA公式の'+d+'競馬番組（予定）を直接開く';
+ }else{
+  link.href='https://www.jra.go.jp/keiba/';
+  link.textContent='JRA公式の開催日程を直接開く';
+ }
  $('autoAdvanceCompare').disabled=false;
  $('autoAdvanceStatus').textContent='開催日またはJRDB受信資料が変わりました。JRA予定番組は未比較です。';
  $('autoAdvanceDifferences').replaceChildren();
@@ -6831,10 +6845,17 @@ $('autoAdvanceCompare').onclick=async()=>{
    throw Error('duplicate_jrdb_slot');
   const contextBy=new Map((source.raceContext?.races||[])
    .map(x=>[x.track+'|'+x.race,x]));
-  const alerts=[];let matched=0,unknown=0,compared=0;
+  const alerts=[];let matched=0,unknown=0,compared=0,missingSlots=0,fieldDiffs=0;
   for(const row of p.races){
    const key=row.track+'|'+row.race,original=sourceBy.get(key);
-   if(!original){unknown++;continue;}
+   if(!original){
+    // Missing races are not field-level differences. Keep all three
+    // missing comparisons visible instead of silently reporting 0 issues.
+    unknown+=3;missingSlots++;
+    alerts.push(row.track+' '+row.race+
+     'R｜JRDB受信番組にないレース（事前予定との照合保留）');
+    continue;
+   }
    const context=contextBy.get(key);
    for(const [field,a,b,format] of [
     ['発走時刻',original.postTime,row.postTime,x=>x],
@@ -6846,6 +6867,7 @@ $('autoAdvanceCompare').onclick=async()=>{
     }else{
      compared++;
      if(a!==b){
+      fieldDiffs++;
       alerts.push(row.track+' '+row.race+'R｜'+field+
        '：JRDB '+format(a)+'／JRA予定 '+format(b));
      }else matched++;
@@ -6854,7 +6876,7 @@ $('autoAdvanceCompare').onclick=async()=>{
   }
   for(const item of source.races){
    if(!seen.has(item.track+'|'+item.race)){
-    unknown++;
+    unknown+=3;missingSlots++;
     alerts.push(item.track+' '+item.race+
      'R｜JRA事前番組にないレース（変更・欠落の可能性を要確認）');
    }
@@ -6865,14 +6887,16 @@ $('autoAdvanceCompare').onclick=async()=>{
    host.append(dom('p',message,'muted'));
   status.textContent='JRA事前番組 '+p.raceCount+'R／JRDB受信 '+source.raceCount+
    'R｜比較 '+compared+'項目・予定と一致 '+matched+
-   '項目・差異 '+alerts.length+'項目・未比較 '+unknown+'項目。'+
+   '項目・差異 '+fieldDiffs+'項目・番組不一致 '+missingSlots+'R・未比較 '+unknown+'項目。'+
    (alerts.length?'下に違いを表示。':'比較できた予定項目で差異はありません。')+
    '【重要】事前の予定表との比較だけ。最終出走・取消・馬場・実際の発走時刻は未照合。';
  }catch(_){
   if(seq===advanceProgrammeSeq){
    $('autoAdvanceDifferences').replaceChildren();
-   status.textContent='JRA事前番組を安全に比較できませんでした。'+
-    '公式の最新出馬表を直接確認してください。既存の予想・固定記録は無変更です。';
+   status.textContent='JRA事前番組を自動取得できませんでした。'+
+    '上の「JRA公式の競馬番組」を直接開いてください。'+
+    '取得元が利用できない・ページ形式が変わった場合は未確認として扱います。'+
+    '既存の予想・固定記録は無変更です。';
   }
  }finally{
   if(seq===advanceProgrammeSeq)button.disabled=false;
@@ -10103,6 +10127,7 @@ if(typeof document.addEventListener==='function')
  document.addEventListener('visibilitychange',resumeOwnerDay);
 if(typeof window!=='undefined'&&typeof window.addEventListener==='function')
  window.addEventListener('pageshow',event=>{if(event.persisted)resumeOwnerDay();});
+resetAdvanceProgramme(); // Safe default official calendar link on first load.
 // Opening an authenticated owner page auto-reads only on regular weekends.
 // Special weekday races are explicit manual reads. No polling or purchase.
 if(document.visibilityState!=='hidden')autoFetchOnRegularRaceDay();

@@ -2755,22 +2755,29 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(calendar.get('autoAdvanceStatus').textContent,/JRA事前番組 24R/);
  assert.match(calendar.get('autoAdvanceStatus').textContent,/予定と一致 3項目/);
  assert.match(calendar.get('autoAdvanceStatus').textContent,/差異 0項目/);
- assert.match(calendar.get('autoAdvanceStatus').textContent,/未比較 23項目/);
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/番組不一致 23R/);
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/未比較 69項目/);
+ assert.equal(calendar.get('autoAdvanceDifferences').children.length,23);
+ assert.match(calendar.get('autoAdvanceDifferences').children[0].textContent,
+  /東京 2R.*JRDB受信番組にないレース/);
+ assert.equal(calendar.get('autoAdvanceDirect').href,
+  'https://www.jra.go.jp/keiba/'); // Synthetic year 2099 intentionally unsupported.
  assert.equal(calendar.storage.get(STORAGE),calendarStored);
  calendar.setAdvanceCalendarDiff(true);
  await calendarBtn.onclick();
  assert.match(calendar.get('autoAdvanceStatus').textContent,/差異 1項目/);
- assert.match(calendar.get('autoAdvanceDifferences').children[0].textContent,
-  /東京 1R.*発走時刻：JRDB 12:00／JRA予定 11:55/);
+ assert.ok(calendar.get('autoAdvanceDifferences').children.some(x=>
+  /東京 1R.*発走時刻：JRDB 12:00／JRA予定 11:55/.test(x.textContent)));
  assert.equal(calendar.storage.get(STORAGE),calendarStored);
  calendar.setAdvanceCalendarCorrupt(true);
  await calendarBtn.onclick();
- assert.match(calendar.get('autoAdvanceStatus').textContent,/安全に比較できませんでした/);
+ assert.match(calendar.get('autoAdvanceStatus').textContent,/自動取得できませんでした/);
  assert.equal(calendar.get('autoAdvanceDifferences').children.length,0);
  calendar.get('autoDay').value='2099-01-02';
  calendar.get('autoDay').onchange();
  assert.match(calendar.get('autoAdvanceStatus').textContent,/未比較/);
  assert.equal(calendar.get('autoAdvanceDifferences').children.length,0);
+ assert.equal(calendar.get('autoAdvanceDirect').href,'https://www.jra.go.jp/keiba/');
  assert.equal(calendar.storage.get(STORAGE),calendarStored);
  // One iPhone tap discovers a JRA official link and compares the
  // already-loaded JRDB time/course. Zero new paid /jrdb calls or writes.

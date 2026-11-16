@@ -31,12 +31,21 @@ def sample():
         chunks.append(f"<h3>5回{track}4日</h3><table>")
         chunks.append("<tr><th>レース番号</th><th>レース名・条件</th><th>発走時刻</th></tr>")
         for race in range(1, 13):
-            course = ("障害3歳以上未勝利 2,750（芝）" if track == "福島" and race == 4
-                      else "2歳未勝利 1,400（ダ）" if race == 1
-                      else "3歳以上3勝クラス 1,800（芝・外）")
+            # Three documented 2026-11-15 JRA facts (the other 33 rows
+            # are SYNTHETIC and must not be presented as live results).
+            if track == "東京" and race == 1:
+                course, off = "2歳未勝利 1,400（ダ）", "9時45分"
+            elif track == "京都" and race == 11:
+                course, off = "3歳以上オープン 2,200（芝・外）", "15時40分"
+            elif track == "福島" and race == 4:
+                course, off = "障害3歳以上未勝利 2,750（芝）", "11時05分"
+            else:
+                course = ("2歳未勝利 1,400（ダ）" if race == 1
+                          else "3歳以上3勝クラス 1,800（芝・外）")
+                off = f"{9 + race // 5}時{(race * 5) % 60:02d}分"
             chunks.append(
                 f"<tr><td>{race}レース</td><td>{course}</td>"
-                f"<td>{9 + race // 5}時{(race * 5) % 60:02d}分</td></tr>"
+                f"<td>{off}</td></tr>"
             )
         chunks.append("</table>")
     return "<html><body><script>bad 5回中山1日</script>" + "".join(chunks) + "</body></html>"
@@ -52,11 +61,15 @@ class AdvanceProgrammeTests(unittest.TestCase):
         self.assertEqual(report["venueCount"], 3)
         self.assertEqual(len(report["races"]), 36)
         self.assertEqual(report["races"][0], {
-            "track": "東京", "race": 1, "postTime": "09:05",
+            "track": "東京", "race": 1, "postTime": "09:45",
             "distanceM": 1400, "surface": "ダート",
         })
         self.assertEqual(report["races"][3]["surface"], "芝")
         self.assertIsNone(report["races"][27]["surface"])  # 福島4R障害
+        self.assertEqual(report["races"][22], {
+            "track": "京都", "race": 11, "postTime": "15:40",
+            "distanceM": 2200, "surface": "芝"})
+        self.assertEqual(report["races"][27]["postTime"], "11:05")
         for flag in (
             "officialFinalCardVerified", "officialStartersVerified",
             "officialScratchesVerified", "officialGoingVerified",
@@ -90,7 +103,7 @@ class AdvanceProgrammeTests(unittest.TestCase):
             original.replace("<h3>5回福島4日</h3>", "<h3>5回東京4日</h3>"),
             original.replace("<td>12レース</td>", "<td>11レース</td>", 1),
             original.replace("1,400（ダ）", "1,400（不明）", 1),
-            original.replace("9時05分", "無時刻", 1),
+            original.replace("9時45分", "無時刻", 1),
             original.replace("<td>1レース</td>", "<td>取消</td>", 1),
             original + "<h3>5回阪神4日</h3><table></table>",
         ):
