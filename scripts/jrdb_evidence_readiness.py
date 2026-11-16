@@ -25,6 +25,17 @@ def _present(value):
     return value is not None and value != "" and value != " "
 
 
+def _missing_previous_date(value):
+    """Only explicit empty /tze date markers, never actual past starts.
+
+    A zero date or whitespace is not a date. Other malformed nonempty dates
+    are still rejected, rather than silently hiding conflicting evidence.
+    """
+    return value is None or (
+        type(value) is str and (not value.strip() or value == "00000000")
+    )
+
+
 def _check_collection(rows, label):
     if not isinstance(rows, list) or len(rows) > 2160:
         raise CoverageError("Invalid " + label + " collection")
@@ -99,10 +110,10 @@ def audit_evidence_coverage(programme, entries, training, previous, requested_da
                 # Previous-race evidence must actually predate the target race.
                 dates = [row.get("race_back_" + str(i) + "_racedate") for i in range(1, 6)]
                 for past_date in dates:
-                    if _present(past_date):
+                    if not _missing_previous_date(past_date):
                         if not _valid_date(past_date) or past_date >= requested_date:
                             raise CoverageError("Previous run date is invalid")
-                if any(_present(d) for d in dates):
+                if any(not _missing_previous_date(d) for d in dates):
                     prior_seen.add(identity)
 
     for race in base["races"]:
