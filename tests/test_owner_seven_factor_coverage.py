@@ -1,5 +1,6 @@
 """Read-only 7-factor score COVERAGE tests; no real JRDB/JRA data."""
 from copy import deepcopy
+from datetime import datetime
 from pathlib import Path
 import sys
 import unittest
@@ -110,6 +111,59 @@ class SevenFactorCoverageTests(unittest.TestCase):
         self.assertIsNone(horse["overallRank"])
         self.assertEqual(result["races"][1]["status"], "held")
         self.assertEqual(result["races"][1]["horses"], [])
+
+    def test_prestart_held_missing_recent_gets_partial_observation_not_ticket(self):
+        source = example()
+        race = source["races"][0]
+        race["status"] = "hold"
+        race["reason"] = "missing_factors"
+        race["runners"][0]["recent"] = "未評価"
+        for i, entry in enumerate(source["tenFactorPreview"]["races"][0]["horses"]):
+            entry["provisionalScoreReady"] = False
+            entry["provisionalPoints33"] = None
+            entry["provisionalBreakdown"] = {"training": None, "recent": None}
+            if i == 0:
+                entry["grades"]["recent"] = "未評価"
+        unchanged = deepcopy(source)
+        before_off = datetime.fromisoformat("2099-01-01T09:00:00+09:00")
+        result = seven_factor_research_coverage(source, now=before_off)
+        self.assertEqual(source, unchanged)
+        self.assertEqual(result["partialRaceCount"], 0)
+        self.assertEqual(result["heldPartialRaceCount"], 1)
+        self.assertTrue(result["heldCoverageNeverRanksOrBets"])
+        row = result["races"][0]
+        self.assertEqual(row["status"], "partial_held")
+        self.assertTrue(row["heldResearchNeverFormsTickets"])
+        horse = row["horses"][0]
+        self.assertEqual(horse["number"], 1)
+        self.assertEqual(horse["researchSubtotal"], 63.0)
+        self.assertEqual(horse["assessedWeight"], 75)
+        self.assertEqual(horse["unassessedWeight"], 25)
+        self.assertIn("recent", horse["unassessedFactors"])
+        self.assertIsNone(horse["finalScore100"])
+        self.assertIsNone(horse["overallRank"])
+        self.assertEqual(result["ticketsIssued"], 0)
+        self.assertFalse(result["officialJraVerified"])
+        self.assertEqual(seven_factor_research_coverage(source)["heldPartialRaceCount"], 0)
+        after_off = datetime.fromisoformat("2099-01-01T13:00:00+09:00")
+        self.assertEqual(seven_factor_research_coverage(
+            source, now=after_off)["heldPartialRaceCount"], 0)
+        source["tenFactorPreview"]["races"][0]["horses"][0]["provisionalPoints33"] = 30
+        self.assertEqual(seven_factor_research_coverage(
+            source, now=before_off)["heldPartialRaceCount"], 0)
+
+    def test_prestart_tie_hold_with_complete_grades_is_still_unranked(self):
+        source = example()
+        source["races"][0].update(status="hold", reason="ambiguous_equal_grade_boundary")
+        for entry in source["tenFactorPreview"]["races"][0]["horses"]:
+            entry["provisionalScoreReady"] = False
+            entry["provisionalPoints33"] = None
+            entry["provisionalBreakdown"] = {"training": None, "recent": None}
+        result = seven_factor_research_coverage(
+            source, now=datetime.fromisoformat("2099-01-01T09:00:00+09:00"))
+        self.assertEqual(result["heldPartialRaceCount"], 1)
+        self.assertEqual(result["races"][0]["horses"][0]["researchSubtotal"], 65.0)
+        self.assertIsNone(result["races"][0]["horses"][0]["overallRank"])
 
     def test_all_optional_scores_means_maximum_90_not_formal_100(self):
         source = example()
