@@ -1426,6 +1426,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true,officialCardOffTime='12:00',officialCardGoing='重',
   officialCardCancellationCue=null,officialCardNumbers=null,
+  officialLinkPrefix='sw01dde01',
   officialLinkOk=true,officialLinkCorrupt=false,
   preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
@@ -1497,7 +1498,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    const requested=q.get('date'),track=q.get('track'),race=Number(q.get('race'));
    const venue={札幌:'01',函館:'02',福島:'03',新潟:'04',東京:'05',
     中山:'06',中京:'07',京都:'08',阪神:'09',小倉:'10'}[track];
-   const token='sw01dde01'+venue+'20990503'+String(race).padStart(2,'0')+
+   const token=officialLinkPrefix+venue+'20990503'+String(race).padStart(2,'0')+
     requested.replaceAll('-','')+'/AB';
    return {ok:officialLinkOk,json:async()=>({
     version:'owner-jra-race-link-resolver-1',date:requested,track,race,
@@ -1931,6 +1932,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setOfficialCardGoing:x=>officialCardGoing=x,
   setOfficialCardCancellationCue:x=>officialCardCancellationCue=x,
   setOfficialCardNumbers:x=>officialCardNumbers=x,
+  setOfficialLinkPrefix:x=>officialLinkPrefix=x,
   setOfficialLinkOk:x=>officialLinkOk=x,
   setOfficialLinkCorrupt:x=>officialLinkCorrupt=x,
   setPreflightCorrupt:x=>preflightCorrupt=x,
@@ -2744,6 +2746,17 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   discover.get('autoOfficialCardResolved').href);
  assert.equal(discover.storage.get(STORAGE),frozen);
  assert.equal(discover.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Older JRA ddd-style official links must also pass the browser-side
+ // identity check, without needing any new JRDB paid calls.
+ discover.setOfficialLinkPrefix('sw01ddd01');
+ const beforeVariant=discover.requests.length;
+ await discoverBtn.onclick();
+ assert.equal(discover.requests.length,beforeVariant+2);
+ assert.match(discover.get('autoOfficialCardResolved').href,/sw01ddd01/);
+ assert.match(discover.get('autoOfficialCardStatus').textContent,
+  /発走時刻候補は一致/);
+ assert.equal(discover.storage.get(STORAGE),frozen);
+ discover.setOfficialLinkPrefix('sw01dde01');
  // An untrusted link must never open or trigger the candidate comparison.
  discover.setOfficialLinkCorrupt(true);
  const beforeCorrupt=discover.requests.length;
