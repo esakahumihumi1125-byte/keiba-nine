@@ -64,6 +64,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </details>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <p id="autoEasyPulse" class="auto-easy-pulse" role="status">開催日を取得すると、予想あり・見送りの件数を表示します。</p>
+<a id="autoForecastJump" class="owner-forecast-cta" href="#forecastRacesSection">予想一覧をすぐ見る（追加のJRDB照会なし）</a>
 <nav class="quick-links" aria-label="画面内の移動">
 <a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
 <a href="#autoVenues">全レース一覧</a><a href="#fixedHistorySection">固定した買い目</a></nav>
@@ -73,108 +74,9 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="autoWorkoutQuickOpen" type="button" class="secondary-cta" disabled>全場の調教S/Aを確認（未取得）</button>
 <p class="muted">「買い目あり」は研究用3連単。「参考候補」は見送りRの署名なし研究例。「調教S/A」は馬番の仮評価だけ。いずれも正式10項目・JRA公式照合・購入ではありません。</p>
 </div>
-<section id="autoFiveQuickSection" class="owner-five-quick">
-<h3>JRDB 5項目の3連単研究（追加分析）</h3>
-<p class="muted">調教30・近走3・コース17・展開17・馬場12の79点分を比較。正式100点予想ではありません。過去番組・馬場のJRDB追加照会は最大16回。ボタンを押すまで照会しません。</p>
-<button id="autoFiveQuick" type="button" disabled>5項目の研究用3連単を追加分析（最大16照会）</button>
-<label class="auto-five-consent"><input id="autoFiveWeekendOptIn" type="checkbox"> 土日の当日、アプリを開いて基本データを取得したら、5項目の追加分析も自動で1回だけ実行する</label>
-<p id="autoFiveWeekendStatus" class="muted" role="status">自動追加分析はOFF。許可するまで追加のJRDB履歴照会はしません。</p>
-<p class="muted">ONでもアプリを開いた時だけ実行（バックグラウンドなし）。開催日ごとに過去番組・馬場を最大16回、失敗時の自動再試行なし。発走前のレースがなければ照会せず、翌開催日以降もOFFに変更できます。正式10項目・JRA公式照合ではありません。</p>
-<p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
-<div id="autoFiveQuickSaved"></div>
-<details class="owner-five-sparse-panel" id="autoMainWorkoutPanel">
-<summary>JRDB本追切の調教資料を確認（任意・調教30点の根拠）</summary>
-<p class="muted">本人が押した時だけJRDBの番組・出走馬・本追切データを計3回取得。追切日・終い・追切指数の記録有無を登録馬と照合します。指数値・調教タイム・オッズは表示せず、採点・3連単・結果は変更しません。</p>
-<button id="autoMainWorkoutCheck" type="button" disabled>当日のJRDB本追切を照合（追加3照会）</button>
-<p id="autoMainWorkoutStatus" class="muted" role="status">基本資料の取得後、発走前の当日だけ照合できます。</p>
-<div id="autoMainWorkoutRaces"></div>
-<div class="owner-training-pair">
-<p class="muted">調教分析（/tcy）と本追切（/tch）の資料を同じ馬で突き合わせます。**4回の追加JRDB照会**が必要。指数値の大小・一致や正式30点採点には使いません。</p>
-<button id="autoTcyTchCompare" type="button" disabled>調教分析＋本追切の両方を照合（追加4照会）</button>
-<p id="autoTcyTchStatus" class="muted" role="status">本人操作でのみ4資料を比較します。自動では照会しません。</p>
-<div id="autoTcyTchRaces"></div>
-</div>
-<details class="owner-five-sparse-panel">
-<summary>過去の調教指数と実際の着順を参考照合（任意）</summary>
-<p class="muted">JRDBの過去競走馬情報（dky）と過去成績（dse）を同じ馬で照合します。選んだ過去1日につき追加2照会。<strong>今週の追切指数と同一指標ではなく、JRA公式結果や時系列検証も未確認</strong>の研究です。正式な調教30点・買い目・回収率に使用しません。</p>
-<label for="autoHistoricalTrainingDay">比較する過去開催日（日本時間）</label>
-<input id="autoHistoricalTrainingDay" type="date">
-<button id="autoHistoricalTrainingCheck" type="button">この過去1日の調教指数と着順を比較（追加2照会）</button>
-<p id="autoHistoricalTrainingStatus" class="muted" role="status">本人がボタンを押すまで追加照会しません。初期設定は前週日曜日です。</p>
-<div id="autoHistoricalTrainingRaces"></div>
-</details>
-</details>
-<details id="autoFiveSparsePanel" class="owner-five-sparse-panel">
-<summary>近走未評価でも境界が変わらない参考3連単・発走前記録</summary>
-<p class="muted">近走3点が未評価でも、S〜Cのどれになっても候補区切りが変わらない場合だけの研究参考例です。残り4項目は全頭観測済み。<strong>正式10項目予想・馬券推奨・実購入・確定回収率ではありません。</strong></p>
-<p id="autoFiveSparseStatus" class="muted" role="status">5項目の過去資料を取得すると参考候補を確認します。</p>
-<div id="autoFiveSparseRaces"></div>
-<p id="autoFiveSparseSavedStatus" class="muted" role="status">この端末の発走前固定研究例は未確認です。</p>
-<div id="autoFiveSparseSaved"></div>
-</details>
-</section>
-<h2>2. 今日の予想状況</h2>
-<details id="autoDayDiagnostics"><summary>取得状況・見送り内訳を詳しく見る</summary>
-<p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
-<p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
-<p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
-<p id="autoSnapshotAge" class="muted" role="status">JRDB受信時刻：未取得。以前の固定履歴とは別です。</p>
-<details id="autoAcceptancePanel"><summary>土日の動作チェック（追加のJRDB照会なし）</summary>
-<p class="muted">この画面で取得済みのデータと、このiPhoneの保存済み研究記録の件数だけを確認します。馬番・馬名・オッズ・認証キー・署名・買い目そのものは表示しません。</p>
-<button id="autoAcceptanceCheck" type="button">選択日の取得・保存状況を確認</button>
-<pre id="autoAcceptanceReport" class="acceptance-report" role="status">未確認。押した時だけ端末内の既存情報を集計します。</pre>
-</details>
-</details>
-<p class="owner-official-shortcut"><a id="autoOfficialQuickLink" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式出馬表を開いて出走・取消・発走時刻を確認</a> <span class="muted">（手動確認・自動照合0R）</span></p>
-<details><summary>取得・資料の詳しい状態</summary>
-<p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
-<p id="autoReadProof" class="muted" role="status">JRDB資料の照会状況は未確認です。番組0Rと全資料取得は別です。</p>
-<p id="autoRecordSafety" class="muted" role="status">固定記録の保管状態：まだ確認していません。</p></details>
-<a href="#autoVenues">開催日のレース一覧に進む</a>
-<p class="muted"><a href="#autoHistoryAudit">過去の同条件照合へ進む</a>（旧85点の比較と新配点79点の研究用下書きを確認。追加の有料API取得は本人がボタンを押した時のみ）</p>
-<details id="autoAdvancePanel"><summary>JRA競馬番組の予定時刻・距離を全場まとめて比較（無料）</summary>
-<p class="muted">取得済みJRDB資料とJRA公表の事前競馬番組を、本人が押した時だけ公式予定ページ1回で比較します。これは発表当初の予定であり、出走馬・取消・当日馬場・変更後の最終発走時刻は証明できません。JRDBへの追加有料通信0回、買い目・固定記録は変更しません。</p>
-<button id="autoAdvanceCompare" type="button">JRA予定時刻・コースを全場比較（無料）</button>
-<p id="autoAdvanceStatus" class="muted" role="status">開催日のJRDB資料を読み込んだ後に確認できます。</p>
-<p class="muted"><a id="autoAdvanceDirect" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の開催日程を直接開く（照合できない場合）</a></p>
-<div id="autoAdvanceDifferences"></div>
-</details>
-<details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
-<p class="muted">本人が押した時だけJRA公式ページから開催場別の出馬表PDFリンクを探します。PDFの内容は自動解析しません。出走馬・取消・馬場・発走時刻を公式情報と自分で照合するための補助です。</p>
-<button id="autoOfficialPdf" type="button">選択日のJRA公式PDFリンクを探す</button>
-<p id="autoJraReleaseGuide" class="muted" role="status">選択日の出馬表公開目安を計算中。</p>
-<a id="autoOfficialWebCard" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式のWeb出馬表で馬番・出走馬を確認する</a>
-<p class="muted">Web出馬表はPDF一覧と公開時期が異なります。正式10項目予想に必要な出走馬・取消・馬場・発走時刻の自動照合は未接続。公式ページを開くだけで照合済みとはしません。</p>
-<p id="autoJraCrosscheck" class="muted" role="status">JRA公式照合：0R（未実施）。</p>
-<p id="autoOfficialPdfStatus" class="muted" role="status">未確認。PDFリンクの存在だけではJRA公式照合済みとは扱いません。</p>
-<div id="autoOfficialPdfLinks"></div>
-<a href="https://www.jra.go.jp/keiba/rpdf/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く</a>
-<details><summary>選択中の1RでJRA Web出馬表の馬番・時刻・コース候補を確認（任意）</summary>
-<p class="muted">下の一覧で対象Rを選び、「JRA公式URLを探して比較」を押してください。JRA公式の公開ページへ最大3回アクセス（JRDBの有料照会0回）します。公式ページの構造が変わった場合は見つからないことがあります。その場合は下のURL欄に手入力もできます。表示馬番の比較は参考情報のみ。出走・取消・馬場の正式照合や正式採点、固定買い目には反映しません。</p>
-<button id="autoOfficialCardDiscover" type="button" class="secondary-cta">選択RのJRA公式URLを探して比較（追加JRDB 0回）</button>
-<p id="autoOfficialCardLinkStatus" class="muted" role="status">未検索。公式出馬表へのリンクを探しただけでは照合済みにはなりません。</p>
-<a id="autoOfficialCardResolved" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く（選択Rのリンクは未特定）</a>
-<label for="autoOfficialCardUrl">JRA公式Web出馬表のURL（自動で見つからない場合）</label>
-<input id="autoOfficialCardUrl" type="url" maxlength="250" autocomplete="off" placeholder="https://sp.jra.jp/JRADB/accessD.html?CNAME=...">
-<button id="autoOfficialCardCheck" type="button">選択中の1Rの馬番・時刻・コース候補を比較</button>
-<p id="autoOfficialCardStatus" class="muted" role="status">未確認。JRDBの有料再取得や買い目更新は行いません。</p>
-</details>
-</details>
-<details><summary>開催日朝の使い方（3ステップ）</summary>
-<p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
-<p class="muted">② 下の「下書きのみ」を選ぶか、競馬場・レースを選択して1着／2着／3着の3連単と重複除外した点数を確認する。これは調教・近走だけの研究用下書きで、10項目の本予想や投票推奨ではない。</p>
-<p class="muted">③ 発走前の固定記録を確認し、必要に応じて「15種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
-</details>
-<details><summary>端末の保存状況と再分析の差分</summary>
-<p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
-<p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p></details>
-<p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
-<a href="/owner-backup">固定済み買い目など15種類の端末記録をバックアップする</a>。
-既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
-<a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
 </section>
 <section id="forecastRacesSection">
-<h2>3. 競馬場・レースを選ぶ</h2>
+<h2>2. 予想を見る・競馬場を選ぶ</h2>
 <p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
 <p id="autoRaceQuickSummary" class="auto-race-quick" role="status">予想は未取得です。</p>
 <details id="autoReferenceQuickPanel" class="owner-reference-quick">
@@ -250,6 +152,110 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoTkyArrowFormationRows"></div>
 </details>
 
+</details>
+</section>
+<section id="autoDayDetailSection">
+<h2>3. 公式情報・取得状況・詳しい分析</h2>
+<p class="muted">毎週の通常操作は上の予想一覧だけでOK。JRA公式との確認や追加分析、記録の管理が必要な場合だけここを見てください。</p>
+<details id="autoDayDiagnostics"><summary>取得状況・見送り内訳を詳しく見る</summary>
+<p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
+<p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
+<p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
+<p id="autoSnapshotAge" class="muted" role="status">JRDB受信時刻：未取得。以前の固定履歴とは別です。</p>
+<details id="autoAcceptancePanel"><summary>土日の動作チェック（追加のJRDB照会なし）</summary>
+<p class="muted">この画面で取得済みのデータと、このiPhoneの保存済み研究記録の件数だけを確認します。馬番・馬名・オッズ・認証キー・署名・買い目そのものは表示しません。</p>
+<button id="autoAcceptanceCheck" type="button">選択日の取得・保存状況を確認</button>
+<pre id="autoAcceptanceReport" class="acceptance-report" role="status">未確認。押した時だけ端末内の既存情報を集計します。</pre>
+</details>
+</details>
+<p class="owner-official-shortcut"><a id="autoOfficialQuickLink" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式出馬表を開いて出走・取消・発走時刻を確認</a> <span class="muted">（手動確認・自動照合0R）</span></p>
+<details><summary>取得・資料の詳しい状態</summary>
+<p id="autoProgrammeCoverage" class="muted" role="status">開催場別の取得R数：まだ確認していません。</p>
+<p id="autoReadProof" class="muted" role="status">JRDB資料の照会状況は未確認です。番組0Rと全資料取得は別です。</p>
+<p id="autoRecordSafety" class="muted" role="status">固定記録の保管状態：まだ確認していません。</p></details>
+<a href="#autoVenues">開催日のレース一覧に進む</a>
+<p class="muted"><a href="#autoHistoryAudit">過去の同条件照合へ進む</a>（旧85点の比較と新配点79点の研究用下書きを確認。追加の有料API取得は本人がボタンを押した時のみ）</p>
+<details id="autoAdvancePanel"><summary>JRA競馬番組の予定時刻・距離を全場まとめて比較（無料）</summary>
+<p class="muted">取得済みJRDB資料とJRA公表の事前競馬番組を、本人が押した時だけ公式予定ページ1回で比較します。これは発表当初の予定であり、出走馬・取消・当日馬場・変更後の最終発走時刻は証明できません。JRDBへの追加有料通信0回、買い目・固定記録は変更しません。</p>
+<button id="autoAdvanceCompare" type="button">JRA予定時刻・コースを全場比較（無料）</button>
+<p id="autoAdvanceStatus" class="muted" role="status">開催日のJRDB資料を読み込んだ後に確認できます。</p>
+<p class="muted"><a id="autoAdvanceDirect" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の開催日程を直接開く（照合できない場合）</a></p>
+<div id="autoAdvanceDifferences"></div>
+</details>
+<details><summary>JRA公式の出馬表PDFを開く（任意）</summary>
+<p class="muted">本人が押した時だけJRA公式ページから開催場別の出馬表PDFリンクを探します。PDFの内容は自動解析しません。出走馬・取消・馬場・発走時刻を公式情報と自分で照合するための補助です。</p>
+<button id="autoOfficialPdf" type="button">選択日のJRA公式PDFリンクを探す</button>
+<p id="autoJraReleaseGuide" class="muted" role="status">選択日の出馬表公開目安を計算中。</p>
+<a id="autoOfficialWebCard" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式のWeb出馬表で馬番・出走馬を確認する</a>
+<p class="muted">Web出馬表はPDF一覧と公開時期が異なります。正式10項目予想に必要な出走馬・取消・馬場・発走時刻の自動照合は未接続。公式ページを開くだけで照合済みとはしません。</p>
+<p id="autoJraCrosscheck" class="muted" role="status">JRA公式照合：0R（未実施）。</p>
+<p id="autoOfficialPdfStatus" class="muted" role="status">未確認。PDFリンクの存在だけではJRA公式照合済みとは扱いません。</p>
+<div id="autoOfficialPdfLinks"></div>
+<a href="https://www.jra.go.jp/keiba/rpdf/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く</a>
+<details><summary>選択中の1RでJRA Web出馬表の馬番・時刻・コース候補を確認（任意）</summary>
+<p class="muted">下の一覧で対象Rを選び、「JRA公式URLを探して比較」を押してください。JRA公式の公開ページへ最大3回アクセス（JRDBの有料照会0回）します。公式ページの構造が変わった場合は見つからないことがあります。その場合は下のURL欄に手入力もできます。表示馬番の比較は参考情報のみ。出走・取消・馬場の正式照合や正式採点、固定買い目には反映しません。</p>
+<button id="autoOfficialCardDiscover" type="button" class="secondary-cta">選択RのJRA公式URLを探して比較（追加JRDB 0回）</button>
+<p id="autoOfficialCardLinkStatus" class="muted" role="status">未検索。公式出馬表へのリンクを探しただけでは照合済みにはなりません。</p>
+<a id="autoOfficialCardResolved" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く（選択Rのリンクは未特定）</a>
+<label for="autoOfficialCardUrl">JRA公式Web出馬表のURL（自動で見つからない場合）</label>
+<input id="autoOfficialCardUrl" type="url" maxlength="250" autocomplete="off" placeholder="https://sp.jra.jp/JRADB/accessD.html?CNAME=...">
+<button id="autoOfficialCardCheck" type="button">選択中の1Rの馬番・時刻・コース候補を比較</button>
+<p id="autoOfficialCardStatus" class="muted" role="status">未確認。JRDBの有料再取得や買い目更新は行いません。</p>
+</details>
+</details>
+<details><summary>開催日朝の使い方（3ステップ）</summary>
+<p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
+<p class="muted">② 下の「下書きのみ」を選ぶか、競馬場・レースを選択して1着／2着／3着の3連単と重複除外した点数を確認する。これは調教・近走だけの研究用下書きで、10項目の本予想や投票推奨ではない。</p>
+<p class="muted">③ 発走前の固定記録を確認し、必要に応じて「15種類の記録をバックアップ・復元する」で保管する。サーバー永続保存と公式結果の照合はまだ別の作業。投票するならJRA公式で出走馬・取消・馬場・発走時刻を別途確認し、自分で判断する。</p>
+</details>
+<details><summary>端末の保存状況と再分析の差分</summary>
+<p id="autoSavedStatus" class="muted" role="status">発走前の買い目は端末内の研究記録として保存できます。実購入の記録とは別です。</p>
+<p id="autoFixedConsistency" class="muted" role="status">この日の最初の固定買い目と、再分析結果を比較する前です。署名検証は別操作です。</p></details>
+<p class="muted">サーバー保存が未設定の間は、iPhoneの保存領域が消えると研究記録も失われる可能性があります。
+<a href="/owner-backup">固定済み買い目など15種類の端末記録をバックアップする</a>。
+既存の端末記録を消したり、別の版の保存内容を上書きしたりしません。</p>
+<a id="autoReviewLink" href="/owner-100yen-review">固定した研究用買い目を100円仮想収支で確認</a>
+<details id="autoAdvancedResearch" class="owner-advanced-research"><summary>さらに分析する：JRDB 5項目79点の研究・調教資料（任意）</summary>
+<section id="autoFiveQuickSection" class="owner-five-quick">
+<h3>JRDB 5項目の3連単研究（追加分析）</h3>
+<p class="muted">調教30・近走3・コース17・展開17・馬場12の79点分を比較。正式100点予想ではありません。過去番組・馬場のJRDB追加照会は最大16回。ボタンを押すまで照会しません。</p>
+<button id="autoFiveQuick" type="button" disabled>5項目の研究用3連単を追加分析（最大16照会）</button>
+<label class="auto-five-consent"><input id="autoFiveWeekendOptIn" type="checkbox"> 土日の当日、アプリを開いて基本データを取得したら、5項目の追加分析も自動で1回だけ実行する</label>
+<p id="autoFiveWeekendStatus" class="muted" role="status">自動追加分析はOFF。許可するまで追加のJRDB履歴照会はしません。</p>
+<p class="muted">ONでもアプリを開いた時だけ実行（バックグラウンドなし）。開催日ごとに過去番組・馬場を最大16回、失敗時の自動再試行なし。発走前のレースがなければ照会せず、翌開催日以降もOFFに変更できます。正式10項目・JRA公式照合ではありません。</p>
+<p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
+<div id="autoFiveQuickSaved"></div>
+<details class="owner-five-sparse-panel" id="autoMainWorkoutPanel">
+<summary>JRDB本追切の調教資料を確認（任意・調教30点の根拠）</summary>
+<p class="muted">本人が押した時だけJRDBの番組・出走馬・本追切データを計3回取得。追切日・終い・追切指数の記録有無を登録馬と照合します。指数値・調教タイム・オッズは表示せず、採点・3連単・結果は変更しません。</p>
+<button id="autoMainWorkoutCheck" type="button" disabled>当日のJRDB本追切を照合（追加3照会）</button>
+<p id="autoMainWorkoutStatus" class="muted" role="status">基本資料の取得後、発走前の当日だけ照合できます。</p>
+<div id="autoMainWorkoutRaces"></div>
+<div class="owner-training-pair">
+<p class="muted">調教分析（/tcy）と本追切（/tch）の資料を同じ馬で突き合わせます。**4回の追加JRDB照会**が必要。指数値の大小・一致や正式30点採点には使いません。</p>
+<button id="autoTcyTchCompare" type="button" disabled>調教分析＋本追切の両方を照合（追加4照会）</button>
+<p id="autoTcyTchStatus" class="muted" role="status">本人操作でのみ4資料を比較します。自動では照会しません。</p>
+<div id="autoTcyTchRaces"></div>
+</div>
+<details class="owner-five-sparse-panel">
+<summary>過去の調教指数と実際の着順を参考照合（任意）</summary>
+<p class="muted">JRDBの過去競走馬情報（dky）と過去成績（dse）を同じ馬で照合します。選んだ過去1日につき追加2照会。<strong>今週の追切指数と同一指標ではなく、JRA公式結果や時系列検証も未確認</strong>の研究です。正式な調教30点・買い目・回収率に使用しません。</p>
+<label for="autoHistoricalTrainingDay">比較する過去開催日（日本時間）</label>
+<input id="autoHistoricalTrainingDay" type="date">
+<button id="autoHistoricalTrainingCheck" type="button">この過去1日の調教指数と着順を比較（追加2照会）</button>
+<p id="autoHistoricalTrainingStatus" class="muted" role="status">本人がボタンを押すまで追加照会しません。初期設定は前週日曜日です。</p>
+<div id="autoHistoricalTrainingRaces"></div>
+</details>
+</details>
+<details id="autoFiveSparsePanel" class="owner-five-sparse-panel">
+<summary>近走未評価でも境界が変わらない参考3連単・発走前記録</summary>
+<p class="muted">近走3点が未評価でも、S〜Cのどれになっても候補区切りが変わらない場合だけの研究参考例です。残り4項目は全頭観測済み。<strong>正式10項目予想・馬券推奨・実購入・確定回収率ではありません。</strong></p>
+<p id="autoFiveSparseStatus" class="muted" role="status">5項目の過去資料を取得すると参考候補を確認します。</p>
+<div id="autoFiveSparseRaces"></div>
+<p id="autoFiveSparseSavedStatus" class="muted" role="status">この端末の発走前固定研究例は未確認です。</p>
+<div id="autoFiveSparseSaved"></div>
+</details>
+</section>
 </details>
 </section>
 <section id="fixedHistorySection">
@@ -420,6 +426,12 @@ main{padding-bottom:65px}
  background:#102f4d;border-radius:11px;color:#f1d48c;
  font-weight:850;font-size:18px;line-height:1.48;overflow-wrap:anywhere}
 .auto-race-quick{font-size:16px;margin:10px 0}
+.owner-forecast-cta{display:block;background:#246da1;color:#fff;
+ text-align:center;font-size:17px;font-weight:850;padding:14px 11px;
+ min-height:52px;border:1px solid #83b7df;border-radius:11px;
+ margin:11px 0;text-decoration:none;box-shadow:0 3px 12px #071d30}
+.owner-forecast-cta:focus-visible{outline:3px solid #f5d691;outline-offset:3px}
+.owner-advanced-research>summary{font-size:16px;font-weight:800;color:#eed28c}
 .owner-five-quick{margin:13px 0;padding:12px;border:1px solid #6c91ac;
  border-radius:12px;background:#132d45}
 .owner-five-quick h3{margin:0;font-size:17px;color:#edd28b}
