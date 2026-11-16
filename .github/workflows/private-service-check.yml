@@ -23,6 +23,8 @@ jobs:
           python-version: '3.11'
       - name: Run synthetic tests without credentials
         run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: One-time live JRA advance calendar format check (one public GET, no paid data)
+        run: python scripts/probe_jra_advance_once.py
       - name: Validate source syntax
         run: python -m compileall -q scripts deploy
       - name: Smoke-test guarded Render preview without live credentials
