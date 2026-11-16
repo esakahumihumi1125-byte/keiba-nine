@@ -2140,7 +2140,7 @@ function renderUncertainRecent(data,day){
   for(const row of p.races){
    if(!row||!Number.isInteger(row.race)||
       typeof row.track!=='string'||row.status!=='bounded_recent_uncertainty_only'||
-      !Number.isInteger(row.points)||row.points<12||row.points>48||
+      !Number.isInteger(row.points)||row.points<6||row.points>48||
       !Number.isInteger(row.missingRecentCount)||row.missingRecentCount<1||
       !Number.isInteger(row.assessedTrainingCount)||row.assessedTrainingCount<4||
       row.assessedTrainingCount>18||
@@ -2155,7 +2155,8 @@ function renderUncertainRecent(data,day){
       base.reason!=='missing_factors'||!Array.isArray(base.runners)||
       base.runners.length!==row.assessedTrainingCount||
       base.runners.some(h=>!['S','A','B','C'].includes(h.training))||
-      base.runners.filter(h=>h.recent==='未評価').length!==row.missingRecentCount)
+      base.runners.filter(h=>h.recent==='未評価').length!==row.missingRecentCount||
+      (base.runners.length>5&&row.points<12))
     throw Error('unknown_recent_roster');
    seen.add(key);
    const setRoster=new Set(base.runners.map(h=>h.number));
@@ -2172,7 +2173,7 @@ function renderUncertainRecent(data,day){
    // New wider second/third groups must be independently reconstructed
    // from each horse's *observed* workout and bounded missing-recent
    // interval; the UI must not trust a forged "stable" source flag.
-   if(row.second.length>5||row.third.length>10){
+   if(row.second.length>5||row.third.length>10||base.runners.length<=5){
     const values={S:3,A:2,B:1,C:0};
     const ordered=base.runners.map(h=>{
      if(!h||!Number.isInteger(h.number)||
@@ -2202,18 +2203,19 @@ function renderUncertainRecent(data,day){
            third<=Math.min(thirdCap,ordered.length);third++){
         if(!stable(third))continue;
         const points=first*(second-1)*(third-2);
-        if(points>=12&&points<=48)
+        if(points>=(ordered.length<=5?6:12)&&points<=48)
          found.push({first,second,third,points});
        }
       }
      }
      return found;
     };
-    if(candidates(5,10).length)
+    const legacy=candidates(5,10);
+    if((row.second.length>5||row.third.length>10)&&legacy.length)
      throw Error('unknown_recent_wide_legacy_preferred');
     // Keep the old <=12 3rd tier whenever it is possible. Only then
     // expand to 18 while still requiring every cutoff to be provable.
-    const shortWide=candidates(8,12);
+    const shortWide=legacy.length?legacy:candidates(8,12);
     const wide=(shortWide.length?shortWide:candidates(8,18)).sort((a,b)=>
        Number(30<=b.points&&b.points<=40)-
         Number(30<=a.points&&a.points<=40)||
