@@ -3063,27 +3063,34 @@ function render(input,day){
   '見送りレースの参考候補 0R（正式予想ではありません）';
  quickPanel.open=quickRows.length>0&&quickRows.length<=8;
  const referenceButton=$('autoReferenceOpen');
- const referenceCount=referencePanels.reduce((sum,item)=>sum+item.count,0);
+ // Panels are METHODS, not distinct races. A single race can have several
+ // independently validated reference methods. Count only the unique,
+ // time-safe per-R cards actually visible in the quick index.
+ const referenceCount=quickRows.length;
  $('autoReferencePulse').textContent=referenceCount
-  ?'見送りのうち参考候補 '+referenceCount+'件（'+
+  ?'見送りのうち参考候補 '+referenceCount+'R（'+
    referencePanels.map(item=>item.label+' '+item.count+'件').join('／')+
-   '）。正式予想・固定買い目・購入対象ではありません。'
-  :'見送りレースから発走前に確認できる参考候補は0件。欠損を0点に補完しません。';
+   '）。同じRの重複は除外。研究用・未購入です。'
+  :'見送りレースから発走前に確認できる参考候補は0R。欠損を0点に補完しません。';
  referenceButton.disabled=referenceCount===0;
  referenceButton.onclick=()=>{
   if(referenceCount===0||latestDisplayedReport!==data||
      latestDisplayedDay!==day||
-     $('autoDay').value.replaceAll('-','')!==day){
+     $('autoDay').value.replaceAll('-','')!==day||
+     !quickRows.some(item=>!draftExpiredOnDevice(day,item.race.postTime))){
    referenceButton.disabled=true;
    $('autoReferencePulse').textContent='表示期間が変わりました。古い参考候補は開けません。';
    return;
   }
-  // No network request, localStorage write, HMAC signing, or new ticket.
+  // Show the per-R quick index FIRST; no need to browse deep research
+  // panels just to see the 1st/2nd/3rd candidate numbers. Retain the
+  // existing detailed research panel for inspecting evidence.
+  quickPanel.open=true;
   const selected=$(referencePanels[0].panel);
   $('autoResearchTools').open=true;
   selected.open=true;
-  if(typeof selected.scrollIntoView==='function')
-   selected.scrollIntoView({behavior:'smooth',block:'start'});
+  if(typeof quickPanel.scrollIntoView==='function')
+   quickPanel.scrollIntoView({behavior:'smooth',block:'start'});
  };
  renderWorkoutQuick(data,day);
  const materialByRace=validatedRunnerSourceEvidence(data);
@@ -3438,8 +3445,11 @@ function render(input,day){
  const safeDraftCount=displayableDrafts.length;
  // Display validated counts only; these are provisional research drafts,
  // never full-ten grades, JRA-verified entries or purchases.
+ // Reference-only R are a SUBSET of held races, never extra betting
+ // forecasts. Show the same deduplicated, browser-verified count at top.
  const easyCount='全'+data.raceCount+'R｜研究用下書き '+
-  safeDraftCount+'R｜見送り '+data.holdCount+'R';
+  safeDraftCount+'R｜見送り '+data.holdCount+'R'+
+  (quickRows.length?'（うち発走前参考 '+quickRows.length+'R・未購入）':'');
  const hiddenCount=Math.max(0,data.draftCount-safeDraftCount);
  $('autoEasyPulse').textContent=easyCount+
   (hiddenCount?'｜新規非表示 '+hiddenCount+'R':'')+

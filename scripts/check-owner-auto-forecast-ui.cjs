@@ -5658,6 +5658,12 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,1);
  assert.match(comparableView.get('autoReferenceQuickTitle').textContent,
   /参考候補 1R（研究用・未購入）/);
+ assert.match(comparableView.get('autoReferencePulse').textContent,
+  /参考候補 1R（共通評価 1件／近走不足 1件）/,
+  'two distinct methods for the same race are counted as ONE research R');
+ assert.match(comparableView.get('autoEasyPulse').textContent,
+  /見送り 1R（うち発走前参考 1R・未購入）/,
+  'research references must remain part of held races, not signed drafts');
  const homePreview=comparableView.get('autoReferenceQuickRaces').children[0];
  assert.match(homePreview.children[0].textContent,/東京 1R/);
  assert.ok(homePreview.children.some(el=>/1着 1・2番/.test(el.textContent)));
@@ -5787,9 +5793,12 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  // the race screen, without another paid read or a new bet/receipt.
  const refButton=sparse.get('autoReferenceOpen');
  assert.equal(refButton.disabled,false);
- assert.match(sparse.get('autoReferencePulse').textContent,/参考候補 1件/);
+ assert.match(sparse.get('autoReferencePulse').textContent,/参考候補 1R/);
  const beforeRefReads=sparse.requests.length;
+ sparse.get('autoReferenceQuickPanel').open=false;
  refButton.onclick();
+ assert.equal(sparse.get('autoReferenceQuickPanel').open,true,
+  'one tap opens the same validated per-race shortlist without another read');
  assert.equal(sparse.get('autoResearchTools').open,true);
  assert.equal(sparse.get('autoUncertainRecentPanel').open,true);
  assert.equal(sparse.requests.length,beforeRefReads);
