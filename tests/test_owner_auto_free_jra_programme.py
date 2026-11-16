@@ -14,7 +14,7 @@ SOURCE = (Path(__file__).resolve().parents[1] /
 
 class AutoFreeJraProgrammeContractTests(unittest.TestCase):
     def test_after_successful_owner_read_only(self):
-        start = SOURCE.index(" $('autoRun').onclick=async()=>{")
+        start = SOURCE.index("$('autoRun').onclick=async()=>{")
         end = SOURCE.index(" }catch(error){if(seq===request){", start)
         block = SOURCE[start:end]
         checks = (
@@ -30,7 +30,7 @@ class AutoFreeJraProgrammeContractTests(unittest.TestCase):
         self.assertEqual(block.count("void $('autoAdvanceCompare').onclick();"), 1)
 
     def test_only_public_schedule_no_paid_refresh(self):
-        start = SOURCE.index(" $('autoAdvanceCompare').onclick=async()=>{")
+        start = SOURCE.index("$('autoAdvanceCompare').onclick=async()=>{")
         end = SOURCE.index("// Optional, JRA-only HTML index lookup.", start)
         block = SOURCE[start:end]
         self.assertIn("'/api/jra/advance-programme?date='", block)
