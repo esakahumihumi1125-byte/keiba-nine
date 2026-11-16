@@ -6946,7 +6946,11 @@ $('autoOfficialCardCheck').onclick=async()=>{
      !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(info.postTimeCandidate)||
      !['芝','ダート','障害'].includes(info.courseSurfaceCandidate)||
      !Number.isInteger(info.distanceMCandidate)||
-     info.distanceMCandidate<600||info.distanceMCandidate>5000)
+     info.distanceMCandidate<600||info.distanceMCandidate>5000||
+     (info.goingCandidate===null
+      ? info.goingCandidatePresent!==false
+      : (!['良','稍重','重','不良'].includes(info.goingCandidate)||
+         info.goingCandidatePresent!==true)))
     throw Error('untrusted_jra_header');
   const ctx=latestDisplayedReport.raceContext.races.find(row=>
    row.track===track&&row.race===race);
@@ -6956,9 +6960,23 @@ $('autoOfficialCardCheck').onclick=async()=>{
   const courseStatus=ctx.surface===info.courseSurfaceCandidate&&
    ctx.distance_m===info.distanceMCandidate
    ?'コース条件候補は一致':'コース条件候補に差あり（要確認）';
+  // Only a present, unambiguous display label can be compared. A
+  // JRDB /tka outage or unknown going is NEVER treated as "良".
+  const observed=info.goingCandidate!==null&&
+   latestDisplayedReport.raceContext.conditionProviderFetchStatus==='received'&&
+   ctx.goingAvailable===true&&ctx.conditionSnapshotPresent===true&&
+   ctx.surface===info.courseSurfaceCandidate&&
+   ['良','稍重','重','不良'].includes(ctx.going);
+  const goingStatus=info.goingCandidate===null
+   ?'JRAページの馬場状態候補なし（照合保留）'
+   :!observed?'馬場状態候補あり・JRDB側未確認（照合保留）'
+   :ctx.going===info.goingCandidate
+    ?'馬場状態候補は一致（正式照合ではない）'
+    :'馬場状態候補に差あり（要確認）';
   status.textContent=date+' '+track+' '+race+'R｜JRAページ候補：'+
    info.postTimeCandidate+'・'+info.courseSurfaceCandidate+
-   info.distanceMCandidate+'m。'+timeStatus+'／'+courseStatus+
+   info.distanceMCandidate+'m・'+(info.goingCandidate||'馬場不明')+
+   '。'+timeStatus+'／'+courseStatus+'／'+goingStatus+
    '。出走馬・取消・馬場・公式データの真正性と最新性は未照合。'+
    '既存の研究用下書きと固定買い目は変更しません。';
  }catch(_){
