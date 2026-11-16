@@ -5493,7 +5493,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  for(const horse of core64.automaticFactorScores.races[0].horses){
   for(const key of ['jockey_stable','rotation']){
    const slot=horse.factors[key];
-   slot.score=null;slot.points=null;slot.grade='未評価';slot.reason='source_missing';
+   slot.score=null;slot.points=null;slot.grade='未評価';
+    slot.reason=key==='jockey_stable'?'staff_missing':'previous_date_missing';
   }
  }
  Object.assign(core64.comparableFactorResearch.races[0],{
