@@ -23,7 +23,9 @@ class AutoFreeJraProgrammeContractTests(unittest.TestCase):
             "const displayed=render(body,day);",
             "latestDisplayedReport=body;latestDisplayedDay=day;",
             "if(seq===request&&day===$('autoDay').value.replaceAll('-','')){",
-            "if(body.raceCount>0)void $('autoAdvanceCompare').onclick();",
+            "const jraCalendarYear=Number(day.slice(0,4));",
+            "if(body.raceCount>0&&jraCalendarYear>=2020&&jraCalendarYear<=2035)",
+            "void $('autoAdvanceCompare').onclick();",
         )
         positions = [block.index(value) for value in checks]
         self.assertEqual(positions, sorted(positions))
