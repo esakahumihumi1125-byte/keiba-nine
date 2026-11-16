@@ -1470,7 +1470,8 @@ function eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock){
 // a verified full-ten 100pt grade, nor change sealed 3連単 tickets.
 function sevenFactorRace(data,day,race,automatic,sourceMaterials){
  const p=data.sevenFactorCoverage;
- if(!p||!automatic||race.status!=='provisional_draft'||
+ const held=race.status==='hold';
+ if(!p||!automatic||!(race.status==='provisional_draft'||held)||
     p.version!=='owner-seven-factor-coverage-1'||p.policyVersion!=='research-6'||
     p.date!==day.replaceAll('-','')||p.raceCount!==data.raceCount||
     p.maximumPossibleAssessedWeight!==90||p.remainingUnmappedWeight!==10||
@@ -1482,9 +1483,13 @@ function sevenFactorRace(data,day,race,automatic,sourceMaterials){
     p.bettingReady!==false||p.autoPurchase!==false||p.ticketsIssued!==0||
     p.changesExistingDrafts!==false||p.changesExistingReceipts!==false||
     p.newProviderRequests!==0||!Array.isArray(p.races)||
-    p.races.length!==data.raceCount)return null;
+    p.races.length!==data.raceCount||
+    (held&&(p.heldCoverageNeverRanksOrBets!==true||
+      !Number.isInteger(p.heldPartialRaceCount))))return null;
  const rows=p.races.filter(r=>r.track===race.track&&r.race===race.race);
- if(rows.length!==1||rows[0].status!=='partial'||!Array.isArray(rows[0].horses)||
+ if(rows.length!==1||rows[0].status!==(held?'partial_held':'partial')||
+    rows[0].heldResearchNeverFormsTickets!==true||
+    !Array.isArray(rows[0].horses)||
     rows[0].horses.length!==race.runners.length)return null;
  const ten=data.tenFactorPreview.races.find(r=>
   r.track===race.track&&r.race===race.race);
@@ -1503,16 +1508,37 @@ function sevenFactorRace(data,day,race,automatic,sourceMaterials){
      !Number.isFinite(h.researchSubtotal)||h.researchSubtotal<0||
      !Number.isInteger(h.assessedWeight)||!Number.isInteger(h.unassessedWeight)||
      h.assessedWeight+h.unassessedWeight!==100||
-     h.assessedWeight<33||h.assessedWeight>90||
+     h.assessedWeight<(held?30:33)||h.assessedWeight>90||
      h.unassessedWeight<10||h.overallGrade!=='未評価'||
      h.finalScore100!==null||h.overallRank!==null||
      !Array.isArray(h.unassessedFactors))return null;
   seen.add(h.number);
   const prior=previews.get(h.number),current=optional.get(h.number);
-  if(!prior.provisionalScoreReady||!Number.isInteger(prior.provisionalPoints33)||
-     prior.provisionalPoints33<0||prior.provisionalPoints33>33)return null;
-  let subtotal=prior.provisionalPoints33,capacity=33;
+  const coreGrades={S:3,A:2,B:1,C:0},coreWeights={training:30,recent:3};
+  if(!prior||!prior.grades||!prior.provisionalBreakdown)return null;
+  let subtotal=0,capacity=0;
   const missing=allMissing.slice();
+  for(const key of ['training','recent']){
+   const grade=prior.grades[key],fromRace=source.get(h.number)?.[key];
+   if(grade!==fromRace)return null;
+   if(grade==='未評価'){
+    if(!held)return null;
+    missing.push(key);
+   }else if(Object.hasOwn(coreGrades,grade)){
+    const points=coreGrades[grade]*coreWeights[key]/3;
+    subtotal+=points;capacity+=coreWeights[key];
+    if(!held&&prior.provisionalBreakdown[key]!==points)return null;
+   }else return null;
+   if(held&&prior.provisionalBreakdown[key]!==null)return null;
+  }
+  if(held){
+   if(prior.provisionalScoreReady!==false||
+      prior.provisionalPoints33!==null)return null;
+  }else{
+   if(prior.provisionalScoreReady!==true||
+      !Number.isInteger(prior.provisionalPoints33)||
+      prior.provisionalPoints33!==subtotal||capacity!==33)return null;
+  }
   for(const key of ordinal){
    const factor=current.factors[key];
    if(factor.points===null)missing.push(key);
@@ -1602,7 +1628,7 @@ function renderTenHorse(h,source,automatic,seven){
    '正式な配点10点分はすべて未評価です。','muted'));
  }
  if(seven)details.append(dom('p',
-  '研究用7項目の仮説を合算：採点できた'+seven.assessedWeight+
+  '研究用の既知項目のみ合算：採点できた'+seven.assessedWeight+
   '点枠で小計 '+seven.researchSubtotal.toFixed(2)+'点。未評価 '+
   seven.unassessedWeight+'点枠は0点扱いせず、正式100点・S/A/B/C総合順位・'+
   '購入用予想には使いません。','muted'));
