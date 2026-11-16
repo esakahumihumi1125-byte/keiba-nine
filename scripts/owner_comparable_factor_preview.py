@@ -15,13 +15,22 @@ from jrdb_coverage import CoverageError
 from jrdb_owner_auto_draft import VERSION as DRAFT_VERSION
 from owner_automatic_factor_scores import VERSION as AUTO_VERSION
 
-VERSION = 'owner-comparable-factor-formation-2'
+VERSION = 'owner-comparable-factor-formation-3'
 JST = timezone(timedelta(hours=9))
 DAY = re.compile(r'20\d{6}\Z', re.ASCII)
 OFF = re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d\Z', re.ASCII)
 GRADES = {'S': 3, 'A': 2, 'B': 1, 'C': 0}
 AUTO_FACTORS = ('course_distance', 'pace', 'ground', 'jockey_stable', 'rotation')
-MIN_COMPARABLE_WEIGHT = 70
+# The owner's three highest-priority present-condition factors provide 64
+# available research points: training 30 + course/distance 17 + pace 17.
+# Research-2 required 70/100, so a fully observed core trio could be
+# excluded merely because a non-core staff or rotation slot was blank.
+# Only this complete trio qualifies for the narrower >=64 research path.
+# Missing *any* factor is still omitted race-wide, never imputed as C/zero.
+MIN_COMPARABLE_WEIGHT = 64
+LEGACY_MIN_WITHOUT_CORE_TRIO = 70
+CORE_TRIO = ('training', 'course_distance', 'pace')
+assert sum(WEIGHTS[k] for k in CORE_TRIO) == MIN_COMPARABLE_WEIGHT
 MAX_RACES = 120
 # Fixed aggregate statuses only: no dates, horse IDs, race keys or provider rows.
 DIAGNOSTIC_KEYS = (
@@ -136,7 +145,12 @@ def _candidate(base, automatic, day, now):
         if all(known):
             keys.append(name)
     capacity = sum(WEIGHTS[k] for k in keys)
-    if capacity < MIN_COMPARABLE_WEIGHT:
+    if (capacity < MIN_COMPARABLE_WEIGHT or
+            (capacity < LEGACY_MIN_WITHOUT_CORE_TRIO
+             and not all(k in keys for k in CORE_TRIO))):
+        # A low 64..69 common-weight total is acceptable ONLY when all
+        # horses have each of the three essential observed factors.
+        # This does not create a formal 100-point grade or any receipt.
         return None, 'insufficient_shared_weight'
     order = []
     for number, row in runners.items():
