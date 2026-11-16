@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_coverage import CoverageError
 from owner_full_ten_day_gate import full_ten_day_research, VERSION
-from test_owner_full_ten_factor import fixture, NOW, OFF
+from test_owner_full_ten_factor import fixture, horse, NOW, OFF
 
 DATE = "20990101"
 VENUES = ("東京", "京都", "福島")
@@ -53,6 +53,33 @@ class FullTenDayGateTests(unittest.TestCase):
             self.assertFalse(report[flag])
         self.assertEqual(report["newProviderRequests"], 0)
         self.assertFalse(report["paidSourceRowsIncluded"])
+
+    def test_one_full_eighteen_runner_tie_can_coexist_with_35_unchanged_races(self):
+        rows = batch()
+        single = rows[0]["snapshot"]
+        single["horses"] = (
+            [horse(1)] +
+            [horse(n, {"training": "A"}) for n in range(2, 5)] +
+            [horse(n, {"training": "B"}) for n in range(5, 19)]
+        )
+        single["independentJra"]["confirmedStarterNumbers"] = list(range(1, 19))
+        untouched = copy.deepcopy(rows)
+        report = full_ten_day_research(DATE, rows, now=NOW)
+        self.assertEqual(rows, untouched)
+        self.assertEqual(report["researchFormationRaces"], 36)
+        self.assertEqual(report["races"][0]["reviewOnlyTicketCount"], 48)
+        self.assertEqual(len({tuple(t) for t in report["races"][0]["preview"]
+                              ["trifecta"]["tickets"]}), 48)
+        self.assertTrue(all(r["reviewOnlyTicketCount"] == 40
+                            for r in report["races"][1:]))
+        self.assertFalse(report["productionPredictionReady"])
+        self.assertFalse(report["independentJraFeedConnected"])
+        # Once the scheduled race has started, no retroactive 48-point
+        # preview or any other forecast gets created.
+        expired = full_ten_day_research(DATE, rows, now=OFF)
+        self.assertEqual(expired["researchFormationRaces"], 0)
+        self.assertTrue(all(r["reviewOnlyTicketCount"] == 0
+                            for r in expired["races"]))
 
     def test_one_missing_factor_and_one_invalid_race_do_not_erase_other_34(self):
         snapshots = batch()

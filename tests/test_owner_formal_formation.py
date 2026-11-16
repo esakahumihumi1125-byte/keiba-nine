@@ -59,6 +59,70 @@ class FormalFormationTests(unittest.TestCase):
         self.assertEqual(missing["status"], "missing_evidence")
         self.assertEqual(missing["trifecta"]["points"], 0)
 
+    def test_fourteen_runners_retain_the_full_c_tier_for_preferred_36(self):
+        # 1S / 3A / 6B / 4C. The old <=12 third cutoff stopped
+        # at the complete 10-runner B tier and returned only 24 points.
+        scores = [300] + [270] * 3 + [240] * 6 + [210] * 4
+        self.assertEqual(formal_formation_sizes(ranking(scores)), (1, 4, 14))
+        source = fixture()
+        source["horses"] = (
+            [horse(1)] +
+            [horse(n, {"training": "A"}) for n in range(2, 5)] +
+            [horse(n, {"training": "B"}) for n in range(5, 11)] +
+            [horse(n, {"training": "C"}) for n in range(11, 15)]
+        )
+        source["independentJra"]["confirmedStarterNumbers"] = list(range(1, 15))
+        pristine = copy.deepcopy(source)
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(source, pristine)
+        self.assertEqual(result["status"], "review_only")
+        formation = result["trifecta"]
+        self.assertEqual(formation["first"], [1])
+        self.assertEqual(formation["second"], [1, 2, 3, 4])
+        self.assertEqual(formation["third"], list(range(1, 15)))
+        self.assertEqual(formation["points"], 36)
+        self.assertEqual(formation["totalStakeYen"], 3600)
+        self.assertEqual(len({tuple(t) for t in formation["tickets"]}), 36)
+        self.assertFalse(formation["bettingReady"])
+        self.assertFalse(result["autoPurchase"])
+        self.assertFalse(result["publishable"])
+
+    def test_eighteen_runners_keep_full_b_tier_without_exceeding_48(self):
+        # When only full tied tiers are allowed, 1S / 3A / 14B admits
+        # a 48-point 1x4x18 reference; stopping at 12 loses 42 points.
+        sample = ranking([300] + [270] * 3 + [240] * 14)
+        self.assertEqual(formal_formation_sizes(sample), (1, 4, 18))
+        source = fixture()
+        source["horses"] = (
+            [horse(1)] +
+            [horse(n, {"training": "A"}) for n in range(2, 5)] +
+            [horse(n, {"training": "B"}) for n in range(5, 19)]
+        )
+        source["independentJra"]["confirmedStarterNumbers"] = list(range(1, 19))
+        before = copy.deepcopy(source)
+        result = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(source, before)
+        self.assertEqual(result["status"], "review_only")
+        form = result["trifecta"]
+        self.assertEqual(form["first"], [1])
+        self.assertEqual(form["second"], [1, 2, 3, 4])
+        self.assertEqual(form["third"], list(range(1, 19)))
+        self.assertEqual(form["points"], 48)
+        self.assertEqual(len({tuple(t) for t in form["tickets"]}), 48)
+        self.assertEqual(form["totalStakeYen"], 4800)
+        self.assertTrue(all(len(set(t)) == 3 for t in form["tickets"]))
+        self.assertFalse(form["bettingReady"])
+        self.assertFalse(result["autoPurchase"])
+        # No extra / false independent JRA approval can create a ticket.
+        source["independentJra"]["jra_scratches_verified"] = False
+        withheld = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(withheld["trifecta"]["points"], 0)
+        source["independentJra"]["jra_scratches_verified"] = True
+        del source["horses"][0]["assessments"]["ground"]
+        incomplete = full_ten_factor_preview(source, now=NOW)
+        self.assertEqual(incomplete["status"], "missing_evidence")
+        self.assertEqual(incomplete["trifecta"]["points"], 0)
+
     def test_one_clear_leader_can_rescue_an_entire_equal_second_group(self):
         # Old strict 2/3-first boundary splits the second-place tier;
         # first=[clear 1], second=[1..5], third=[1..10] gives 32.
