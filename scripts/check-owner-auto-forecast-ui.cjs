@@ -1425,6 +1425,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   officialPdfLinks=[{track:'東京',
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true,officialCardOffTime='12:00',officialCardGoing='重',
+  officialCardCancellationCue=null,
   officialLinkOk=true,officialLinkCorrupt=false,
   preflightCorrupt=false,preflightBadKey=false,
   preflightServerDate='20990101';
@@ -1519,6 +1520,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     postTimeCandidate:officialCardOffTime,
     courseSurfaceCandidate:'芝',distanceMCandidate:2000,
     goingCandidate:officialCardGoing,goingCandidatePresent:officialCardGoing!==null,
+    cancellationCueCandidate:officialCardCancellationCue,
     officialHostAllowlisted:true,visibleRaceHeaderMatched:true,
     pageContentsParsed:true,independentSourceAuthenticated:false,
     officialStartersVerified:false,officialScratchesVerified:false,
@@ -1926,6 +1928,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setOfficialPdfOk:x=>officialPdfOk=x,
   setOfficialCardOffTime:x=>officialCardOffTime=x,
   setOfficialCardGoing:x=>officialCardGoing=x,
+  setOfficialCardCancellationCue:x=>officialCardCancellationCue=x,
   setOfficialLinkOk:x=>officialLinkOk=x,
   setOfficialLinkCorrupt:x=>officialLinkCorrupt=x,
   setPreflightCorrupt:x=>preflightCorrupt=x,
@@ -2666,7 +2669,17 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/発走時刻候補は一致/);
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/コース条件候補は一致/);
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/馬場状態候補は一致（正式照合ではない）/);
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/取消の有無は未確認/);
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/出走馬・取消・馬場・公式データの真正性と最新性は未照合/);
+ cardView.setOfficialCardCancellationCue(true);
+ await cardButton.onclick();
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/【取消注意】/);
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/必ず公式サイトで出走馬を再確認/);
+ assert.equal(cardView.storage.get(STORAGE),frozenCard);
+ cardView.setOfficialCardCancellationCue(false);
+ await cardButton.onclick();
+ assert.match(cardView.get('autoOfficialCardStatus').textContent,/候補を照合できませんでした/);
+ cardView.setOfficialCardCancellationCue(null);
  cardView.setOfficialCardGoing('稍重');
  await cardButton.onclick();
  assert.match(cardView.get('autoOfficialCardStatus').textContent,/馬場状態候補に差あり（要確認）/);
