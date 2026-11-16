@@ -1465,7 +1465,68 @@ function renderAutomaticFactors(row){
 function eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock){
  return Boolean(automatic&&!elapsed&&!changedLock&&!draftExpiredOnDevice(day,race.postTime));
 }
-function renderTenHorse(h,source,automatic){
+// Optional same-day, server-derived 33+57 research subtotal. Reject forged,
+// stale, missing or different-runner data. This cannot promote any runner to
+// a verified full-ten 100pt grade, nor change sealed 3連単 tickets.
+function sevenFactorRace(data,day,race,automatic){
+ const p=data.sevenFactorCoverage;
+ if(!p||!automatic||race.status!=='provisional_draft'||
+    p.version!=='owner-seven-factor-coverage-1'||p.policyVersion!=='research-6'||
+    p.date!==day.replaceAll('-','')||p.raceCount!==data.raceCount||
+    p.maximumPossibleAssessedWeight!==90||p.remainingUnmappedWeight!==10||
+    p.modelCalibrated!==false||p.researchOnly!==true||
+    p.privateOwnerOnly!==true||p.officialJraVerified!==false||
+    p.overallPredictionReady!==false||p.publishable!==false||
+    p.bettingReady!==false||p.autoPurchase!==false||p.ticketsIssued!==0||
+    p.changesExistingDrafts!==false||p.changesExistingReceipts!==false||
+    p.newProviderRequests!==0||!Array.isArray(p.races)||
+    p.races.length!==data.raceCount)return null;
+ const rows=p.races.filter(r=>r.track===race.track&&r.race===race.race);
+ if(rows.length!==1||rows[0].status!=='partial'||!Array.isArray(rows[0].horses)||
+    rows[0].horses.length!==race.runners.length)return null;
+ const ten=data.tenFactorPreview.races.find(r=>
+  r.track===race.track&&r.race===race.race);
+ if(!ten||ten.horses.length!==race.runners.length)return null;
+ const source=new Map(race.runners.map(r=>[r.number,r]));
+ const previews=new Map(ten.horses.map(r=>[r.number,r]));
+ const optional=new Map(automatic.horses.map(r=>[r.number,r]));
+ const seen=new Set(),out=new Map();
+ const weights={course_distance:17,ground:12,pace:17,jockey_stable:10,rotation:1,
+  pedigree:6,draw_weight:3,body_condition:1};
+ const ordinal=['course_distance','ground','pace','jockey_stable','rotation'];
+ const allMissing=['pedigree','draw_weight','body_condition'];
+ for(const h of rows[0].horses){
+  if(!h||!Number.isInteger(h.number)||seen.has(h.number)||
+     !source.has(h.number)||!previews.has(h.number)||!optional.has(h.number)||
+     !Number.isFinite(h.researchSubtotal)||h.researchSubtotal<0||
+     !Number.isInteger(h.assessedWeight)||!Number.isInteger(h.unassessedWeight)||
+     h.assessedWeight+h.unassessedWeight!==100||
+     h.assessedWeight<33||h.assessedWeight>90||
+     h.unassessedWeight<10||h.overallGrade!=='未評価'||
+     h.finalScore100!==null||h.overallRank!==null||
+     !Array.isArray(h.unassessedFactors))return null;
+  seen.add(h.number);
+  const prior=previews.get(h.number),current=optional.get(h.number);
+  if(!prior.provisionalScoreReady||!Number.isInteger(prior.provisionalPoints33)||
+     prior.provisionalPoints33<0||prior.provisionalPoints33>33)return null;
+  let subtotal=prior.provisionalPoints33,capacity=33;
+  const missing=allMissing.slice();
+  for(const key of ordinal){
+   const factor=current.factors[key];
+   if(factor.points===null)missing.push(key);
+   else{capacity+=weights[key];subtotal+=factor.points;}
+  }
+  if(capacity!==h.assessedWeight||
+     Math.abs(subtotal-h.researchSubtotal)>.0051||
+     missing.length!==h.unassessedFactors.length||
+     missing.some(key=>!h.unassessedFactors.includes(key))||
+     h.unassessedWeight!==100-capacity||
+     h.researchSubtotal>capacity+.0001)return null;
+  out.set(h.number,h);
+ }
+ return seen.size===race.runners.length?out:null;
+}
+function renderTenHorse(h,source,automatic,seven){
  const additions=automatic?.factors||{};
  const scored=Object.entries(additions).filter(([,v])=>v.score!==null);
  const addedCapacity=scored.reduce((sum,[,v])=>sum+v.weight,0);
@@ -1474,7 +1535,9 @@ function renderTenHorse(h,source,automatic){
  details.append(dom('summary',h.number+'番：'+
   (h.provisionalScoreReady?'暫定 '+h.provisionalPoints33+'/33点':'暫定点 未算出')+
   '｜総合 未評価（評価項目'+knownCapacity+
-  '点分／未評価'+(100-knownCapacity)+'点分）'));
+  '点分／未評価'+(100-knownCapacity)+'点分）'+
+  (seven?'｜仮小計 '+seven.researchSubtotal.toFixed(2)+'/'+
+   seven.assessedWeight+'点枠':'')));
  const grid=dom('div',undefined,'ten-grid');
  for(const [key,label,weight] of TEN){
   const slot=dom('div',undefined,'ten-slot'),extra=additions[key],grade=extra?.grade||h.grades[key];
@@ -1511,6 +1574,11 @@ function renderTenHorse(h,source,automatic){
    const entry=TEN.find(([k])=>k===key);
    return entry[1]+entry[2]+'点';
   }).join('／')+'。ここでの点数は配点であり能力得点ではありません。','muted'));
+ if(seven)details.append(dom('p',
+  '研究用7項目の仮説を合算：採点できた'+seven.assessedWeight+
+  '点枠で小計 '+seven.researchSubtotal.toFixed(2)+'点。未評価 '+
+  seven.unassessedWeight+'点枠は0点扱いせず、正式100点・S/A/B/C総合順位・'+
+  '購入用予想には使いません。','muted'));
  return details;
 }
 function renderTenHeader(p){
@@ -3024,8 +3092,9 @@ function render(input,day){
    title.textContent=baseRaceHeading+'｜⚠ JRA事前予定差異・要確認';
   advanceRaceMarkers.set(key,{node:title,base:baseRaceHeading});
   const automatic=automaticFactorRace(data,day,race);
-  if(eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock))
-   detail.append(renderAutomaticFactors(automatic));
+  const eligible=eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock);
+  const seven=eligible?sevenFactorRace(data,day,race,automatic):null;
+  if(eligible)detail.append(renderAutomaticFactors(automatic));
   const course=courseRows.get(race.track+'|'+race.race);
   const condition=course.goingAvailable?course.going+'（JRDB資料）':'馬場未確認';
   detail.append(dom('p','コース条件：'+(course.surface||'芝・ダート未確認')+
@@ -3105,7 +3174,8 @@ function render(input,day){
     const ten=tenRows.get(race.track+'|'+race.race).horses.find(x=>x.number===h.number);
     horses.append(renderTenHorse(ten,materialByRace.get(key)?.get(h.number),
      !elapsed&&!changedLock&&!draftExpiredOnDevice(day,race.postTime)
-      ?automatic?.horses.find(x=>x.number===h.number):null));
+      ?automatic?.horses.find(x=>x.number===h.number):null,
+     seven?.get(h.number)));
    }
    detail.append(horses);
   }
