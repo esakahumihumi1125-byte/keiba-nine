@@ -2865,7 +2865,7 @@ function render(input,day){
   for(const card of parent.children){
    const heading=card.children?.[0]?.textContent;
    const match=typeof heading==='string'?
-    /^([^｜\\s]{2,4})\\s+(1[0-2]|[1-9])R｜/.exec(heading):null;
+    /^([^｜\s]{2,4})\s+(1[0-2]|[1-9])R｜/.exec(heading):null;
    if(!match)continue;
    const key=match[1]+'|'+Number(match[2]),race=validatedRaceKeys.get(key);
    if(!race||race.status!=='hold'||seenQuick.has(key)||
