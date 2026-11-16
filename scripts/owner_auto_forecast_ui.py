@@ -6947,6 +6947,8 @@ $('autoOfficialCardCheck').onclick=async()=>{
      !['芝','ダート','障害'].includes(info.courseSurfaceCandidate)||
      !Number.isInteger(info.distanceMCandidate)||
      info.distanceMCandidate<600||info.distanceMCandidate>5000||
+     (info.cancellationCueCandidate!==true&&
+      info.cancellationCueCandidate!==null)||
      (info.goingCandidate===null
       ? info.goingCandidatePresent!==false
       : (!['良','稍重','重','不良'].includes(info.goingCandidate)||
@@ -6973,10 +6975,14 @@ $('autoOfficialCardCheck').onclick=async()=>{
    :ctx.going===info.goingCandidate
     ?'馬場状態候補は一致（正式照合ではない）'
     :'馬場状態候補に差あり（要確認）';
+  const cancellationStatus=info.cancellationCueCandidate===true
+   ?'【取消注意】JRA出馬表の馬番欄に取消・除外の表示候補あり。必ず公式サイトで出走馬を再確認'
+   :'取消の有無は未確認（表示が見つからなくても取消なしの証明ではない）';
   status.textContent=date+' '+track+' '+race+'R｜JRAページ候補：'+
    info.postTimeCandidate+'・'+info.courseSurfaceCandidate+
    info.distanceMCandidate+'m・'+(info.goingCandidate||'馬場不明')+
-   '。'+timeStatus+'／'+courseStatus+'／'+goingStatus+
+   '。'+timeStatus+'／'+courseStatus+'／'+goingStatus+'／'+
+   cancellationStatus+
    '。出走馬・取消・馬場・公式データの真正性と最新性は未照合。'+
    '既存の研究用下書きと固定買い目は変更しません。';
  }catch(_){
