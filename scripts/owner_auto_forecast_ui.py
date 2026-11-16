@@ -3082,6 +3082,8 @@ function render(input,day){
  const allOption=dom('option','全Rを一覧表示');allOption.value='';
  select.append(allOption);select.value='';
  host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
+ // Release no-longer-visible horse summary references on every render.
+ prestartBodyMarkers=new Map();
  // Warning display nodes are per render; all values are safe fixed phrases.
  advanceRaceMarkers=new Map();
  $('autoFixedConsistency').textContent=fixedComparisonMessage(fixed);
@@ -3200,10 +3202,17 @@ function render(input,day){
    for(const [i,h] of displayed.entries()){
     horses.append(runnerView(h,i));
     const ten=tenRows.get(race.track+'|'+race.race).horses.find(x=>x.number===h.number);
-    horses.append(renderTenHorse(ten,materialByRace.get(key)?.get(h.number),
+    const tenCard=renderTenHorse(ten,materialByRace.get(key)?.get(h.number),
      !elapsed&&!changedLock&&!draftExpiredOnDevice(day,race.postTime)
       ?automatic?.horses.find(x=>x.number===h.number):null,
-     seven?.get(h.number)));
+     seven?.get(h.number));
+    // A later explicit same-day JRDB /tpd read annotates the existing
+    // heading, never the grade, tickets or research score.
+    if(race.status==='provisional_draft'&&!elapsed&&!changedLock){
+     const node=tenCard.children[0];
+     prestartBodyMarkers.set(key+'|'+h.number,{node,base:node.textContent});
+    }
+    horses.append(tenCard);
    }
    detail.append(horses);
   }
@@ -4168,6 +4177,39 @@ let request=0,followingToday=true,preflightSeq=0,
  historyDay='',historyCoordinates=new Set(),
  historyRosters=new Map(),historyReboundWatch=new Map(),historyStyles=new Map(),
  historyGrades=new Map(),historyStatuses=new Map();
+// Source-presence notes from an explicit /tpd read live only in this view.
+let prestartBodyMarkers=new Map();
+function clearPrestartBodyNotes(){
+ for(const marker of prestartBodyMarkers.values())
+  marker.node.textContent=marker.base;
+}
+function applyPrestartBodyNotes(rows,day,report){
+ if(!report||latestDisplayedDay!==day||latestDisplayedReport!==report||
+    report.date!==day||!Array.isArray(report.races)||
+    !Array.isArray(rows)||rows.length!==report.raceCount)return 0;
+ const expected=new Map(report.races.map(r=>[r.track+'|'+r.race,r]));
+ if(expected.size!==report.races.length)return 0;
+ let added=0;
+ for(const row of rows){
+  const key=row.track+'|'+row.race,base=expected.get(key);
+  if(!base||base.status!=='provisional_draft'||base.horseCount!==row.registered||
+     !Array.isArray(base.runners)||base.runners.length!==row.registered||
+     draftExpiredOnDevice(day,base.postTime))continue;
+  const numbers=new Set(base.runners.map(h=>h.number));
+  if(numbers.size!==base.runners.length||row.runners.length!==numbers.size||
+     row.runners.some(h=>!numbers.has(h.number)))continue;
+  for(const h of row.runners){
+   const marker=prestartBodyMarkers.get(key+'|'+h.number);
+   if(!marker)continue;
+   const observed=h.bodyWeightRecorded&&h.weightChangeRecorded;
+   marker.node.textContent=marker.base+
+    (observed?'｜JRDB直前馬体：体重＋前走比あり':'｜JRDB直前馬体：資料不足')+
+    '（JRA未照合・馬体1点は未評価）';
+   added++;
+  }
+ }
+ return added;
+}
 function clearHistory(){
  fiveProviderSeq++;
  $('autoFiveProviderRaces').replaceChildren();
@@ -4203,6 +4245,7 @@ function clearHistory(){
  $('autoConnectionCheck').disabled=false;
  $('autoConnectionStatus').textContent='診断は未実行。';
  prestartSeq++;
+ clearPrestartBodyNotes();
  $('autoPrestartRaces').replaceChildren();
  $('autoPrestartStatus').textContent='本人操作時だけ追加API照合。予想や買い目は変更しません。';
  $('autoPrestartBody').disabled=false;
@@ -10072,6 +10115,7 @@ $('autoPrestartBody').onclick=async()=>{
   return;
  }
  const seq=++prestartSeq;
+ clearPrestartBodyNotes();
  button.disabled=true;$('autoPrestartRaces').replaceChildren();
  $('autoPrestartStatus').textContent='当日の馬体資料を照合中…';
  try{
@@ -10083,6 +10127,9 @@ $('autoPrestartBody').onclick=async()=>{
   if(seq!==prestartSeq||$('autoDay').value.replaceAll('-','')!==day)return;
   if(!r.ok)throw Error('直前資料が利用不可');
   const rows=validatePrestartBody(raw,day);
+  // Cross-check only already rendered, exact same-date prestart horses.
+  // This read is opt-in: no additional provider request or persistence.
+  applyPrestartBodyNotes(rows,day,latestDisplayedReport);
   for(const row of rows){
    const card=dom('div',undefined,'history-coverage');
    card.append(dom('strong',row.track+' '+row.race+'R'),
@@ -10127,6 +10174,7 @@ $('autoPrestartBody').onclick=async()=>{
    '頭／体重＋前走比の資料ペア '+pairs+
    '頭。馬体1点は未評価。総合点・保存済み3連単・仮想収支は変更しません。';
  }catch(_){if(seq===prestartSeq){
+  clearPrestartBodyNotes();
   $('autoPrestartRaces').replaceChildren();
   $('autoPrestartStatus').textContent=
    '直前資料を照合できません。本人用の設定・接続を確認。既存記録は無変更です。';
