@@ -90,6 +90,53 @@ class CrossfeedTests(unittest.TestCase):
         self.assertEqual(next(h for h in draft["races"][0]["runners"]
                               if h["number"] == 1)["recent"], "未評価")
 
+    def test_provider_documented_eight_digit_placeholders_do_not_hide_real_history(self):
+        # JRDB's published /tky example repeats the SAME 8-digit race key
+        # in both lastrace_resultkeyN and lastrace_racekeyN for unused
+        # slots. Those are not 16-digit historical result records.
+        p, entries, draft = source_fixture()
+        unchanged = copy.deepcopy((p, entries, draft))
+        for k in (3, 4, 5):
+            entries[0][f"lastrace_resultkey{k}"] = "05250101"
+            entries[0][f"lastrace_racekey{k}"] = "05250101"
+        for k in range(1, 6):
+            entries[1][f"lastrace_resultkey{k}"] = "05250101"
+            entries[1][f"lastrace_racekey{k}"] = "05250101"
+        expected = recent_crossfeed_diagnostics(*(
+            p, untouched_entries := copy.deepcopy(unchanged[1]),
+            draft, DAY))
+        out = recent_crossfeed_diagnostics(p, entries, draft, DAY)
+        self.assertEqual(out["reasonCounts"], expected["reasonCounts"],
+                         "documented filler must not inflate unknown counts")
+        self.assertEqual(out["newProviderRequests"], 0)
+        self.assertEqual(out["formalRecentGradesVerified"], 0)
+        self.assertEqual(draft, unchanged[2])
+        self.assertNotIn("05250101", repr(out))
+
+    def test_unpaired_or_conflicting_fillers_remain_unknown(self):
+        p, entries, draft = source_fixture()
+        entries[0]["lastrace_resultkey3"] = "05250101"
+        out = recent_crossfeed_diagnostics(p, entries, draft, DAY)
+        self.assertEqual(out["reasonCounts"]["reference_or_tze_coverage_unknown"], 2)
+        entries[0]["lastrace_racekey3"] = "08254311"
+        out = recent_crossfeed_diagnostics(p, entries, draft, DAY)
+        self.assertEqual(out["reasonCounts"]["reference_or_tze_coverage_unknown"], 2)
+        entries[0]["lastrace_racekey3"] = "05250101"
+        out = recent_crossfeed_diagnostics(p, entries, draft, DAY)
+        self.assertEqual(out["reasonCounts"]["reference_or_tze_coverage_unknown"], 1)
+        self.assertEqual(out["reasonCounts"]["more_prior_references_than_tze_runs"], 2)
+
+    def test_current_future_and_invalid_prior_result_dates_do_not_count(self):
+        for invalid in ("2310715320990101", "2310715320990201",
+                        "2310715320250230", "2310715320991331"):
+            p, entries, draft = source_fixture()
+            entries[0]["lastrace_resultkey1"] = invalid
+            out = recent_crossfeed_diagnostics(p, entries, draft, DAY)
+            self.assertEqual(out["reasonCounts"]["reference_or_tze_coverage_unknown"], 2)
+            self.assertEqual(out["reasonCounts"]["more_prior_references_than_tze_runs"], 1)
+            self.assertEqual(draft["races"][0]["status"], "hold")
+            self.assertFalse(out["officialJraVerified"])
+
     def test_unrecognized_or_duplicate_source_is_not_made_up(self):
         for variant in ("malformed_ref", "duplicate_ref", "missing_columns"):
             p, entries, draft = source_fixture()
