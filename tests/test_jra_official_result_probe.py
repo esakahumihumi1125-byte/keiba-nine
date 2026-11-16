@@ -104,6 +104,98 @@ class PublicResultProbeTests(unittest.TestCase):
             with self.subTest(n=n), self.assertRaises(JraPublicProbeError):
                 parse_public_result_candidate(html, URL, DAY, "京都", 8)
 
+    @staticmethod
+    def _podium_with_payouts(placings, trifectas, trios):
+        """Synthetic page, NOT a real JRA settlement or authentic source."""
+        html = source()
+        start = html.index("<tr><td>1</td><td>7</td></tr>")
+        end = html.index("</table>\n<h2>払戻金</h2>", start)
+        ranking = "".join(
+            f"<tr><td>{place}</td><td>{number}</td></tr>"
+            for place, number in placings)
+        html = html[:start] + ranking + html[end:]
+        start = html.index("<tr><th>3連複</th>")
+        end = html.index("</table><h2>勝馬の紹介</h2>", start)
+        def payout(kind, combos):
+            return "".join(
+                f"<tr><th>{kind}</th><td>{'-'.join(map(str, numbers))}</td>"
+                f"<td>{(4000 + 1110*i):,}円</td><td>{i+1}番人気</td></tr>"
+                for i, numbers in enumerate(combos))
+        html = (html[:start] + payout("3連複", trios) +
+                payout("3連単", trifectas) + html[end:])
+        return html
+
+    def test_first_place_dead_heat_two_horses_exact_trifecta_orders(self):
+        # JRA official rule: 1st A/B tie, next reported placing is 3rd C.
+        html = self._podium_with_payouts(
+            [(1, 7), (1, 8), (3, 2)],
+            [(7, 8, 2), (8, 7, 2)], [(2, 7, 8)])
+        report = parse_public_result_candidate(
+            html, URL, DAY, "京都", 8)
+        self.assertEqual(report["podiumShape"], "first_place_dead_heat")
+        self.assertEqual(report["matchingTrifectaCount"], 2)
+        self.assertEqual(report["matchingTrioCount"], 1)
+        self.assertTrue(report["payoutMatchesDisplayedPodium"])
+        self.assertFalse(report["settlementReady"])
+        self.assertFalse(report["officialJraVerified"])
+        self.assertIsNone(report["officialRoiPercent"])
+
+    def test_second_place_dead_heat_ignores_subsequent_fourth_horse(self):
+        html = self._podium_with_payouts(
+            [(1, 7), (2, 8), (2, 2), (4, 5)],
+            [(7, 8, 2), (7, 2, 8)], [(2, 7, 8)])
+        report = parse_public_result_candidate(
+            html, URL, DAY, "京都", 8)
+        self.assertEqual(report["podiumShape"], "second_place_dead_heat")
+        self.assertEqual(report["matchingTrifectaCount"], 2)
+        self.assertEqual(report["matchingTrioCount"], 1)
+        self.assertFalse(report["finalityVerified"])
+        self.assertFalse(report["refundsVerified"])
+
+    def test_three_horse_first_tie_all_six_permutations(self):
+        from itertools import permutations
+        expected = sorted(permutations((7, 8, 2)))
+        html = self._podium_with_payouts(
+            [(1, 7), (1, 8), (1, 2), (4, 5)],
+            expected, [(2, 7, 8)])
+        report = parse_public_result_candidate(
+            html, URL, DAY, "京都", 8)
+        self.assertEqual(report["podiumShape"], "first_place_dead_heat")
+        self.assertEqual(report["matchingTrifectaCount"], 6)
+        self.assertEqual(report["matchingTrioCount"], 1)
+        self.assertFalse(report["settlementReady"])
+
+    def test_three_horse_second_tie_all_six_permutations(self):
+        from itertools import permutations
+        expected = [(7, a, b) for a, b in permutations((8, 2, 5), 2)]
+        trios = sorted({tuple(sorted(combo)) for combo in expected})
+        html = self._podium_with_payouts(
+            [(1, 7), (2, 8), (2, 2), (2, 5), (5, 12)],
+            expected, trios)
+        report = parse_public_result_candidate(
+            html, URL, DAY, "京都", 8)
+        self.assertEqual(report["podiumShape"], "second_place_dead_heat")
+        self.assertEqual(report["matchingTrifectaCount"], 6)
+        self.assertEqual(report["matchingTrioCount"], 3)
+        self.assertFalse(report["officialJraVerified"])
+
+    def test_tied_winner_errors_never_inflate_pending_return(self):
+        legitimate = self._podium_with_payouts(
+            [(1, 7), (1, 8), (3, 2)],
+            [(7, 8, 2), (8, 7, 2)], [(2, 7, 8)])
+        cases = [
+            legitimate.replace("8-7-2", "7-2-8"),
+            legitimate.replace("8-7-2", "7-8-2"),
+            legitimate.replace("8-7-2", "8-7-5"),
+            legitimate.replace("<tr><td>3</td><td>2</td></tr>",
+                               "<tr><td>2</td><td>2</td></tr>"),
+            legitimate.replace("<tr><td>3</td><td>2</td></tr>", ""),
+            legitimate.replace("2-7-8", "2-7-5"),
+        ]
+        for index, bad in enumerate(cases):
+            with self.subTest(index=index), self.assertRaises(JraPublicProbeError):
+                parse_public_result_candidate(bad, URL, DAY, "京都", 8)
+
     def test_regular_podium_one_third_and_exact_one_payout(self):
         html = (source()
                 .replace("<tr><td>3</td><td>5</td></tr>", "")
