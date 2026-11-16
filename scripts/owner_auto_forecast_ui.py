@@ -2384,13 +2384,11 @@ function renderUncertainRecent(data,day){
      }
      return found;
     };
-    const legacy=candidates(5,10);
-    if((row.second.length>5||row.third.length>10)&&legacy.length)
-     throw Error('unknown_recent_wide_legacy_preferred');
-    // Keep the old <=12 3rd tier whenever it is possible. Only then
-    // expand to 18 while still requiring every cutoff to be provable.
-    const shortWide=legacy.length?legacy:candidates(8,12);
-    const wide=(shortWide.length?shortWide:candidates(8,18)).sort((a,b)=>
+    // The server now compares ALL stable cutoffs through 18 runners before
+    // selecting 30-40 points. A narrow 12-24 point option must not reject
+    // a better 30-40 point research reference with a wider complete tier.
+    // Keep the same tie/unknown-grade safeguards and ordering as the server.
+    const wide=candidates(8,18).sort((a,b)=>
        Number(30<=b.points&&b.points<=40)-
         Number(30<=a.points&&a.points<=40)||
        Number(41<=b.points&&b.points<=48)-

@@ -5890,6 +5890,50 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(wideView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(wideView.requests.length,1,
   'widened sparse reference must not read JRDB again');
+ // A prior server change prefers a stable 36-point formation over
+ // a narrow 24-point reference: 1 S / 3 A / 6 B / 4 C, all recent unknown.
+ // iPhone verification MUST use the same full 8x18 search, not reject it
+ // just because an older <=10 third-choice option also exists.
+ const broad=boundedRecentFixture();
+ const broadRace=broad.races[0];
+ const broadTemplate=structuredClone(broadRace.runners);
+ broadRace.runners=Array.from({length:14},(_,i)=>{
+  const h=broadTemplate[i%broadTemplate.length];
+  return {...h,number:i+1,
+   training:i===0?'S':i<4?'A':i<10?'B':'C',
+   recent:'未評価',twoFactorGrade:'未評価',twoFactorPoints:null,
+   weightedResearchPoints:null,comparisonRank:null,
+   missingReasons:['no_linked_recent_record']};
+ });
+ broadRace.horseCount=14;
+ Object.assign(broad.uncertainRecentResearch.races[0],{
+  first:[1],second:[1,2,3,4],
+  third:Array.from({length:14},(_,i)=>i+1),
+  points:36,missingRecentCount:14,assessedTrainingCount:14
+ });
+ withTenPreview(broad);withSourcePassport(broad);
+ const broadView=boot({initialServerRaw:broad});
+ await new Promise(r=>setImmediate(r));
+ const broadCards=broadView.get('autoUncertainRecentRaces').children;
+ assert.equal(broadCards.length,1,
+  'stable 36pt whole-tier reference should not be hidden by old narrow rule');
+ assert.match(broadCards[0].children[0].textContent,/参考36通り/);
+ assert.equal(broadView.requests.length,1,'reference never triggers paid repeat');
+ assert.equal(broadView.storage.has(STORAGE),false);
+ assert.equal(broadView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const splitBroad=structuredClone(broad);
+ splitBroad.uncertainRecentResearch.races[0].third.pop();
+ splitBroad.uncertainRecentResearch.races[0].points=33;
+ const splitBroadView=boot({initialServerRaw:splitBroad});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(splitBroadView.get('autoUncertainRecentRaces').children.length,0,
+  'cannot split the four-horse C tier to fabricate a narrower example');
+ const wrongBroad=structuredClone(broad);
+ wrongBroad.uncertainRecentResearch.races[0].points=24;
+ const wrongBroadView=boot({initialServerRaw:wrongBroad});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(wrongBroadView.get('autoUncertainRecentRaces').children.length,0,
+  'wrong score arithmetic must never render as a bounded reference');
  // Full 18-runner group with one distinct S, three tied A, and
  // fourteen tied B can keep the entire B tier at 3rd within 48.
  // Only the original held research is used; no signed ticket is created.
