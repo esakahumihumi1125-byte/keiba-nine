@@ -70,6 +70,9 @@ def _formation(race):
         return None
     ranked.sort(key=lambda h: (-h["floor"], -h["ceiling"], h["number"]))
     count = len(ranked)
+    # Only 4-5 runner races may show a smaller, mathematically bounded
+    # research example. Larger fields retain the established 12-48 shape.
+    min_reference_points = 6 if count <= 5 else 12
     def options_with_limits(second_limit, third_limit):
         """Every boundary must survive *all* possibilities for missing recent.
 
@@ -88,7 +91,7 @@ def _formation(race):
                     if not _cutoff_proven(ranked, third):
                         continue
                     n = first * (second - 1) * (third - 2)
-                    if 12 <= n <= 48:
+                    if min_reference_points <= n <= 48:
                         result.append((first, second, third, n))
         return result
 
@@ -108,6 +111,8 @@ def _formation(race):
     # A ONE-horse first tier is permitted only when its minimum score
     # exceeds every other candidate's maximum possible score, including
     # unknown recent form. This remains an UNSIGNED, ungraded hypothesis.
+    # In a 4-5 horse field, a stable six-point example may be all the
+    # source evidence permits; never create extra combinations by guessing.
     # Prefer the usual 30-40 point research shape. If there is NO
     # mathematically stable 30-40 point option, a bounded 41-48 point
     # unsigned preview may retain a whole tied group; never fabricate
