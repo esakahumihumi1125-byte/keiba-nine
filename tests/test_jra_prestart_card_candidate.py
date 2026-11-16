@@ -226,6 +226,38 @@ class JraPrestartCardCandidateTests(unittest.TestCase):
         with self.assertRaises(JraPrestartCardError):
             parse_prestart_card_candidate(missing, MOBILE, DAY, "京都", 1)
 
+    def test_url_identity_must_match_exact_selected_venue_and_race(self):
+        # Same-day JRA host is not enough: reject different track/race even
+        # when the HTML misleadingly contains the requested visible header.
+        # ddd and dde desktop/mobile prefixes are both known legitimate shapes.
+        self.assertEqual(
+            validate_racecard_url(MOBILE, DAY, "京都", 1), date(2026, 11, 14))
+        self.assertEqual(
+            validate_racecard_url(DESKTOP, DAY, "東京", 8), date(2026, 11, 14))
+        for candidate, track, race in (
+            (MOBILE, "東京", 1),
+            (MOBILE, "京都", 2),
+            (MOBILE.replace("01082026", "01052026", 1), "京都", 1),
+            (MOBILE.replace("030120261114", "030220261114"), "京都", 1),
+            (MOBILE.replace("20260503", "20250503"), "京都", 1),
+            (MOBILE.replace("20261114", "20261115"), "京都", 1),
+            (MOBILE.replace("%2F91", "%2FXX"), "京都", 1),
+        ):
+            with self.subTest(candidate=candidate, track=track, race=race):
+                with self.assertRaises(JraPrestartCardError):
+                    validate_racecard_url(candidate, DAY, track, race)
+                with self.assertRaises(JraPrestartCardError):
+                    parse_prestart_card_candidate(
+                        MOBILE_HTML, candidate, DAY, track, race)
+
+        # A wrong-race URL must be rejected before even one public GET.
+        opener = StubOpener(StubResponse(MOBILE_HTML))
+        with self.assertRaises(JraPrestartCardError):
+            probe_prestart_card(
+                MOBILE, DAY, "京都", 2, now=date(2026, 11, 14),
+                opener=opener)
+        self.assertEqual(opener.calls, [])
+
     def test_one_exact_official_get_only_no_redirect_or_html_leak(self):
         response = StubResponse(MOBILE_HTML)
         opener = StubOpener(response)
