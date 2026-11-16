@@ -8,7 +8,7 @@ import math
 
 from evaluation_policy import OWNER_FORMAL_FACTORS, OWNER_FORMAL_POLICY_VERSION
 from jrdb_coverage import CoverageError
-from jrdb_evidence_readiness import audit_evidence_coverage
+from jrdb_evidence_readiness import audit_evidence_coverage, _missing_previous_date
 
 VERSION = 'owner-automatic-factor-scores-3'
 FACTORS = ('pace', 'jockey_stable', 'rotation', 'course_distance', 'ground')
@@ -173,7 +173,12 @@ def automatic_factor_scores(programme, entries, recent, day, *, now, race_contex
         for i, entry in enumerate(active):
             past = history.get((key, entry['horse_number']), {})
             prior = past.get('race_back_1_racedate')
-            gap = (target - datetime.strptime(prior, '%Y%m%d').date()).days if prior else None
+            # The optional /tze beta feed can contain a zero-dated,
+            # entirely blank historical slot. Missing history cannot
+            # imply that the runner had a previous race or deserves C/0.
+            # Nonempty malformed dates are rejected in the shared audit.
+            gap = (None if _missing_previous_date(prior)
+                   else (target - datetime.strptime(prior, '%Y%m%d').date()).days)
             rotation = None if gap is None else (80 if 14 <= gap <= 56 else
                         65 if 7 <= gap <= 90 else 50)
             staff = ((_percentile(jockeys[i], jockeys) + _percentile(stables[i], stables)) / 2
