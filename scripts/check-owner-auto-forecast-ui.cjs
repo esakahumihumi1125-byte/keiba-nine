@@ -3318,7 +3318,25 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  // No paid body source read until an explicit owner click.
  assert.equal(a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?')).length,0);
  const beforeBody=a.storage.get(STORAGE);
+ // Same horse, race and day: annotate only the existing research heading.
+ const bodyHeading=()=>{
+  const heads=[];
+  const walk=node=>{
+   if(!node)return;
+   if(node.tag==='summary'&&/^1番：.*総合 未評価/.test(node.textContent))
+    heads.push(node);
+   for(const child of node.children||[])walk(child);
+  };
+  walk(a.get('autoRaces'));
+  return heads[0]||null;
+ };
+ const originalBodyHeading=bodyHeading();
+ assert.ok(originalBodyHeading,'the existing 1番 source heading must exist');
+ const beforeHeadingText=originalBodyHeading.textContent;
+ assert.doesNotMatch(beforeHeadingText,/JRDB直前馬体/);
  await a.get('autoPrestartBody').onclick();
+ assert.match(bodyHeading().textContent,/JRDB直前馬体：体重＋前走比あり/);
+ assert.match(bodyHeading().textContent,/JRA未照合・馬体1点は未評価/);
  const bodyRequests=a.requests.filter(x=>x.url.startsWith('/api/jrdb/prestart-body?'));
  assert.equal(bodyRequests.length,1);
  assert.equal(bodyRequests[0].url,'/api/jrdb/prestart-body?date='+day);
@@ -3345,6 +3363,17 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await a.get('autoPrestartBody').onclick();
  assert.equal(a.get('autoPrestartRaces').children.length,0);
  assert.match(a.get('autoPrestartStatus').textContent,/照合できません/);
+ assert.equal(bodyHeading().textContent,beforeHeadingText,
+  'failed body source verification must clear old badges');
+ assert.equal(a.storage.get(STORAGE),beforeBody);
+ // A valid-but-different race must not attach to Tokyo 1R horses.
+ const movedBody=prestart();
+ movedBody.races[0].track='京都';
+ movedBody.bodyOneEvidencePreflight.races[0].track='京都';
+ a.setPrestart(movedBody);
+ await a.get('autoPrestartBody').onclick();
+ assert.equal(a.get('autoPrestartRaces').children.length,1);
+ assert.equal(bodyHeading().textContent,beforeHeadingText);
  assert.equal(a.storage.get(STORAGE),beforeBody);
  // Reject forged points, official proof and mismatched counts/horse numbers.
  for(const mutate of [
