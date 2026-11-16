@@ -5437,7 +5437,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /初回固定に失敗/);
  // Sparse recent research is strictly a *separate* unsigned display.
  // Never promote held candidates to a draft, sign them or fetch a source.
- // The independent 70-point comparison must be view-only, date-gated
+ // The independent 64-point core comparison must be view-only, date-gated
  // and reject forged race candidates without saving receipts or re-fetching.
  const comparable=boundedRecentFixture(),compRace=comparable.races[0];
  compRace.horseCount=compRace.runners.length; // complete declared roster as in live /tra
@@ -5458,8 +5458,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     ground:{weight:12,score:null,points:null,grade:'未評価',reason:'ground_good_not_scored'}
    }}))}]};
  comparable.comparableFactorResearch={
-  version:'owner-comparable-factor-formation-2',date:day,raceCount:1,
-  reviewedHeldRaces:1,unsignedReferenceCount:1,minimumComparableWeight:70,
+  version:'owner-comparable-factor-formation-3',date:day,raceCount:1,
+  reviewedHeldRaces:1,unsignedReferenceCount:1,minimumComparableWeight:64,
   diagnostics:{ineligible:0,time_unavailable:0,roster_mismatch:0,training_missing:0,
    factor_invalid:0,insufficient_shared_weight:0,tie_or_point_limit:0,preview:1},
   researchOnly:true,privateOwnerOnly:true,
@@ -5486,6 +5486,57 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(comparableView.get('autoComparableFactorStatus').textContent,/検査1R／表示できる研究参考1R／調教不足0R/);
  assert.equal(comparableView.storage.get(STORAGE),compStore);
  assert.equal(comparableView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Same 7 runners, but staff and rotation records are absent in the
+ // JRDB snapshot: train30 + course17 + pace17 = 64 robust research
+ // units. Neither missing factor nor the 3pt recent grade gets imputed.
+ const core64=structuredClone(comparable);
+ for(const horse of core64.automaticFactorScores.races[0].horses){
+  for(const key of ['jockey_stable','rotation']){
+   const slot=horse.factors[key];
+   slot.score=null;slot.points=null;slot.grade='未評価';
+    slot.reason=key==='jockey_stable'?'staff_missing':'previous_date_missing';
+  }
+ }
+ Object.assign(core64.comparableFactorResearch.races[0],{
+  comparedKeys:['training','course_distance','pace'],comparedWeight:64,
+  excludedKeys:['recent','ground','jockey_stable','rotation']
+ });
+ comparableView.setServerRaw(core64);
+ await comparableView.get('autoRun').onclick();
+ assert.equal(comparableView.get('autoComparableFactorRaces').children.length,1);
+ assert.match(comparableView.get('autoComparableFactorRaces').children[0].children[0].textContent,
+  /研究用 40点（共通配点64点分）/);
+ assert.equal(comparableView.storage.get(STORAGE),compStore);
+ assert.equal(comparableView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const core64Forged=structuredClone(core64);
+ core64Forged.automaticFactorScores.races[0].horses[0].factors.pace.points=null;
+ core64Forged.automaticFactorScores.races[0].horses[0].factors.pace.score=null;
+ core64Forged.automaticFactorScores.races[0].horses[0].factors.pace.grade='未評価';
+ comparableView.setServerRaw(core64Forged);
+ await comparableView.get('autoRun').onclick();
+ assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
+ assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
+ // Forged 69pt partial set without course/distance must NOT sneak
+ // through the new 64pt exception.
+ const nonCore=structuredClone(core64);
+ for(const horse of nonCore.automaticFactorScores.races[0].horses){
+  const course=horse.factors.course_distance;
+  course.points=null;course.score=null;course.grade='未評価';
+  const ground=horse.factors.ground;
+  ground.score=75;ground.points=9;ground.grade='A';
+  const staff=horse.factors.jockey_stable;
+  const value=90-horse.number*5;
+  staff.score=value;staff.points=Number((10*value/100).toFixed(4));
+  staff.grade=value>=85?'S':value>=70?'A':value>=55?'B':'C';
+ }
+ Object.assign(nonCore.comparableFactorResearch.races[0],{
+  comparedKeys:['training','pace','ground','jockey_stable'],comparedWeight:69,
+  excludedKeys:['recent','course_distance','rotation']
+ });
+ comparableView.setServerRaw(nonCore);
+ await comparableView.get('autoRun').onclick();
+ assert.equal(comparableView.get('autoComparableFactorRaces').children.length,0);
+ assert.match(comparableView.get('autoComparableFactorStatus').textContent,/安全に検証できず/);
  const forgedComparable=structuredClone(comparable);
  forgedComparable.comparableFactorResearch.races[0].first=[1,3];
  comparableView.setServerRaw(forgedComparable);

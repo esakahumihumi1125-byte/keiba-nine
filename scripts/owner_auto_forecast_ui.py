@@ -2562,7 +2562,7 @@ function renderComparableFactorResearch(data,day){
  const p=data.comparableFactorResearch;
  if(p===undefined){status.textContent='追加研究は未取得です。';return;}
  try{
-  if(!p||p.version!=='owner-comparable-factor-formation-2'||
+  if(!p||p.version!=='owner-comparable-factor-formation-3'||
     p.date!==day||p.raceCount!==data.raceCount||
     p.researchOnly!==true||p.privateOwnerOnly!==true||
     p.officialJraVerified!==false||p.formalTenFactorReady!==false||
@@ -2574,7 +2574,7 @@ function renderComparableFactorResearch(data,day){
     p.reviewedHeldRaces>data.holdCount||
     !Array.isArray(p.races)||p.unsignedReferenceCount!==p.races.length||
     p.races.length>data.holdCount||
-    p.minimumComparableWeight!==70||
+    p.minimumComparableWeight!==64||
     !p.diagnostics||typeof p.diagnostics!=='object')throw Error('comparable_header');
   const causes=['ineligible','time_unavailable','roster_mismatch',
     'training_missing','factor_invalid','insufficient_shared_weight',
@@ -2617,7 +2617,10 @@ function renderComparableFactorResearch(data,day){
       JSON.stringify(available)!==JSON.stringify(row.comparedKeys)||
       JSON.stringify(keys.filter(k=>!available.includes(k)))!==JSON.stringify(row.excludedKeys)||
       row.comparedWeight!==available.reduce((sum,k)=>sum+weights[k],0)||
-      row.comparedWeight<70)throw Error('comparable_weights');
+      row.comparedWeight<64||
+      (row.comparedWeight<70&&
+       (!available.includes('course_distance')||
+        !available.includes('pace'))))throw Error('comparable_weights');
    const ranked=base.runners.map(h=>{
     let point=weights.training*grades[h.training]/3;
     if(available.includes('recent'))point+=weights.recent*grades[h.recent]/3;
