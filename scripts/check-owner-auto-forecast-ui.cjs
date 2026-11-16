@@ -72,7 +72,7 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
    races:[{track:'東京',race:1,status:'partial',horses:partialRows}]
   }
  };
- const provisional={...fullRace,status:'provisional_draft'};
+ const provisional={...fullRace,track:'東京',race:1,status:'provisional_draft'};
  const researchScore=check(data);
  const good=sandbox.checkSeven(sevenDay,'2099-01-01',provisional,researchScore);
  assert.equal(good.get(1).researchSubtotal,77.6);
