@@ -624,6 +624,47 @@ function missingFactorHoldBreakdown(data){
    '未評価の件数は能力0点ではなく、正式10項目予想や購入推奨でもありません。';
  return {summary,races};
 }
+// Optional /tky reference vs /tze recent source diagnostic from the same
+// paid-read snapshot. Cross-check against already validated held horse counts.
+// It never fills an unknown grade, modifies a draft, or starts a new request.
+function safeRecentCrossfeed(data,day){
+ const p=data.recentCrossfeedDiagnostic;
+ if(p===undefined)return null; // Older service/fixture.
+ const names=['more_prior_references_than_tze_runs',
+  'no_prior_reference_visible','only_one_dated_run_visible',
+  'multiple_unscored_runs_visible','reference_or_tze_coverage_unknown'];
+ const safeCounts=counts=>counts&&typeof counts==='object'&&!Array.isArray(counts)&&
+  Object.keys(counts).length===names.length&&
+  names.every(k=>Number.isInteger(counts[k])&&counts[k]>=0&&counts[k]<=2160);
+ if(!p||p.version!=='owner-recent-crossfeed-diagnostics-1'||
+    p.date!==day||p.raceCount!==data.raceCount||
+    p.researchOnly!==true||p.privateOwnerOnly!==true||
+    p.officialJraVerified!==false||p.formalRecentGradesVerified!==0||
+    p.newProviderRequests!==0||p.existingTicketsChanged!==false||
+    p.existingReceiptsChanged!==false||!safeCounts(p.reasonCounts)||
+    !Number.isInteger(p.unassessedRecentCount)||
+    !Array.isArray(p.races)||p.races.length>data.holdCount||
+    p.examinedHeldRaces!==p.races.length||
+    names.reduce((n,k)=>n+p.reasonCounts[k],0)!==p.unassessedRecentCount)
+  return null;
+ const verified=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+ const byRace=new Map(),totals=Object.fromEntries(names.map(k=>[k,0]));
+ for(const r of p.races){
+  if(!r||typeof r.track!=='string'||!Number.isInteger(r.race)||
+     !safeCounts(r.reasonCounts)||!Number.isInteger(r.unassessedRecentCount))
+   return null;
+  const key=r.track+'|'+r.race,base=verified.get(key);
+  if(!base||byRace.has(key)||base.status!=='hold'||
+     base.reason!=='missing_factors'||!Array.isArray(base.runners)||
+     r.unassessedRecentCount!==base.runners.filter(h=>h.recent==='未評価').length||
+     names.reduce((n,k)=>n+r.reasonCounts[k],0)!==r.unassessedRecentCount)
+   return null;
+  byRace.set(key,r);
+  for(const k of names)totals[k]+=r.reasonCounts[k];
+ }
+ if(names.some(k=>totals[k]!==p.reasonCounts[k]))return null;
+ return {byRace,counts:totals,total:p.unassessedRecentCount};
+}
 const RECEIPTS_KEY='keiba-nine-owner-server-receipts-v1';
 const WORKOUT_LOCK_STORAGE='keiba-nine-owner-workout-order-locks-v1';
 const WORKOUT_PAIR_STORAGE='keiba-nine-owner-workout-pair-observations-v1';
@@ -3133,12 +3174,25 @@ function render(input,day){
   '/'+data.raceCount+'R。調教S・A馬の馬番は各レースを開いて確認。'+
   '資料が未評価の馬を低評価とは扱いません。正式順位・購入推奨ではありません。';
  const gaps=missingFactorHoldBreakdown(data);
- $('autoMissingFactorSummary').textContent=gaps.summary;
+ const crossfeed=safeRecentCrossfeed(data,day);
+ const lookupCross=key=>crossfeed?.byRace.get(key)?.reasonCounts?.
+  more_prior_references_than_tze_runs||0;
+ $('autoMissingFactorSummary').textContent=gaps.summary+
+  (crossfeed&&crossfeed.total?
+   ' JRDBの過去レース参照と近走観測を追加比較：参照の方が多い要調査 '+
+   crossfeed.counts.more_prior_references_than_tze_runs+'頭／'+
+   '過去参照が確認できない '+crossfeed.counts.no_prior_reference_visible+'頭／'+
+   '1走観測 '+crossfeed.counts.only_one_dated_run_visible+'頭／'+
+   '複数走あるが未採点 '+crossfeed.counts.multiple_unscored_runs+'頭／'+
+   '資料の識別不明 '+crossfeed.counts.reference_or_tze_coverage_unknown+
+   '頭。参照なしは新馬の証明ではありません。近走点は未評価のままです。':'');
  const gapHost=$('autoMissingFactorRaces');gapHost.replaceChildren();
  for(const row of gaps.races)
   gapHost.append(dom('p',row.track+' '+row.race+'R｜'+
    (row.available?'調教未評価 '+row.training+'頭／近走未評価 '+
-    row.recent+'頭／両方 '+row.pairs+'頭':
+    row.recent+'頭／両方 '+row.pairs+'頭'+
+    (lookupCross(row.track+'|'+row.race)?
+     '／JRDB過去参照の不足疑い '+lookupCross(row.track+'|'+row.race)+'頭':''):
     '馬別内訳は未確認（0頭という意味ではありません）'),'muted'));
  for(const race of data.races){
   const key=race.track+'|'+race.race,
