@@ -2975,6 +2975,8 @@ function render(input,day){
  const allOption=dom('option','全Rを一覧表示');allOption.value='';
  select.append(allOption);select.value='';
  host.replaceChildren();tabs.replaceChildren();renderTenHeader(p);
+ // Warning display nodes are per render; all values are safe fixed phrases.
+ advanceRaceMarkers=new Map();
  $('autoFixedConsistency').textContent=fixedComparisonMessage(fixed);
  $('autoSourceSummary').textContent=summarizeDaySourcePassport(
   data.sourcePassport,data.raceCount);
@@ -3003,6 +3005,17 @@ function render(input,day){
     :'見送り'+(race.runners.length?'｜調教S '+race.runners.filter(h=>h.training==='S').length+
       '頭・A '+race.runners.filter(h=>h.training==='A').length+'頭（仮）':'')));
   detail.append(title);
+  // Public JRA advance schedule is not a final racecard. Place differences
+  // beside research picks without touching grades, tickets or receipts.
+  const advanceWarning=dom('p','', 'hold jra-advance-warning');
+  advanceWarning.hidden=true;
+  const advanceText=advanceRaceWarnings.get(key);
+  if(advanceText){
+   advanceWarning.textContent=advanceText;
+   advanceWarning.hidden=false;
+  }
+  detail.append(advanceWarning);
+  advanceRaceMarkers.set(key,advanceWarning);
   const automatic=automaticFactorRace(data,day,race);
   if(eligibleResearchFactorPanel(automatic,day,race,elapsed,changedLock))
    detail.append(renderAutomaticFactors(automatic));
@@ -6869,8 +6882,17 @@ $('autoSundayQuick').onclick=()=>quickWeekendForecast(0,'autoSundayQuick','日�
 // Comparing published planned times to /tra does NOT certify official
 // starters, scratches, going, current off or final 10-factor readiness.
 let advanceProgrammeSeq=0;
+let advanceRaceWarnings=new Map(),advanceRaceMarkers=new Map();
+function clearAdvanceRaceWarnings(){
+ advanceRaceWarnings.clear();
+ for(const marker of advanceRaceMarkers.values()){
+  marker.textContent='';
+  marker.hidden=true;
+ }
+}
 function resetAdvanceProgramme(){
  advanceProgrammeSeq++;
+ clearAdvanceRaceWarnings();
  const d=$('autoDay').value;
  const link=$('autoAdvanceDirect');
  if(/^20\d{2}-\d{2}-\d{2}$/.test(d)&&
@@ -6901,6 +6923,7 @@ $('autoAdvanceCompare').onclick=async()=>{
   return;
  }
  const seq=++advanceProgrammeSeq;
+ clearAdvanceRaceWarnings();
  button.disabled=true;
  $('autoAdvanceDifferences').replaceChildren();
  status.textContent='JRA公表の予定競馬番組を確認中（無料・最終出馬表ではありません）…';
@@ -6953,7 +6976,13 @@ $('autoAdvanceCompare').onclick=async()=>{
    throw Error('duplicate_jrdb_slot');
   const contextBy=new Map((source.raceContext?.races||[])
    .map(x=>[x.track+'|'+x.race,x]));
-  const alerts=[];let matched=0,unknown=0,compared=0,missingSlots=0,fieldDiffs=0;
+  const alerts=[],raceWarnings=new Map();
+  let matched=0,unknown=0,compared=0,missingSlots=0,fieldDiffs=0;
+  const warn=(key,label)=>{
+   const found=raceWarnings.get(key)||[];
+   if(found.length<4&&!found.includes(label))found.push(label);
+   raceWarnings.set(key,found);
+  };
   for(const row of p.races){
    const key=row.track+'|'+row.race,original=sourceBy.get(key);
    if(!original){
@@ -6976,6 +7005,7 @@ $('autoAdvanceCompare').onclick=async()=>{
      compared++;
      if(a!==b){
       fieldDiffs++;
+      warn(key,field+'がJRA事前予定と不一致');
       alerts.push(row.track+' '+row.race+'R｜'+field+
        '：JRDB '+format(a)+'／JRA予定 '+format(b));
      }else matched++;
@@ -6985,11 +7015,22 @@ $('autoAdvanceCompare').onclick=async()=>{
   for(const item of source.races){
    if(!seen.has(item.track+'|'+item.race)){
     unknown+=3;missingSlots++;
+    warn(item.track+'|'+item.race,'JRA事前競馬番組に該当レースなし');
     alerts.push(item.track+' '+item.race+
      'R｜JRA事前番組にないレース（変更・欠落の可能性を要確認）');
    }
   }
   if(alerts.length>90)throw Error('too_many_alerts');
+  // The matching, validated in-memory day only. No final JRA approval.
+  advanceRaceWarnings=new Map([...raceWarnings].map(([key,labels])=>[
+   key,'【JRA事前予定差異・最終未確認】'+labels.join('／')+
+    '。JRA最新出馬表で再確認（研究用買い目・固定履歴は変更なし）。'
+  ]));
+  for(const [key,marker] of advanceRaceMarkers){
+   const message=advanceRaceWarnings.get(key);
+   marker.textContent=message||'';
+   marker.hidden=!message;
+  }
   const host=$('autoAdvanceDifferences');
   for(const message of alerts)
    host.append(dom('p',message,'muted'));
