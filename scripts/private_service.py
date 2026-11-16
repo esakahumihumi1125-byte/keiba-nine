@@ -136,6 +136,9 @@ from jra_prestart_card_candidate import (
     probe_prestart_card, validate_racecard_url, JraPrestartCardError
 )
 from jra_card_link_resolver import resolve_racecard_link, JraLinkResolutionError
+from jra_advance_programme_reference import (
+    probe_advance_programme, AdvanceProgrammeError
+)
 from jra_official_result_probe import (
     probe_official_result_page, JraPublicProbeError, _safe_identity as validate_jra_result_identity
 )
@@ -1866,6 +1869,31 @@ def create_app(settings=None):
                 'nextStep': ('本人専用のHTTPS環境でJRDB実接続を検証する' if configured
                              else 'β版の専用API認証情報と本人専用HTTPS環境を準備する'),
             })
+        if method == 'GET' and path == '/api/jra/advance-programme':
+            # Explicit owner opt-in: ONE public, fixed-host scheduled JRA
+            # calendar GET. Planned race times/distances are NOT final
+            # starters, scratches, going, official start times or betting.
+            # No paid provider reads, ticket/receipt mutation or persistence.
+            query = parse_qs(environ.get('QUERY_STRING', ''),
+                             keep_blank_values=True)
+            if (set(query) != {'date'} or len(query['date']) != 1
+                    or not re.fullmatch(r'20\d{2}-\d{2}-\d{2}',
+                                        query['date'][0])):
+                return response('400 Bad Request', {
+                    'error': '開催予定の照合日を1つ指定してください。'})
+            try:
+                report = probe_advance_programme(query['date'][0])
+            except AdvanceProgrammeError as exc:
+                if str(exc) in (
+                    'Invalid JRA calendar date',
+                    'JRA calendar date outside review window'
+                ):
+                    return response('400 Bad Request', {
+                        'error': '開催予定の照合日・掲載期間を確認してください。'})
+                return response('502 Bad Gateway', {
+                    'error': 'JRA予定競馬番組を安全に確認できませんでした。'
+                             'JRA公式サイトで直接確認してください。'})
+            return response('200 OK', report)
         if method == 'GET' and path == '/api/jra/official-pdf-links':
             # One on-demand visit to the fixed JRA HTML index. Only PDF links
             # are discovered: no PDF download, runner mapping or verification.
