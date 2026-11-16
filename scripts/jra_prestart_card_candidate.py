@@ -19,6 +19,20 @@ VERSION = "owner-jra-prestart-card-candidate-1"
 HOSTS = frozenset(("www.jra.go.jp", "jra.jp", "sp.jra.jp", "app.jra.jp", "own.jra.jp"))
 VENUES = frozenset(("札幌", "函館", "福島", "新潟", "東京", "中山",
                     "中京", "京都", "阪神", "小倉"))
+TRACK_CODES = {
+    "札幌": "01", "函館": "02", "福島": "03", "新潟": "04",
+    "東京": "05", "中山": "06", "中京": "07", "京都": "08",
+    "阪神": "09", "小倉": "10",
+}
+# Encoded JRA date/track/race identity. Both older ddd and newer dde card
+# prefixes occur; accepting a familiar JRA host plus date alone is UNSAFE.
+# This only validates the routing coordinate; it is not an attestation of
+# the fetched page, actual starters or absence of cancellations.
+CNAME_COORDINATE = re.compile(
+    r"(?:sw|pw)01dd[de]01(0[1-9]|10)"
+    r"(20[0-9]{6})(0[1-9]|1[0-2])(20[0-9]{6})/([0-9A-Fa-f]{2})\\Z",
+    re.ASCII,
+)
 MAX_BYTES = 480_000
 MAX_VISIBLE = 130_000
 JST = timezone(timedelta(hours=9))
@@ -85,7 +99,7 @@ class _Visible(HTMLParser):
 
 
 def validate_racecard_url(url, requested_date, track, race):
-    """Exact host/path, one query field, embedded date and clean identity."""
+    """Exact host/path, one query field and encoded track/race/day identity."""
     if type(requested_date) is not str:
         raise JraPrestartCardError("Invalid requested day")
     try:
@@ -106,10 +120,18 @@ def validate_racecard_url(url, requested_date, track, race):
     if (u.scheme != "https" or host not in HOSTS
             or port not in (None, 443) or username or password
             or u.path != "/JRADB/accessD.html" or u.fragment
-            or set(query) != {"CNAME"} or len(query["CNAME"]) != 1
-            or not CNAME.fullmatch(query["CNAME"][0])
-            or requested_date.replace("-", "") not in query["CNAME"][0]):
+            or set(query) != {"CNAME"} or len(query["CNAME"]) != 1):
         raise JraPrestartCardError("Not an allowlisted dated JRA racecard")
+    token = query["CNAME"][0]
+    coordinate = CNAME_COORDINATE.fullmatch(token)
+    if (not coordinate
+            or coordinate.group(1) != TRACK_CODES[track]
+            or coordinate.group(2)[:4] != requested_date[:4]
+            or coordinate.group(3) != f"{race:02d}"
+            or coordinate.group(4) != requested_date.replace("-", "")):
+        # A different JRA race on the same day is NOT this selected race.
+        # Never download it or compare its runners to the selected JRDB rows.
+        raise JraPrestartCardError("JRA racecard coordinate mismatch")
     return day
 
 
