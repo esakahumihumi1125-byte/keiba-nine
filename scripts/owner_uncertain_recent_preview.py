@@ -95,17 +95,15 @@ def _formation(race):
                         result.append((first, second, third, n))
         return result
 
-    # Preserve the established <=5/<=10 and <=8/<=12 choices first.
-    # For a large field, a *single* unmistakable top tier may coexist
-    # with a 3rd-place tier extending to all 18 starters. E.g. 1S/3A/14B
-    # yields exactly 1*(4-1)*(18-2)=48 distinct research combinations.
-    # Never split that B tier at horse 12 merely to fit a familiar shape.
-    # All cutoffs must hold for every possible missing 3-point grade.
-    options = options_with_limits(5, 10)
-    if not options:
-        options = options_with_limits(8, 12)
-    if not options:
-        options = options_with_limits(8, 18)
+    # Examine ALL bounded, whole-tier alternatives before choosing a shape.
+    # The former staged <=5/<=10 search stopped at the first 12+ point
+    # result, even when a wider stable tier gave the owner's preferred
+    # 30-40-point example (e.g. 1S/3A/6B/4C: 24 vs 36).
+    # A full search never splits tied training bands, and every boundary
+    # must still survive all possible missing recent 3-point grades.
+    # Second cutoffs beyond 8 cannot fit under 48 (minimum 1*8*7=56);
+    # the third cutoff may safely extend through all 18 starters.
+    options = options_with_limits(8, 18)
     if not options:
         return None
     # A ONE-horse first tier is permitted only when its minimum score
