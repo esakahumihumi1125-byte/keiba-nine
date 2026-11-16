@@ -13,7 +13,8 @@ import math
 
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import (
-    audit_evidence_coverage, HORSE_ID, NUMBER, _valid_date
+    audit_evidence_coverage, HORSE_ID, NUMBER, _valid_date,
+    _missing_previous_date
 )
 
 VERSION = "recent-hypothesis-1"
@@ -91,7 +92,7 @@ def _extract(row, target_date):
         # placeholders. These are NOT four additional completed starts.
         blank = (placing is None and later is None and fourth is None
                  and (idm is None or idm == 0))
-        if day is None or day == "":
+        if _missing_previous_date(day):
             if not blank:
                 raise CoverageError("Past performance without a race date")
             continue
