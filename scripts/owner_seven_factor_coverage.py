@@ -6,6 +6,9 @@ weight points). This assembler makes the observed subtotal explicit without
 extrapolating unknown bloodline/draw/body evidence or asserting a formal 100
 point score. No JRDB/JRA fetch, ranking, tickets, saving or publishing.
 """
+from datetime import datetime, timedelta, timezone
+import re
+
 from evaluation_policy import (OWNER_FORMAL_FACTORS as WEIGHTS,
                                OWNER_FORMAL_POLICY_VERSION)
 from jrdb_coverage import CoverageError
@@ -19,6 +22,10 @@ SUPPORTED = set(VALUES)
 MAX_RACES = 120
 SOURCE_FIELDS = ("pedigree", "draw_weight", "jockey_stable", "rotation", "past_corner")
 BODY_STATUS = "raceday_bodyweight_not_available"
+JST = timezone(timedelta(hours=9))
+HELD_REASONS = frozenset(("missing_factors", "ambiguous_equal_grade_boundary"))
+GRADES = {"S": 3, "A": 2, "B": 1, "C": 0}
+MIN_HELD_WEIGHT = 30
 
 
 def _source_materials(report):
@@ -110,15 +117,36 @@ def _horses(rows):
     return index
 
 
-def _race_coverage(draft, ten, optional, source=None):
+def _race_coverage(draft, ten, optional, source=None, *, day=None, now=None):
     """Either emit same-runner experimental coverage or hold that whole race."""
     held = {
         "track": draft["track"], "race": draft["race"],
         "status": "held", "horses": [],
         "researchOnly": True, "overallScoreReady": False,
     }
-    if draft.get("status") != "provisional_draft":
+    is_draft = draft.get("status") == "provisional_draft"
+    is_held = (draft.get("status") == "hold"
+               and draft.get("reason") in HELD_REASONS)
+    if not is_draft and not is_held:
         return held
+    if is_held:
+        # A new observation must never backfill historical, off-time or
+        # already-archived research with a fresh after-the-fact score.
+        if (not isinstance(now, datetime) or now.tzinfo is None
+                or now.utcoffset() is None or type(day) is not str
+                or not re.fullmatch(r"20[0-9]{6}", day)):
+            return held
+        off_text = draft.get("postTime")
+        if (not isinstance(off_text, str)
+                or not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", off_text)):
+            return held
+        try:
+            off_time = datetime.strptime(day + off_text, "%Y%m%d%H:%M").replace(
+                tzinfo=JST)
+        except ValueError:
+            return held
+        if now.astimezone(JST) >= off_time:
+            return held
     if (optional.get("status") != "scored"
             or optional.get("reason") is not None
             or optional.get("postTime") != draft.get("postTime")
@@ -147,31 +175,45 @@ def _race_coverage(draft, ten, optional, source=None):
             grades = prior.get("grades")
             if (not isinstance(breakdown, dict)
                     or not isinstance(grades, dict)
-                    or prior.get("provisionalScoreReady") is not True
-                    or type(prior.get("provisionalPoints33")) is not int
                     or raw.get("number") != number):
                 return held
-            # The current partial 33-point snapshot is a grade heuristic
-            # already created before off-time. Never construct an alternate
-            # training or recent grade here.
+            # The signed two-factor candidate keeps its ORIGINAL 33-point
+            # integrity checks. A prestart held race does not inherit those
+            # points: only independently matching S/A/B/C fields contribute
+            # to an UNSIGNED partial observation, never an ordinal rank.
             core_points = 0
+            covered_core = 0
+            missing_core = []
             for key in CORE:
                 grade = grades.get(key)
                 points = breakdown.get(key)
-                expected = {"S": 3, "A": 2, "B": 1, "C": 0}
-                if (grade not in SUPPORTED or raw.get(key) != grade
-                        or type(points) is not int
-                        or points != expected[grade] * WEIGHTS[key] // 3):
+                if grade != raw.get(key) or grade not in (*SUPPORTED, "未評価"):
                     return held
-                core_points += points
-            if core_points != prior["provisionalPoints33"]:
+                if is_draft:
+                    if (grade not in SUPPORTED or type(points) is not int
+                            or points != GRADES[grade] * WEIGHTS[key] // 3):
+                        return held
+                elif (points is not None or
+                      prior.get("provisionalScoreReady") is not False):
+                    return held
+                if grade in SUPPORTED:
+                    core_points += GRADES[grade] * WEIGHTS[key] // 3
+                    covered_core += WEIGHTS[key]
+                else:
+                    missing_core.append(key)
+            if is_draft:
+                if (prior.get("provisionalScoreReady") is not True
+                        or type(prior.get("provisionalPoints33")) is not int
+                        or core_points != prior["provisionalPoints33"]):
+                    return held
+            elif prior.get("provisionalPoints33") is not None:
                 return held
             slots = current.get("factors")
             if not isinstance(slots, dict) or set(slots) != set(OPTIONAL):
                 return held
-            covered = sum(WEIGHTS[key] for key in CORE)
+            covered = covered_core
             subtotal = float(core_points)
-            unscored = list(MISSING_MODEL)
+            unscored = list(MISSING_MODEL) + missing_core
             for key in OPTIONAL:
                 item = slots[key]
                 if (not isinstance(item, dict)
@@ -195,7 +237,8 @@ def _race_coverage(draft, ten, optional, source=None):
                         return held
                     covered += WEIGHTS[key]
                     subtotal += points
-            if covered > 90 or covered < 33 or subtotal < 0 or subtotal > covered + .0001:
+            if (covered > 90 or covered < (33 if is_draft else MIN_HELD_WEIGHT)
+                    or subtotal < 0 or subtotal > covered + .0001):
                 return held
             unknown = 100 - covered
             if unknown < 10 or unknown != sum(WEIGHTS[k] for k in unscored):
@@ -215,13 +258,15 @@ def _race_coverage(draft, ten, optional, source=None):
                 "overallRank": None,
             })
         return {
-            **held, "status": "partial", "horses": results,
+            **held, "status": "partial" if is_draft else "partial_held",
+            "horses": results,
+            "heldResearchNeverFormsTickets": True,
         }
     except (CoverageError, ValueError, TypeError, KeyError, ArithmeticError):
         return held
 
 
-def seven_factor_research_coverage(report):
+def seven_factor_research_coverage(report, *, now=None):
     """No user inputs, no network and no promotion of 7/10 to 10/10."""
     if (not isinstance(report, dict)
             or report.get("version") != "jrdb-owner-auto-draft-1"
@@ -253,7 +298,9 @@ def seven_factor_research_coverage(report):
         raise CoverageError("Seven-factor race coordinate mismatch")
     materials = _source_materials(report)
     result = [
-        _race_coverage(r, ten_by[key], factor_by[key], materials.get(key))
+        _race_coverage(
+            r, ten_by[key], factor_by[key], materials.get(key),
+            day=report.get("date"), now=now)
         for key, r in main.items()
     ]
     return {
@@ -262,6 +309,9 @@ def seven_factor_research_coverage(report):
         "date": report["date"], "raceCount": len(result),
         "races": result,
         "partialRaceCount": sum(r["status"] == "partial" for r in result),
+        "heldPartialRaceCount": sum(
+            r["status"] == "partial_held" for r in result),
+        "heldCoverageNeverRanksOrBets": True,
         "maximumPossibleAssessedWeight": 90,
         "remainingUnmappedWeight": sum(WEIGHTS[k] for k in MISSING_MODEL),
         "remainingFactorFieldsOnly": True,

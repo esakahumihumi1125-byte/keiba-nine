@@ -58,7 +58,9 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  const sevenDay={
   raceCount:1,tenFactorPreview:{races:[{
    track:'東京',race:1,runnerCount:4,horses:[1,2,3,4].map(number=>({
-    number,provisionalScoreReady:true,provisionalPoints33:32
+    number,provisionalScoreReady:true,provisionalPoints33:32,
+    grades:{training:'S',recent:'A'},
+    provisionalBreakdown:{training:30,recent:2}
    }))
   }]},
   sevenFactorCoverage:{
@@ -72,10 +74,41 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
    races:[{track:'東京',race:1,status:'partial',horses:partialRows}]
   }
  };
- const provisional={...fullRace,track:'東京',race:1,status:'provisional_draft'};
+ const provisional={...fullRace,track:'東京',race:1,status:'provisional_draft',
+  runners:fullRace.runners.map(h=>({...h,training:'S',recent:'A'}))};
  const researchScore=check(data);
  const good=sandbox.checkSeven(sevenDay,'2099-01-01',provisional,researchScore);
  assert.equal(good.get(1).researchSubtotal,77.6);
+ // A prestart 2-factor HOLD may display source evidence without any
+ // ranking, betting, purchasing, HMAC ticket or final 100pt grade.
+ const heldSeven=structuredClone(sevenDay);
+ heldSeven.sevenFactorCoverage.heldPartialRaceCount=1;
+ heldSeven.sevenFactorCoverage.heldCoverageNeverRanksOrBets=true;
+ heldSeven.sevenFactorCoverage.races[0].status='partial_held';
+ heldSeven.sevenFactorCoverage.races[0].heldResearchNeverFormsTickets=true;
+ heldSeven.sevenFactorCoverage.races[0].horses[0].researchSubtotal=75.6;
+ heldSeven.sevenFactorCoverage.races[0].horses[0].assessedWeight=87;
+ heldSeven.sevenFactorCoverage.races[0].horses[0].unassessedWeight=13;
+ heldSeven.sevenFactorCoverage.races[0].horses[0].unassessedFactors.push('recent');
+ for(const h of heldSeven.tenFactorPreview.races[0].horses){
+  h.provisionalScoreReady=false;
+  h.provisionalPoints33=null;
+  h.provisionalBreakdown={training:null,recent:null};
+ }
+ heldSeven.tenFactorPreview.races[0].horses[0].grades.recent='未評価';
+ const heldRace={...provisional,status:'hold',reason:'missing_factors',
+  points:0,amountYen:0,tickets:[],
+  runners:provisional.runners.map((h,i)=>({...h,recent:i===0?'未評価':h.recent}))};
+ const heldPartial=sandbox.checkSeven(heldSeven,'2099-01-01',heldRace,researchScore);
+ assert.equal(heldPartial.get(1).researchSubtotal,75.6);
+ assert.equal(heldPartial.get(1).assessedWeight,87);
+ assert.equal(heldPartial.get(1).overallRank,null);
+ assert.equal(heldPartial.get(1).finalScore100,null);
+ assert.equal(sandbox.checkSeven(heldSeven,'2099-01-01',
+  {...heldRace,points:4},researchScore),null);
+ assert.equal(sandbox.checkSeven(heldSeven,'2099-01-01',
+  {...heldRace,reason:'after_provisional_off'},researchScore),null);
+ assert.equal(sandbox.checkSeven(heldSeven,'2099-01-02',heldRace,researchScore),null);
  // Remaining three slots are SOURCE availability, not 10pt aptitude.
  const withMaterials=structuredClone(sevenDay);
  withMaterials.sevenFactorCoverage.remainingFactorFieldsOnly=true;
