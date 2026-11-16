@@ -5776,6 +5776,27 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const sparse=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  const sparseResult=boundedRecentFixture();
+ // Already observed /tky references may exceed /tze dated runs. Diagnose
+ // a possible feed gap, never synthesize an extra 3pt form grade.
+ const missingRecent=sparseResult.races[0].runners.filter(h=>h.recent==='未評価').length;
+ const sourceGapNames=['more_prior_references_than_tze_runs',
+  'no_prior_reference_visible','only_one_dated_run_visible',
+  'multiple_unscored_runs_visible','reference_or_tze_coverage_unknown'];
+ const sampleSourceCounts=Object.fromEntries(sourceGapNames.map(k=>[k,0]));
+ sampleSourceCounts.more_prior_references_than_tze_runs=2;
+ sampleSourceCounts.no_prior_reference_visible=1;
+ sampleSourceCounts.reference_or_tze_coverage_unknown=missingRecent-3;
+ sparseResult.recentCrossfeedDiagnostic={
+  version:'owner-recent-crossfeed-diagnostics-1',date:day,raceCount:1,
+  examinedHeldRaces:1,unassessedRecentCount:missingRecent,
+  reasonCounts:sampleSourceCounts,
+  races:[{track:'東京',race:1,unassessedRecentCount:missingRecent,
+   reasonCounts:{...sampleSourceCounts}}],
+  researchOnly:true,privateOwnerOnly:true,
+  officialJraVerified:false,formalRecentGradesVerified:0,
+  newProviderRequests:0,existingTicketsChanged:false,
+  existingReceiptsChanged:false
+ };
  sparse.setServerRaw(sparseResult);
  const sparseStore=sparse.storage.get(STORAGE),sparseBefore=sparse.requests.length;
  await sparse.get('autoRun').onclick();
@@ -5789,6 +5810,20 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(boundedCard[0].children[1].textContent,/1着候補 1・2/);
  assert.equal(sparse.storage.get(STORAGE),sparseStore);
  assert.equal(sparse.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ assert.match(sparse.get('autoMissingFactorSummary').textContent,
+  /過去レース参照と近走観測を追加比較：参照の方が多い要調査 2頭/);
+ assert.match(sparse.get('autoMissingFactorRaces').children[0].textContent,
+  /JRDB過去参照の不足疑い 2頭/);
+ const forgedSource=structuredClone(sparseResult);
+ forgedSource.recentCrossfeedDiagnostic.unassessedRecentCount++;
+ sparse.setServerRaw(forgedSource);
+ await sparse.get('autoRun').onclick();
+ assert.doesNotMatch(sparse.get('autoMissingFactorSummary').textContent,
+  /参照の方が多い要調査/,
+  'forged aggregate must not appear or fill unverified horse grades');
+ assert.match(sparse.get('autoSummary').textContent,/研究用自動案 0R／見送り 1R/);
+ sparse.setServerRaw(sparseResult);
+ await sparse.get('autoRun').onclick();
  // The very same already-validated reference is reachable directly from
  // the race screen, without another paid read or a new bet/receipt.
  const refButton=sparse.get('autoReferenceOpen');
