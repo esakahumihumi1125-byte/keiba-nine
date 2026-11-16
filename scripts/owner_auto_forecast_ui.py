@@ -6871,7 +6871,7 @@ $('autoOfficialCardDiscover').onclick=async()=>{
   const codes={札幌:'01',函館:'02',福島:'03',新潟:'04',東京:'05',
    中山:'06',中京:'07',京都:'08',阪神:'09',小倉:'10'};
   const token=u.searchParams.get('CNAME');
-  const pattern=/^(?:sw|pw)01dde01(\d{2})(\d{8})(\d{2})(\d{8})\/[a-f0-9]{2}$/i;
+  const pattern=/^(?:sw|pw)01dd[de]01(\d{2})(\d{8})(\d{2})(\d{8})\/[a-f0-9]{2}$/i;
   const parsed=typeof token==='string'?pattern.exec(token):null;
   if(u.protocol!=='https:'||
      !['www.jra.go.jp','jra.jp','sp.jra.jp','app.jra.jp','own.jra.jp'].includes(u.hostname)||
