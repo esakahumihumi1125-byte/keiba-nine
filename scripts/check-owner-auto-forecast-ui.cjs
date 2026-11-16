@@ -5477,6 +5477,44 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(sparse.get('autoRaceQuickSummary').textContent,/予想は未取得/);
  assert.match(sparse.get('autoUncertainRecentStatus').textContent,/取得前/);
  assert.match(sparse.get('autoUncertainRecentHint').textContent,/未取得/);
+ // A four-runner race with one unique S and three A runners can
+ // display SIX bounded research combinations without fabricating a
+ // missing 3-point recent grade. These are never signed or purchased.
+ const smallSparse=boundedRecentFixture(),smallSparseRace=smallSparse.races[0];
+ smallSparseRace.runners=smallSparseRace.runners.slice(0,4).map((h,i)=>({
+  ...h,training:i===0?'S':'A',recent:'未評価',
+  twoFactorGrade:'未評価',twoFactorPoints:null,
+  weightedResearchPoints:null,comparisonRank:null,
+  missingReasons:['no_linked_recent_record']
+ }));
+ smallSparseRace.horseCount=4;
+ Object.assign(smallSparse.uncertainRecentResearch.races[0],{
+  first:[1],second:[1,2,3,4],third:[1,2,3,4],
+  points:6,missingRecentCount:4,assessedTrainingCount:4
+ });
+ withTenPreview(smallSparse);withSourcePassport(smallSparse);
+ const smallView=boot({initialServerRaw:smallSparse});
+ await new Promise(r=>setImmediate(r));
+ const smallCards=smallView.get('autoUncertainRecentRaces').children;
+ assert.equal(smallCards.length,1);
+ assert.match(smallCards[0].children[0].textContent,/参考6通り/);
+ assert.equal(smallView.storage.has(STORAGE),false);
+ assert.equal(smallView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ const forgedSmall=structuredClone(smallSparse);
+ forgedSmall.uncertainRecentResearch.races[0].first=[2];
+ const forgedSmallView=boot({initialServerRaw:forgedSmall});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(forgedSmallView.get('autoUncertainRecentRaces').children.length,0,
+  'tampered narrow training-first shortlist must not render');
+ // Even though the payload claims 6 stable combinations, equal workout
+ // grades cannot justify an arbitrary first-place runner.
+ const ambiguousSmall=structuredClone(smallSparse);
+ ambiguousSmall.races[0].runners[0].training='A';
+ withTenPreview(ambiguousSmall);withSourcePassport(ambiguousSmall);
+ const ambiguousView=boot({initialServerRaw:ambiguousSmall});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(ambiguousView.get('autoUncertainRecentRaces').children.length,0,
+  'four identical workout grades must remain held');
  // Only a mathematically unique training leader may appear as an
  // UNSIGNED one-horse first tier; it never creates receipts or purchases.
  const solo=boundedRecentFixture();
