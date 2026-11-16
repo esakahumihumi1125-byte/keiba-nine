@@ -5727,6 +5727,57 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
    tiesNeverSplit:true,missingNeverImputed:true,officialJraVerified:false,
    formalScoreReady:false,bettingReady:false,receiptIssued:false,actualPurchase:false}]
  };
+ // A race with an EXISTING 2-factor 40-point prestart receipt may
+ // now show a SEPARATE 7-factor research alternative. It never replaces
+ // the original signed 2-factor 40-point draft or becomes real betting.
+ const draftedSeven=resultWith('c'.repeat(64));
+ draftedSeven.automaticFactorScores=structuredClone(comparable.automaticFactorScores);
+ draftedSeven.provisionalFactorResearch={
+  ...structuredClone(comparable.comparableFactorResearch),
+  version:'owner-provisional-seven-factor-reference-1',
+  reviewedPrestartDraftRaces:1,
+  races:comparable.comparableFactorResearch.races.map(row=>({
+   ...structuredClone(row),status:'provisional_comparable_research_only',
+   comparedKeys:['training','recent','course_distance','pace',
+    'jockey_stable','rotation'],comparedWeight:78,
+   excludedKeys:['ground']
+  }))
+ };
+ delete draftedSeven.provisionalFactorResearch.reviewedHeldRaces;
+ const draftedView=boot();
+ await new Promise(r=>setImmediate(r));
+ draftedView.setServerRaw(draftedSeven);
+ const draftReads=draftedView.requests.length;
+ await draftedView.get('autoRun').onclick();
+ assert.equal(draftedView.requests.length,draftReads+1);
+ assert.equal(draftedView.get('autoProvisionalFactorRaces').children.length,1,
+  'current 2-factor draft has a separate 7-factor research reference');
+ assert.match(draftedView.get('autoProvisionalFactorStatus').textContent,
+  /既存下書きRの比較：検査1R／表示できる研究参考1R/);
+ assert.match(draftedView.get('autoProvisionalFactorRaces').children[0].children[0].textContent,
+  /研究用 40点（共通配点78点分）/);
+ assert.equal(draftedView.get('autoComparableFactorRaces').children.length,0,
+  'an already drafted race is not a held-race salvage');
+ assert.equal(draftedView.get('autoRaces').children.length,1);
+ assert.equal(draftedView.get('autoRaces').children[0].children[0].children[0].textContent.includes('見送り'),false);
+ const preservedDraft=draftedView.storage.get(STORAGE);
+ // A forged formal/official result must fail closed, leaving the
+ // previously fixed two-factor receipt exactly as it was.
+ const forgedSeven=structuredClone(draftedSeven);
+ forgedSeven.provisionalFactorResearch.officialJraVerified=true;
+ draftedView.setServerRaw(forgedSeven);
+ await draftedView.get('autoRun').onclick();
+ assert.equal(draftedView.get('autoProvisionalFactorRaces').children.length,0);
+ assert.match(draftedView.get('autoProvisionalFactorStatus').textContent,
+  /安全に検証できず/);
+ assert.equal(draftedView.storage.get(STORAGE),preservedDraft);
+ assert.equal(draftedView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ draftedView.setServerRaw(draftedSeven);
+ draftedView.advanceClock('2099-01-01T03:15:00Z'); // 12:15 JST > off
+ await draftedView.get('autoRun').onclick();
+ assert.equal(draftedView.get('autoProvisionalFactorRaces').children.length,0,
+  'after post-time an old 7-factor research must not be reconstructed');
+ assert.equal(draftedView.storage.get(STORAGE),preservedDraft);
  const comparableView=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  comparableView.setServerRaw(comparable);

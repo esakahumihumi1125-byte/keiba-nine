@@ -128,10 +128,14 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <details><summary>資料不足のレース別内訳を見る</summary>
 <div id="autoMissingFactorRaces"></div>
 </details></details>
-<details id="autoComparableFactorPanel"><summary>調教＋比較可能な評価で3連単を研究（最大48点）</summary>
+<details id="autoComparableFactorPanel"><summary>調教＋追加項目を使った3連単参考（見送りR・下書きR）</summary>
 <p class="muted">見送りレースでも、全馬の調教30点・コース距離17点・展開脚質17点がそろう場合は、主要64点分を使って参考フォーメーションを検討します。それ以外は従来どおり共通の評価項目70点分以上が必要です。近走など欠けた項目は全馬から除外し、0点扱いしません。これは未校正の研究用で、正式100点予想・JRA公式照合・購入・固定記録・収支には反映しません。</p>
-<p id="autoComparableFactorStatus" class="muted" role="status">追加研究は未取得です。</p>
+<p id="autoComparableFactorStatus" class="muted" role="status">見送りRの追加研究は未取得です。</p>
 <div id="autoComparableFactorRaces"></div>
+<h3>すでに2項目の下書きがあるRも比較</h3>
+<p class="muted">既存の下書きとは別に、全馬で比較できる追加項目を使った1着／2着／3着の研究参考を表示します。元の固定買い目は上書きせず、正式100点評価・JRA公式確認・投票可能な買い目ではありません。</p>
+<p id="autoProvisionalFactorStatus" class="muted" role="status">下書きRの追加研究は未取得です。</p>
+<div id="autoProvisionalFactorRaces"></div>
 </details>
 <details id="autoUncertainRecentPanel"><summary>近走資料が少ないRの研究候補（署名・購入なし）</summary>
 <p class="muted">近走3点の不足をC・0点扱いせず、欠けている評価がどんなS/A/B/Cでも、調教30点による候補グループが変わらない場合に限り、参考のフォーメーションを表示します。単独の調教最上位馬が明確な場合のみ1頭軸の研究例も扱いますが、勝ち馬の保証ではありません。正式10項目採点でもJRA公式出走確認でもなく、実際の購入・固定記録・仮想収支に入れません。</p>
@@ -2813,13 +2817,18 @@ function renderTkyArrowFormations(data,day){
   status.textContent='調教矢印の参考グループの照合に不整合があり非表示。既存の馬券・記録は無変更。';
  }
 }
-function renderComparableFactorResearch(data,day){
- const host=$('autoComparableFactorRaces'),status=$('autoComparableFactorStatus');
+function renderComparableFactorResearch(data,day,forDraft=false){
+ const host=$(forDraft?'autoProvisionalFactorRaces':'autoComparableFactorRaces');
+ const status=$(forDraft?'autoProvisionalFactorStatus':'autoComparableFactorStatus');
  host.replaceChildren();
- const p=data.comparableFactorResearch;
+ const p=forDraft?data.provisionalFactorResearch:data.comparableFactorResearch;
+ const limit=forDraft?data.draftCount:data.holdCount;
+ const reviewed=forDraft?p?.reviewedPrestartDraftRaces:p?.reviewedHeldRaces;
  if(p===undefined){status.textContent='追加研究は未取得です。';return;}
  try{
-  if(!p||p.version!=='owner-comparable-factor-formation-3'||
+  if(!p||p.version!==(forDraft?
+       'owner-provisional-seven-factor-reference-1':
+       'owner-comparable-factor-formation-3')||
     p.date!==day||p.raceCount!==data.raceCount||
     p.researchOnly!==true||p.privateOwnerOnly!==true||
     p.officialJraVerified!==false||p.formalTenFactorReady!==false||
@@ -2827,10 +2836,10 @@ function renderComparableFactorResearch(data,day){
     p.ticketsIssued!==0||p.newProviderRequests!==0||
     p.changesExistingDrafts!==false||p.changesExistingReceipts!==false||
     p.changesExistingRoi!==false||
-    !Number.isInteger(p.reviewedHeldRaces)||p.reviewedHeldRaces<0||
-    p.reviewedHeldRaces>data.holdCount||
+    !Number.isInteger(reviewed)||reviewed<0||
+    reviewed>limit||
     !Array.isArray(p.races)||p.unsignedReferenceCount!==p.races.length||
-    p.races.length>data.holdCount||
+    p.races.length>limit||
     p.minimumComparableWeight!==64||
     !p.diagnostics||typeof p.diagnostics!=='object')throw Error('comparable_header');
   const causes=['ineligible','time_unavailable','roster_mismatch',
@@ -2838,8 +2847,8 @@ function renderComparableFactorResearch(data,day){
     'tie_or_point_limit','preview'];
   if(Object.keys(p.diagnostics).sort().join('|')!==causes.slice().sort().join('|')||
      causes.some(key=>!Number.isInteger(p.diagnostics[key])||
-      p.diagnostics[key]<0||p.diagnostics[key]>data.holdCount)||
-     causes.reduce((sum,key)=>sum+p.diagnostics[key],0)!==p.reviewedHeldRaces||
+      p.diagnostics[key]<0||p.diagnostics[key]>limit)||
+     causes.reduce((sum,key)=>sum+p.diagnostics[key],0)!==reviewed||
      p.diagnostics.preview!==p.unsignedReferenceCount)
    throw Error('comparable_diagnostics');
   const originals=new Map(data.races.map(r=>[r.track+'|'+r.race,r])),
@@ -2849,9 +2858,11 @@ function renderComparableFactorResearch(data,day){
   const seen=new Set(),cards=[];
   for(const row of p.races){
    const id=row?.track+'|'+row?.race,base=originals.get(id);
-   if(!row||seen.has(id)||!base||base.status!=='hold'||
-     !['missing_factors','ambiguous_equal_grade_boundary'].includes(base.reason)||
-     row.status!=='comparable_research_only'||row.postTime!==base.postTime||
+   if(!row||seen.has(id)||!base||
+     base.status!==(forDraft?'provisional_draft':'hold')||
+     (!forDraft&&!['missing_factors','ambiguous_equal_grade_boundary'].includes(base.reason))||
+     row.status!==(forDraft?'provisional_comparable_research_only':'comparable_research_only')||
+     row.postTime!==base.postTime||
      row.tiesNeverSplit!==true||row.missingNeverImputed!==true||
      row.officialJraVerified!==false||row.formalScoreReady!==false||
      row.bettingReady!==false||row.receiptIssued!==false||
@@ -2905,7 +2916,8 @@ function renderComparableFactorResearch(data,day){
   }
   host.replaceChildren(...cards);
   const counts=p.diagnostics;
-  status.textContent='見送りRの内訳：検査'+p.reviewedHeldRaces+'R／'+
+  status.textContent=(forDraft?'既存下書きRの比較：':'見送りRの内訳：')+
+    '検査'+reviewed+'R／'+
     '表示できる研究参考'+cards.length+'R／'+
     '調教不足'+counts.training_missing+'R／'+
     '全馬共通の評価不足'+counts.insufficient_shared_weight+'R／'+
@@ -3079,6 +3091,7 @@ function render(input,day){
  renderUncertainRecent(data,day);
  renderHeldTie48(data,day);
  renderComparableFactorResearch(data,day);
+ renderComparableFactorResearch(data,day,true);
  renderTkyTrainingStudy(data,day);
  renderTkyArrowFormations(data,day);
  // Existing server research already has its own strict race/roster/time
