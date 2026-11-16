@@ -32,6 +32,10 @@ MOBILE_COURSE = re.compile(
     r"コース\s*([1-9][0-9]{2,4})\s*[mｍ]\s*(芝|ダート|障害)(?![一-龯])"
 )
 RACE_ICON_ALT = re.compile(r"(?:[1-9]|1[0-2])\s*(?:レース|R)\Z")
+# Optional JRA display near the race header, e.g. "天候小雨 ダート不良".
+# Pages can show both surfaces; use the surface of the selected race only.
+# These labels are display candidates, NOT authenticated live conditions.
+GOING = re.compile(r"(芝|ダート)\s*(?:(?:の馬場状態|馬場)\s*)?[：:]?\s*(稍重|不良|良|重)(?![一-龯])")
 
 
 class JraPrestartCardError(ValueError):
@@ -153,10 +157,18 @@ def parse_prestart_card_candidate(html, url, requested_date, track, race):
     distance, surface = next(iter(courses))
     if distance < 600 or distance > 5000:
         raise JraPrestartCardError("Unsupported official course distance")
+    # Read the optional going only from the current header window, never
+    # past-performance rows or odds. Unknown does not imply "良".
+    shown_going = {status for shown_surface, status in GOING.findall(local)
+                   if shown_surface == surface}
+    if len(shown_going) > 1:
+        raise JraPrestartCardError("Ambiguous JRA displayed going")
+    going = next(iter(shown_going)) if shown_going else None
     return {
         "version": VERSION, "date": requested_date, "track": track,
         "race": race, "postTimeCandidate": f"{hour:02d}:{minute:02d}",
         "courseSurfaceCandidate": surface, "distanceMCandidate": distance,
+        "goingCandidate": going, "goingCandidatePresent": going is not None,
         "officialHostAllowlisted": True, "visibleRaceHeaderMatched": True,
         "pageContentsParsed": True, "independentSourceAuthenticated": False,
         "officialStartersVerified": False, "officialScratchesVerified": False,
@@ -164,8 +176,9 @@ def parse_prestart_card_candidate(html, url, requested_date, track, race):
         "formalTenFactorReady": False, "bettingReady": False,
         "changesExistingReceipts": False, "changesExistingTickets": False,
         "newJrdbProviderRequests": 0, "researchOnly": True,
-        "note": ("JRA出馬表ページの発走時刻・コース候補のみ読取。"
-                 "正式な出走・取消・馬場・時刻の4項目照合は未完了。"),
+        "note": ("JRA出馬表ページの発走時刻・コースと掲載時の"
+                 "馬場状態候補のみ読取。JRAの真正性・最新性と正式な"
+                 "出走・取消・馬場・時刻の4項目照合は未完了。"),
     }
 
 
