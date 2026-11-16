@@ -177,6 +177,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>3. 競馬場・レースを選ぶ</h2>
 <p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
 <p id="autoRaceQuickSummary" class="auto-race-quick" role="status">予想は未取得です。</p>
+<details id="autoReferenceQuickPanel" class="owner-reference-quick">
+<summary id="autoReferenceQuickTitle">見送りレースの参考候補：未取得</summary>
+<p class="muted">署名なし・未購入の研究参考だけを一覧表示。各方式で検証済みの画面表示から転記し、同じRはひとつにまとめます。未評価の馬に架空の点数を入れず、正式10項目・JRA確定出走・購入や仮想回収率とは別です。</p>
+<div id="autoReferenceQuickRaces"></div>
+</details>
 <details id="autoFixedQuickPanel" class="owner-fixed-quick">
 <summary id="autoFixedQuickTitle">この端末の発走前固定：確認中</summary>
 <p class="muted">以前に発走前固定した研究用3連単の<strong>閲覧専用履歴</strong>です。新しい予想・正式10項目採点・JRA公式照合・実購入ではありません。署名の真正性は別の検証ボタンで確認します。</p>
@@ -432,6 +437,15 @@ main{padding-bottom:65px}
 .owner-five-quick-card{margin:8px 0;padding:10px;border:1px solid #567c9d;
  border-radius:10px;background:#0e2439}
 .owner-five-quick-card .picks{font-size:17px;margin:6px 0}
+.owner-reference-quick{margin:10px 0 14px;padding:12px;border:1px solid #718fae;
+ background:#10283f;border-radius:12px}
+.owner-reference-quick>summary{font-weight:850;color:#f1d28e;font-size:16px}
+.owner-reference-quick-card{border:1px solid #537c9f;padding:10px;
+ border-radius:10px;margin:9px 0;background:#132c45}
+.owner-reference-quick-card .picks{font-size:15px;font-weight:750;margin:5px 0;
+ overflow-wrap:anywhere}
+.owner-reference-quick-card button{font-size:14px;min-height:45px;width:100%;
+ background:#236596;border:1px solid #85b5d5;color:#fff;font-weight:800}
 .owner-fixed-quick{margin:10px 0;border:1px solid #7995af;
  padding:10px;border-radius:12px;background:#142c44}
 .owner-fixed-quick>summary{font-weight:800;color:#f3d58e;font-size:15px}
@@ -2025,6 +2039,10 @@ function fixedComparisonMessage(report){
  return 'この開催日の端末に固定済みの研究記録はまだありません。発走前に生成した研究用下書きのみ、初回に限り固定保存します。';
 }
 function clearDraftShortcut(){
+ const quick=$('autoReferenceQuickRaces');
+ quick.replaceChildren();
+ $('autoReferenceQuickPanel').open=false;
+ $('autoReferenceQuickTitle').textContent='見送りレースの参考候補：未取得';
  const shortcut=$('autoDraftShortcut');
  shortcut.textContent='買い目あり：未取得';
  shortcut.onclick=null;
@@ -2834,6 +2852,65 @@ function render(input,day){
   {id:'autoTkyArrowFormationRows',panel:'autoTkyArrowFormationPanel',label:'調教矢印'}
  ].map(item=>({...item,count:$(item.id).children.length}))
   .filter(item=>item.count>0);
+ // Build a one-glance, per-race index ONLY from cards that the
+ // independent browser-side research validators have already rendered.
+ // Never read an unvalidated research payload to populate this index.
+ const quick=$('autoReferenceQuickRaces'),quickPanel=$('autoReferenceQuickPanel'),
+  quickTitle=$('autoReferenceQuickTitle');
+ quick.replaceChildren();
+ const validatedRaceKeys=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+ const seenQuick=new Set(),quickRows=[];
+ for(const panel of referencePanels){
+  const parent=$(panel.id);
+  for(const card of parent.children){
+   const heading=card.children?.[0]?.textContent;
+   const match=typeof heading==='string'?
+    /^([^｜\s]{2,4})\s+(1[0-2]|[1-9])R｜/.exec(heading):null;
+   if(!match)continue;
+   const key=match[1]+'|'+Number(match[2]),race=validatedRaceKeys.get(key);
+   if(!race||race.status!=='hold'||seenQuick.has(key)||
+      draftExpiredOnDevice(day,race.postTime))continue;
+   const picks=card.children.slice(1).filter(el=>el.className==='picks')
+    .map(el=>el.textContent).filter(x=>typeof x==='string'&&
+     x.length>0&&x.length<240).slice(0,3);
+   if(!picks.length)continue;
+   seenQuick.add(key);
+   quickRows.push({race,card,panel,heading,picks});
+  }
+ }
+ quickRows.sort((a,b)=>a.race.postTime.localeCompare(b.race.postTime)||
+  a.race.track.localeCompare(b.race.track,'ja')||a.race.race-b.race.race);
+ for(const item of quickRows){
+  const row=dom('div',undefined,'owner-reference-quick-card');
+  row.append(dom('p',item.race.postTime+'予定（JRDB）｜'+
+   item.panel.label+'｜'+item.heading,'muted'));
+  for(const text of item.picks)row.append(dom('p',text,'picks'));
+  const open=dom('button','研究根拠を確認（未購入）');
+  open.type='button';
+  open.onclick=()=>{
+   if(latestDisplayedReport!==data||latestDisplayedDay!==day||
+      $('autoDay').value.replaceAll('-','')!==day||
+      draftExpiredOnDevice(day,item.race.postTime)){
+    open.disabled=true;
+    $('autoReferencePulse').textContent=
+     '開催日変更または発走予定時刻経過。古い参考候補を開けません。';
+    return;
+   }
+   // No HTTP fetch, localStorage write, receipt signature, ticket handoff
+   // or real purchase. Reuse the already validated, visible source card.
+   $('autoResearchTools').open=true;
+   $(item.panel.panel).open=true;
+   item.card.open=true;
+   if(typeof item.card.scrollIntoView==='function')
+    item.card.scrollIntoView({behavior:'smooth',block:'start'});
+  };
+  row.append(open);
+  quick.append(row);
+ }
+ quickTitle.textContent=quickRows.length?
+  '見送りレースの参考候補 '+quickRows.length+'R（研究用・未購入）':
+  '見送りレースの参考候補 0R（正式予想ではありません）';
+ quickPanel.open=quickRows.length>0&&quickRows.length<=8;
  const referenceButton=$('autoReferenceOpen');
  const referenceCount=referencePanels.reduce((sum,item)=>sum+item.count,0);
  $('autoReferencePulse').textContent=referenceCount
