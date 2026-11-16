@@ -142,14 +142,14 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoOfficialPdfStatus" class="muted" role="status">未確認。PDFリンクの存在だけではJRA公式照合済みとは扱いません。</p>
 <div id="autoOfficialPdfLinks"></div>
 <a href="https://www.jra.go.jp/keiba/rpdf/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く</a>
-<details><summary>選択中の1RでJRA Web出馬表の時刻・コース候補を確認（任意）</summary>
-<p class="muted">下の一覧で対象Rを選び、「JRA公式URLを探して比較」を押してください。JRA公式の公開ページへ最大3回アクセス（JRDBの有料照会0回）します。公式ページの構造が変わった場合は見つからないことがあります。その場合は下のURL欄に手入力もできます。出走・取消・馬場は未照合で、正式採点や固定買い目には反映しません。</p>
+<details><summary>選択中の1RでJRA Web出馬表の馬番・時刻・コース候補を確認（任意）</summary>
+<p class="muted">下の一覧で対象Rを選び、「JRA公式URLを探して比較」を押してください。JRA公式の公開ページへ最大3回アクセス（JRDBの有料照会0回）します。公式ページの構造が変わった場合は見つからないことがあります。その場合は下のURL欄に手入力もできます。表示馬番の比較は参考情報のみ。出走・取消・馬場の正式照合や正式採点、固定買い目には反映しません。</p>
 <button id="autoOfficialCardDiscover" type="button" class="secondary-cta">選択RのJRA公式URLを探して比較（追加JRDB 0回）</button>
 <p id="autoOfficialCardLinkStatus" class="muted" role="status">未検索。公式出馬表へのリンクを探しただけでは照合済みにはなりません。</p>
 <a id="autoOfficialCardResolved" href="https://www.jra.go.jp/keiba/" target="_blank" rel="noopener noreferrer">JRA公式の出馬表一覧を開く（選択Rのリンクは未特定）</a>
 <label for="autoOfficialCardUrl">JRA公式Web出馬表のURL（自動で見つからない場合）</label>
 <input id="autoOfficialCardUrl" type="url" maxlength="250" autocomplete="off" placeholder="https://sp.jra.jp/JRADB/accessD.html?CNAME=...">
-<button id="autoOfficialCardCheck" type="button">選択中の1Rの時刻・コース候補を比較</button>
+<button id="autoOfficialCardCheck" type="button">選択中の1Rの馬番・時刻・コース候補を比較</button>
 <p id="autoOfficialCardStatus" class="muted" role="status">未確認。JRDBの有料再取得や買い目更新は行いません。</p>
 </details>
 </details>
@@ -6949,6 +6949,13 @@ $('autoOfficialCardCheck').onclick=async()=>{
      info.distanceMCandidate<600||info.distanceMCandidate>5000||
      (info.cancellationCueCandidate!==true&&
       info.cancellationCueCandidate!==null)||
+     (info.horseNumbersCandidate!==undefined&&
+      info.horseNumbersCandidate!==null&&
+      (!Array.isArray(info.horseNumbersCandidate)||
+       info.horseNumbersCandidate.length<2||
+       info.horseNumbersCandidate.length>18||
+       info.horseNumbersCandidate.some((n,i,a)=>
+        !Number.isInteger(n)||n<1||n>18||(i>0&&n<=a[i-1]))))||
      (info.goingCandidate===null
       ? info.goingCandidatePresent!==false
       : (!['良','稍重','重','不良'].includes(info.goingCandidate)||
@@ -6975,6 +6982,18 @@ $('autoOfficialCardCheck').onclick=async()=>{
    :ctx.going===info.goingCandidate
     ?'馬場状態候補は一致（正式照合ではない）'
     :'馬場状態候補に差あり（要確認）';
+  const visibleNumbers=Array.isArray(info.horseNumbersCandidate)
+   ?info.horseNumbersCandidate:null;
+  const providerNumbers=Array.isArray(current.runners)
+   ?current.runners.map(h=>h.number):[];
+  const numberStatus=visibleNumbers===null
+   ?'馬番候補は不明（照合保留）'
+   :!providerNumbers.length
+    ?'JRA表示馬番候補 '+visibleNumbers.length+'頭／JRDB比較資料なし'
+    :providerNumbers.length===visibleNumbers.length&&
+      providerNumbers.every(n=>visibleNumbers.includes(n))
+     ?'JRA表示馬番候補とJRDB受信馬番は一致（正式出走確定ではない）'
+     :'【馬番差異】JRA表示馬番候補とJRDB受信馬番に差あり（要確認）';
   const cancellationStatus=info.cancellationCueCandidate===true
    ?'【取消注意】JRA出馬表の馬番欄に取消・除外の表示候補あり。必ず公式サイトで出走馬を再確認'
    :'取消の有無は未確認（表示が見つからなくても取消なしの証明ではない）';
@@ -6982,8 +7001,8 @@ $('autoOfficialCardCheck').onclick=async()=>{
    info.postTimeCandidate+'・'+info.courseSurfaceCandidate+
    info.distanceMCandidate+'m・'+(info.goingCandidate||'馬場不明')+
    '。'+timeStatus+'／'+courseStatus+'／'+goingStatus+'／'+
-   cancellationStatus+
-   '。出走馬・取消・馬場・公式データの真正性と最新性は未照合。'+
+   numberStatus+'／'+cancellationStatus+
+   '。正式な出走馬・取消・馬場・公式データの真正性と最新性は未照合。'+
    '既存の研究用下書きと固定買い目は変更しません。';
  }catch(_){
   if(date===$('autoDay').value&&key===$('autoRacePick').value)
