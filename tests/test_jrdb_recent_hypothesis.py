@@ -113,7 +113,7 @@ class RecentHypothesisTests(unittest.TestCase):
         self.assertEqual(result["datedRuns"], 1)
         self.assertEqual(result["completedRuns"], 1)
         self.assertEqual(result["grade"], "未評価")
-        self.assertEqual(result["assessmentStatus"], "insufficient_scored_runs")
+        self.assertEqual(result["assessmentStatus"], "crossfeed_run_count_mismatch")
         self.assertEqual(source, (p, e, z))
         self.assertNotIn("1234567820261025", repr(result))
 
