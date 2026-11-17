@@ -176,6 +176,22 @@ def preview_missing_recent_holds(report, day, *, now):
         reviewed += 1
         candidate = _formation(race)
         if candidate:
+            # Never mistake an absent /tze row for proof of a debut.
+            # This labels only an explicit /tra newcomer race NAME with
+            # observed zero dated runs for EVERY runner in the same roster.
+            # Such a label is NOT JRA-confirmed race classification, and
+            # the candidate remains unsigned/ungraded and non-betting.
+            horses = race["runners"]
+            candidate["newcomerRaceCandidate"] = (
+                race.get("newcomerRaceCandidate") is True
+                and candidate["missingRecentCount"] == len(horses)
+                and all(
+                    isinstance(h.get("recentObserved"), dict)
+                    and h["recentObserved"].get("datedRuns") == 0
+                    and h["recentObserved"].get("completedRuns") == 0
+                    for h in horses
+                )
+            )
             rows.append(candidate)
     return {
         "version": VERSION, "date": day,
