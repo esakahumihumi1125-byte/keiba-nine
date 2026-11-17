@@ -131,7 +131,10 @@ def audit_race_context(programme, holding_rows, requested_date):
             "predictionReady": False,
         })
     return {
-        "version": VERSION, "raceCount": len(result),
+        # Preserve the selected JRA calendar-day identity all the way to
+        # downstream model checks; venue/R alone is not a unique race.
+        "version": VERSION, "date": requested_date,
+        "raceCount": len(result),
         "courseInfoPresentCount": sum(x["courseInfoPresent"] for x in result),
         "goingAvailableCount": sum(x["goingAvailable"] for x in result),
         "raceConditionsVerified": False, "predictionReady": False,
