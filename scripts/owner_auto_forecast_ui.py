@@ -1407,7 +1407,15 @@ function validRecentObserved(v){
 }
 function oneRunObservation(h){
  const o=h.recentObserved;
- if(!o||h.recent!=='未評価'||!o.datedRuns)return '';
+ if(!o)return '';
+ // One observed and finish-verified race now permits only the 3-point
+ // recent research hypothesis. Explicitly warn about sample size on
+ // every affected runner; no fake second run or formal grade.
+ if(o.datedRuns===1&&o.completedRuns===1&&
+    ['S','A','B','C'].includes(h.recent))
+  return '【近走1走のみ】確認済みの1走から近走3点分の仮ランクを算出。'+
+   '比較材料が少なく、正式100点評価・勝率・JRA公式照合ではありません。';
+ if(h.recent!=='未評価'||!o.datedRuns)return '';
  return 'JRDBで確認できた過去走 '+o.datedRuns+'走／着順確認 '+
   o.completedRuns+'走'+
   (o.completedRuns?'／確認できた直近最大3走で3着以内 '+
