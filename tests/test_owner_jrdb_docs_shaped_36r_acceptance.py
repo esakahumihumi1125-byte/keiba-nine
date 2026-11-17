@@ -22,6 +22,7 @@ from private_service import create_app
 from test_private_service import SETTINGS, call
 from owner_prestart_receipt import verify_preview_receipts
 from jrdb_owner_auto_draft import JST
+from jrdb_private import JRDBError
 
 DAY = "20990101"
 SECRET = SETTINGS["KEIBA_OWNER_PASSWORD"]
@@ -93,7 +94,7 @@ def provider_shaped_day(*, incomplete_recent=False, corrupt_horse_id=False):
     return programme, entries, training, recent
 
 
-def run_private_pipeline(fixture):
+def run_private_pipeline(fixture, *, tka_error=None):
     p, e, t, z = fixture
     config = {
         **SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY": "1",
@@ -112,7 +113,7 @@ def run_private_pipeline(fixture):
           patch("private_service.fetch_recent_runs",
                 return_value=z) as tze,
           patch("private_service.fetch_venue_conditions",
-                return_value=[]) as tka,
+                return_value=[], side_effect=tka_error) as tka,
           patch("private_service._now_in_jst",
                 return_value=stamped)):
         response = call(create_app(config), "/api/jrdb/owner-auto-draft",
@@ -254,3 +255,42 @@ class JrdBDocsShapedThirtySixAcceptance(unittest.TestCase):
         for private in ("horse_id", "racekey", "1234567820981220",
                         "1234567820981201", "TEST-ONLY"):
             self.assertNotIn(private, response["body"].decode())
+
+    def test_tka_failure_is_visible_but_never_blocks_four_core_drafts(self):
+        """Provider HTTP category is safe: no body/IDs and no extra paid call."""
+        sources = provider_shaped_day()
+        frozen = deepcopy(sources)
+        for error, expected in (
+            ("JRDB request failed (HTTP 404)", "provider_endpoint_missing"),
+            ("JRDB request failed (HTTP 503)", "provider_server_error"),
+            ("JRDB returned an unsuccessful response", "provider_response_contract"),
+        ):
+            with self.subTest(expected=expected):
+                response, counts = run_private_pipeline(
+                    sources, tka_error=JRDBError(error))
+                self.assertEqual(response["status"], "200 OK")
+                self.assertEqual(counts, [1, 1, 1, 1, 1])
+                obj = json.loads(response["body"])
+                ctx = obj["raceContext"]
+                self.assertEqual(ctx["conditionProviderReadCount"], 1)
+                self.assertEqual(ctx["conditionProviderFetchStatus"], "unavailable")
+                self.assertEqual(ctx["conditionProviderFailureCode"], expected)
+                self.assertEqual((obj["draftCount"], obj["holdCount"]), (36, 0))
+                self.assertEqual(obj["researchReceiptCount"], 36)
+                self.assertFalse(obj["overallPredictionReady"])
+                self.assertFalse(obj["officialJraVerified"])
+                self.assertFalse(obj["bettingReady"])
+                for private in ("horse_id", "racekey", "TEST-ONLY", "api_key"):
+                    self.assertNotIn(private, response["body"].decode())
+        self.assertEqual(sources, frozen)
+
+    def test_empty_tka_data_is_received_not_official_going(self):
+        response, counts = run_private_pipeline(provider_shaped_day())
+        self.assertEqual(counts, [1, 1, 1, 1, 1])
+        self.assertEqual(response["status"], "200 OK")
+        obj = json.loads(response["body"])
+        ctx = obj["raceContext"]
+        self.assertEqual(ctx["conditionProviderFailureCode"], "none")
+        self.assertEqual(ctx["conditionProviderFetchStatus"], "received")
+        self.assertEqual(ctx["goingAvailableCount"], 0)
+        self.assertFalse(ctx["raceConditionsVerified"])
