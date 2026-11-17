@@ -209,7 +209,7 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  const end=js.indexOf('function render(input,day)',start);
  assert.ok(start>0&&end>start);
  vm.runInContext(js.slice(start,end)+
-  '\\nglobalThis.readPicks=quickReferencePicks;',sandbox);
+  '\nglobalThis.readPicks=quickReferencePicks;',sandbox);
  const card={children:Object.assign(Object.create(null),{
   length:3,
   0:{className:'',textContent:'東京 1R｜参考'},
