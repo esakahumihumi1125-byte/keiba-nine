@@ -15,10 +15,11 @@ from collections import Counter
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import _valid_date
 from jrdb_owner_auto_draft import VERSION as DRAFT_VERSION
+from jrdb_prior_result_references import (
+    prior_result_reference_count as _reference_count,
+)
 
 VERSION = "owner-recent-crossfeed-diagnostics-1"
-REF = re.compile(r"[0-9]{16}\Z", re.ASCII)
-RACE_REF = re.compile(r"[0-9]{8}\Z", re.ASCII)
 NO = re.compile(r"0[1-9]|1[0-8]", re.ASCII)
 MAX_RACES = 120
 CODES = (
@@ -29,38 +30,6 @@ CODES = (
     "reference_or_tze_coverage_unknown",
 )
 
-
-def _reference_count(entry, day):
-    """Count dated 16-digit prior result keys; ignore confirmed 8-digit filler.
-
-    JRDB's public /tky sample has 16-digit result keys but also repeats an
-    8-digit *race* key into unused resultkey2-5 slots. Treat an 8-digit value
-    as an unused placeholder ONLY when its same-slot lastrace_racekey is
-    identical. An unpaired/mismatching 8-digit field is unknown (not zero).
-    Never count current/future or invalid result dates as past starts.
-    """
-    fields = ["lastrace_resultkey" + str(i) for i in range(1, 6)]
-    if not all(k in entry for k in fields):
-        return None
-    seen = set()
-    for i, key in enumerate(fields, 1):
-        value = entry[key]
-        if value in (None, "", "0000000000000000", "00000000"):
-            continue
-        if type(value) is not str:
-            return None
-        if RACE_REF.fullmatch(value):
-            paired_race = entry.get("lastrace_racekey" + str(i))
-            if paired_race != value:
-                return None
-            continue
-        if not REF.fullmatch(value) or value in seen:
-            return None
-        past = value[-8:]
-        if not _valid_date(past) or past >= day:
-            return None
-        seen.add(value)
-    return len(seen)
 
 
 def recent_crossfeed_diagnostics(programme, entries, drafts, day):
