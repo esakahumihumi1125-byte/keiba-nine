@@ -7699,7 +7699,6 @@ function unverifiedJraResultComparison(info,date,track,race,day){
     !info.trifectaCandidates.length||
     info.trifectaCandidates.length>18||info.trioCandidates.length>18)
   throw Error('untrusted_jra_result_candidate');
- const checked=new Set();
  for(const [mode,rows] of [['trifecta',info.trifectaCandidates],
                           ['trio',info.trioCandidates]]){
   const ids=new Set();
@@ -7715,7 +7714,6 @@ function unverifiedJraResultComparison(info,date,track,race,day){
    if(ids.has(key))throw Error('duplicate_result_candidate');
    ids.add(key);
   }
-  checked.add(mode);
  }
  const raw=localStorage.getItem(RECEIPTS_KEY);
  if(raw){
@@ -7759,7 +7757,7 @@ $('autoResultCandidateCheck').onclick=async()=>{
  const day=date.replaceAll('-',''),url=$('autoResultCandidateUrl').value.trim();
  const current=latestDisplayedReport&&latestDisplayedDay===day&&
   latestDisplayedReport.races.find(r=>r.track+'|'+r.race===key);
- if(!current||!/^20\\d{2}-\\d{2}-\\d{2}$/.test(date)||
+ if(!current||!/^20\d{2}-\d{2}-\d{2}$/.test(date)||
     url.length<50||url.length>500){
   status.textContent='まず予想資料から対象の1Rを選び、JRA公式結果URLを入力してください。';return;
  }
