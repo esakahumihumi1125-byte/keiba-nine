@@ -61,6 +61,22 @@ class MobileForecastFirstContract(unittest.TestCase):
         self.assertIn("JRA公式出馬表を開いて出走・取消・発走時刻を確認", HTML)
         self.assertIn("正式10項目の予想とJRA公式照合は未完成", HTML)
 
+    def test_major_hold_reasons_and_next_action_are_visible_immediately(self):
+        # Daily data is read once; these text nodes are filled by the already
+        # validated snapshot and must not be hidden in optional diagnostics.
+        first = HTML.index('id="autoEasyPulse"')
+        reasons = HTML.index('id="autoHoldBreakdown"')
+        next_action = HTML.index('id="autoOperationalNext"')
+        list_link = HTML.index('id="autoForecastJump"')
+        self.assertLess(first, reasons)
+        self.assertLess(reasons, next_action)
+        self.assertLess(next_action, list_link)
+        for token in ('id="autoHoldBreakdown"', 'id="autoOperationalNext"'):
+            self.assertEqual(HTML.count(token), 1)
+        self.assertIn("holdBreakdownSummary(data)", JS)
+        self.assertIn("operationalNextStep(", JS)
+        self.assertIn("JRA公式の出走・取消・馬場・発走時刻は未照合", JS)
+
     def test_advanced_provider_calls_are_inside_closed_opt_in_panel(self):
         start = HTML.index('<section class="daily-start" id="autoDailyStart">')
         stop = HTML.index('<section id="fixedHistorySection">')
