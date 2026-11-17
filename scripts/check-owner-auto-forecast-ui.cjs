@@ -1577,6 +1577,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true,officialCardOffTime='12:00',officialCardGoing='重',
   officialCardCancellationCue=null,officialCardNumbers=null,
+  jraResultOk=true,jraResultCorrupt=false,
   officialLinkPrefix='sw01dde01',
   officialLinkOk=true,officialLinkCorrupt=false,
   advanceCalendarCorrupt=false,advanceCalendarDiff=false,
@@ -1663,6 +1664,27 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     officialPostTimeVerified:false,formalTenFactorReady:false,
     bettingReady:false,researchOnly:true,existingReceiptsChanged:false,
     existingTicketsChanged:false,newJrdbRequests:0
+   })};
+  }
+  if(url.startsWith('/api/jra/result-candidate?')){
+   const q=new URL('http://localhost'+url).searchParams;
+   return {ok:jraResultOk,json:async()=>({
+    version:'owner-jra-public-result-probe-1',
+    date:q.get('date'),track:q.get('track'),race:Number(q.get('race')),
+    trifectaCandidates:[
+     {ticket:[1,2,3],payoutYen:26050},
+     {ticket:[8,7,6],payoutYen:44000}],
+    trioCandidates:[{ticket:[1,2,3],payoutYen:1320}],
+    payoutMatchesDisplayedPodium:true,
+    podiumShape:'one_first_one_second_one_third',
+    matchingTrifectaCount:2,matchingTrioCount:1,
+    sourceHostAllowlisted:true,visibleRaceIdentityMatched:true,
+    payoutLayoutParsed:true,podiumChecked:true,
+    officialJraVerified:jraResultCorrupt,
+    sourceAuthenticityAttested:false,finalityVerified:false,
+    refundsVerified:false,settlementReady:false,officialRoiPercent:null,
+    actualPurchase:false,researchOnly:true,sourceReadCount:0,
+    changesExistingReceipts:false,changesExistingRoi:false
    })};
   }
   if(url.startsWith('/api/jra/prestart-card-candidate?')){
@@ -2079,6 +2101,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setStorageWriteMode:x=>writeMode=x,
   setServer:x=>next=withTenPreview(x),
   setServerRaw:x=>next=x,
+  setJraResultOk:x=>jraResultOk=x,
+  setJraResultCorrupt:x=>jraResultCorrupt=x,
   setAutoDraftOk:x=>autoDraftOk=x,
   setAutoDraftNonJson:x=>autoDraftNonJson=x,
   setAutoDraftNetworkFailure:x=>autoDraftNetworkFailure=x,
@@ -5688,6 +5712,50 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(badLockView.get('autoWorkoutProviderCheck').disabled,true);
  assert.match(badLockView.get('autoWorkoutLockStatus').textContent,
   /初回固定に失敗/);
+ // The owner can now compare an older JRA public result CANDIDATE
+ // with the FIRST saved 3連単 100-yen research ticket. It must never
+ // settle ROI, add a post-off bet, or modify the fixed HMAC ledger.
+ const resultsView=boot({manualWeekday:false});
+ await new Promise(r=>setImmediate(r));
+ await resultsView.get('autoRun').onclick();
+ const resultStorage=resultsView.storage.get(STORAGE);
+ assert.ok(resultStorage,'fixture has one signed first-issued receipt');
+ const resultCount=resultsView.requests.length;
+ resultsView.get('autoRacePick').value='東京|1';
+ resultsView.get('autoResultCandidateUrl').value=
+  'https://www.jra.go.jp/JRADB/accessS.html?CNAME=pw01sde0105209901010120990101%2FAB';
+ await resultsView.get('autoResultCandidateCheck').onclick();
+ assert.equal(resultsView.requests.length,resultCount,
+  'a result cannot be probed before even provisional start time');
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/発走後のみ/);
+ resultsView.advanceClock('2099-01-01T03:30:00Z'); // 12:30 JST
+ await resultsView.get('autoResultCandidateCheck').onclick();
+ assert.equal(resultsView.requests.length,resultCount+1);
+ assert.match(resultsView.requests.at(-1).url,/^\/api\/jra\/result-candidate\?/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/最初の固定3連単 40点/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/一致 1点/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/26,050円/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/正式的中・損益・回収率は未計算/);
+ assert.equal(resultsView.storage.get(STORAGE),resultStorage);
+ assert.equal(resultsView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // A source that tries to claim JRA verified=true is rejected, even
+ // if the candidate combination and amount look attractive.
+ resultsView.setJraResultCorrupt(true);
+ await resultsView.get('autoResultCandidateCheck').onclick();
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/安全に照合できません/);
+ assert.equal(resultsView.storage.get(STORAGE),resultStorage);
+ resultsView.setJraResultCorrupt(false);
+ resultsView.get('autoRacePick').value='京都|2'; // unregistered race
+ await resultsView.get('autoResultCandidateCheck').onclick();
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/対象の1Rを選び/);
+ const afterBad=resultsView.requests.length;
+ assert.equal(afterBad,resultCount+2);
+ resultsView.get('autoDay').value='2099-01-02';
+ resultsView.get('autoDay').onchange();
+ assert.equal(resultsView.get('autoResultCandidateUrl').value,'');
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/未確認/);
+ assert.equal(resultsView.requests.length,afterBad);
+ assert.equal(resultsView.storage.get(STORAGE),resultStorage);
  // Sparse recent research is strictly a *separate* unsigned display.
  // Never promote held candidates to a draft, sign them or fetch a source.
  // The independent 64-point core comparison must be view-only, date-gated
