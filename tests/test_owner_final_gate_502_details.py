@@ -30,7 +30,7 @@ class FinalGateDiagnosticsTests(unittest.TestCase):
             ('ticket_integrity', lambda r: r['races'][0]['tickets'].append(
                 [1, 2, 3])),
             ('race_identity', lambda r: r['races'][1].__setitem__('race', 1)),
-            ('receipt_set_mismatch', lambda r: r['researchReceipts'][0][
+            ('receipt_identity', lambda r: r['researchReceipts'][0][
                 'snapshot'].__setitem__('track', '京都')),
             ('receipt_count_mismatch', lambda r: r.__setitem__(
                 'researchReceiptCount', 1)),
