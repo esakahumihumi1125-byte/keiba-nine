@@ -1,6 +1,6 @@
 """Fixed, non-sensitive reasons for incomplete two-factor assessments."""
 TRAINING = {"missing_training_indices", "no_linked_training_record"}
-RECENT = {"no_usable_history", "only_one_usable_run", "insufficient_scored_runs", "no_linked_recent_record"}
+RECENT = {"no_usable_history", "only_one_usable_run", "insufficient_scored_runs", "no_linked_recent_record", "crossfeed_run_count_mismatch"}
 
 
 def missing_reasons(training_grade, recent_grade, training_status=None, recent_status=None):

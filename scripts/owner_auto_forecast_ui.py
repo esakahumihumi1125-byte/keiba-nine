@@ -587,6 +587,7 @@ const MISSING={
  no_usable_history:'近走：評価に使える過去走なし',
  only_one_usable_run:'近走：使える資料が1走のみ（現基準は2走必要）',
  insufficient_scored_runs:'近走：着順と指数がそろう資料が2走未満',
+ crossfeed_run_count_mismatch:'近走：JRDBの過去走参照と観測走数が不一致',
  no_linked_recent_record:'近走：この馬に照合できる資料なし',
  training_unassessed:'調教：資料不足・理由の再確認が必要',
  recent_unassessed:'近走：資料不足・理由の再確認が必要'
@@ -600,6 +601,7 @@ const RECENT_GAPS=[
  ['no_usable_history','評価に使える過去走なし'],
  ['only_one_usable_run','評価可能な過去走1走のみ'],
  ['insufficient_scored_runs','着順・指数ペア不足'],
+ ['crossfeed_run_count_mismatch','JRDB過去走参照と観測走数の不一致'],
  ['recent_unassessed','理由の再確認が必要']
 ];
 const TRAINING_GAPS=[

@@ -145,7 +145,7 @@ def compact_factor_shortage_diagnostics(report):
 MISSING_LOG_CODES = (
     "no_linked_recent_record", "no_usable_history",
     "only_one_usable_run", "insufficient_scored_runs",
-    "recent_unassessed", "no_linked_training_record",
+    "crossfeed_run_count_mismatch", "recent_unassessed", "no_linked_training_record",
     "missing_training_indices", "training_unassessed",
 )
 
@@ -183,8 +183,8 @@ def compact_missing_reason_diagnostics(report):
                    for label in reasons):
                 return "invalid"
             for factor, candidates, fallback in (
-                ("recent", MISSING_LOG_CODES[:4], "recent_unassessed"),
-                ("training", MISSING_LOG_CODES[5:7], "training_unassessed"),
+                ("recent", MISSING_LOG_CODES[:5], "recent_unassessed"),
+                ("training", MISSING_LOG_CODES[6:8], "training_unassessed"),
             ):
                 if horse[factor] != "未評価":
                     continue

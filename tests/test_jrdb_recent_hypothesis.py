@@ -117,6 +117,48 @@ class RecentHypothesisTests(unittest.TestCase):
         self.assertEqual(source, (p, e, z))
         self.assertNotIn("1234567820261025", repr(result))
 
+    def test_crossfeed_run_count_conflicts_hold_but_leave_other_horses(self):
+        # Two fully scored /tze runs must not earn a grade when all five
+        # /tky slots explicitly show fewer OR more completed results.
+        refs = ["1234567820261025", "1234567820261011",
+                "1234567820260920"]
+        for count in (0, 1, 3):
+            with self.subTest(references=count):
+                p, e, z = fixture()
+                for i in range(1, 6):
+                    e[1]["lastrace_resultkey" + str(i)] = (
+                        refs[i-1] if i <= count else None)
+                unchanged = copy.deepcopy((p, e, z))
+                rows = self.audit((p, e, z))[0]["byNumber"]
+                self.assertEqual(rows["01"]["grade"], "S")
+                self.assertEqual(rows["02"]["datedRuns"], 2)
+                self.assertEqual(rows["02"]["completedRuns"], 2)
+                self.assertEqual(rows["02"]["grade"], "未評価")
+                self.assertEqual(rows["02"]["assessmentStatus"],
+                                 "crossfeed_run_count_mismatch")
+                self.assertEqual((p, e, z), unchanged)
+                self.assertNotIn("1234567820261025", repr(rows["02"]))
+        # A source-matched two-run slice preserves its original grade.
+        p, e, z = fixture()
+        for i in range(1, 6):
+            e[1]["lastrace_resultkey" + str(i)] = (
+                refs[i-1] if i <= 2 else None)
+        valid = self.audit((p, e, z))[0]["byNumber"]["02"]
+        self.assertEqual(valid["grade"], "A")
+        self.assertEqual(valid["assessmentStatus"], "assessed")
+
+    def test_zero_tky_references_cannot_confirm_one_tze_run(self):
+        p, e, z = fixture()
+        for name in ("racedate", "order_of_finish", "idm"):
+            z[1].pop("race_back_2_" + name, None)
+        e[1].update({"lastrace_resultkey" + str(i): None
+                     for i in range(1, 6)})
+        row = self.audit((p, e, z))[0]["byNumber"]["02"]
+        self.assertEqual(row["datedRuns"], 1)
+        self.assertEqual(row["grade"], "未評価")
+        self.assertEqual(row["assessmentStatus"],
+                         "crossfeed_run_count_mismatch")
+
     def test_single_tky_prior_reference_allows_low_sample_research(self):
         p, e, z = fixture()
         for name in ("racedate", "order_of_finish", "idm"):

@@ -154,21 +154,22 @@ def build_recent_hints(programme, entries, previous, requested_date):
         history = _extract(row, requested_date)
         past_three = history[:3]
         provisional = _provisional(history)
-        # A single /tze row does NOT prove a horse has raced only once.
-        # The same day's /tky may contain 2+ separately dated historical
-        # result references; in that case the 1-run 3-point heuristic
-        # would be ranking a partial provider feed as a complete career.
-        # Hold this runner instead. Unknown/malformed/missing /tky refs
-        # carry no "zero prior races" claim (and no automatic C grade).
+        # A complete-looking /tze history can still disagree with the
+        # same day's /tky completed-result references. Check ALL graded
+        # histories, not just single-run exceptions: 0-vs-1, 1-vs-2 and
+        # 3-vs-2 are source conflicts, not evidence of good/bad form.
+        # Missing or malformed /tky references remain unknown (None);
+        # never infer a debut, missing past result, or a fabricated C.
         ref_count = prior_result_reference_count(
             roster[key][joined], requested_date)
-        single_run_gap = (len(history) == 1 and provisional != "未評価"
-                          and ref_count is not None and ref_count > 1)
-        grade = "未評価" if single_run_gap else provisional
+        crossfeed_gap = (provisional != "未評価"
+                         and ref_count is not None
+                         and ref_count != len(history))
+        grade = "未評価" if crossfeed_gap else provisional
         observations[(key, joined)] = {
             "grade": grade,
             "assessmentStatus": (
-                "insufficient_scored_runs" if single_run_gap
+                "crossfeed_run_count_mismatch" if crossfeed_gap
                 else "assessed_single_run" if len(history) == 1
                     and grade != "未評価"
                 else "assessed" if grade != "未評価"
