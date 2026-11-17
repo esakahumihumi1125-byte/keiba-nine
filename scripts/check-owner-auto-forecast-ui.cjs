@@ -319,7 +319,7 @@ const research=()=>({
  serverStamped:true,captureAuditVerified:false,researchReceiptCount:1,
  archiveEnabled:false,archiveRecordCount:0,archiveConflictCount:0,
  raceContext:{
-  version:'race-context-1',raceCount:1,courseInfoPresentCount:1,
+  version:'race-context-1',date:day,raceCount:1,courseInfoPresentCount:1,
   goingAvailableCount:1,raceConditionsVerified:false,predictionReady:false,
   conditionProviderReadCount:1,conditionProviderFetchStatus:'received',
   races:[{
@@ -4929,6 +4929,14 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const badCondition=resultWith('a'.repeat(64));
  badCondition.raceContext.races[0].going='unsupported';
  a.setServerRaw(badCondition);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoTenStatus').textContent,/確認できません/);
+ assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
+ // Venue and R are not enough: a forged prior-day condition must be
+ // rejected before any new receipt is stored or forecast is displayed.
+ const wrongGoingDate=resultWith('a'.repeat(64));
+ wrongGoingDate.raceContext.date='2098-12-31';
+ a.setServerRaw(wrongGoingDate);
  await a.get('autoRun').onclick();
  assert.match(a.get('autoTenStatus').textContent,/確認できません/);
  assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
