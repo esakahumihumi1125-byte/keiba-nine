@@ -61,8 +61,18 @@ def _update_has_offset(value):
         raise RaceContextError("Invalid condition timestamp") from None
 
 
-def audit_race_context(programme, holding_rows, requested_date):
-    """Map confirmed venue conditions to normalized races without predicting."""
+def audit_race_context(programme, holding_rows, requested_date, *, assessment_cutoff=None):
+    """Map venue conditions; label updates newer than the frozen prediction.
+
+    The optional cutoff is the trusted server-side *original* draft timestamp,
+    never a browser-supplied time. A timestamp is source metadata, not proof
+    that the JRA going was official, final or independently authenticated.
+    """
+    if (assessment_cutoff is not None and
+            (not isinstance(assessment_cutoff, datetime)
+             or assessment_cutoff.tzinfo is None
+             or assessment_cutoff.utcoffset() is None)):
+        raise RaceContextError("Timezone-aware assessment cutoff required")
     if not isinstance(requested_date, str) or not DATE.fullmatch(requested_date):
         raise RaceContextError("Invalid target date")
     try:
@@ -90,7 +100,16 @@ def audit_race_context(programme, holding_rows, requested_date):
         dirt = _going(row.get("dirt_condition_cd"))
         updated = row.get("updated_at")
         has_offset = _update_has_offset(updated)
+        # A source updated after the original locked prediction cutoff
+        # cannot be used to retrospectively add a stronger going score.
+        # Unknown / date-only / timezone-free metadata stays 'unknown'.
+        cutoff_status = "unknown"
+        if has_offset and assessment_cutoff is not None:
+            at = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+            cutoff_status = ("after_cutoff" if at > assessment_cutoff
+                             else "before_or_at_cutoff")
         venues[track] = {"turf": turf, "dirt": dirt,
+                         "cutoffStatus": cutoff_status,
                          # Only offset-aware metadata is counted as a
                          # recorded point-in-time marker. The existence or
                          # order of this marker does NOT prove freshness.
@@ -125,6 +144,8 @@ def audit_race_context(programme, holding_rows, requested_date):
             "going": going, "goingAvailable": going != "未確認",
             "conditionSnapshotPresent": venue is not None,
             "conditionUpdateRecorded": bool(venue and venue["updateRecorded"]),
+            "conditionUpdateCutoffStatus": (venue["cutoffStatus"] if venue
+                                           else "unknown"),
             "courseInfoPresent": context_present,
             "horseCourseSuitabilityAssessed": False,
             "horseGoingSuitabilityAssessed": False,
@@ -141,6 +162,7 @@ def audit_race_context(programme, holding_rows, requested_date):
         "races": result,
         "note": ("番組の芝/ダート・距離・回り方向と開催馬場データの存在を確認。"
                  "馬場更新日時の時差なし/日付のみは時刻未確認として扱う。"
+                 "予想固定後に更新されたと分かる馬場は参考採点に使用しない。"
                  "馬場の最新性、取消、競走馬の距離/コース/不良馬場適性は未検証。"
                  "馬ごとの比較・適性ランク・買い目は一切作成していません。")
     }
