@@ -66,6 +66,10 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </details>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
 <p id="autoEasyPulse" class="auto-easy-pulse" role="status">開催日を取得すると、予想あり・見送りの件数を表示します。</p>
+<div class="owner-readiness-brief" aria-label="見送り内訳と次の操作（新規取得なし）">
+<p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
+<p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
+</div>
 <a id="autoForecastJump" class="owner-forecast-cta" href="#forecastRacesSection">予想一覧をすぐ見る（追加のJRDB照会なし）</a>
 <nav class="quick-links" aria-label="画面内の移動">
 <a id="autoDraftShortcut" href="#autoVenues">買い目あり：未取得</a>
@@ -170,8 +174,6 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">研究用3連単を見るだけなら、上の予想一覧から。馬券購入の判断前にはJRA公式の出走・取消・馬場・発走時刻を別に確認してください。追加分析と記録の管理もここから利用できます。</p>
 <details id="autoDayDiagnostics"><summary>取得状況・見送り内訳を詳しく見る</summary>
 <p id="autoMorningStatus" class="muted" role="status">開催日の取得結果を確認中です。発走前研究用の暫定案であり、正式な10項目予想ではありません。</p>
-<p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
-<p id="autoOperationalNext" class="muted" role="status">開催日の次の操作：当日の取得結果を確認中。</p>
 <p id="autoSnapshotAge" class="muted" role="status">JRDB受信時刻：未取得。以前の固定履歴とは別です。</p>
 <details id="autoAcceptancePanel"><summary>土日の動作チェック（追加のJRDB照会なし）</summary>
 <p class="muted">この画面で取得済みのデータと、このiPhoneの保存済み研究記録の件数だけを確認します。馬番・馬名・オッズ・認証キー・署名・買い目そのものは表示しません。</p>
