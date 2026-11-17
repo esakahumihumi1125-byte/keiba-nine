@@ -12,7 +12,42 @@ import re
 from jrdb_coverage import CoverageError
 
 JST = timezone(timedelta(hours=9))
-OFF_TEXT = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z", re.ASCII)
+OFF_TEXT = re.compile(r"(?:[01]\\d|2[0-3]):[0-5]\\d\\Z", re.ASCII)
+# Every entry is an exact literal raised in this module, NOT an exception
+# string from the provider, browser or DB. The fixed enum can cross the
+# private response boundary and help diagnose the observed Nov 15 502s.
+# No race identities, private data, signature, timestamp or ticket values.
+_FAILURE_DETAIL = {
+    "Final prestart ticket list mismatch": "ticket_integrity",
+    "Final prestart ticket mismatch": "ticket_integrity",
+    "Duplicate final prestart ticket": "ticket_integrity",
+    "Final prestart timestamp missing": "clock_invalid",
+    "Final prestart timestamp invalid": "clock_invalid",
+    "Final prestart timestamp lacks timezone": "clock_invalid",
+    "Final prestart server clock is unavailable": "clock_invalid",
+    "Final prestart day invalid": "report_contract",
+    "Final prestart report contract mismatch": "report_contract",
+    "Final prestart race structure invalid": "race_identity",
+    "Final prestart duplicate race": "race_identity",
+    "Final prestart held ticket mismatch": "hold_integrity",
+    "Final prestart off time mismatch": "off_time",
+    "Final prestart draft amount mismatch": "amount_integrity",
+    "Final prestart receipt structure invalid": "receipt_identity",
+    "Final prestart receipt coordinate invalid": "receipt_identity",
+    "Final prestart receipt identity mismatch": "receipt_identity",
+    "Final prestart receipt does not match draft": "receipt_draft_mismatch",
+    "Final prestart missing or extra receipt": "receipt_set_mismatch",
+    "Final prestart receipt count mismatch": "receipt_count_mismatch",
+    "Final prestart receipt mismatch": "receipt_integrity",
+    "Final prestart filtered receipt mismatch": "receipt_integrity",
+}
+
+
+def final_gate_failure_detail(error):
+    """Safe bounded diagnostic ONLY for this gate's own CoverageError."""
+    if type(error) is not CoverageError:
+        return "other"
+    return _FAILURE_DETAIL.get(str(error), "other")
 
 
 
