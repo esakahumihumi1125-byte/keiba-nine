@@ -2626,6 +2626,8 @@ def create_app(settings=None):
                 report['raceContext'] = audit_race_context(programme, [], day)
                 report['raceContext']['conditionProviderReadCount'] = 0
                 report['raceContext']['conditionProviderFetchStatus'] = 'unavailable'
+                # A fixed owner-safe category; never serialize JRDBError itself.
+                report['raceContext']['conditionProviderFailureCode'] = 'not_attempted'
                 if programme:
                     report['raceContext']['conditionProviderReadCount'] = 1
                     try:
@@ -2642,14 +2644,17 @@ def create_app(settings=None):
                             assessment_cutoff=captured_at)
                         checked['conditionProviderReadCount'] = 1
                         checked['conditionProviderFetchStatus'] = 'received'
+                        checked['conditionProviderFailureCode'] = 'none'
                         report['raceContext'] = checked
                     except (JRDBError, RaceContextError, ValueError,
                             TypeError, KeyError) as exc:
                         # Only a stable enum; NEVER the exception string,
                         # which could contain licensed provider fields.
+                        code = safe_context_error_code(exc)
+                        report['raceContext']['conditionProviderFailureCode'] = code
                         logging.warning(
                             'KEIBA_AUTO_DRAFT_CONTEXT=unavailable reason=%s',
-                            safe_context_error_code(exc))
+                            code)
                 # Optional /tka and source analysis can outlast a provisional
                 # start time. Re-check the SERVER clock immediately before
                 # return; suppress any newly late formation/receipt in this
