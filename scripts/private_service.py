@@ -2633,7 +2633,12 @@ def create_app(settings=None):
                         conditions = fetch_venue_conditions(day)
                         logging.warning(
                             'KEIBA_AUTO_DRAFT_SOURCE stage=optional_going state=returned')
-                        checked = audit_race_context(programme, conditions, day)
+                        # The JRDB venue update must be no later than the
+                        # original server-side forecast lock, not the final
+                        # response time after the optional source read.
+                        checked = audit_race_context(
+                            programme, conditions, day,
+                            assessment_cutoff=captured_at)
                         checked['conditionProviderReadCount'] = 1
                         checked['conditionProviderFetchStatus'] = 'received'
                         report['raceContext'] = checked
