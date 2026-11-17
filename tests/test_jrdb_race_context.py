@@ -134,11 +134,12 @@ class RaceContextTests(unittest.TestCase):
         out = audit_race_context(programme, holding, "20261101",
                                  assessment_cutoff=cutoff)
         self.assertEqual((programme, holding), frozen)
-        self.assertEqual(out["races"][0]["conditionUpdateCutoffStatus"],
+        by_race = {(r["track"], r["race"]): r for r in out["races"]}
+        self.assertEqual(by_race["東京", 1]["conditionUpdateCutoffStatus"],
                          "after_cutoff")
-        self.assertEqual(out["races"][1]["conditionUpdateCutoffStatus"],
+        self.assertEqual(by_race["東京", 2]["conditionUpdateCutoffStatus"],
                          "after_cutoff")
-        self.assertEqual(out["races"][2]["conditionUpdateCutoffStatus"],
+        self.assertEqual(by_race["京都", 1]["conditionUpdateCutoffStatus"],
                          "unknown")
         self.assertFalse(out["raceConditionsVerified"])
         self.assertNotIn("2026-11-01T00:01:00Z", repr(out))
