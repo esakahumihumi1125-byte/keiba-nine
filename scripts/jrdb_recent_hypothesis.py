@@ -113,8 +113,12 @@ def _extract(row, target_date):
 
 def _provisional(historical):
     recent = [r for r in historical if r["finish"] is not None and r["idm"] is not None][:3]
-    # Needs two completed runs. A debutant must remain ungraded.
-    if len(recent) < 2:
+    # A single *verified finish + IDM* can inform only the 3-point
+    # provisional research factor when it is the runner's ENTIRE observed
+    # history. Do not guess a second run or extend this exception to
+    # multiple dated races with missing scores (potential provider gaps).
+    # Zero-run newcomers remain ungraded. This is not a reliable trend.
+    if len(recent) < 2 and not (len(historical) == 1 and len(recent) == 1):
         return "未評価"
     weights = (3, 2, 1)
     average = sum(r["idm"] * weights[i] for i, r in enumerate(recent)) / sum(weights[:len(recent)])
@@ -150,10 +154,14 @@ def build_recent_hints(programme, entries, previous, requested_date):
         past_three = history[:3]
         observations[(key, joined)] = {
             "grade": _provisional(history),
-            "assessmentStatus": ("assessed" if _provisional(history) != "未評価"
+            "assessmentStatus": (
+                "assessed_single_run" if len(history) == 1
+                    and history[0]["finish"] is not None
+                    and history[0]["idm"] is not None
+                else "assessed" if _provisional(history) != "未評価"
                 else "no_usable_history" if not history
-                else "only_one_usable_run" if len(history) == 1 and history[0]["finish"] is not None and history[0]["idm"] is not None
-                else "insufficient_scored_runs"),
+                else "insufficient_scored_runs"
+            ),
             "datedRuns": len(history),
             "completedRuns": sum(r["finish"] is not None for r in history),
             "topThree": sum(r["finish"] is not None and r["finish"] <= 3 for r in past_three),
@@ -215,7 +223,10 @@ def summarize_recent_hints(hints):
         })
     return {
         "version": VERSION, "races": result, "predictionReady": False,
-        "note": ("直近3走の着順・IDMで暫定ランクを研究。2走以上なければ未評価。"
+        "note": ("直近3走の着順・IDMで暫定ランクを研究。原則2走以上、"
+                 "実際に観測された履歴が1走だけで着順とIDMが両方確認"
+                 "できる場合のみ低サンプルの1走仮評価を許可。"
+                 "未出走・出走歴不明・複数走の一部欠落は未評価のまま。"
                  "S>=70、A>=55、B>=40、それ未満Cは未検証の独自閾値。"
                  "4角位置・上がり3Fは観測数のみ表示し、着差・相手関係・"
                  "先行力・上がり性能を確定評価しない。オッズ・人気を使用しない。"
