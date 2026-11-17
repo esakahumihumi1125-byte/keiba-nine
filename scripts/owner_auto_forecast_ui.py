@@ -1087,7 +1087,7 @@ function validatedRunnerSourceEvidence(data){
 }
 function validateContext(data){
  const ctx=data.raceContext;
- if(!ctx||ctx.version!=='race-context-1'||
+ if(!ctx||ctx.version!=='race-context-1'||ctx.date!==data.date||
     ctx.raceCount!==data.raceCount||!Array.isArray(ctx.races)||
     ctx.races.length!==data.raceCount||
     ctx.raceConditionsVerified!==false||ctx.predictionReady!==false||

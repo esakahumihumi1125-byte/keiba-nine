@@ -319,7 +319,7 @@ const research=()=>({
  serverStamped:true,captureAuditVerified:false,researchReceiptCount:1,
  archiveEnabled:false,archiveRecordCount:0,archiveConflictCount:0,
  raceContext:{
-  version:'race-context-1',raceCount:1,courseInfoPresentCount:1,
+  version:'race-context-1',date:day,raceCount:1,courseInfoPresentCount:1,
   goingAvailableCount:1,raceConditionsVerified:false,predictionReady:false,
   conditionProviderReadCount:1,conditionProviderFetchStatus:'received',
   races:[{
@@ -4932,6 +4932,14 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await a.get('autoRun').onclick();
  assert.match(a.get('autoTenStatus').textContent,/確認できません/);
  assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
+ // Venue and R are not enough: a forged prior-day condition must be
+ // rejected before any new receipt is stored or forecast is displayed.
+ const wrongGoingDate=resultWith('a'.repeat(64));
+ wrongGoingDate.raceContext.date='2098-12-31';
+ a.setServerRaw(wrongGoingDate);
+ await a.get('autoRun').onclick();
+ assert.match(a.get('autoTenStatus').textContent,/確認できません/);
+ assert.equal(a.storage.get(STORAGE),beforeInvalidTen);
  // A bad response signature must not mutate frozen picks or purchases.
  const corrupted=resultWith('not-an-authentic-signature');
  a.setServer(corrupted);
@@ -5019,6 +5027,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await new Promise(r=>setImmediate(r));
  const nextDay=resultWith('d'.repeat(64));
  nextDay.date='20990102';
+ nextDay.raceContext.date='20990102'; // same target day on live API response
  nextDay.researchReceipts[0].snapshot.date='2099-01-02';
  nextDay.researchReceipts[0].snapshot.lockedAt='2099-01-02T09:00:00+09:00';
  nextDay.researchReceipts[0].snapshot.scheduledOffAt='2099-01-02T12:00:00+09:00';

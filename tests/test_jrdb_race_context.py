@@ -46,6 +46,7 @@ class RaceContextTests(unittest.TestCase):
         self.assertEqual(turf["going"], "稍重")
         self.assertEqual(dirt["going"], "不良")
         self.assertEqual(jump["going"], "未確認")
+        self.assertEqual(output["date"], "20261101")
         self.assertEqual(output["goingAvailableCount"], 2)
         self.assertEqual(output["courseInfoPresentCount"], 3)
         self.assertFalse(output["predictionReady"])

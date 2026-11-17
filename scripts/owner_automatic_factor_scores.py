@@ -103,6 +103,9 @@ def automatic_factor_scores(programme, entries, recent, day, *, now, race_contex
     going_by_race = {}
     if (isinstance(race_context, dict)
             and race_context.get('version') == 'race-context-1'
+            # A track/R repeats weekly; reject another date's /tka context.
+            # Missing date is unverified, NEVER implicitly today's going.
+            and race_context.get('date') == day
             and race_context.get('conditionProviderFetchStatus') == 'received'
             and type(race_context.get('raceCount')) is int
             and isinstance(race_context.get('races'), list)
