@@ -172,3 +172,41 @@ class JrdBDocsShapedThirtySixAcceptance(unittest.TestCase):
         self.assertTrue(any(r["status"] == "hold" and r["points"] == 0
                             for r in data["races"]))
         self.assertFalse(data["overallPredictionReady"])
+
+
+    def test_seven_one_run_horses_can_still_form_one_prestart_research_race(self):
+        """A real /tze one-run observation is not equivalent to a missing feed.
+
+        Earlier, any single-runner with only one scored history forced the
+        entire race into hold; this must only affect the 3pt research band.
+        """
+        p, e, t, z = provider_shaped_day()
+        racekey = p[0]["racekey"]
+        for row in z:
+            if row["racekey"] == racekey:
+                for name in ("racedate", "order_of_finish", "idm",
+                             "later3f_time", "corner4_order"):
+                    row.pop("race_back_2_" + name, None)
+        frozen = deepcopy((p, e, t, z))
+        response, reads = run_private_pipeline((p, e, t, z))
+        self.assertEqual(reads, [1, 1, 1, 1, 1])
+        self.assertEqual(response["status"], "200 OK")
+        self.assertEqual((p, e, t, z), frozen)
+        data = json.loads(response["body"])
+        self.assertEqual((data["draftCount"], data["holdCount"]), (36, 0))
+        self.assertEqual(data["researchReceiptCount"], 36)
+        first = next(r for r in data["races"]
+                     if r["track"] == p[0]["racekey"][:2].replace("05", "東京") and
+                     r["race"] == 1)
+        self.assertEqual(first["status"], "provisional_draft")
+        self.assertEqual(first["points"], 40)
+        self.assertTrue(all(h["recent"] in ("S", "A", "B", "C")
+                            for h in first["runners"]))
+        self.assertTrue(all(h["recentObserved"]["datedRuns"] == 1
+                            and h["recentObserved"]["completedRuns"] == 1
+                            for h in first["runners"]))
+        self.assertFalse(data["overallPredictionReady"])
+        self.assertFalse(data["officialJraVerified"])
+        self.assertFalse(data["bettingReady"])
+        self.assertNotIn("horse_id", response["body"].decode())
+        self.assertNotIn("racekey", response["body"].decode())

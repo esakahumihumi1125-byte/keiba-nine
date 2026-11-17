@@ -60,8 +60,10 @@ class RecentHypothesisTests(unittest.TestCase):
             if key.startswith(("race_back_2_", "race_back_3_")):
                 del z[0][key]
         one = self.audit((p, e, z))[0]["byNumber"]["01"]
-        self.assertEqual(one["assessmentStatus"], "only_one_usable_run")
-        self.assertEqual(one["grade"], "未評価")
+        self.assertEqual(one["assessmentStatus"], "assessed_single_run")
+        self.assertEqual(one["grade"], "S")
+        self.assertEqual(one["datedRuns"], 1)
+        self.assertEqual(one["completedRuns"], 1)
         del z[0]["race_back_1_idm"]
         partial = self.audit((p, e, z))[0]["byNumber"]["01"]
         self.assertEqual(partial["assessmentStatus"], "insufficient_scored_runs")
@@ -74,14 +76,27 @@ class RecentHypothesisTests(unittest.TestCase):
         z[1]["race_back_1_confirmed_win_odds"] = 999999
         self.assertEqual(first, self.audit((p, e, z)))
 
-    def test_no_debutant_imputation(self):
+    def test_one_real_run_is_assessed_but_no_debutant_imputation(self):
         p, e, z = fixture()
         z[1].pop("race_back_2_racedate")
         z[1].pop("race_back_2_order_of_finish")
         z[1].pop("race_back_2_idm")
-        self.assertEqual(self.audit((p, e, z))[0]["byNumber"]["02"]["grade"], "未評価")
+        one = self.audit((p, e, z))[0]["byNumber"]["02"]
+        self.assertEqual(one["grade"], "A")
+        self.assertEqual(one["assessmentStatus"], "assessed_single_run")
+        self.assertEqual(one["datedRuns"], 1)
+        self.assertEqual(one["completedRuns"], 1)
+        # Removing the only dated run entirely must not create a ghost
+        # previous start or a provisional grade.
+        for col in ("race_back_1_racedate", "race_back_1_order_of_finish",
+                    "race_back_1_idm"):
+            z[1].pop(col)
+        absent = self.audit((p, e, z))[0]["byNumber"]["02"]
+        self.assertEqual(absent["grade"], "未評価")
+        self.assertEqual(absent["assessmentStatus"], "no_usable_history")
+        self.assertEqual(absent["datedRuns"], 0)
 
-    def test_two_complete_runs_required(self):
+    def test_two_dates_with_one_unscored_run_do_not_get_one_run_exception(self):
         p, e, z = fixture()
         z[0].pop("race_back_1_idm")
         z[0].pop("race_back_3_idm")
