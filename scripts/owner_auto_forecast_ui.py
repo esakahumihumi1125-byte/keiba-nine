@@ -210,7 +210,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoOfficialCardStatus" class="muted" role="status">未確認。JRDBの有料再取得や買い目更新は行いません。</p>
 </details>
 <details id="autoResultCandidatePanel"><summary>発走後のJRA結果候補と固定3連単を比較（研究用・任意）</summary>
-<p class="muted">過去の開催日でもiPhoneに残っている「発走前固定済み」のレースを直接選べます。JRDBの開催日資料を再取得する必要はありません。JRA公式結果ページURLを貼って候補を読み取ります。原本の真正性・結果確定・返還は未検証のため、正式的中・回収率・実購入には反映しません。追加JRDB照会・保存変更は0回です。</p>
+<p class="muted">過去の開催日でもiPhoneに残っている「発走前固定済み」のレースを直接選べます。JRDBの再取得は不要です。JRA公式結果ページURLを貼ると、まず本人用サーバーで固定買い目の署名を確認し、成功した場合だけJRA表示の払戻候補を比較します。結果確定・返還・原本認証は未検証のため、正式的中・回収率・実購入には反映しません。追加JRDB照会・保存変更は0回です。</p>
 <label for="autoResultSavedRace">この端末に固定済みのレース（過去の日付も可）</label>
 <select id="autoResultSavedRace" disabled></select>
 <p id="autoResultSavedRaceStatus" class="muted" role="status">保存済みの発走前固定記録を確認中。未保存のレースは選択できません。</p>
@@ -7686,7 +7686,7 @@ $('autoOfficialCardCheck').onclick=async()=>{
 // official settlement. A syntactically valid saved HMAC is also not proof
 // of server verification. This preview never computes an official ROI,
 // marks a losing ticket, issues a receipt or writes to localStorage.
-function unverifiedJraResultComparison(info,date,track,race,day){
+function unverifiedJraResultComparison(info,date,track,race,day,verifiedReceipt){
  if(!info||info.version!=='owner-jra-public-result-probe-1'||
     info.date!==date||info.track!==track||info.race!==race||
     info.sourceHostAllowlisted!==true||
@@ -7729,6 +7729,12 @@ function unverifiedJraResultComparison(info,date,track,race,day){
  const selected=selectedReceiptsForVerification(day);
  const existing=selected.filter(x=>x.snapshot.track===track&&x.snapshot.race===race);
  if(existing.length>1)throw Error('duplicate_fixed_history');
+ // The exact first-issued receipt was authenticated by our owner server
+ // before the JRA request. A concurrent local edit or replacement must
+ // NEVER inherit that verification or be compared as if it were signed.
+ if(!verifiedReceipt||existing.length!==1||
+    JSON.stringify(existing[0])!==JSON.stringify(verifiedReceipt))
+  throw Error('verified_receipt_changed');
  const saved=existing[0]?.snapshot;
  if(!saved)return date+' '+track+' '+race+
   'R｜JRA表示の3連単払戻候補 '+info.trifectaCandidates.length+
@@ -7748,7 +7754,7 @@ function unverifiedJraResultComparison(info,date,track,race,day){
   '／JRA表示の払戻候補と一致 '+matching.length+'点'+
   (matching.length?'／一致する払戻候補の合計 '+
    possibleYen.toLocaleString('ja-JP')+'円':'（外れとは未確定）')+
-  '。固定記録の署名は再検証前。結果の確定・返還・原本認証が未確認なので'+
+  '。固定買い目の署名は本人用サーバーで検証済み。結果の確定・返還・原本認証が未確認なので'+
   '正式的中・損益・回収率は未計算。結果保存・実購入・既存記録の変更なし。';
 }
 // Read ONLY the immutable first-issued local receipts to fill the result
@@ -7809,10 +7815,10 @@ $('autoResultCandidateCheck').onclick=async()=>{
    'JRA公式結果ページのURLを入力してください。';return;
  }
  // Never re-fetch a JRDB date to reconstruct an old race or a forecast.
- // Verify the exact first-issued local HMAC shape and off-time BEFORE
- // any optional public JRA request (signatures themselves need a separate
- // server verification and are NOT authenticated by this code).
- let fixed;
+ // Verify the exact first-issued local record and off-time BEFORE
+ // any optional public JRA request. Server-side HMAC verification follows,
+ // using this exact frozen receipt with no provider data re-fetch.
+ let fixed,fixedReceipt;
  try{
   const raw=localStorage.getItem(RECEIPTS_KEY);
   if(raw&&raw.length>650000)throw Error('oversized_ledger');
@@ -7820,7 +7826,8 @@ $('autoResultCandidateCheck').onclick=async()=>{
   const found=selectedReceiptsForVerification(day).filter(r=>
    r.snapshot.track+'|'+r.snapshot.race===key);
   if(found.length!==1)throw Error('saved_race_not_found');
-  fixed=found[0].snapshot;
+  fixedReceipt=found[0];
+  fixed=fixedReceipt.snapshot;
  }catch(_){
   status.textContent='このレースの固定済み記録を検証できません。'+
    '結果ページは読まず、保存内容は変更しません。';return;
@@ -7832,9 +7839,46 @@ $('autoResultCandidateCheck').onclick=async()=>{
  }
  const venue=fixed.track,race=fixed.race;
  button.disabled=true;
- status.textContent=date+' '+venue+' '+race+'R｜JRA公開結果候補を1回照合中'+
-  '（既存の固定記録のみ使用）…';
+ status.textContent=date+' '+venue+' '+race+'R｜固定買い目の署名を本人サーバーで照合中…';
  try{
+  const payload=JSON.stringify({date,receipts:[fixedReceipt]});
+  if(payload.length>60000)throw Error('receipt_proof_too_large');
+  const proof=await fetch('/api/owner-100yen-verify-receipts',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body:payload
+  });
+  if(date!==$('autoDay').value||key!==$('autoResultSavedRace').value||
+     $('autoResultSavedRace').disabled)return;
+  if(!proof.ok)throw Error('server_receipt_signature_invalid');
+  const verified=await proof.json();
+  if(date!==$('autoDay').value||key!==$('autoResultSavedRace').value||
+     $('autoResultSavedRace').disabled)return;
+  const review=verified?.review,rows=review?.races;
+  if(verified?.available!==true||verified.serverSigned!==true||
+     verified.captureAuditVerified!==false||
+     verified.officialScheduleVerified!==false||
+     verified.officialFeedConnected!==false||
+     review?.version!=='keiba-100yen-review-1'||
+     review.actualPurchase!==false||review.unitYen!==100||
+     review.reviewedRaces!==0||review.pendingRaces!==1||
+     review.totalInvestedYen!==0||review.totalReturnedYen!==0||
+     review.roiPercent!==null||
+     !Array.isArray(rows)||rows.length!==1||
+     rows[0].date!==date||rows[0].track!==venue||
+     rows[0].race!==race||rows[0].status!=='pending'||
+     rows[0].trifectaPoints!==fixed.trifectaTickets.length||
+     rows[0].trioPoints!==0||
+     rows[0].investedYen!==null||rows[0].returnedYen!==null)
+    throw Error('receipt_proof_contract');
+  // A different local receipt, even if syntactically plausible, cannot
+  // use the successful verification of the originally submitted bytes.
+  const fresh=selectedReceiptsForVerification(day).filter(r=>
+   r.snapshot.track+'|'+r.snapshot.race===key);
+  if(fresh.length!==1||JSON.stringify(fresh[0])!==
+     JSON.stringify(fixedReceipt))
+    throw Error('receipt_changed_during_verification');
+  status.textContent=date+' '+venue+' '+race+'R｜署名照合済。JRA結果候補を1回取得中…';
   const response=await fetch('/api/jra/result-candidate?date='+
    encodeURIComponent(date)+'&track='+encodeURIComponent(venue)+
    '&race='+encodeURIComponent(String(race))+'&url='+encodeURIComponent(url),{
@@ -7848,10 +7892,10 @@ $('autoResultCandidateCheck').onclick=async()=>{
   if(date!==$('autoDay').value||key!==$('autoResultSavedRace').value||
      $('autoResultSavedRace').disabled)return;
   status.textContent=unverifiedJraResultComparison(
-   candidate,date,venue,race,day);
+   candidate,date,venue,race,day,fixedReceipt);
  }catch(_){
   if(date===$('autoDay').value&&key===$('autoResultSavedRace').value)
-   status.textContent='JRA結果候補と固定記録を安全に照合できません。'+
+   status.textContent='固定記録の署名またはJRA結果候補を安全に照合できません。'+
     '公式サイトで直接確認してください。保存済みの買い目・仮想収支は変更していません。';
  }finally{button.disabled=false;}
 };
