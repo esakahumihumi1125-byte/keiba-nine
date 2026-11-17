@@ -77,7 +77,7 @@ class AutomaticFactorTests(unittest.TestCase):
         for row, code in zip(data[1], ('1', '2', '3', None)):
             row['mudder_cd'] = code
         context = {
-            'version': 'race-context-1', 'raceCount': 1,
+            'version': 'race-context-1', 'date': DAY, 'raceCount': 1,
             'conditionProviderFetchStatus': 'received',
             'races': [{'track': '東京', 'race': 1, 'surface': '芝',
                        'going': '重', 'goingAvailable': True,
@@ -107,6 +107,25 @@ class AutomaticFactorTests(unittest.TestCase):
         skipped = automatic_factor_scores(*data, DAY, now=NOW, race_context=mismatch)
         self.assertTrue(all(h['factors']['ground']['points'] is None
                             for h in skipped['races'][0]['horses']))
+        # The same venue/R can exist on a different date; no borrowed
+        # heavy-going assessment, even if all other labels still match.
+        for wrong in ('20261114', None):
+            stale = copy.deepcopy(context)
+            if wrong is None:
+                stale.pop('date')
+            else:
+                stale['date'] = wrong
+            unchanged = copy.deepcopy(stale)
+            guarded = automatic_factor_scores(*data, DAY, now=NOW,
+                                               race_context=stale)
+            self.assertEqual(stale, unchanged)
+            self.assertTrue(all(h['factors']['ground']['points'] is None
+                                for h in guarded['races'][0]['horses']))
+            self.assertTrue(all(h['factors']['ground']['reason'] ==
+                                'ground_going_unknown'
+                                for h in guarded['races'][0]['horses']))
+            self.assertTrue(all(h['factors']['pace']['points'] is not None
+                                for h in guarded['races'][0]['horses']))
 
     def test_odds_and_popularity_have_no_effect(self):
         data = fixture()
@@ -203,6 +222,7 @@ class AutomaticFactorTests(unittest.TestCase):
             response = call(app, '/api/jrdb/owner-auto-draft', QUERY_STRING='date=' + DAY)
             self.assertEqual(response['status'], '200 OK')
             result = json.loads(response['body'])
+            self.assertEqual(result['raceContext']['date'], DAY)
             self.assertEqual(len(result['automaticFactorScores']['races'][0]['horses']), 4)
             self.assertEqual(result['comparableFactorResearch']['unsignedReferenceCount'], 0)
             self.assertEqual(result['comparableFactorResearch']['newProviderRequests'], 0)
