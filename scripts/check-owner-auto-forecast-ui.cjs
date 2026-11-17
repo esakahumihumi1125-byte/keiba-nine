@@ -1793,7 +1793,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
       reviewedRaces:0,pendingRaces:signed.length,totalInvestedYen:0,
       totalReturnedYen:0,roiPercent:null,
       races:signed.map(x=>({status:'pending',track:x.snapshot.track,
-       race:x.snapshot.race,date:x.snapshot.date}))}
+       race:x.snapshot.race,date:x.snapshot.date,
+       trifectaPoints:x.snapshot.trifectaTickets.length,
+       trioPoints:x.snapshot.trioTickets.length,
+       investedYen:null,returnedYen:null}))}
    }:{error:'server_authorization_failure'}};
   }
   if(url==='/api/owner-staff-study-verify'){
@@ -5742,12 +5745,28 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/発走後のみ/);
  resultsView.advanceClock('2099-01-01T03:30:00Z'); // 12:30 JST
  await resultsView.get('autoResultCandidateCheck').onclick();
- assert.equal(resultsView.requests.length,resultCount+1);
+ assert.equal(resultsView.requests.length,resultCount+2);
+ assert.equal(resultsView.requests.at(-2).url,
+  '/api/owner-100yen-verify-receipts');
+ assert.equal(resultsView.requests.at(-2).options.method,'POST');
+ assert.equal(JSON.parse(resultsView.requests.at(-2).options.body).receipts.length,1);
  assert.match(resultsView.requests.at(-1).url,/^\/api\/jra\/result-candidate\?/);
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/最初の固定3連単 40点/);
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/一致 1点/);
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/26,050円/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/署名は本人用サーバーで検証済み/);
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/正式的中・損益・回収率は未計算/);
+ // No JRA source read on bad HMAC: the one-tap path fails closed
+ // even when the local snapshot is syntactically valid.
+ const beforeRejectedProof=resultsView.requests.length;
+ resultsView.setReceiptVerificationOk(false);
+ await resultsView.get('autoResultCandidateCheck').onclick();
+ assert.equal(resultsView.requests.length,beforeRejectedProof+1);
+ assert.equal(resultsView.requests.at(-1).url,
+  '/api/owner-100yen-verify-receipts');
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,
+  /安全に照合できません/);
+ resultsView.setReceiptVerificationOk(true);
  assert.equal(resultsView.storage.get(STORAGE),resultStorage);
  assert.equal(resultsView.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // A source that tries to claim JRA verified=true is rejected, even
@@ -5761,7 +5780,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await resultsView.get('autoResultCandidateCheck').onclick();
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/固定済み記録を検証できません/);
  const afterBad=resultsView.requests.length;
- assert.equal(afterBad,resultCount+2);
+ assert.equal(afterBad,resultCount+5);
  resultsView.get('autoDay').value='2099-01-02';
  resultsView.get('autoDay').onchange();
  assert.equal(resultsView.get('autoResultCandidateUrl').value,'');
@@ -5790,9 +5809,11 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  historicalResult.get('autoResultCandidateUrl').value=
   'https://www.jra.go.jp/JRADB/accessS.html?CNAME=pw01sde0105209901010120990101%2FAB';
  await historicalResult.get('autoResultCandidateCheck').onclick();
- assert.equal(historicalResult.requests.length,1,
-  'one opt-in public JRA request, never a paid JRDB redownload');
- assert.match(historicalResult.requests[0].url,
+ assert.equal(historicalResult.requests.length,2,
+  'one signature verification + one public JRA read, no paid JRDB request');
+ assert.equal(historicalResult.requests[0].url,
+  '/api/owner-100yen-verify-receipts');
+ assert.match(historicalResult.requests[1].url,
   /^\/api\/jra\/result-candidate\?/);
  assert.match(historicalResult.get('autoResultCandidateStatus').textContent,
   /最初の固定3連単 40点/);
@@ -5805,7 +5826,27 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await historicalResult.get('autoResultCandidateCheck').onclick();
  assert.match(historicalResult.get('autoResultCandidateStatus').textContent,
   /固定済み記録を検証できません/);
- assert.equal(historicalResult.requests.length,1);
+ assert.equal(historicalResult.requests.length,2);
+ // A structurally valid but forged HMAC may appear in the local picker.
+ // It MUST be rejected by the owner server before visiting JRA.
+ const forgedOnly=JSON.parse(resultStorage);
+ forgedOnly[0].signature='0'.repeat(64);
+ const forgedView=boot({manualWeekday:false,
+  initialClock:'2099-01-02T00:30:00Z',
+  seedStorage:[[STORAGE,JSON.stringify(forgedOnly)]]});
+ await new Promise(r=>setImmediate(r));
+ forgedView.get('autoDay').value='2099-01-01';
+ forgedView.get('autoDay').onchange();
+ assert.equal(forgedView.get('autoResultSavedRace').disabled,false);
+ forgedView.get('autoResultCandidateUrl').value=
+  'https://www.jra.go.jp/JRADB/accessS.html?CNAME=pw01sde0105209901010120990101%2FAB';
+ await forgedView.get('autoResultCandidateCheck').onclick();
+ assert.equal(forgedView.requests.length,1);
+ assert.equal(forgedView.requests[0].url,
+  '/api/owner-100yen-verify-receipts');
+ assert.match(forgedView.get('autoResultCandidateStatus').textContent,
+  /安全に照合できません/);
+ assert.equal(forgedView.storage.get(STORAGE),JSON.stringify(forgedOnly));
  const badSaved=JSON.parse(resultStorage);
  badSaved[0].signature='0'.repeat(64);
  badSaved[0].snapshot.trifectaTickets=[[1,1,1]];
