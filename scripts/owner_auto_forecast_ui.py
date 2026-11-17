@@ -209,6 +209,13 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="autoOfficialCardCheck" type="button">選択中の1Rの馬番・時刻・コース候補を比較</button>
 <p id="autoOfficialCardStatus" class="muted" role="status">未確認。JRDBの有料再取得や買い目更新は行いません。</p>
 </details>
+<details id="autoResultCandidatePanel"><summary>発走後のJRA結果候補と固定3連単を比較（研究用・任意）</summary>
+<p class="muted">選択中の1Rについて、JRA公式結果ページのURLを貼って1回だけ読み取ります。すでに端末に発走前固定された3連単があれば、表示上の払戻候補と照合します。原本の真正性・結果確定・返還は未検証のため、的中確定・正式回収率・実購入には反映しません。JRDB追加照会と保存変更は0回です。</p>
+<label for="autoResultCandidateUrl">選択RのJRA公式レース結果ページURL</label>
+<input id="autoResultCandidateUrl" type="url" maxlength="500" autocomplete="off" placeholder="https://www.jra.go.jp/JRADB/accessS.html?CNAME=...">
+<button id="autoResultCandidateCheck" type="button" class="secondary-cta">この1Rの3連単払戻候補を照合</button>
+<p id="autoResultCandidateStatus" class="muted" role="status">結果候補の比較は未実行です。発走前固定記録・回収率は変更しません。</p>
+</details>
 </details>
 <details><summary>開催日朝の使い方（3ステップ）</summary>
 <p class="muted">① 当日の朝、本人用アプリを開く。自動取得が終わったら「開催日の利用状況」で番組R数・下書き数・見送り数を確認する。0Rやエラーの場合は無理に買い目を作らない。</p>
@@ -3475,6 +3482,7 @@ function render(input,day){
   // Invalidate previous JRA single-R candidate when race selection changes.
   resetResolvedJraCard();
   $('autoOfficialCardUrl').value='';
+  resetUnverifiedResultCandidate();
   $('autoOfficialCardStatus').textContent='選択中のレースではJRA Web出馬表の候補比較は未確認。買い目は無変更です。';
   // A tab or race-selection tap may happen long after the first render.
   // Re-evaluate the local clock before exposing any on-screen formation.
@@ -7075,6 +7083,7 @@ $('autoDay').onchange=()=>{
  highlightSelectedWeekend();
  resetResolvedJraCard();
  $('autoOfficialCardUrl').value='';
+ resetUnverifiedResultCandidate();
  $('autoOfficialCardStatus').textContent='開催日を変更しました。JRA公式Web出馬表の候補は未確認です。';
  resetAdvanceProgramme();
  workoutProviderSeq++;
@@ -7665,6 +7674,122 @@ $('autoOfficialCardCheck').onclick=async()=>{
   if(date===$('autoDay').value&&key===$('autoRacePick').value)
    status.textContent=date+' '+track+' '+race+
     'R｜JRA公式ページの候補を照合できませんでした。JRA公式で直接確認してください。買い目は変更なし。';
+ }finally{button.disabled=false;}
+};
+// A JRA public-result page is a CANDIDATE, not an attested finalized
+// official settlement. A syntactically valid saved HMAC is also not proof
+// of server verification. This preview never computes an official ROI,
+// marks a losing ticket, issues a receipt or writes to localStorage.
+function unverifiedJraResultComparison(info,date,track,race,day){
+ if(!info||info.version!=='owner-jra-public-result-probe-1'||
+    info.date!==date||info.track!==track||info.race!==race||
+    info.sourceHostAllowlisted!==true||
+    info.visibleRaceIdentityMatched!==true||
+    info.payoutLayoutParsed!==true||info.podiumChecked!==true||
+    info.payoutMatchesDisplayedPodium!==true||
+    info.officialJraVerified!==false||
+    info.sourceAuthenticityAttested!==false||
+    info.finalityVerified!==false||info.refundsVerified!==false||
+    info.settlementReady!==false||info.officialRoiPercent!==null||
+    info.actualPurchase!==false||info.researchOnly!==true||
+    info.sourceReadCount!==0||info.changesExistingReceipts!==false||
+    info.changesExistingRoi!==false||
+    !Array.isArray(info.trifectaCandidates)||
+    !Array.isArray(info.trioCandidates)||
+    !info.trifectaCandidates.length||
+    info.trifectaCandidates.length>18||info.trioCandidates.length>18)
+  throw Error('untrusted_jra_result_candidate');
+ const checked=new Set();
+ for(const [mode,rows] of [['trifecta',info.trifectaCandidates],
+                          ['trio',info.trioCandidates]]){
+  const ids=new Set();
+  for(const item of rows){
+   if(!item||!Array.isArray(item.ticket)||item.ticket.length!==3||
+      item.ticket.some(n=>!Number.isInteger(n)||n<1||n>18)||
+      new Set(item.ticket).size!==3||
+      !Number.isInteger(item.payoutYen)||item.payoutYen<100||
+      item.payoutYen>1000000000)
+    throw Error('invalid_result_payout_candidate');
+   const key=(mode==='trio'?
+    item.ticket.slice().sort((a,b)=>a-b):item.ticket).join('-');
+   if(ids.has(key))throw Error('duplicate_result_candidate');
+   ids.add(key);
+  }
+  checked.add(mode);
+ }
+ const raw=localStorage.getItem(RECEIPTS_KEY);
+ if(raw){
+  if(raw.length>650000)throw Error('oversized_fixed_history');
+  validateStoredResearchLedger(JSON.parse(raw));
+ }
+ const selected=selectedReceiptsForVerification(day);
+ const existing=selected.filter(x=>x.snapshot.track===track&&x.snapshot.race===race);
+ if(existing.length>1)throw Error('duplicate_fixed_history');
+ const saved=existing[0]?.snapshot;
+ if(!saved)return date+' '+track+' '+race+
+  'R｜JRA表示の3連単払戻候補 '+info.trifectaCandidates.length+
+  '通りを読取。発走前に固定した研究用3連単はこの端末にありません。'+
+  'JRAの確定・返還・出典認証は未検証。仮想収支は未計算、購入記録は無変更。';
+ if(!Number.isFinite(Date.parse(saved.scheduledOffAt))||
+    Date.now()<Date.parse(saved.scheduledOffAt))
+  throw Error('race_has_not_started');
+ const pay=new Map(info.trifectaCandidates.map(p=>[
+  p.ticket.join('-'),p.payoutYen]));
+ const matching=saved.trifectaTickets.filter(t=>pay.has(t.join('-')));
+ const possibleYen=matching.reduce((sum,t)=>sum+pay.get(t.join('-')),0);
+ if(!Number.isSafeInteger(possibleYen))throw Error('result_amount_invalid');
+ return date+' '+track+' '+race+'R｜最初の固定3連単 '+
+  saved.trifectaTickets.length+'点（1点100円、仮の投資額 '+
+  (saved.trifectaTickets.length*100).toLocaleString('ja-JP')+'円）'+
+  '／JRA表示の払戻候補と一致 '+matching.length+'点'+
+  (matching.length?'／一致する払戻候補の合計 '+
+   possibleYen.toLocaleString('ja-JP')+'円':'（外れとは未確定）')+
+  '。固定記録の署名は再検証前。結果の確定・返還・原本認証が未確認なので'+
+  '正式的中・損益・回収率は未計算。結果保存・実購入・既存記録の変更なし。';
+}
+function resetUnverifiedResultCandidate(){
+ $('autoResultCandidateUrl').value='';
+ $('autoResultCandidateStatus').textContent='選択Rの結果候補は未確認。既存記録・収支は無変更です。';
+}
+$('autoResultCandidateCheck').onclick=async()=>{
+ const button=$('autoResultCandidateCheck');
+ if(button.disabled)return;
+ const status=$('autoResultCandidateStatus');
+ const date=$('autoDay').value,key=$('autoRacePick').value;
+ const day=date.replaceAll('-',''),url=$('autoResultCandidateUrl').value.trim();
+ const current=latestDisplayedReport&&latestDisplayedDay===day&&
+  latestDisplayedReport.races.find(r=>r.track+'|'+r.race===key);
+ if(!current||!/^20\\d{2}-\\d{2}-\\d{2}$/.test(date)||
+    url.length<50||url.length>500){
+  status.textContent='まず予想資料から対象の1Rを選び、JRA公式結果URLを入力してください。';return;
+ }
+ if(!draftExpiredOnDevice(day,current.postTime)){
+  status.textContent='暫定発走時刻より前です。結果照合は発走後のみ可能です。';return;
+ }
+ // The results endpoint itself permits only PAST dates, not results
+ // guessed on the same day. A device clock does not verify official off.
+ const venue=current.track,race=current.race;
+ button.disabled=true;
+ status.textContent=date+' '+venue+' '+race+'R｜公開JRA結果候補を1回照合中（保存・購入なし）…';
+ try{
+  const response=await fetch('/api/jra/result-candidate?date='+
+   encodeURIComponent(date)+'&track='+encodeURIComponent(venue)+
+   '&race='+encodeURIComponent(String(race))+'&url='+encodeURIComponent(url),{
+    credentials:'same-origin',cache:'no-store',
+    headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  if(date!==$('autoDay').value||key!==$('autoRacePick').value||
+     latestDisplayedDay!==day)return;
+  if(!response.ok)throw Error('result_candidate_unavailable');
+  const candidate=await response.json();
+  if(date!==$('autoDay').value||key!==$('autoRacePick').value||
+     latestDisplayedDay!==day)return;
+  status.textContent=unverifiedJraResultComparison(
+   candidate,date,venue,race,day);
+ }catch(_){
+  if(date===$('autoDay').value&&key===$('autoRacePick').value)
+   status.textContent='JRA結果候補と固定記録を安全に照合できません。'+
+    '公式サイトで直接確認してください。保存済みの買い目・仮想収支は変更していません。';
  }finally{button.disabled=false;}
 };
 // Owner-requested, configuration-only check. No paid provider reads.
