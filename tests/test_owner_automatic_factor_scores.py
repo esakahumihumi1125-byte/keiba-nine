@@ -259,4 +259,50 @@ class AutomaticFactorTests(unittest.TestCase):
             for mock in mocks: mock.assert_called_once()
 
 
+    def test_live_owner_uses_original_lock_for_postdated_going_feed(self):
+        from contextlib import ExitStack
+        p, e, z = fixture()
+        e[0]['mudder_cd'] = '1'
+        raw = [{'racekey': '05265501', 'racedate': DAY, 'post_time': '1000',
+                'headcount': 4, 'track_type': '1',
+                'distance': '1600', 'turn_cd': '2'}]
+        config = {**SETTINGS, 'KEIBA_RENDER_PRIVATE_ONLY': '1',
+                  'JRDB_PRIVATE_ENABLED': '1',
+                  'JRDB_API_KEY': 'synthetic', 'JRDB_AUTH_KEY': 'synthetic',
+                  'JRDB_API_BASE_URL': 'https://api.bigtime.world/v1'}
+        app = create_app(config)
+        with ExitStack() as stack:
+            mocks = [stack.enter_context(
+                patch('private_service.' + name, return_value=value))
+                for name, value in [
+                    ('fetch_race_program', raw), ('fetch_horse_entries', e),
+                    ('fetch_training_analysis', []), ('fetch_recent_runs', z),
+                    ('fetch_venue_conditions', [{
+                        'holdingkey': '052655', 'racedate': DAY,
+                        'turf_condition_cd': '3', 'dirt_condition_cd': '1',
+                        # Source may say it was revised AFTER forecast HMAC.
+                        'updated_at': '2026-11-21T09:01:00+09:00',
+                    }]),
+                ]]
+            stack.enter_context(patch('private_service._now_in_jst',
+                                     return_value=NOW.isoformat()))
+            resp = call(app, '/api/jrdb/owner-auto-draft',
+                        QUERY_STRING='date=' + DAY)
+            self.assertEqual(resp['status'], '200 OK')
+            data = json.loads(resp['body'])
+            self.assertEqual(
+                data['raceContext']['races'][0]['conditionUpdateCutoffStatus'],
+                'after_cutoff')
+            horses = data['automaticFactorScores']['races'][0]['horses']
+            self.assertEqual(len(horses), 4)
+            self.assertIsNone(horses[0]['factors']['ground']['points'])
+            self.assertEqual(horses[0]['factors']['ground']['reason'],
+                             'ground_source_after_cutoff')
+            self.assertIsNotNone(horses[0]['factors']['pace']['points'])
+            self.assertFalse(data['automaticFactorScores']['officialJraVerified'])
+            self.assertFalse(data['automaticFactorScores']['overallPredictionReady'])
+            for mock in mocks:
+                mock.assert_called_once()
+
+
 if __name__ == '__main__': unittest.main()
