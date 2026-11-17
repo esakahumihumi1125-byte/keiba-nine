@@ -96,6 +96,47 @@ class RecentHypothesisTests(unittest.TestCase):
         self.assertEqual(absent["assessmentStatus"], "no_usable_history")
         self.assertEqual(absent["datedRuns"], 0)
 
+    def test_one_tze_run_with_two_tky_result_references_remains_unassessed(self):
+        p, e, z = fixture()
+        for name in ("racedate", "order_of_finish", "idm"):
+            z[1].pop("race_back_2_" + name, None)
+        entry = e[1]
+        entry.update({
+            "lastrace_resultkey1": "1234567820261025",
+            "lastrace_resultkey2": "1234567820261011",
+            "lastrace_resultkey3": None,
+            "lastrace_resultkey4": None,
+            "lastrace_resultkey5": None,
+        })
+        source = copy.deepcopy((p, e, z))
+        result = self.audit((p, e, z))[0]["byNumber"]["02"]
+        self.assertEqual(result["datedRuns"], 1)
+        self.assertEqual(result["completedRuns"], 1)
+        self.assertEqual(result["grade"], "未評価")
+        self.assertEqual(result["assessmentStatus"], "insufficient_scored_runs")
+        self.assertEqual(source, (p, e, z))
+        self.assertNotIn("1234567820261025", repr(result))
+
+    def test_single_tky_prior_reference_allows_low_sample_research(self):
+        p, e, z = fixture()
+        for name in ("racedate", "order_of_finish", "idm"):
+            z[1].pop("race_back_2_" + name, None)
+        e[1].update({
+            "lastrace_resultkey1": "1234567820261025",
+            "lastrace_resultkey2": None,
+            "lastrace_resultkey3": None,
+            "lastrace_resultkey4": None,
+            "lastrace_resultkey5": None,
+        })
+        result = self.audit((p, e, z))[0]["byNumber"]["02"]
+        self.assertEqual(result["grade"], "A")
+        self.assertEqual(result["assessmentStatus"], "assessed_single_run")
+        # Published 8-digit unused-slot placeholder is not a prior run.
+        e[1]["lastrace_resultkey2"] = "05254311"
+        e[1]["lastrace_racekey2"] = "05254311"
+        result = self.audit((p, e, z))[0]["byNumber"]["02"]
+        self.assertEqual(result["grade"], "A")
+
     def test_two_dates_with_one_unscored_run_do_not_get_one_run_exception(self):
         p, e, z = fixture()
         z[0].pop("race_back_1_idm")
