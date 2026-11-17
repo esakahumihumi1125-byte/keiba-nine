@@ -210,7 +210,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoOfficialCardStatus" class="muted" role="status">未確認。JRDBの有料再取得や買い目更新は行いません。</p>
 </details>
 <details id="autoResultCandidatePanel"><summary>発走後のJRA結果候補と固定3連単を比較（研究用・任意）</summary>
-<p class="muted">過去の開催日でもiPhoneに残っている「発走前固定済み」のレースを直接選べます。JRDBの再取得は不要です。JRA公式結果ページURLを貼ると、まず本人用サーバーで固定買い目の署名を確認し、成功した場合だけJRA表示の払戻候補を比較します。結果確定・返還・原本認証は未検証のため、正式的中・回収率・実購入には反映しません。追加JRDB照会・保存変更は0回です。</p>
+<p class="muted">過去の開催日でもiPhoneに残っている「発走前固定済み」のレースを直接選べます。JRDBの再取得は不要です。JRA公式結果ページURLを貼ると、まず本人用サーバーで固定買い目の署名を確認し、成功した場合だけJRA表示の払戻候補を比較します。一致した払戻候補がある場合は1点100円の参考差額・参考回収率も試算しますが、結果確定・返還・原本認証は未検証のため正式的中・正式回収率・実購入には反映しません。一致候補がなくても外れとは断定しません。追加JRDB照会・保存変更は0回です。</p>
 <label for="autoResultSavedRace">この端末に固定済みのレース（過去の日付も可）</label>
 <select id="autoResultSavedRace" disabled></select>
 <p id="autoResultSavedRaceStatus" class="muted" role="status">保存済みの発走前固定記録を確認中。未保存のレースは選択できません。</p>
