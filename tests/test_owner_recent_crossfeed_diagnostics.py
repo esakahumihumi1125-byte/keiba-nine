@@ -80,6 +80,31 @@ class CrossfeedTests(unittest.TestCase):
                          "held_recent:6,possible_gap:2,no_prior_reference:1,"
                          "one_run:1,multiple_unscored:1,unknown:1")
 
+    def test_tky_fewer_references_than_tze_runs_is_unknown(self):
+        p, entries, draft = source_fixture()
+        unchanged_draft = copy.deepcopy(draft)
+        # Runner 4 has two independently dated /tze observations, but
+        # only one visible /tky completed-result reference. Do not assert
+        # that either source represents the horse's complete history.
+        entries[3]["lastrace_resultkey2"] = None
+        out = recent_crossfeed_diagnostics(p, entries, draft, DAY)
+        self.assertEqual(out["reasonCounts"], {
+            "more_prior_references_than_tze_runs": 2,
+            "no_prior_reference_visible": 1,
+            "only_one_dated_run_visible": 1,
+            "multiple_unscored_runs_visible": 0,
+            "reference_or_tze_coverage_unknown": 2,
+        })
+        self.assertEqual(out["unassessedRecentCount"], 6)
+        self.assertEqual(out["newProviderRequests"], 0)
+        self.assertEqual(draft, unchanged_draft)
+        self.assertFalse(out["officialJraVerified"])
+        self.assertFalse(out["existingTicketsChanged"])
+        self.assertFalse(out["existingReceiptsChanged"])
+        self.assertEqual(compact_recent_crossfeed_log(out),
+                         "held_recent:6,possible_gap:2,no_prior_reference:1,"
+                         "one_run:1,multiple_unscored:0,unknown:2")
+
     def test_reference_keys_are_only_hints_not_debut_or_grades(self):
         p, entries, draft = source_fixture()
         entries[0]["lastrace_resultkey1"] = "0000000000000000"
