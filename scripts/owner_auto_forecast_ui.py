@@ -1448,6 +1448,7 @@ const AUTO_FACTOR_REASONS=Object.freeze({
  distance_only_adjacent:'隣接する距離帯の仮説。コース実績は未反映',
  distance_only_far:'距離帯に差がある仮説。コース実績は未反映',
  ground_going_unknown:'開催馬場が未取得・不一致。推測で点を入れません',
+ ground_source_after_cutoff:'馬場の更新時刻が予想固定後。未来の情報を参考採点に使いません',
  ground_good_not_scored:'良馬場は重馬場適性コードだけでは評価できません',
  ground_mudder_code_missing:'重馬場適性コードが不明。0点扱いしません',
  ground_soft_mudder_1:'JRDB重馬場適性「得意」。軟らかい馬場のみの参考仮説',
