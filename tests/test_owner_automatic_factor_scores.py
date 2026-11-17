@@ -91,6 +91,26 @@ class AutomaticFactorTests(unittest.TestCase):
         self.assertEqual(out['newProviderRequests'], 0)
         self.assertFalse(out['overallPredictionReady'])
         self.assertEqual((data, context), before)
+        after_lock = copy.deepcopy(context)
+        after_lock['races'][0]['conditionUpdateCutoffStatus'] = 'after_cutoff'
+        ungraded = automatic_factor_scores(*data, DAY, now=NOW,
+                                           race_context=after_lock)
+        for horse in ungraded['races'][0]['horses']:
+            self.assertEqual(horse['factors']['ground']['grade'], '未評価')
+            self.assertIsNone(horse['factors']['ground']['points'])
+            self.assertEqual(horse['factors']['ground']['reason'],
+                             'ground_source_after_cutoff')
+            self.assertIsNotNone(horse['factors']['pace']['points'])
+        self.assertEqual(ungraded['newProviderRequests'], 0)
+        # A pre-lock observation remains a provisional grade, not an
+        # official or calibrated ground ability assessment.
+        before_lock = copy.deepcopy(context)
+        before_lock['races'][0]['conditionUpdateCutoffStatus'] = 'before_or_at_cutoff'
+        restored = automatic_factor_scores(*data, DAY, now=NOW,
+                                           race_context=before_lock)
+        self.assertEqual([h['factors']['ground']['points']
+                          for h in restored['races'][0]['horses']],
+                         [10.8, 8.4, 4.2, None])
         good = copy.deepcopy(context)
         good['races'][0]['going'] = '良'
         good_rows = automatic_factor_scores(*data, DAY, now=NOW, race_context=good)
