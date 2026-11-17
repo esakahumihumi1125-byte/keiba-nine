@@ -137,8 +137,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoProvisionalFactorStatus" class="muted" role="status">下書きRの追加研究は未取得です。</p>
 <div id="autoProvisionalFactorRaces"></div>
 </details>
-<details id="autoUncertainRecentPanel"><summary>近走資料が少ないRの研究候補（署名・購入なし）</summary>
-<p class="muted">近走3点の不足をC・0点扱いせず、欠けている評価がどんなS/A/B/Cでも、調教30点による候補グループが変わらない場合に限り、参考のフォーメーションを表示します。単独の調教最上位馬が明確な場合のみ1頭軸の研究例も扱いますが、勝ち馬の保証ではありません。正式10項目採点でもJRA公式出走確認でもなく、実際の購入・固定記録・仮想収支に入れません。</p>
+<details id="autoUncertainRecentPanel"><summary>新馬戦候補・近走が少ないRの研究候補（署名・購入なし）</summary>
+<p class="muted">JRDB番組名が新馬戦で、全馬の観測された近走が0走のときだけ「新馬戦候補」と区別します。番組名や過去走の空欄だけでは全馬の初出走を証明しません。近走3点の不足をC・0点扱いせず、欠けている評価がどんなS/A/B/Cでも、調教30点による候補グループが変わらない場合に限り、参考のフォーメーションを表示します。単独の調教最上位馬が明確な場合のみ1頭軸の研究例も扱いますが、勝ち馬の保証ではありません。正式10項目採点でもJRA公式出走確認でもなく、実際の購入・固定記録・仮想収支に入れません。</p>
 <p id="autoUncertainRecentStatus" class="muted" role="status">レース取得前。追加資料を勝手に補完しません。</p>
 <div id="autoUncertainRecentRaces"></div>
 </details>
@@ -2428,7 +2428,9 @@ function renderUncertainRecent(data,day){
       row.eachCutoffProvenForAllRecentGrades!==true||
       row.officialJraVerified!==false||row.formalScoreReady!==false||
       row.predictionReady!==false||row.bettingReady!==false||
-      row.receiptIssued!==false||row.actualPurchase!==false)
+      row.receiptIssued!==false||row.actualPurchase!==false||
+      (row.newcomerRaceCandidate!==undefined&&
+       typeof row.newcomerRaceCandidate!=='boolean'))
     throw Error('unknown_recent_race');
    const key=row.track+'|'+row.race;
    const base=original.get(key);
@@ -2437,7 +2439,13 @@ function renderUncertainRecent(data,day){
       base.runners.length!==row.assessedTrainingCount||
       base.runners.some(h=>!['S','A','B','C'].includes(h.training))||
       base.runners.filter(h=>h.recent==='未評価').length!==row.missingRecentCount||
-      (base.runners.length>5&&row.points<12))
+      (base.runners.length>5&&row.points<12)||
+      (row.newcomerRaceCandidate===true&&(
+       base.newcomerRaceCandidate!==true||
+       row.missingRecentCount!==row.assessedTrainingCount||
+       base.runners.some(h=>h.recent!=='未評価'||
+        h.recentObserved?.datedRuns!==0||
+        h.recentObserved?.completedRuns!==0))))
     throw Error('unknown_recent_roster');
    seen.add(key);
    const setRoster=new Set(base.runners.map(h=>h.number));
@@ -2517,10 +2525,15 @@ function renderUncertainRecent(data,day){
    if(draftExpiredOnDevice(day,base.postTime))continue;
    const card=dom('details');
    card.append(dom('summary',row.track+' '+row.race+
-    'R｜不足近走でも候補範囲が不変・参考'+row.points+'通り'));
+    (row.newcomerRaceCandidate===true?
+     'R｜新馬戦候補（番組名）・調教中心の参考':
+     'R｜不足近走でも候補範囲が不変・参考')+
+    row.points+'通り'));
    card.append(dom('p','1着候補 '+row.first.join('・')+
     '／2着候補 '+row.second.join('・')+
     '／3着候補 '+row.third.join('・'),'picks'));
+   if(row.newcomerRaceCandidate===true)card.append(dom('p',
+    'JRDB番組名は新馬戦候補、観測できた近走は全馬0走。初出走の独立確認ではなく、近走は採点しません。調教の仮評価で候補の区切りが安定した研究用参考のみです。','muted'));
    card.append(dom('p','近走未評価 '+row.missingRecentCount+
     '頭。JRDB暫定発走 '+base.postTime+
     '。これは署名なし研究例で、正式100点予想・購入可能な馬券ではありません。'+
