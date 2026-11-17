@@ -1577,7 +1577,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     url:'https://www.jra.go.jp/keiba/rpdf/2026/sample-tokyo.pdf'}],
   officialPdfOk=true,officialCardOffTime='12:00',officialCardGoing='重',
   officialCardCancellationCue=null,officialCardNumbers=null,
-  jraResultOk=true,jraResultCorrupt=false,
+  jraResultOk=true,jraResultCorrupt=false,jraResultNoHit=false,
   officialLinkPrefix='sw01dde01',
   officialLinkOk=true,officialLinkCorrupt=false,
   advanceCalendarCorrupt=false,advanceCalendarDiff=false,
@@ -1672,7 +1672,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     version:'owner-jra-public-result-probe-1',
     date:q.get('date'),track:q.get('track'),race:Number(q.get('race')),
     trifectaCandidates:[
-     {ticket:[1,2,3],payoutYen:26050},
+     {ticket:jraResultNoHit?[18,17,16]:[1,2,3],payoutYen:26050},
      {ticket:[8,7,6],payoutYen:44000}],
     trioCandidates:[{ticket:[1,2,3],payoutYen:1320}],
     payoutMatchesDisplayedPodium:true,
@@ -2106,6 +2106,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   setServerRaw:x=>next=x,
   setJraResultOk:x=>jraResultOk=x,
   setJraResultCorrupt:x=>jraResultCorrupt=x,
+  setJraResultNoHit:x=>jraResultNoHit=x,
   setAutoDraftOk:x=>autoDraftOk=x,
   setAutoDraftNonJson:x=>autoDraftNonJson=x,
   setAutoDraftNetworkFailure:x=>autoDraftNetworkFailure=x,
@@ -5754,8 +5755,22 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/最初の固定3連単 40点/);
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/一致 1点/);
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/26,050円/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/参考差額 \+22,050円/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/参考回収率 651\.3%/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/返還・結果変更は未反映/);
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/署名は本人用サーバーで検証済み/);
- assert.match(resultsView.get('autoResultCandidateStatus').textContent,/正式的中・損益・回収率は未計算/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/公式的中・損益・回収率の記録は未計算/);
+ // The candidate page may not match any ticket. Do NOT treat this as
+ // an official loss, do not show a provisional 0% ROI and don't store it.
+ const beforeNoMatch=resultsView.requests.length;
+ resultsView.setJraResultNoHit(true);
+ await resultsView.get('autoResultCandidateCheck').onclick();
+ assert.equal(resultsView.requests.length,beforeNoMatch+2);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/一致 0点/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/外れ・損失・回収率は未確定/);
+ assert.doesNotMatch(resultsView.get('autoResultCandidateStatus').textContent,/参考回収率/);
+ assert.equal(resultsView.storage.get(STORAGE),resultStorage);
+ resultsView.setJraResultNoHit(false);
  // No JRA source read on bad HMAC: the one-tap path fails closed
  // even when the local snapshot is syntactically valid.
  const beforeRejectedProof=resultsView.requests.length;
@@ -5780,7 +5795,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await resultsView.get('autoResultCandidateCheck').onclick();
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/固定済み記録を検証できません/);
  const afterBad=resultsView.requests.length;
- assert.equal(afterBad,resultCount+5);
+ assert.equal(afterBad,resultCount+7);
  resultsView.get('autoDay').value='2099-01-02';
  resultsView.get('autoDay').onchange();
  assert.equal(resultsView.get('autoResultCandidateUrl').value,'');
@@ -5819,6 +5834,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   /最初の固定3連単 40点/);
  assert.match(historicalResult.get('autoResultCandidateStatus').textContent,
   /26,050円/);
+ assert.match(historicalResult.get('autoResultCandidateStatus').textContent,
+  /参考差額 \+22,050円/);
+ assert.match(historicalResult.get('autoResultCandidateStatus').textContent,
+  /参考回収率 651\.3%/);
  assert.equal(historicalResult.storage.get(STORAGE),resultStorage);
  assert.equal(historicalResult.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // Wrong forged saved row and a corrupted cross-date ledger fail CLOSED.
