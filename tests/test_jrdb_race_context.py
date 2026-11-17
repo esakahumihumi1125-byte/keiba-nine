@@ -3,6 +3,7 @@ import copy
 import sys
 import unittest
 from pathlib import Path
+from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_program_preview import normalize_program_rows
@@ -122,6 +123,40 @@ class RaceContextTests(unittest.TestCase):
         self.assertTrue(report["races"][0]["conditionUpdateRecorded"])
         self.assertTrue(report["races"][0]["goingAvailable"])
         self.assertFalse(report["raceConditionsVerified"])
+
+    def test_future_dated_venue_update_is_not_prestart_evidence(self):
+        programme, holding = fake()
+        cutoff = datetime.fromisoformat("2026-11-01T09:00:00+09:00")
+        # A real source time later than the ORIGINAL lock may be observed
+        # after the fact, but may not backfill that prediction.
+        holding[0]["updated_at"] = "2026-11-01T00:01:00Z"
+        frozen = copy.deepcopy((programme, holding))
+        out = audit_race_context(programme, holding, "20261101",
+                                 assessment_cutoff=cutoff)
+        self.assertEqual((programme, holding), frozen)
+        self.assertEqual(out["races"][0]["conditionUpdateCutoffStatus"],
+                         "after_cutoff")
+        self.assertEqual(out["races"][1]["conditionUpdateCutoffStatus"],
+                         "after_cutoff")
+        self.assertEqual(out["races"][2]["conditionUpdateCutoffStatus"],
+                         "unknown")
+        self.assertFalse(out["raceConditionsVerified"])
+        self.assertNotIn("2026-11-01T00:01:00Z", repr(out))
+
+        holding[0]["updated_at"] = "2026-11-01T09:00:00+09:00"
+        equal = audit_race_context(programme, holding, "20261101",
+                                   assessment_cutoff=cutoff)
+        self.assertEqual(equal["races"][0]["conditionUpdateCutoffStatus"],
+                         "before_or_at_cutoff")
+        holding[0]["updated_at"] = "2026-11-01T09:00:00"
+        naive = audit_race_context(programme, holding, "20261101",
+                                   assessment_cutoff=cutoff)
+        self.assertEqual(naive["races"][0]["conditionUpdateCutoffStatus"],
+                         "unknown")
+        for invalid in (datetime(2026, 11, 1, 9, 0), "2026-11-01T09:00+09:00"):
+            with self.subTest(cutoff=str(invalid)), self.assertRaises(RaceContextError):
+                audit_race_context(programme, holding, "20261101",
+                                   assessment_cutoff=invalid)
 
     def test_valid_naive_and_date_only_updates_keep_going_but_not_time_proof(self):
         # JRDB shared field samples may contain a timezone-free updated_at.
