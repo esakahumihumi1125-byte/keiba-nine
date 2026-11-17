@@ -20,3 +20,5 @@ jobs:
       - name: Test the actual VS Code helper from the proposed fix branch
         shell: pwsh
         run: py -3.11 scripts/run_local_tests.py
+
+# Re-run Windows test against updated ASCII-only helper.
