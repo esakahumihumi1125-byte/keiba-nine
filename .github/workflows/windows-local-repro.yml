@@ -12,13 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: fix/vscode-windows-timezone-tests
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install Windows timezone database
+      - name: Test the actual VS Code helper from the proposed fix branch
         shell: pwsh
-        run: python -m pip install --disable-pip-version-check tzdata
-      - name: Run identical Python tests as local VS Code task
-        shell: pwsh
-        run: python -m unittest discover -s tests -p 'test_*.py'
+        run: py -3.11 scripts/run_local_tests.py
