@@ -12,7 +12,7 @@ import re
 from jrdb_coverage import CoverageError
 
 JST = timezone(timedelta(hours=9))
-OFF_TEXT = re.compile(r"(?:[01]\\d|2[0-3]):[0-5]\\d\\Z", re.ASCII)
+OFF_TEXT = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z", re.ASCII)
 # Every entry is an exact literal raised in this module, NOT an exception
 # string from the provider, browser or DB. The fixed enum can cross the
 # private response boundary and help diagnose the observed Nov 15 502s.
