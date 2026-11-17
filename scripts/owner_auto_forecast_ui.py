@@ -2168,6 +2168,45 @@ function renderTrainingSourceDelivery(data,day){
    '予想・署名・買い目は変えず、再取得前に資料状況を確認してください。';
  }
 }
+// Fixed, source-safe /tka diagnostics; this is a reason for MISSING
+// course going, never evidence of official JRA going or a 12pt grade.
+const GOING_FAILURE_LABELS={
+ provider_request_rejected:'APIが要求を受け付けず（400/422）',
+ provider_auth:'認証失敗（401）',
+ provider_entitlement:'契約・アクセス権限（403）',
+ provider_endpoint_missing:'API経路が見つからず（404）',
+ provider_timeout:'通信時間切れ（408）',
+ provider_rate_limit:'API呼び出し制限（429）',
+ provider_server_error:'提供元サーバーエラー（5xx）',
+ provider_transport_or_decode:'通信・応答の読取に失敗',
+ provider_response_too_large:'応答サイズ超過',
+ provider_response_contract:'応答形式・要求日付などが不一致',
+ provider_credentials_missing:'認証設定不足',
+ provider_credentials_invalid:'認証形式不正',
+ provider_base_unapproved:'接続先設定を確認',
+ provider_disabled:'接続機能が無効',
+ provider_other:'提供元エラーの詳細未分類',
+ condition_timestamp_format:'更新日時の形式不正',
+ going_code:'馬場コード不正',
+ holding_key:'開催キー不正',
+ venue_date_mismatch:'開催日・競馬場の不一致',
+ duplicate_venue:'同じ開催場の重複',
+ context_schema_other:'資料形式の不一致',
+ context_missing_field:'必要項目が不足',
+ context_type:'資料の値の型不正',
+ context_value:'資料値の不正',
+ context_other:'馬場資料の照合不可'
+};
+function goingFetchStatus(data){
+ const ctx=data.raceContext,code=ctx?.conditionProviderFailureCode;
+ if(!ctx||ctx.conditionProviderReadCount!==1)return '';
+ if(ctx.conditionProviderFetchStatus==='received')return '／馬場補助資料も受信（JRA公式照合は別）';
+ if(!code)return '／馬場補助資料は未取得（原因未記録）';
+ const reason=Object.hasOwn(GOING_FAILURE_LABELS,code)
+  ?GOING_FAILURE_LABELS[code]:'詳細未確認';
+ return '／馬場補助資料は保留：'+reason+
+  '。馬場12点は無理に採点せず、4つの基本データは維持。';
+}
 function sourceReadProof(data){
  // This reports *provider reads*, not actual verified runner records,
  // official JRA information, calibrated grades or purchase readiness.
@@ -2181,7 +2220,8 @@ function sourceReadProof(data){
   data.sourceReadCount+'回照会。番組 '+data.raceCount+
   'R／2項目の研究用3連単 '+data.draftCount+'R／見送り '+data.holdCount+
   'R／今回受け取った署名 '+data.researchReceiptCount+
-  '件。資料の充足・正式10項目採点・JRA公式照合は別。';
+  '件。資料の充足・正式10項目採点・JRA公式照合は別。'+
+  goingFetchStatus(data);
 }
 function recordRetentionStatus(data,day){
  let count;
