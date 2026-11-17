@@ -7,13 +7,7 @@
       "command": "py",
       "args": [
         "-3.11",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "tests",
-        "-p",
-        "test_*.py"
+        "scripts/run_local_tests.py"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -28,7 +22,7 @@
         "panel": "dedicated",
         "clear": true
       },
-      "detail": "Ctrl+Shift+Bで実行。認証キーやJRDB有料APIを使わないローカルの合成テストです。"
+      "detail": "Ctrl+Shift+Bで実行。Windowsに時刻データが無い場合のみtzdataを導入し、認証キーや有料JRDBを使わない合成テストを実行します。"
     }
   ]
 }
