@@ -119,6 +119,11 @@ def recent_crossfeed_diagnostics(programme, entries, drafts, day):
                 code = "reference_or_tze_coverage_unknown"
             elif refs > dated:
                 code = "more_prior_references_than_tze_runs"
+            elif refs < dated:
+                # /tky has fewer completed-result references than /tze has
+                # observed dated runs. Neither feed proves the other is
+                # complete; do not label this a verified one-/multi-run case.
+                code = "reference_or_tze_coverage_unknown"
             elif dated == 0 and refs == 0:
                 code = "no_prior_reference_visible"
             elif dated == 1:
