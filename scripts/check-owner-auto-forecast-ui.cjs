@@ -221,6 +221,39 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  assert.deepEqual(picks,['1着 1・2番']);
  assert.equal(card.children[1].textContent,'1着 1・2番');
 }
+// Live optional /tka failures are visible, but never the raw HTTP
+// exception, a provider row or a false JRA-verified going assessment.
+{
+ const sandbox={};vm.createContext(sandbox);
+ const start=js.indexOf('const GOING_FAILURE_LABELS=');
+ const end=js.indexOf('function recordRetentionStatus(',start);
+ assert.ok(start>0&&end>start);
+ vm.runInContext(js.slice(start,end)+
+  '\n globalThis.sourceReadProof=sourceReadProof;',sandbox);
+ const ordinary={
+  raceCount:36,sourceReadCount:4,draftCount:5,holdCount:31,
+  researchReceiptCount:5,
+  raceContext:{conditionProviderReadCount:1,
+   conditionProviderFetchStatus:'unavailable',
+   conditionProviderFailureCode:'provider_response_contract'}
+ };
+ const proof=sandbox.sourceReadProof(ordinary);
+ assert.match(proof,/基本データ/);
+ assert.match(proof,/馬場補助資料は保留/);
+ assert.match(proof,/応答形式/);
+ assert.match(proof,/馬場12点は無理に採点せず/);
+ const bad=structuredClone(ordinary);
+ bad.raceContext.conditionProviderFailureCode=
+  'provider_response_contract PRIVATE_APIKEY_HORSE_NAME';
+ const unknown=sandbox.sourceReadProof(bad);
+ assert.match(unknown,/詳細未確認/);
+ assert.doesNotMatch(unknown,/PRIVATE_APIKEY/);
+ const good=structuredClone(ordinary);
+ good.raceContext.conditionProviderFetchStatus='received';
+ good.raceContext.conditionProviderFailureCode='none';
+ assert.match(sandbox.sourceReadProof(good),/馬場補助資料も受信/);
+ assert.match(sandbox.sourceReadProof(good),/JRA公式照合は別/);
+}
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
