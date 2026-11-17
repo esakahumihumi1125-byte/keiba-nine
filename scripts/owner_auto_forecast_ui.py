@@ -7729,7 +7729,7 @@ function unverifiedJraResultComparison(info,date,track,race,day){
   '通りを読取。発走前に固定した研究用3連単はこの端末にありません。'+
   'JRAの確定・返還・出典認証は未検証。仮想収支は未計算、購入記録は無変更。';
  if(!Number.isFinite(Date.parse(saved.scheduledOffAt))||
-    Date.now()<Date.parse(saved.scheduledOffAt))
+    new Date().getTime()<Date.parse(saved.scheduledOffAt))
   throw Error('race_has_not_started');
  const pay=new Map(info.trifectaCandidates.map(p=>[
   p.ticket.join('-'),p.payoutYen]));
