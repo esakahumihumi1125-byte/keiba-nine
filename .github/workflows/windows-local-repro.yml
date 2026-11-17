@@ -1,0 +1,22 @@
+name: Diagnose Windows Python 3.11 local tests
+on:
+  push:
+    branches:
+      - diagnostic/windows-local-unittest-errors
+permissions:
+  contents: read
+jobs:
+  reproduce-on-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run identical Python tests as local VS Code task
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p 'test_*.py'
