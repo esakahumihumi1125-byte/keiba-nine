@@ -199,6 +199,28 @@ const js=fs.readFileSync('/tmp/keiba-owner-auto-forecast.js','utf8');
  assert.equal(sandbox.checkSeven(sevenDay,'2099-01-01',
   {...provisional,status:'hold'},researchScore),null);
 }
+// Reproduce real Safari HTMLElement.children: HTMLCollection is array-like,
+// not an Array and intentionally has no .slice/.filter methods. The former
+// top held-R shortcut called card.children.slice(1) and threw after an
+// otherwise successful private API response, hiding valid live predictions.
+{
+ const sandbox={};vm.createContext(sandbox);
+ const start=js.indexOf('function quickReferencePicks(');
+ const end=js.indexOf('function render(input,day)',start);
+ assert.ok(start>0&&end>start);
+ vm.runInContext(js.slice(start,end)+
+  '\nglobalThis.readPicks=quickReferencePicks;',sandbox);
+ const card={children:Object.assign(Object.create(null),{
+  length:3,
+  0:{className:'',textContent:'東京 1R｜参考'},
+  1:{className:'picks',textContent:'1着 1・2番'},
+  2:{className:'muted',textContent:'正式予想ではありません'}
+ })};
+ assert.equal(card.children.slice,undefined);
+ const picks=Array.from(sandbox.readPicks(card));
+ assert.deepEqual(picks,['1着 1・2番']);
+ assert.equal(card.children[1].textContent,'1着 1・2番');
+}
 const STORAGE='keiba-nine-owner-server-receipts-v1';
 const CORE_STORAGE='keiba-nine-owner-three-core-receipts-v1';
 const FIVE_STORAGE='keiba-nine-owner-five-core-receipts-v1';
@@ -5940,6 +5962,20 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(draftedView.requests.length,draftReads+1);
  assert.equal(draftedView.get('autoProvisionalFactorRaces').children.length,1,
   'current 2-factor draft has a separate 7-factor research reference');
+ // Previously all the multi-factor alternatives were buried in a nested
+ // panel; owner should see a compact 1/2/3-place comparison immediately.
+ assert.equal(draftedView.get('autoMultiQuickRaces').children.length,1);
+ assert.match(draftedView.get('autoMultiQuickTitle').textContent,
+  /複数項目の参考 1R（署名なし・2項目固定とは別）/);
+ const quickMulti=draftedView.get('autoMultiQuickRaces').children[0];
+ assert.match(quickMulti.children[0].textContent,/東京 1R/);
+ assert.match(quickMulti.children[1].textContent,/1着 1・2番／2着/);
+ const beforeMultiClickReads=draftedView.requests.length;
+ quickMulti.children.at(-1).onclick();
+ assert.equal(draftedView.requests.length,beforeMultiClickReads);
+ assert.equal(draftedView.get('autoResearchTools').open,true);
+ assert.equal(draftedView.get('autoComparableFactorPanel').open,true);
+ assert.equal(draftedView.get('autoProvisionalFactorRaces').children[0].open,true);
  assert.match(draftedView.get('autoProvisionalFactorStatus').textContent,
   /既存下書きRの比較：検査1R／表示できる研究参考1R/);
  assert.match(draftedView.get('autoProvisionalFactorRaces').children[0].children[0].textContent,
@@ -5956,6 +5992,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  draftedView.setServerRaw(forgedSeven);
  await draftedView.get('autoRun').onclick();
  assert.equal(draftedView.get('autoProvisionalFactorRaces').children.length,0);
+ assert.equal(draftedView.get('autoMultiQuickRaces').children.length,0);
  assert.match(draftedView.get('autoProvisionalFactorStatus').textContent,
   /安全に検証できず/);
  assert.equal(draftedView.storage.get(STORAGE),preservedDraft);
@@ -5965,6 +6002,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await draftedView.get('autoRun').onclick();
  assert.equal(draftedView.get('autoProvisionalFactorRaces').children.length,0,
   'after post-time an old 7-factor research must not be reconstructed');
+ assert.equal(draftedView.get('autoMultiQuickRaces').children.length,0,
+  'post-off 7-factor shortlist must also disappear');
  assert.equal(draftedView.storage.get(STORAGE),preservedDraft);
  const comparableView=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
@@ -5991,6 +6030,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  // Distinct research methods can overlap at the same race. The top
  // iPhone shortlist must include exactly one already-validated card per R.
  assert.equal(comparableView.get('autoReferenceQuickRaces').children.length,1);
+ assert.equal(comparableView.get('autoMultiQuickRaces').children.length,0,
+  'a HELD unsigned comparable race stays in the held quick index');
  assert.match(comparableView.get('autoReferenceQuickTitle').textContent,
   /参考候補 1R（研究用・未購入）/);
  assert.match(comparableView.get('autoReferencePulse').textContent,
