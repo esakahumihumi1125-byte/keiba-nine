@@ -210,3 +210,47 @@ class JrdBDocsShapedThirtySixAcceptance(unittest.TestCase):
         self.assertFalse(data["bettingReady"])
         self.assertNotIn("horse_id", response["body"].decode())
         self.assertNotIn("racekey", response["body"].decode())
+
+
+    def test_tky_two_prior_results_quarantines_just_one_unsupported_one_run(self):
+        """More /tky references than /tze observed runs blocks a 1-run grade."""
+        p, e, t, z = provider_shaped_day()
+        key = p[0]["racekey"]
+        for row in z:
+            if row["racekey"] == key:
+                for name in ("racedate", "order_of_finish", "idm",
+                             "later3f_time", "corner4_order"):
+                    row.pop("race_back_2_" + name, None)
+        # One horse has two independent historical references but /tze
+        # now contains only one run. Others are genuine one-run profiles.
+        e[0].update({
+            "lastrace_resultkey1": "1234567820981220",
+            "lastrace_resultkey2": "1234567820981201",
+            "lastrace_resultkey3": None,
+            "lastrace_resultkey4": None,
+            "lastrace_resultkey5": None,
+        })
+        original = deepcopy((p, e, t, z))
+        response, reads = run_private_pipeline((p, e, t, z))
+        self.assertEqual(response["status"], "200 OK")
+        self.assertEqual(reads, [1, 1, 1, 1, 1])
+        self.assertEqual(original, (p, e, t, z))
+        data = json.loads(response["body"])
+        self.assertEqual((data["raceCount"], data["draftCount"],
+                          data["holdCount"], data["researchReceiptCount"]),
+                         (36, 35, 1, 35))
+        hold = [r for r in data["races"] if r["status"] == "hold"]
+        self.assertEqual(len(hold), 1)
+        self.assertEqual(hold[0]["reason"], "missing_factors")
+        self.assertEqual(hold[0]["points"], 0)
+        suspect = [h for h in hold[0]["runners"] if h["number"] == 1]
+        self.assertEqual(len(suspect), 1)
+        self.assertEqual(suspect[0]["recent"], "未評価")
+        self.assertEqual(suspect[0]["recentObserved"]["datedRuns"], 1)
+        self.assertEqual(suspect[0]["recentObserved"]["completedRuns"], 1)
+        self.assertFalse(data["overallPredictionReady"])
+        self.assertFalse(data["officialJraVerified"])
+        self.assertFalse(data["bettingReady"])
+        for private in ("horse_id", "racekey", "1234567820981220",
+                        "1234567820981201", "TEST-ONLY"):
+            self.assertNotIn(private, response["body"].decode())
