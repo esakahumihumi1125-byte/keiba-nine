@@ -12,6 +12,7 @@ from datetime import datetime
 import math
 
 from jrdb_coverage import CoverageError
+from jrdb_prior_result_references import prior_result_reference_count
 from jrdb_evidence_readiness import (
     audit_evidence_coverage, HORSE_ID, NUMBER, _valid_date,
     _missing_previous_date
@@ -132,7 +133,7 @@ def build_recent_hints(programme, entries, previous, requested_date):
     id_map = {}
     for row in entries:
         key, number, hid = row["racekey"], row["horse_number"], row.get("horse_id")
-        roster[key][number] = True
+        roster[key][number] = row
         if hid:
             id_map[(key, hid)] = number
     seen = set()
@@ -152,13 +153,25 @@ def build_recent_hints(programme, entries, previous, requested_date):
         seen.add((key, joined))
         history = _extract(row, requested_date)
         past_three = history[:3]
+        provisional = _provisional(history)
+        # A single /tze row does NOT prove a horse has raced only once.
+        # The same day's /tky may contain 2+ separately dated historical
+        # result references; in that case the 1-run 3-point heuristic
+        # would be ranking a partial provider feed as a complete career.
+        # Hold this runner instead. Unknown/malformed/missing /tky refs
+        # carry no "zero prior races" claim (and no automatic C grade).
+        ref_count = prior_result_reference_count(
+            roster[key][joined], requested_date)
+        single_run_gap = (len(history) == 1 and provisional != "未評価"
+                          and ref_count is not None and ref_count > 1)
+        grade = "未評価" if single_run_gap else provisional
         observations[(key, joined)] = {
-            "grade": _provisional(history),
+            "grade": grade,
             "assessmentStatus": (
-                "assessed_single_run" if len(history) == 1
-                    and history[0]["finish"] is not None
-                    and history[0]["idm"] is not None
-                else "assessed" if _provisional(history) != "未評価"
+                "insufficient_scored_runs" if single_run_gap
+                else "assessed_single_run" if len(history) == 1
+                    and grade != "未評価"
+                else "assessed" if grade != "未評価"
                 else "no_usable_history" if not history
                 else "insufficient_scored_runs"
             ),
@@ -225,7 +238,8 @@ def summarize_recent_hints(hints):
         "version": VERSION, "races": result, "predictionReady": False,
         "note": ("直近3走の着順・IDMで暫定ランクを研究。原則2走以上、"
                  "実際に観測された履歴が1走だけで着順とIDMが両方確認"
-                 "できる場合のみ低サンプルの1走仮評価を許可。"
+                 "でき、同日出走馬資料に過去2走以上の参照がない場合のみ"
+                 "低サンプルの1走仮評価を許可。"
                  "未出走・出走歴不明・複数走の一部欠落は未評価のまま。"
                  "S>=70、A>=55、B>=40、それ未満Cは未検証の独自閾値。"
                  "4角位置・上がり3Fは観測数のみ表示し、着差・相手関係・"
