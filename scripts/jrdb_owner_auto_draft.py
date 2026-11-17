@@ -36,6 +36,19 @@ OBSERVED = frozenset(("frontObserved", "backObserved",
                       "mixedObserved", "insufficient"))
 MAX_RACES = 120
 STAKE = 100
+# Only the /tra race NAME identifies a possible newcomer class. Neither
+# missing /tze history nor a zero-dated placeholder proves a horse is debuting.
+# Common 2歳新馬 / 3歳新馬 / 新馬 / メイクデビュー東京 forms only.
+_NEWCOMER_NAME = re.compile(
+    r"(?:[23２３]歳)?新馬(?:戦)?|メイクデビュー[^\s]{1,12}\Z"
+)
+
+
+def _newcomer_race_candidate(name):
+    return type(name) is str and len(name) <= 100 and (
+        _NEWCOMER_NAME.fullmatch(name.strip()) is not None
+    )
+
 # Only trusted, constant error messages originating in _normalize_runners.
 # Never send provider values or exception strings to the client or logs.
 # Fixed codes for the fail-closed, whole-day contract. These map only
@@ -429,6 +442,7 @@ def _draft_for_race(row, research, day, now):
         "runners": [], "first": [], "second": [], "third": [],
         "tickets": [], "points": 0, "amountYen": 0,
         "horseCount": row.get("headcount"),
+        "newcomerRaceCandidate": _newcomer_race_candidate(row.get("race_name")),
         "researchOnly": True, "officialJraVerified": False,
         "overallPredictionReady": False, "bettingReady": False,
         "autoPurchase": False,
