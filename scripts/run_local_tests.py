@@ -19,8 +19,7 @@ def ensure_tokyo_timezone():
         return True
     except ZoneInfoNotFoundError:
         print(
-            "Windows に Asia/Tokyo の時刻データがありません。"
-            " 初回のみ tzdata をインストールします。",
+            "Missing IANA time-zone data for Asia/Tokyo. Installing public tzdata once.",
             flush=True,
         )
 
@@ -38,8 +37,7 @@ def ensure_tokyo_timezone():
     )
     if result.returncode != 0:
         print(
-            "tzdata をインストールできませんでした。"
-            " インターネット接続を確認してください。",
+            "Could not install tzdata. Check internet access and retry.",
             file=sys.stderr,
         )
         return False
@@ -47,7 +45,7 @@ def ensure_tokyo_timezone():
     try:
         ZoneInfo("Asia/Tokyo")
     except ZoneInfoNotFoundError:
-        print("Asia/Tokyo が見つかりません。VS Codeを再起動してください。", file=sys.stderr)
+        print("Asia/Tokyo still unavailable. Restart VS Code and retry.", file=sys.stderr)
         return False
     return True
 
@@ -55,7 +53,7 @@ def ensure_tokyo_timezone():
 def main():
     if not ensure_tokyo_timezone():
         return 1
-    print("ARC RACE: Python の合成テストを実行します。", flush=True)
+    print("ARC RACE: Running the local synthetic Python test suite.", flush=True)
     command = [
         sys.executable,
         "-m",
