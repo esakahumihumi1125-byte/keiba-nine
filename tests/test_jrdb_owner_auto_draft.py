@@ -875,8 +875,12 @@ class AutoDraftHTTPTests(unittest.TestCase):
         self.assertEqual(len(verify_preview_receipts(
             stalled["researchReceipts"],self.config["KEIBA_OWNER_PASSWORD"],
             "2099-01-01")),1)
-        self.assertIn("KEIBA_AUTO_DRAFT_CONTEXT=unavailable reason=provider_other",
-                      "\n".join(captured.output))
+        self.assertEqual(
+            stalled["raceContext"]["conditionProviderFailureCode"],
+            "provider_transport_or_decode")
+        self.assertIn(
+            "KEIBA_AUTO_DRAFT_CONTEXT=unavailable reason=provider_transport_or_decode",
+            "\n".join(captured.output))
         self.mock_venue.assert_called_once_with(DAY)
 
     def test_optional_server_archive_first_write_wins(self):
