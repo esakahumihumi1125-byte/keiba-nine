@@ -5721,7 +5721,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const resultStorage=resultsView.storage.get(STORAGE);
  assert.ok(resultStorage,'fixture has one signed first-issued receipt');
  const resultCount=resultsView.requests.length;
- resultsView.get('autoRacePick').value='東京|1';
+ assert.equal(resultsView.get('autoResultSavedRace').disabled,false);
+ assert.equal(resultsView.get('autoResultSavedRace').value,'東京|1');
+ assert.equal(resultsView.get('autoResultSavedRace').children.length,1);
+ resultsView.get('autoRacePick').value='東京|1'; // unrelated active day picker
  resultsView.get('autoResultCandidateUrl').value=
   'https://www.jra.go.jp/JRADB/accessS.html?CNAME=pw01sde0105209901010120990101%2FAB';
  await resultsView.get('autoResultCandidateCheck').onclick();
@@ -5745,9 +5748,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/安全に照合できません/);
  assert.equal(resultsView.storage.get(STORAGE),resultStorage);
  resultsView.setJraResultCorrupt(false);
- resultsView.get('autoRacePick').value='京都|2'; // unregistered race
+ resultsView.get('autoResultSavedRace').value='京都|2'; // not first-locked
  await resultsView.get('autoResultCandidateCheck').onclick();
- assert.match(resultsView.get('autoResultCandidateStatus').textContent,/対象の1Rを選び/);
+ assert.match(resultsView.get('autoResultCandidateStatus').textContent,/固定済み記録を検証できません/);
  const afterBad=resultsView.requests.length;
  assert.equal(afterBad,resultCount+2);
  resultsView.get('autoDay').value='2099-01-02';
@@ -5756,6 +5759,54 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(resultsView.get('autoResultCandidateStatus').textContent,/未確認/);
  assert.equal(resultsView.requests.length,afterBad);
  assert.equal(resultsView.storage.get(STORAGE),resultStorage);
+ assert.equal(resultsView.get('autoResultSavedRace').disabled,true);
+ assert.equal(resultsView.get('autoResultSavedRace').children.length,0);
+ // Critical: the user can return on Monday and compare the FIRST
+ // saved Saturday ticket without ANY new JRDB day request. A previous
+ // method required latestDisplayedReport, so this was impossible if the
+ // past /tra day snapshot was unavailable.
+ const historicalResult=boot({manualWeekday:false,
+  initialClock:'2099-01-02T00:30:00Z',
+  seedStorage:[[STORAGE,resultStorage]]});
+ await new Promise(r=>setImmediate(r));
+ const beforeHistorical=historicalResult.requests.length;
+ assert.equal(beforeHistorical,0,'loading old fixed records cannot read JRDB');
+ historicalResult.get('autoDay').value='2099-01-01';
+ historicalResult.get('autoDay').onchange();
+ assert.equal(historicalResult.requests.length,0);
+ assert.equal(historicalResult.get('autoResultSavedRace').value,'東京|1');
+ assert.equal(historicalResult.get('autoResultSavedRace').disabled,false);
+ assert.match(historicalResult.get('autoResultSavedRaceStatus').textContent,
+  /追加のJRDB通信0回/);
+ historicalResult.get('autoResultCandidateUrl').value=
+  'https://www.jra.go.jp/JRADB/accessS.html?CNAME=pw01sde0105209901010120990101%2FAB';
+ await historicalResult.get('autoResultCandidateCheck').onclick();
+ assert.equal(historicalResult.requests.length,1,
+  'one opt-in public JRA request, never a paid JRDB redownload');
+ assert.match(historicalResult.requests[0].url,
+  /^\/api\/jra\/result-candidate\?/);
+ assert.match(historicalResult.get('autoResultCandidateStatus').textContent,
+  /最初の固定3連単 40点/);
+ assert.match(historicalResult.get('autoResultCandidateStatus').textContent,
+  /26,050円/);
+ assert.equal(historicalResult.storage.get(STORAGE),resultStorage);
+ assert.equal(historicalResult.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Wrong forged saved row and a corrupted cross-date ledger fail CLOSED.
+ historicalResult.get('autoResultSavedRace').value='京都|2';
+ await historicalResult.get('autoResultCandidateCheck').onclick();
+ assert.match(historicalResult.get('autoResultCandidateStatus').textContent,
+  /固定済み記録を検証できません/);
+ assert.equal(historicalResult.requests.length,1);
+ const badSaved=JSON.parse(resultStorage);
+ badSaved[0].signature='0'.repeat(64);
+ badSaved[0].snapshot.trifectaTickets=[[1,1,1]];
+ const badHistory=boot({manualWeekday:false,
+  seedStorage:[[STORAGE,JSON.stringify(badSaved)]]});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(badHistory.get('autoResultSavedRace').disabled,true);
+ assert.match(badHistory.get('autoResultSavedRaceStatus').textContent,
+  /安全に読み取れません/);
+ assert.equal(badHistory.requests.length,0);
  // Sparse recent research is strictly a *separate* unsigned display.
  // Never promote held candidates to a draft, sign them or fetch a source.
  // The independent 64-point core comparison must be view-only, date-gated
