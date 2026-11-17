@@ -295,6 +295,60 @@ class PublicResultProbeTests(unittest.TestCase):
         finally:
             mod.datetime = original_datetime
 
+    def test_same_jst_day_result_candidate_is_available_after_the_race(self):
+        # A Saturday evening review must not wait until Sunday simply
+        # because the JRA result page belongs to today's race.
+        # This mock never makes a network call to JRA.
+        import jra_official_result_probe as mod
+        original_datetime = mod.datetime
+        class SameDayClock:
+            @staticmethod
+            def now(tz):
+                return datetime(2026, 11, 8, 9, 30, tzinfo=timezone.utc)
+
+        class OnePageOpener:
+            calls = 0
+            def open(self, request, timeout):
+                self.calls += 1
+                self.url = request.full_url
+                self.timeout = timeout
+                return MockResponse(source())
+
+        opener = OnePageOpener()
+        mod.datetime = SameDayClock
+        try:
+            report = probe_official_result_page(
+                URL, DAY, "京都", 8, opener=opener)
+        finally:
+            mod.datetime = original_datetime
+        self.assertEqual(opener.calls, 1)
+        self.assertEqual((opener.url, opener.timeout), (URL, 7))
+        self.assertEqual(report["sourceReadCount"], 1)
+        self.assertFalse(report["officialJraVerified"])
+        self.assertFalse(report["finalityVerified"])
+        self.assertFalse(report["settlementReady"])
+        self.assertIsNone(report["officialRoiPercent"])
+
+    def test_future_jst_date_cannot_trigger_a_page_read(self):
+        # Same official-formatted URL, but the server is still on
+        # the previous calendar day: reject before touching the opener.
+        import jra_official_result_probe as mod
+        original_datetime = mod.datetime
+        class PreviousDayClock:
+            @staticmethod
+            def now(tz):
+                return datetime(2026, 11, 7, 10, 0, tzinfo=timezone.utc)
+
+        opener = Mock()
+        mod.datetime = PreviousDayClock
+        try:
+            with self.assertRaises(JraPublicProbeError):
+                probe_official_result_page(
+                    URL, DAY, "京都", 8, opener=opener)
+        finally:
+            mod.datetime = original_datetime
+        opener.open.assert_not_called()
+
     def test_future_or_stale_cannot_probe(self):
         for date in ("2026-11-14", "2020-11-08"):
             with self.assertRaises(JraPublicProbeError):

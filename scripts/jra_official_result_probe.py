@@ -233,7 +233,11 @@ def probe_official_result_page(url, date, track, race, *, opener=None):
         today = datetime.now(JST).date()
     except (ValueError, TypeError):
         raise JraPublicProbeError("Invalid result date") from None
-    if not today - timedelta(days=365) <= race_day < today:
+    # A race can publish its result on the SAME JST calendar day.
+    # Allow that day's opt-in read; the parser still requires a visible
+    # result/payout table, and this candidate is NEVER official settlement.
+    # Future dates and pages older than one year remain blocked.
+    if not today - timedelta(days=365) <= race_day <= today:
         raise JraPublicProbeError("Official result probing date out of range")
     request = Request(url, headers={
         "Accept": "text/html",
