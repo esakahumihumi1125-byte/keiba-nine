@@ -45,7 +45,8 @@ from jrdb_owner_auto_draft import (
     compact_hold_diagnostics, compact_factor_shortage_diagnostics,
     compact_missing_reason_diagnostics,
 )
-from owner_last_prestart_gate import expire_undelivered_drafts
+from owner_last_prestart_gate import (expire_undelivered_drafts,
+                                      final_gate_failure_detail)
 from owner_uncertain_recent_preview import preview_missing_recent_holds
 from owner_held_tie_48_preview import preview_held_ties_48
 from owner_training_source_delivery import observe_training_source_delivery
@@ -2946,6 +2947,8 @@ def create_app(settings=None):
                     kind = 'invalid_data'
                 detail = (DAY_DRAFT_ISSUES.get(str(exc), 'other')
                           if stage == 'draft_generation' and type(exc) is CoverageError
+                          else final_gate_failure_detail(exc)
+                          if stage == 'final_prestart_gate' and type(exc) is CoverageError
                           else None)
                 logging.warning('KEIBA_AUTO_DRAFT_FAILURE stage=%s kind=%s detail=%s',
                                 stage, kind, detail or 'none')

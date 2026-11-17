@@ -714,7 +714,20 @@ const FAILURE_DETAIL={
  unverified_research:'未確認資料の扱い',
  race_programme_identity:'レース番組の識別',
  race_research_identity:'番組と仮評価の識別',
- formation_size:'買い目点数の検算',other:'未分類の照合条件'
+ formation_size:'買い目点数の検算',
+ ticket_integrity:'3連単の重複・形式',
+ clock_invalid:'発走前の時刻形式',
+ report_contract:'予想レポートの形式',
+ race_identity:'競馬場・レース番号の整合',
+ hold_integrity:'見送りRの買い目混入',
+ off_time:'発走時刻の一致',
+ amount_integrity:'点数・金額の整合',
+ receipt_identity:'署名記録の識別',
+ receipt_draft_mismatch:'署名記録と予想の一致',
+ receipt_set_mismatch:'署名記録の不足・余分',
+ receipt_count_mismatch:'署名記録の件数',
+ receipt_integrity:'署名記録の最終整合',
+ other:'未分類の照合条件'
 };
 const REASONS={
  missing_research:'このレースの資料に不整合あり・自動判定を見送り',
