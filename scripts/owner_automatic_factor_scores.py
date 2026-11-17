@@ -79,6 +79,8 @@ def _ground_condition_research(race, entry, context):
             or context.get('conditionSnapshotPresent') is not True
             or context.get('goingAvailable') is not True):
         return None, 'ground_going_unknown'
+    if context.get('conditionUpdateCutoffStatus') == 'after_cutoff':
+        return None, 'ground_source_after_cutoff'
     going = context.get('going')
     if going == '良':
         return None, 'ground_good_not_scored'
