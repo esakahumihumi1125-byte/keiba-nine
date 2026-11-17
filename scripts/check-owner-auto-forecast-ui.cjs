@@ -5027,6 +5027,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  await new Promise(r=>setImmediate(r));
  const nextDay=resultWith('d'.repeat(64));
  nextDay.date='20990102';
+ nextDay.raceContext.date='20990102'; // same target day on live API response
  nextDay.researchReceipts[0].snapshot.date='2099-01-02';
  nextDay.researchReceipts[0].snapshot.lockedAt='2099-01-02T09:00:00+09:00';
  nextDay.researchReceipts[0].snapshot.scheduledOffAt='2099-01-02T12:00:00+09:00';
