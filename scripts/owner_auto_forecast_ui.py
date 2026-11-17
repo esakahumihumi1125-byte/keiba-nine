@@ -7748,14 +7748,29 @@ function unverifiedJraResultComparison(info,date,track,race,day,verifiedReceipt)
  const matching=saved.trifectaTickets.filter(t=>pay.has(t.join('-')));
  const possibleYen=matching.reduce((sum,t)=>sum+pay.get(t.join('-')),0);
  if(!Number.isSafeInteger(possibleYen))throw Error('result_amount_invalid');
+ const referenceStakeYen=saved.trifectaTickets.length*100;
+ // Only show a candidate-page cash-flow ILLUSTRATION when at least one
+ // fixed ticket matches. Missing payouts/refunds are NOT a confirmed loss.
+ // No return is written to official ROI, saved receipts or purchase records.
+ const scenario=matching.length?(()=>{
+  const difference=possibleYen-referenceStakeYen;
+  const percentage=Number((possibleYen/referenceStakeYen*100).toFixed(1));
+  if(!Number.isFinite(percentage))throw Error('result_reference_roi_invalid');
+  return '／未確定の候補だけで試算した参考差額 '+
+   (difference>=0?'+':'')+difference.toLocaleString('ja-JP')+
+   '円・参考回収率 '+percentage.toLocaleString('ja-JP')+
+   '%（返還・結果変更は未反映）';
+ })():'（一致候補なし。外れ・損失・回収率は未確定）';
  return date+' '+track+' '+race+'R｜最初の固定3連単 '+
   saved.trifectaTickets.length+'点（1点100円、仮の投資額 '+
-  (saved.trifectaTickets.length*100).toLocaleString('ja-JP')+'円）'+
+  referenceStakeYen.toLocaleString('ja-JP')+'円）'+
   '／JRA表示の払戻候補と一致 '+matching.length+'点'+
   (matching.length?'／一致する払戻候補の合計 '+
-   possibleYen.toLocaleString('ja-JP')+'円':'（外れとは未確定）')+
-  '。固定買い目の署名は本人用サーバーで検証済み。結果の確定・返還・原本認証が未確認なので'+
-  '正式的中・損益・回収率は未計算。結果保存・実購入・既存記録の変更なし。';
+   possibleYen.toLocaleString('ja-JP')+'円'+scenario:scenario)+
+  '。固定買い目の署名は本人用サーバーで検証済み。'+
+  'これはJRAの確定結果・返還・出典認証に基づく正式収支ではなく、'+
+  '公式的中・損益・回収率の記録は未計算。'+
+  '結果保存・実購入・既存記録の変更なし。';
 }
 // Read ONLY the immutable first-issued local receipts to fill the result
 // comparison picker. This makes post-race review possible without a new
