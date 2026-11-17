@@ -81,6 +81,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>2. 予想を見る・競馬場を選ぶ</h2>
 <p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
 <p id="autoRaceQuickSummary" class="auto-race-quick" role="status">予想は未取得です。</p>
+<details id="autoMultiQuickPanel" class="owner-reference-quick">
+<summary id="autoMultiQuickTitle">調教・距離・展開など複数項目の参考：未取得</summary>
+<p class="muted">全馬共通で採点できた調教・距離・展開などの暫定項目を使用した、別の1着・2着・3着研究候補です。上の2項目で発走前に固定した買い目は変更しません。ここは署名なし・未購入、正式100点・JRA公式確認・回収率にも反映しません。</p>
+<div id="autoMultiQuickRaces"></div>
+</details>
 <details id="autoReferenceQuickPanel" class="owner-reference-quick">
 <summary id="autoReferenceQuickTitle">見送りレースの参考候補：未取得</summary>
 <p class="muted">署名なし・未購入の研究参考だけを一覧表示。各方式で検証済みの画面表示から転記し、同じRはひとつにまとめます。未評価の馬に架空の点数を入れず、正式10項目・JRA確定出走・購入や仮想回収率とは別です。</p>
@@ -2316,6 +2321,9 @@ function fixedComparisonMessage(report){
  return 'この開催日の端末に固定済みの研究記録はまだありません。発走前に生成した研究用下書きのみ、初回に限り固定保存します。';
 }
 function clearDraftShortcut(){
+ $('autoMultiQuickRaces').replaceChildren();
+ $('autoMultiQuickPanel').open=false;
+ $('autoMultiQuickTitle').textContent='調教・距離・展開など複数項目の参考：未取得';
  const quick=$('autoReferenceQuickRaces');
  quick.replaceChildren();
  $('autoReferenceQuickPanel').open=false;
@@ -3130,6 +3138,70 @@ function renderWorkoutQuick(data,day){
   :'発走前に表示できる調教S/A参考Rは0R。'+
    '資料未取得・発走済み・S/Aなしを区別して確認してください。';
 }
+function quickReferencePicks(card){
+ // HTMLElement.children is an HTMLCollection in real Safari, NOT an Array.
+ // The older direct .children.slice(1) threw when the first held R gained
+ // a valid study, discarding the otherwise successful 36R response.
+ return Array.from(card.children).slice(1)
+  .filter(el=>el.className==='picks')
+  .map(el=>el.textContent)
+  .filter(x=>typeof x==='string'&&x.length>0&&x.length<240)
+  .slice(0,3);
+}
+function renderMultiFactorQuick(data,day){
+ const host=$('autoMultiQuickRaces'),panel=$('autoMultiQuickPanel'),
+  title=$('autoMultiQuickTitle'),source=$('autoProvisionalFactorRaces');
+ host.replaceChildren();
+ const byRace=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+ const rows=[],seen=new Set();
+ // Source cards exist only AFTER the original strict source/roster/grade/
+ // boundary/cutoff validator rendered them. Never read raw optional JSON.
+ for(const card of source.children){
+  const heading=card.children?.[0]?.textContent;
+  const match=typeof heading==='string'?
+   /^([^｜\\s]{2,4})\\s+(1[0-2]|[1-9])R｜/.exec(heading):null;
+  if(!match)continue;
+  const key=match[1]+'|'+Number(match[2]),race=byRace.get(key);
+  if(!race||race.status!=='provisional_draft'||seen.has(key)||
+     draftExpiredOnDevice(day,race.postTime))continue;
+  const picks=quickReferencePicks(card);
+  if(picks.length!==1||!/^1着 .+／2着 .+／3着 .+番$/.test(picks[0]))
+   continue;
+  seen.add(key);
+  rows.push({race,card,heading,picks});
+ }
+ rows.sort((a,b)=>a.race.postTime.localeCompare(b.race.postTime)||
+  a.race.track.localeCompare(b.race.track,'ja')||a.race.race-b.race.race);
+ for(const item of rows){
+  const entry=dom('div',undefined,'owner-reference-quick-card');
+  entry.append(dom('p',item.race.postTime+'予定（JRDB）｜'+
+   item.heading+'｜未署名の別案','muted'));
+  entry.append(dom('p',item.picks[0],'picks'));
+  const open=dom('button','根拠を見る（追加照会・購入なし）');
+  open.type='button';
+  open.onclick=()=>{
+   if(latestDisplayedReport!==data||latestDisplayedDay!==day||
+      $('autoDay').value.replaceAll('-','')!==day||
+      draftExpiredOnDevice(day,item.race.postTime)){
+    open.disabled=true;
+    title.textContent='開催日変更・発走時刻経過のため古い参考は非表示';
+    return;
+   }
+   $('autoResearchTools').open=true;
+   $('autoComparableFactorPanel').open=true;
+   item.card.open=true;
+   if(typeof item.card.scrollIntoView==='function')
+    item.card.scrollIntoView({behavior:'smooth',block:'start'});
+  };
+  entry.append(open);
+  host.append(entry);
+ }
+ title.textContent=rows.length?
+  '調教・距離・展開など複数項目の参考 '+rows.length+
+  'R（署名なし・2項目固定とは別）':
+  '調教・距離・展開など複数項目の参考 0R（未検証・未購入）';
+ panel.open=rows.length>0&&rows.length<=8;
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const workoutOrder=validateWorkoutIndexOrder(data,day);
@@ -3137,6 +3209,9 @@ function render(input,day){
  renderHeldTie48(data,day);
  renderComparableFactorResearch(data,day);
  renderComparableFactorResearch(data,day,true);
+ // An unpurchased, independently validated multi-factor comparison is
+ // no longer buried several nested panels deep on iPhone.
+ renderMultiFactorQuick(data,day);
  renderTkyTrainingStudy(data,day);
  renderTkyArrowFormations(data,day);
  // Existing server research already has its own strict race/roster/time
@@ -3167,9 +3242,7 @@ function render(input,day){
    const key=match[1]+'|'+Number(match[2]),race=validatedRaceKeys.get(key);
    if(!race||race.status!=='hold'||seenQuick.has(key)||
       draftExpiredOnDevice(day,race.postTime))continue;
-   const picks=card.children.slice(1).filter(el=>el.className==='picks')
-    .map(el=>el.textContent).filter(x=>typeof x==='string'&&
-     x.length>0&&x.length<240).slice(0,3);
+   const picks=quickReferencePicks(card);
    if(!picks.length)continue;
    seenQuick.add(key);
    quickRows.push({race,card,panel,heading,picks});
