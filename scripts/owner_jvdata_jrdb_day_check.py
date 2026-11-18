@@ -53,6 +53,8 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
             or jv_week.get("productionPredictionReady") is not False
             or jv_week.get("bettingReady") is not False
             or jv_week.get("autoPurchase") is not False
+            or jv_week.get("collectionTimeIndependentlyVerified") is not False
+            or type(jv_week.get("allCandidatesBeforeScheduledOff")) is not bool
             or not isinstance(jv_week.get("races"), list)
             or type(jv_week.get("raceCount")) is not int
             or jv_week["raceCount"] != len(jv_week["races"])
@@ -70,7 +72,9 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
                 or card.get("version") != CARD_VERSION
                 or card.get("privateInputOnly") is not True
                 or card.get("sourceDataUseRightsVerified") is not False
-                or card.get("researchOnly") is not True):
+                or card.get("researchOnly") is not True
+            or card.get("collectionTimeIndependentlyVerified") is not False
+            or type(card.get("beforeScheduledOffAtLocalCapture")) is not bool):
             raise CoverageError("Duplicated or promoted JV-data candidate")
         cards[key] = card
 
@@ -103,6 +107,11 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
         if card is None:
             status = "missing_jvdata_candidate"
             matched = False
+        elif card["beforeScheduledOffAtLocalCapture"] is False:
+            # A local diagnostic captured after scheduled off cannot be
+            # used to reconstruct a supposedly prestart roster.
+            status = "post_off_local_capture"
+            matched = False
         else:
             cross = compare_jvdata_candidate_to_jrdb(
                 card, row, grouped[coord],
@@ -126,6 +135,7 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
         "candidateMatchedRaces": counts["candidate_matched_not_final"],
         "missingJvdataRaces": counts["missing_jvdata_candidate"],
         "heldMismatchRaces": counts["hold_source_mismatch"],
+        "postOffCandidateRaces": counts["post_off_local_capture"],
         "allCandidatesMatched": len(programme) > 0 and (
             counts["candidate_matched_not_final"] == len(programme)
         ),
