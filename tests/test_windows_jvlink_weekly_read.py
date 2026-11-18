@@ -4,6 +4,7 @@ import copy
 import io
 import json
 import os
+from datetime import date
 from pathlib import Path
 import sys
 import tempfile
@@ -15,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from test_jvdata_ra_se_candidate import make, replace, DAY
 from windows_jvlink_weekly_read import (
     JvLocalCheckError, collect_weekly_candidate_records,
-    run_one_weekly_read, main, MAX_RECORDS,
+    run_one_weekly_read, main, next_saturday, MAX_RECORDS,
 )
 
 
@@ -58,6 +59,11 @@ def weekly_records():
 
 
 class WeeklyJvLinkLocalTests(unittest.TestCase):
+    def test_default_next_saturday_is_one_click(self):
+        self.assertEqual(next_saturday(date(2026, 11, 18)), "20261121")
+        self.assertEqual(next_saturday(date(2026, 11, 21)), "20261121")
+        self.assertEqual(next_saturday(date(2026, 11, 22)), "20261128")
+
     def test_one_opt_in_weekly_open_and_matched_private_candidates(self):
         jv = FakeJv([-1, *weekly_records()])
         report = collect_weekly_candidate_records(jv, DAY)
