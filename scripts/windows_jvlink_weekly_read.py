@@ -12,6 +12,7 @@ historical setup, retries, realtime polling or automatic scheduled calls.
 import argparse
 from datetime import date, datetime
 import json
+import os
 from pathlib import Path
 import re
 import struct
@@ -45,7 +46,7 @@ def validate_day(day):
         raise JvLocalCheckError("DATE_INVALID") from None
     today = date.today()
     # Today or upcoming weekend only; no historical bulk backfill.
-    if not today <= candidate <= today.fromordinal(today.toordinal() + 7):
+    if not today <= candidate <= date.fromordinal(today.toordinal() + 7):
         raise JvLocalCheckError("DATE_OUTSIDE_NEXT_WEEK")
     return day
 
@@ -93,11 +94,13 @@ def collect_weekly_candidate_records(jv, day, *, max_records=MAX_RECORDS):
                 data = record.tobytes() if hasattr(record, "tobytes") else bytes(record)
             except (TypeError, ValueError, OverflowError, AttributeError):
                 raise JvLocalCheckError("JVGETS_DATA_INVALID") from None
-            if code != len(data) or len(data) < 30:
+            if code != len(data) or len(data) < 3:
                 raise JvLocalCheckError("JVGETS_DATA_INVALID")
             kind = data[:2]
             if kind not in (b"RA", b"SE") or data[2:3] != b"2":
                 continue
+            if len(data) < 30:
+                raise JvLocalCheckError("JVGETS_DATA_INVALID")
             if data[11:19].decode("ascii", errors="ignore") != day:
                 continue
             if kind == b"RA" and len(data) != RA_LENGTH:
@@ -200,13 +203,19 @@ def main(argv=None):
         # This owner-only JSON contains ONLY the race coordinates, horse
         # numbers and scheduled post-time candidates. It must not be uploaded
         # to public repositories or stored in shared folders.
-        folder = Path.home() / "Documents" / "ARC-RACE-private"
-        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-        target = folder / ("jvdata-candidate-" + args.date + ".json")
-        if target.exists():
-            raise JvLocalCheckError("OUTPUT_EXISTS_NOT_OVERWRITTEN")
-        with target.open("x", encoding="utf-8") as output:
-            json.dump(report, output, ensure_ascii=False, indent=2)
+        local_base = os.environ.get("LOCALAPPDATA")
+        if not local_base or not Path(local_base).is_absolute():
+            raise JvLocalCheckError("LOCALAPPDATA_UNAVAILABLE")
+        folder = Path(local_base) / "ARC-RACE-private"
+        try:
+            folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+            target = folder / ("jvdata-candidate-" + args.date + ".json")
+            with target.open("x", encoding="utf-8") as output:
+                json.dump(report, output, ensure_ascii=False, indent=2)
+        except FileExistsError:
+            raise JvLocalCheckError("OUTPUT_EXISTS_NOT_OVERWRITTEN") from None
+        except OSError:
+            raise JvLocalCheckError("PRIVATE_LOCAL_WRITE_FAILED") from None
         print("ARCRACE_WEEKLY_READ=SUCCESS")
         print("CANDIDATE_RACE_COUNT=" + str(report["raceCount"]))
         print("NOTE=Not official final JRA verification, not a betting forecast.")
