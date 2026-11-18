@@ -2397,6 +2397,23 @@ def create_app(settings=None):
                 return response('400 Bad Request', {'error': 'レース指定が不正です。'})
             try:
                 programme = normalize_program_rows(fetch_race_program(date), date)
+                # A one-race trial should not pay for three additional
+                # day-wide sources when /tra does not contain the requested
+                # race. This happens legitimately before publication and
+                # must not be interpreted as 'no JRA meeting scheduled'.
+                selected = [row for row in programme
+                            if row.get('track') == track
+                            and row.get('race') == int(number)]
+                if len(selected) != 1:
+                    return response('409 Conflict', {
+                        'error': '指定レースは現在のJRDB番組資料に見つかりません。'
+                                 '配信前または開催日・競馬場の選択を確認してください。',
+                        'status': 'one_race_programme_not_observed',
+                        'sourceReadsMade': 1,
+                        'officialJraVerified': False,
+                        'formalTenFactorReady': False,
+                        'bettingReady': False,
+                    })
                 trial = build_one_race_trial(
                     programme, fetch_horse_entries(date),
                     fetch_training_analysis(date), fetch_recent_runs(date),
