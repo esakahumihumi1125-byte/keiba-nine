@@ -11,8 +11,6 @@ to create prestart evidence. The latest AV/WE/TC/WH realtime updates are NOT
 part of RA/SE, so a match here never verifies the final JRA starter list,
 scratches, going, off-time, a wager, or a formal factor grade.
 """
-from datetime import datetime
-
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import NUMBER, _valid_date
 from jrdb_program_preview import TRACKS
@@ -113,7 +111,8 @@ def parse_jvdata_prestart_racecard(ra_record, se_records, day):
         "registeredRunnerCount": registered,
         "horseNumbersCandidate": sorted(int(n) for n in numbers),
         "sourceRecordCategory": "numbered_racecard_not_final_changes",
-        "licensedPrivateSource": True,
+        "privateInputOnly": True,
+        "sourceDataUseRightsVerified": False,
         "independentlyAuthenticated": False,
         "prestartDeliveryTimeVerified": False,
         "finalStarterListVerified": False,
@@ -136,7 +135,8 @@ def compare_jvdata_candidate_to_jrdb(jv, jrdb_programme, jrdb_entries):
     A mismatch means HOLD, not a weaker horse or permission to pick runners.
     """
     if (not isinstance(jv, dict) or jv.get("version") != VERSION
-            or jv.get("licensedPrivateSource") is not True
+            or jv.get("privateInputOnly") is not True
+            or jv.get("sourceDataUseRightsVerified") is not False
             or jv.get("researchOnly") is not True
             or any(jv.get(key) is not False for key in (
                 "independentlyAuthenticated", "prestartDeliveryTimeVerified",
