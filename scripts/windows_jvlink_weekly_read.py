@@ -161,11 +161,27 @@ def collect_weekly_candidate_records(jv, day, *, max_records=MAX_RECORDS):
             raise JvLocalCheckError("CANDIDATE_RECORDS_INVALID") from None
     if not cards:
         raise JvLocalCheckError("NO_NUMBERED_CARDS_FOR_DAY")
+    coordinate_set = {(r["track"], r["race"]) for r in cards}
+    if len(coordinate_set) != len(cards):
+        raise JvLocalCheckError("DUPLICATE_RACE_COORDINATES")
+    # Exact 12-R per observed venue is a *coverage diagnostic* only. It
+    # does not prove whether another JRA venue was scheduled or that
+    # the listed starters are final.
+    venue_counts = {}
+    for r in cards:
+        venue_counts[r["track"]] = venue_counts.get(r["track"], 0) + 1
+    venue_summary = [{"track": track, "raceCount": venue_counts[track]}
+                     for track in sorted(venue_counts)]
     return {
         "version": VERSION,
         "date": day,
         "raceCount": len(cards),
         "races": sorted(cards, key=lambda x: (x["track"], x["race"])),
+        "observedVenues": venue_summary,
+        "allObservedVenuesHaveTwelveRaces": all(
+            count == 12 for count in venue_counts.values()
+        ),
+        "allScheduledVenuesVerified": False,
         "weekReadRecordCount": total_read,
         "source": "private_jvlink_weekly_ra_se_candidate",
         "independentJraVerified": False,
@@ -249,7 +265,10 @@ def main(argv=None):
             raise JvLocalCheckError("PRIVATE_LOCAL_WRITE_FAILED") from None
         print("ARCRACE_WEEKLY_READ=SUCCESS")
         print("CANDIDATE_RACE_COUNT=" + str(report["raceCount"]))
-        print("NOTE=Not official final JRA verification, not a betting forecast.")
+        print("VENUES_OBSERVED=" + str(len(report["observedVenues"])))
+        print("TWELVE_R_PER_OBSERVED_VENUE=" +
+              ("YES" if report["allObservedVenuesHaveTwelveRaces"] else "NO"))
+        print("NOTE=Only a preliminary RA/SE candidate; verify scheduled venues, late changes and final JRA data.")
         return 0
     except JvLocalCheckError as error:
         print("ARCRACE_WEEKLY_READ=" + str(error))
