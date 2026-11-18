@@ -81,20 +81,29 @@ def audit_ungraded_formal_jrdb_day(day, programme, private_matrix, *,
             raise CoverageError("Unmatched or duplicate private factor source")
         materials[coord] = source
 
-    rows = []
+    rows, source_holds = [], {}
     for (track, race), program in sorted(schedule.items()):
         source = materials.get((track, race))
         off = program.get("post_time")
         count = program.get("headcount")
-        snapshot = None
-        if (source is not None
-                and type(count) is int and 4 <= count <= 18
-                and isinstance(source.get("byNumber"), dict)
-                and len(source["byNumber"]) == count
-                and type(off) is str and OFF.fullmatch(off)):
+        snapshot, hold = None, "none"
+        # Report only fixed diagnostic codes. Do not expose JRDB source rows,
+        # race keys, paid identifiers, provider errors or individual grades.
+        if source is None:
+            hold = "source_missing"
+        elif type(count) is not int or not 4 <= count <= 18:
+            hold = "programme_headcount_unknown"
+        elif (not isinstance(source.get("byNumber"), dict)
+              or len(source["byNumber"]) != count):
+            hold = "roster_count_mismatch"
+        elif type(off) is not str or OFF.fullmatch(off) is None:
+            hold = "post_time_unknown"
+        else:
             off_dt = datetime.strptime(day + off.replace(":", ""),
                                        "%Y%m%d%H%M").replace(tzinfo=JST)
-            if captured < off_dt:
+            if captured >= off_dt:
+                hold = "source_captured_after_post_time"
+            else:
                 try:
                     row = build_ungraded_formal_race_input(
                         source, day=day, as_of=as_of,
@@ -102,7 +111,8 @@ def audit_ungraded_formal_jrdb_day(day, programme, private_matrix, *,
                     )
                     snapshot = row["snapshot"]
                 except (CoverageError, TypeError, ValueError, OverflowError):
-                    snapshot = None
+                    hold = "source_contract_invalid"
+        source_holds[(track, race)] = hold
         rows.append({"track": track, "race": race, "snapshot": snapshot})
 
     audit = full_ten_day_research(day, rows, now=now)
@@ -117,9 +127,14 @@ def audit_ungraded_formal_jrdb_day(day, programme, private_matrix, *,
         "scheduledRaceCount": len(schedule),
         "heldSourceRaces": sum(r["status"] == "invalid_internal_snapshot"
                                for r in audit["races"]),
+        "sourceHoldReasonCounts": {
+            reason: sum(value == reason for value in source_holds.values())
+            for reason in sorted(set(source_holds.values()) - {"none"})
+        },
         "races": [{
             "track": row["track"], "race": row["race"],
             "status": row["status"],
+            "sourceHoldReason": source_holds[(row["track"], row["race"])],
             "unassessedHorseCount": row["unassessedHorseCount"],
             "reviewOnlyTicketCount": 0,
             "researchOnly": True, "bettingReady": False,
