@@ -71,6 +71,11 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
                          [("RACE", "00000000000000", 2, 0, 0, "")])
         self.assertEqual(jv.closed, 1)
         self.assertEqual(report["raceCount"], 1)
+        self.assertEqual(report["observedVenues"], [
+            {"track": "東京", "raceCount": 1}
+        ])
+        self.assertFalse(report["allObservedVenuesHaveTwelveRaces"])
+        self.assertFalse(report["allScheduledVenuesVerified"])
         self.assertEqual(report["races"][0]["horseNumbersCandidate"], [1, 2, 3, 4])
         self.assertEqual(report["races"][0]["postTimeCandidate"], "10:00")
         self.assertFalse(report["independentJraVerified"])
