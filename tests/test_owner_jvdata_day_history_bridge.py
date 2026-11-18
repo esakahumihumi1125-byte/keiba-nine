@@ -111,6 +111,21 @@ class DayJvDataHistoryBridgeTests(unittest.TestCase):
         with self.assertRaises(CoverageError):
             bridge([sample(1)] * 5001)
 
+    def test_unrelated_overseas_historical_races_cannot_block_matched_horse(self):
+        # Full RCVN streams can include other horses and venues; unrelated
+        # records must not distort an active runner's valid historical match.
+        unrelated_ra = replace(old_ra(day="20250715"), 19, 21, "90")
+        unrelated_se = replace(sample(7, day="20250715"), 19, 21, "90")
+        result = bridge([
+            sample(1), old_ra(),
+            unrelated_ra, unrelated_se,
+        ])
+        runs = result["races"][0]["byNumber"][0]["recentObservedRuns"]
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["finishPosition"], 8)
+        self.assertEqual(runs[0]["distanceMeters"], 1800)
+        self.assertFalse(result["formalTenFactorReady"])
+
     def test_not_all_historical_ra_must_be_present(self):
         result = bridge([sample(1)])
         run = result["races"][0]["byNumber"][0]["recentObservedRuns"][0]
