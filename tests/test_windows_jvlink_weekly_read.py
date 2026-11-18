@@ -3,6 +3,7 @@ import contextlib
 import copy
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -149,12 +150,12 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
         report = collect_weekly_candidate_records(FakeJv(weekly_records()), DAY)
         with tempfile.TemporaryDirectory() as tmp:
             output = io.StringIO()
-            with patch("windows_jvlink_weekly_read.Path.home", return_value=Path(tmp)), \
+            with patch.dict(os.environ, {"LOCALAPPDATA": tmp}), \
                  patch("windows_jvlink_weekly_read.run_one_weekly_read", return_value=report), \
                  contextlib.redirect_stdout(output):
                 self.assertEqual(main(["--date", DAY]), 0)
                 self.assertEqual(main(["--date", DAY]), 1)
-            target = Path(tmp) / "Documents" / "ARC-RACE-private" / (
+            target = Path(tmp) / "ARC-RACE-private" / (
                 "jvdata-candidate-" + DAY + ".json")
             saved = json.loads(target.read_text(encoding="utf-8"))
             self.assertEqual(saved["raceCount"], 1)
