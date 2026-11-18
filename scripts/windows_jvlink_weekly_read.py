@@ -10,7 +10,7 @@ readiness. JVOpen option 2 ("this-week data") is intentionally fixed. NO
 historical setup, retries, realtime polling or automatic scheduled calls.
 """
 import argparse
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -37,6 +37,8 @@ MAX_RACES = 36
 MAX_READ_BYTES = 110000
 RACE_ID = re.compile(rb"[0-9]{16}\Z")
 DATE = re.compile(r"20[0-9]{6}\Z")
+
+JST = timezone(timedelta(hours=9))
 
 
 class JvLocalCheckError(ValueError):
@@ -65,7 +67,7 @@ def validate_day(day):
 
 def collect_weekly_candidate_records(
     jv, day, *, max_records=MAX_RECORDS, sleep=None, monotonic=None,
-    max_download_wait=MAX_DOWNLOAD_WAIT_SECONDS
+    max_download_wait=MAX_DOWNLOAD_WAIT_SECONDS, captured_at=None
 ):
     """One JVOpen, bounded JVGets loop and mandatory JVClose.
 
@@ -187,6 +189,22 @@ def collect_weekly_candidate_records(
             raise JvLocalCheckError("CANDIDATE_RECORDS_INVALID") from None
     if not cards:
         raise JvLocalCheckError("NO_NUMBERED_CARDS_FOR_DAY")
+    # A local capture timestamp is NOT an official publication timestamp.
+    # Post-off readings may be useful for diagnostics, never for prestart
+    # grading or retroactive bet creation.
+    if captured_at is None:
+        captured_at = datetime.now(JST)
+    if (not isinstance(captured_at, datetime)
+            or captured_at.tzinfo is None
+            or captured_at.utcoffset() is None):
+        raise JvLocalCheckError("CAPTURE_CLOCK_INVALID")
+    capture_jst = captured_at.astimezone(JST)
+    for card in cards:
+        scheduled_off = datetime.strptime(
+            day + card["postTimeCandidate"], "%Y%m%d%H:%M"
+        ).replace(tzinfo=JST)
+        card["beforeScheduledOffAtLocalCapture"] = capture_jst < scheduled_off
+        card["collectionTimeIndependentlyVerified"] = False
     coordinate_set = {(r["track"], r["race"]) for r in cards}
     if len(coordinate_set) != len(cards):
         raise JvLocalCheckError("DUPLICATE_RACE_COORDINATES")
@@ -202,6 +220,11 @@ def collect_weekly_candidate_records(
         "version": VERSION,
         "date": day,
         "raceCount": len(cards),
+        "capturedAtLocalJst": capture_jst.isoformat(),
+        "collectionTimeIndependentlyVerified": False,
+        "allCandidatesBeforeScheduledOff": all(
+            r["beforeScheduledOffAtLocalCapture"] for r in cards
+        ),
         "races": sorted(cards, key=lambda x: (x["track"], x["race"])),
         "observedVenues": venue_summary,
         "allObservedVenuesHaveTwelveRaces": all(
@@ -312,6 +335,8 @@ def main(argv=None):
         print("LOCAL_COVERAGE_VIEW=READY")
         print("CANDIDATE_RACE_COUNT=" + str(report["raceCount"]))
         print("VENUES_OBSERVED=" + str(len(report["observedVenues"])))
+        print("ALL_BEFORE_SCHEDULED_OFF_AT_LOCAL_CAPTURE=" +
+              ("YES" if report["allCandidatesBeforeScheduledOff"] else "NO"))
         print("TWELVE_R_PER_OBSERVED_VENUE=" +
               ("YES" if report["allObservedVenuesHaveTwelveRaces"] else "NO"))
         print("NOTE=Only a preliminary RA/SE candidate; verify scheduled venues, late changes and final JRA data.")
