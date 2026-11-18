@@ -98,6 +98,42 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
         self.assertEqual(report["weekReadRecordCount"], 7)
         self.assertEqual(jv.closed, 1)
 
+    def test_empty_and_wrong_date_weekly_reads_have_distinct_safe_codes(self):
+        ra = weekly_records()[0]
+        # Every case includes a successful JVOpen and a final JVClose.
+        cases = (
+            ("NO_WEEKLY_PAYLOAD_RECORDS", []),
+            ("NO_NUMBERED_RA_SE_RECORDS", [
+                replace(ra, 2, 3, "1"),
+            ]),
+            ("NO_TARGET_DAY_NUMBERED_RA_SE", [
+                replace(ra, 11, 15, "2025"),
+            ]),
+        )
+        for code, records in cases:
+            jv = FakeJv(records)
+            with self.subTest(code=code), self.assertRaisesRegex(
+                    JvLocalCheckError, "^" + code + "$"):
+                collect_weekly_candidate_records(jv, DAY)
+            self.assertEqual(len(jv.open_calls), 1)
+            self.assertEqual(jv.closed, 1)
+
+    def test_read_failure_hint_is_fixed_and_leaks_no_provider_content(self):
+        for code in ("NO_WEEKLY_PAYLOAD_RECORDS",
+                     "NO_NUMBERED_RA_SE_RECORDS",
+                     "NO_TARGET_DAY_NUMBERED_RA_SE"):
+            out = io.StringIO()
+            with self.subTest(code=code), patch(
+                "windows_jvlink_weekly_read.run_one_weekly_read",
+                side_effect=JvLocalCheckError(code),
+            ), contextlib.redirect_stdout(out):
+                self.assertEqual(main(["--date", DAY]), 1)
+            self.assertIn("ARCRACE_WEEKLY_READ=" + code, out.getvalue())
+            self.assertIn("ARCRACE_NEXT_STEP=", out.getvalue())
+            for secret in ("PRIVATE_FILE_NAME", "1000000001",
+                           "password", "license_key", "racekey"):
+                self.assertNotIn(secret, out.getvalue())
+
     def test_duplication_conflict_and_incomplete_race_are_held(self):
         ra, se = weekly_records()[0], weekly_records()[1:]
         cases = [
