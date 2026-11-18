@@ -40,7 +40,8 @@ from owner_new_weight_five_research import new_weight_five_research
 from owner_three_factor_source_gaps import three_factor_source_gaps
 from owner_remaining21_source_gaps import remaining21_source_gaps
 from owner_research6_uncertainty import research6_uncertainty_intervals
-from owner_research6_five_drafts import build_research6_five_drafts
+from owner_research6_five_drafts import build_research6_five_drafts, _normal_programme
+from owner_formal_jrdb_day_bridge import audit_ungraded_formal_jrdb_day, VERSION as FORMAL_JRDB_BRIDGE_VERSION
 from owner_sparse_five_preview import preview_sparse_five_holds, JST
 from datetime import datetime
 from owner_pedigree_evidence_preflight import pedigree_evidence_preflight
@@ -247,6 +248,34 @@ def run_bounded_history_audit(programme, entries, previous,
             ),
             build_recent_hints(programme, entries, previous, requested_date),
         )
+        # Same-snapshot, private diagnostic only. Never promote the existing
+        # two-factor provisional bands to evidence-backed ten-factor grades.
+        # A malformed optional bridge must not break signed research receipts
+        # or cause extra paid lookups.
+        try:
+            diagnostic_now = datetime.now(JST)
+            formal_jrdb_input_audit = audit_ungraded_formal_jrdb_day(
+                requested_date,
+                _normal_programme(programme, requested_date),
+                private_matrix,
+                as_of=diagnostic_now.isoformat(), now=diagnostic_now,
+            )
+        except (CoverageError, ValueError, TypeError, KeyError, OverflowError):
+            formal_jrdb_input_audit = {
+                "version": FORMAL_JRDB_BRIDGE_VERSION,
+                "date": requested_date,
+                "status": "unavailable",
+                "reason": "unverified_internal_source_contract",
+                "races": [],
+                "sourceMaterialOnly": True,
+                "formalVerifiedFactorCount": 0,
+                "independentJraConnected": False,
+                "liveProviderFetchPerformedHere": False,
+                "extraPaidRequests": 0,
+                "productionPredictionReady": False,
+                "actualPurchase": False,
+                "autoPurchase": False,
+            }
         pace_scenarios = hypothesize_owner_pace(private_matrix)
         course_matrix = enrich_course_ground_matrix(
             private_matrix, observations, history_complete=is_history_complete
@@ -363,6 +392,7 @@ def run_bounded_history_audit(programme, entries, previous,
         "goingSummary": safe_summary,
         "evidenceQuality": quality_summary,
         "tenFactorMaterials": materials,
+        "formalJrdbInputAudit": formal_jrdb_input_audit,
         "privateHistoryFactors": history_factor_summary,
         "ownerRunnerHistory": runner_history,
         "research6ThreeFactorSourceGaps": three_factor_source_audit,
