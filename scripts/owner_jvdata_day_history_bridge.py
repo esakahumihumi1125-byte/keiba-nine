@@ -90,28 +90,41 @@ def build_local_day_history(current_records, history_records, day, *,
         raise CoverageError("Incomplete day horse roster")
 
     related_history, related_keys = [], set()
-    past_race_info = {}
     for raw in history_records:
         if not isinstance(raw, bytes) or len(raw) < 3:
             raise CoverageError("Invalid local RCVN record")
         if raw[:3] == b"SE7":
             _require_record(raw, b"SE", b"7", SE_LENGTH)
+            # RCVN may include history for many other horses and venues.
+            # Inspect only the registered IDs on the current racecard.
+            if raw[30:40].decode("ascii", errors="replace") not in joined_ids:
+                continue
             horse_id, key = _past_result_identity(raw, day)
-            # Do not import after-capture results into historical backtests.
             if raw[3:11].decode("ascii") > capture_day:
                 raise CoverageError("Post-capture historical record")
             if horse_id in joined_ids:
                 related_history.append(raw)
                 related_keys.add(key)
-        elif raw[:3] == b"RA7":
-            _require_record(raw, b"RA", b"7", RA_LENGTH)
-            key, _ = _historical_ra_context(raw, day, capture_day)
-            existing = past_race_info.get(key)
-            if existing is not None and existing != raw:
-                raise CoverageError("Conflicting historical race records")
-            past_race_info[key] = raw
-        else:
+        elif raw[:3] != b"RA7":
             raise CoverageError("Unexpected local historical record type")
+
+    needed_ra_ids = {
+        (key[0] + key[1] + key[2] + key[3] + key[4]).encode("ascii")
+        for key in related_keys
+    }
+    past_race_info = {}
+    for raw in history_records:
+        if raw[:3] != b"RA7":
+            continue
+        _require_record(raw, b"RA", b"7", RA_LENGTH)
+        if raw[11:27] not in needed_ra_ids:
+            # Unrelated historical races should not block another horse.
+            continue
+        key, _ = _historical_ra_context(raw, day, capture_day)
+        existing = past_race_info.get(key)
+        if existing is not None and existing != raw:
+            raise CoverageError("Conflicting historical race records")
+        past_race_info[key] = raw
 
     prior_ra = [past_race_info[key] for key in sorted(related_keys)
                 if key in past_race_info]
