@@ -43,3 +43,12 @@ JRDBの同日/場/Rの番組と馬番集合・頭数・予定時刻を比較す�
 - LinuxのGitHub Actionsでは合成COMを使ったテストのみ。実際のJRA-VANサーバーへの有料アクセス、Windows COM動作、利用キーの認証、配信の同時性、契約適合性は確認していない。
 
 [公式Data Lab. SDK・JV-Linkドキュメント](https://developer.jra-van.jp/t/topic/45) を参照。
+
+
+## 同日全RをJRDBと比較する内部処理（2026-11-18）
+
+`scripts/owner_jvdata_jrdb_day_check.py` は**本人認証済みのサーバーか個人PC内の処理として利用する想定**。既存の `windows_jvlink_weekly_read.py` が作った候補結果と、JRDBですでに正規化した同日 `/tra` と `/tky`（当日場・R・頭数・馬番・予定発走時刻）をレース単位に照合し、候補一致・不足・不一致を診断する。新しいJRA-VAN取得や有料JRDB API通信は一切しない。馬名・有料原票・馬IDは結果に含めない。
+
+- **候補が一致しても**出走取消・除外・馬場・当日発走時刻変更を最新速報で確認していないため、`finalJraStarterListVerified=false`、`formalTenFactorReady=false`、`bettingReady=false`。
+- JRDB側にRがあるのにJRA-VAN候補がない場合は `missing_jvdata_candidate` とする。馬番集合・予定時刻・頭数が異なる場合は `hold_source_mismatch`。日付違い、異なる競馬場や別レースの混入・重複・不正な採点許可フラグは処理を拒否する。
+- **現時点では関数と合成テストのみ**。Windowsでの実データ取得、Render本人用認証とのファイル連携、インターネット転送、公式最終確認との結合は行っていない。JRA-VANの契約・再利用/再配信条件に従う必要がある。
