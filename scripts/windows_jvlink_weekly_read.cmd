@@ -22,7 +22,7 @@ py -3 "%~dp0windows_jvlink_weekly_read.py" --date "%TARGET_DAY%"
 set "READ_EXIT=%ERRORLEVEL%"
 echo.
 if "%READ_EXIT%"=="0" (
-  echo Private racecard candidates saved under Documents\ARC-RACE-private.
+  echo Private racecard candidates saved under %LOCALAPPDATA%\ARC-RACE-private.
   echo These are not independently verified JRA official final starters.
 ) else (
   echo No complete candidate file was saved. Keep the error status above.
