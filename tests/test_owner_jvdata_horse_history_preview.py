@@ -194,7 +194,7 @@ class HorseHistoryPreviewTests(unittest.TestCase):
         cases = (
             replace(good, 2, 3, "2"),
             replace(good, 3, 11, "20261121"),  # later than local capture
-            replace(good, 11, 15, "2026"),     # wrong past race date
+            replace(good, 11, 15, "2099"),     # future race date
             good[:-1],
         )
         for value in cases:
