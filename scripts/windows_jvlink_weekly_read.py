@@ -18,6 +18,7 @@ import re
 import struct
 import sys
 import tempfile
+import time
 
 from jvdata_ra_se_candidate import (
     parse_jvdata_prestart_racecard,
@@ -30,6 +31,7 @@ VERSION = "owner-jvlink-weekly-local-candidates-1"
 # a one-click diagnostic instead of risking multi-GB use on a small PC.
 MAX_RECORDS = 5000
 MAX_FILE_SWITCHES = 200
+MAX_DOWNLOAD_WAIT_SECONDS = 90
 MAX_RACES = 36
 MAX_READ_BYTES = 110000
 RACE_ID = re.compile(rb"[0-9]{16}\Z")
@@ -60,15 +62,26 @@ def validate_day(day):
     return day
 
 
-def collect_weekly_candidate_records(jv, day, *, max_records=MAX_RECORDS):
+def collect_weekly_candidate_records(
+    jv, day, *, max_records=MAX_RECORDS, sleep=None, monotonic=None,
+    max_download_wait=MAX_DOWNLOAD_WAIT_SECONDS
+):
     """One JVOpen, bounded JVGets loop and mandatory JVClose.
 
     RA and SE category-2 records for the requested race day only. Identical
     duplicate records may be replayed, but any conflicting duplicate race
     record makes the *whole output* unsafe and fails closed.
     """
-    if type(max_records) is not int or not 1 <= max_records <= MAX_RECORDS:
+    if (type(max_records) is not int or not 1 <= max_records <= MAX_RECORDS
+            or type(max_download_wait) not in (int, float)
+            or not 0 < max_download_wait <= MAX_DOWNLOAD_WAIT_SECONDS):
         raise JvLocalCheckError("READ_BUDGET_INVALID")
+    # JV-Link -3 indicates data is still downloading, NOT a hard failure.
+    # A short, bounded local wait allows a single user-initiated attempt to
+    # finish without unbounded retrying, JVOpen repetitions or polling APIs.
+    sleep = sleep or time.sleep
+    monotonic = monotonic or time.monotonic
+    first_download_wait = None
     raw_ra, raw_se, seen_se = {}, {}, set()
     opened = False
     try:
@@ -96,8 +109,17 @@ def collect_weekly_candidate_records(jv, day, *, max_records=MAX_RECORDS):
                 if file_switches > MAX_FILE_SWITCHES:
                     raise JvLocalCheckError("TOO_MANY_FILE_SWITCHES")
                 continue
+            if code == -3:
+                if first_download_wait is None:
+                    first_download_wait = monotonic()
+                remaining = max_download_wait - (monotonic() - first_download_wait)
+                if remaining <= 0:
+                    raise JvLocalCheckError("JVDOWNLOAD_STILL_PENDING")
+                sleep(min(2, remaining))
+                continue
             if code < -1:
                 raise JvLocalCheckError("JVGETS_FAILED")
+            first_download_wait = None
             total_read += 1
             try:
                 data = record.tobytes() if hasattr(record, "tobytes") else bytes(record)
