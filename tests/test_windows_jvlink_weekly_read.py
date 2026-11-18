@@ -218,10 +218,18 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
             target = Path(tmp) / "ARC-RACE-private" / (
                 "jvdata-candidate-" + DAY + ".json")
             saved = json.loads(target.read_text(encoding="utf-8"))
+            html_path = target.with_suffix(".html")
+            self.assertTrue(html_path.is_file())
+            display = html_path.read_text(encoding="utf-8")
+            self.assertIn("東京", display)
+            self.assertIn("まだJRA公式最終確認ではありません", display)
+            self.assertNotIn("PRIVATE_FILE_NAME", display)
+            self.assertNotIn("1000000001", display)
             self.assertEqual(saved["raceCount"], 1)
             self.assertEqual(saved["races"][0]["horseNumbersCandidate"], [1, 2, 3, 4])
             self.assertNotIn("PRIVATE_FILE_NAME", target.read_text(encoding="utf-8"))
             self.assertEqual(list(target.parent.glob(".arc-race-*.tmp")), [])
+            self.assertIn("LOCAL_COVERAGE_VIEW=READY", output.getvalue())
             self.assertIn("ARCRACE_WEEKLY_READ=SUCCESS", output.getvalue())
             self.assertIn("ARCRACE_WEEKLY_READ=OUTPUT_EXISTS_NOT_OVERWRITTEN",
                           output.getvalue())
