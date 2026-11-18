@@ -111,6 +111,27 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
                 collect_weekly_candidate_records(jv, DAY)
             self.assertEqual(jv.closed, 1)
 
+    def test_extra_nul_or_com_buffer_padding_is_not_a_record_corruption(self):
+        class PaddedJv(FakeJv):
+            def JVGets(self, *_args):
+                value = super().JVGets(*_args)
+                code, raw, filename = value
+                if code > 0:
+                    return code, bytes(raw) + b"\\x00", filename
+                return value
+        sample = collect_weekly_candidate_records(PaddedJv(weekly_records()), DAY)
+        self.assertEqual(sample["races"][0]["horseNumbersCandidate"], [1, 2, 3, 4])
+
+        class ShortJv(FakeJv):
+            def JVGets(self, *_args):
+                value = super().JVGets(*_args)
+                code, raw, filename = value
+                if code > 0:
+                    return code, bytes(raw)[:-1], filename
+                return value
+        with self.assertRaisesRegex(JvLocalCheckError, "^JVGETS_DATA_INVALID$"):
+            collect_weekly_candidate_records(ShortJv(weekly_records()), DAY)
+
     def test_close_always_runs_after_read_failure(self):
         jv = FakeJv(weekly_records(), fail_read=True)
         with self.assertRaises(RuntimeError):
@@ -161,6 +182,7 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
             self.assertEqual(saved["raceCount"], 1)
             self.assertEqual(saved["races"][0]["horseNumbersCandidate"], [1, 2, 3, 4])
             self.assertNotIn("PRIVATE_FILE_NAME", target.read_text(encoding="utf-8"))
+            self.assertEqual(list(target.parent.glob(".arc-race-*.tmp")), [])
             self.assertIn("ARCRACE_WEEKLY_READ=SUCCESS", output.getvalue())
             self.assertIn("ARCRACE_WEEKLY_READ=OUTPUT_EXISTS_NOT_OVERWRITTEN",
                           output.getvalue())
