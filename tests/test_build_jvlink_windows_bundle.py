@@ -34,6 +34,8 @@ class WindowsBundleTests(unittest.TestCase):
                 self.assertIn("windows_jvlink_weekly_read.cmd", guide)
                 self.assertIn("windows_jvlink_horse_data_probe.cmd", guide)
                 self.assertIn("ARC_RACE_RCVN_CHECK", guide)
+                self.assertIn("windows_jvlink_day_history_preview.cmd", guide)
+                self.assertIn("ARC_RACE_DAY_HISTORY", guide)
                 self.assertIn("YES", guide)
                 self.assertIn("未完成", guide)
                 self.assertNotIn("RENDER_DEPLOY_HOOK_URL", guide)
@@ -48,6 +50,11 @@ class WindowsBundleTests(unittest.TestCase):
         self.assertIn("scripts/windows_check_jvlink.ps1", FILES)
         self.assertIn("scripts/windows_jvlink_horse_data_probe.cmd", FILES)
         self.assertIn("scripts/windows_jvlink_horse_data_probe.py", FILES)
+        self.assertIn("scripts/windows_jvlink_day_history_preview.cmd", FILES)
+        self.assertIn("scripts/windows_jvlink_day_history_preview.py", FILES)
+        self.assertIn("scripts/owner_jvdata_day_history_bridge.py", FILES)
+        self.assertIn("scripts/owner_jvdata_horse_history_coverage.py", FILES)
+        self.assertIn("scripts/owner_jvdata_horse_history_preview.py", FILES)
         self.assertTrue(all(path.startswith(("scripts/", "docs/")) for path in FILES))
 
 
