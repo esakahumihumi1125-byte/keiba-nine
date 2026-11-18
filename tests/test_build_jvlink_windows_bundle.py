@@ -32,6 +32,9 @@ class WindowsBundleTests(unittest.TestCase):
                 guide = package.read("ARC-RACE-JV-Link/README.txt").decode("utf-8-sig")
                 self.assertIn("windows_arc_race_preflight.cmd", guide)
                 self.assertIn("windows_jvlink_weekly_read.cmd", guide)
+                self.assertIn("windows_jvlink_horse_data_probe.cmd", guide)
+                self.assertIn("ARC_RACE_RCVN_CHECK", guide)
+                self.assertIn("YES", guide)
                 self.assertIn("未完成", guide)
                 self.assertNotIn("RENDER_DEPLOY_HOOK_URL", guide)
                 self.assertNotIn("JRDB_API_KEY", guide)
@@ -43,6 +46,8 @@ class WindowsBundleTests(unittest.TestCase):
         self.assertIn("scripts/jrdb_evidence_readiness.py", FILES)
         self.assertIn("scripts/owner_jvdata_local_report.py", FILES)
         self.assertIn("scripts/windows_check_jvlink.ps1", FILES)
+        self.assertIn("scripts/windows_jvlink_horse_data_probe.cmd", FILES)
+        self.assertIn("scripts/windows_jvlink_horse_data_probe.py", FILES)
         self.assertTrue(all(path.startswith(("scripts/", "docs/")) for path in FILES))
 
 
