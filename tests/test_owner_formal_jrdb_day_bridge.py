@@ -151,8 +151,9 @@ class FormalJrdbDayBridgeTests(unittest.TestCase):
         p, m = two_races()
         m[0]["privateRawToken"] = "DO_NOT_DISCLOSE_CREDENTIAL_VALUE"
         report = audit(p, m)
-        self.assertEqual(report["races"][0]["sourceHoldReason"],
-                         "source_contract_invalid")
+        tokyo = next(row for row in report["races"]
+                     if row["track"] == "東京")
+        self.assertEqual(tokyo["sourceHoldReason"], "source_contract_invalid")
         for forbidden in ("DO_NOT_DISCLOSE_CREDENTIAL_VALUE", "05264b01",
                           "experimental_workout_index", "frontObserved"):
             self.assertNotIn(forbidden, repr(report))
