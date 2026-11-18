@@ -178,6 +178,16 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
         self.assertEqual(jv.closed, 1)
         self.assertEqual(jv.open_calls[0][2], 2)
 
+    def test_nonzero_jvclose_is_not_treated_as_complete(self):
+        class BadCloseJv(FakeJv):
+            def JVClose(self):
+                self.closed += 1
+                return -201
+        jv = BadCloseJv(weekly_records())
+        with self.assertRaisesRegex(JvLocalCheckError, "^JVCLOSE_FAILED$"):
+            collect_weekly_candidate_records(jv, DAY)
+        self.assertEqual(jv.closed, 1)
+
     def test_failed_open_does_not_read_or_close_an_unopened_reader(self):
         jv = FakeJv(weekly_records(), fail_open=True)
         with self.assertRaisesRegex(JvLocalCheckError, "^JVOPEN_NOT_READY$"):
