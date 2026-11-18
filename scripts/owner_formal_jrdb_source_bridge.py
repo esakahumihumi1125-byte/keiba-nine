@@ -60,7 +60,7 @@ def build_ungraded_formal_race_input(private_race, *, day, as_of, off_at):
             or key[:2] not in TRACKS
             or track != TRACKS[key[:2]]
             or type(race) is not int or not 1 <= race <= 12
-            or int(key[6:]) != race):
+            or key[6:] != f"{race:02d}"):
         raise CoverageError("Private source race identity mismatch")
 
     rows = private_race.get("byNumber")
