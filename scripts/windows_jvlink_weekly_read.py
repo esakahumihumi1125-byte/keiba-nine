@@ -17,6 +17,7 @@ from pathlib import Path
 import re
 import struct
 import sys
+import tempfile
 
 from jvdata_ra_se_candidate import (
     parse_jvdata_prestart_racecard,
@@ -25,10 +26,12 @@ from jvdata_ra_se_candidate import (
 from jrdb_coverage import CoverageError
 
 VERSION = "owner-jvlink-weekly-local-candidates-1"
-MAX_RECORDS = 30000
-MAX_FILE_SWITCHES = 300
+# pywin32 JVGets can retain its requested buffer for each read. Bound
+# a one-click diagnostic instead of risking multi-GB use on a small PC.
+MAX_RECORDS = 5000
+MAX_FILE_SWITCHES = 200
 MAX_RACES = 36
-MAX_READ_BYTES = 150000
+MAX_READ_BYTES = 110000
 RACE_ID = re.compile(rb"[0-9]{16}\Z")
 DATE = re.compile(r"20[0-9]{6}\Z")
 
@@ -94,8 +97,12 @@ def collect_weekly_candidate_records(jv, day, *, max_records=MAX_RECORDS):
                 data = record.tobytes() if hasattr(record, "tobytes") else bytes(record)
             except (TypeError, ValueError, OverflowError, AttributeError):
                 raise JvLocalCheckError("JVGETS_DATA_INVALID") from None
-            if code != len(data) or len(data) < 3:
+            # Some supported pywin32 wrappers append a trailing NUL (or
+            # return a padded buffer). The JV-Link positive return value is
+            # the exact record byte count. Never parse the padding.
+            if code < 3 or code > MAX_READ_BYTES or len(data) < code:
                 raise JvLocalCheckError("JVGETS_DATA_INVALID")
+            data = data[:code]
             kind = data[:2]
             if kind not in (b"RA", b"SE") or data[2:3] != b"2":
                 continue
@@ -210,11 +217,28 @@ def main(argv=None):
         try:
             folder.mkdir(mode=0o700, parents=True, exist_ok=True)
             target = folder / ("jvdata-candidate-" + args.date + ".json")
-            with target.open("x", encoding="utf-8") as output:
-                json.dump(report, output, ensure_ascii=False, indent=2)
+            # Stage the complete JSON first. A crash or failed disk write
+            # cannot leave a partial file with the final trusted filename.
+            payload = json.dumps(report, ensure_ascii=False, indent=2)
+            staged = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", encoding="utf-8", dir=folder,
+                    prefix=".arc-race-", suffix=".tmp", delete=False
+                ) as output:
+                    staged = Path(output.name)
+                    output.write(payload)
+                    output.flush()
+                    os.fsync(output.fileno())
+                # Local NTFS hard-link is atomic and never overwrites a
+                # previous race-day snapshot. No cloud/shared-folder write.
+                os.link(staged, target)
+            finally:
+                if staged is not None:
+                    staged.unlink(missing_ok=True)
         except FileExistsError:
             raise JvLocalCheckError("OUTPUT_EXISTS_NOT_OVERWRITTEN") from None
-        except OSError:
+        except (OSError, TypeError, ValueError):
             raise JvLocalCheckError("PRIVATE_LOCAL_WRITE_FAILED") from None
         print("ARCRACE_WEEKLY_READ=SUCCESS")
         print("CANDIDATE_RACE_COUNT=" + str(report["raceCount"]))
