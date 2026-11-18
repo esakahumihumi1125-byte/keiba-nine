@@ -18,6 +18,11 @@ FILES = (
     "scripts/windows_jvlink_weekly_read.py",
     "scripts/windows_jvlink_horse_data_probe.cmd",
     "scripts/windows_jvlink_horse_data_probe.py",
+    "scripts/windows_jvlink_day_history_preview.cmd",
+    "scripts/windows_jvlink_day_history_preview.py",
+    "scripts/owner_jvdata_day_history_bridge.py",
+    "scripts/owner_jvdata_horse_history_coverage.py",
+    "scripts/owner_jvdata_horse_history_preview.py",
     "scripts/jvdata_ra_se_candidate.py",
     "scripts/owner_jvdata_local_report.py",
     "scripts/owner_jvdata_jrdb_day_check.py",
@@ -49,8 +54,16 @@ JRA-VAN契約、JV-Link、64bit Python、pywin32 が別途必要です。
    取得した馬のデータは一切保存・転送しません。
    NO_NEW_DATA や空応答だけで契約の不備を断定しないでください。
 
+7. RACEとRCVN両方の候補を同じ馬番に結びつけて確認する場合、
+   scripts/windows_jvlink_day_history_preview.cmd を開きます。
+   YES を明示入力した時だけRACEとRCVNをそれぞれ1回読む。
+   RCVNは利用環境によってJVOpen時のダウンロードが長くなる場合があります。
+   取得できた場合でも馬番と直近5走だけの研究用情報です。
+   PC内の ARC-RACE-private にJSONとHTMLを保存し、外部送信しません。
+   直前の取消や最終出走確定、配信時刻の真正性は検証していません。
+
 画面に出る CHECK=... / ARCRACE_WEEKLY_READ=... /
-ARC_RACE_RCVN_CHECK=... の状態名だけ
+ARC_RACE_RCVN_CHECK=... / ARC_RACE_DAY_HISTORY=... の状態名だけ
 教えてください。利用キーやパスワードは見せたり送ったりしないでください。
 
 重要：
