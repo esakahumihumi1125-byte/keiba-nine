@@ -101,9 +101,11 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
             or captured_at.tzinfo is None
             or captured_at.utcoffset() is None):
         raise CoverageError("Invalid historical collection timestamp")
-    before_off = captured_at.astimezone(JST) < datetime.strptime(
+    local_capture = captured_at.astimezone(JST)
+    before_off = local_capture < datetime.strptime(
         day + card["postTimeCandidate"], "%Y%m%d%H:%M",
     ).replace(tzinfo=JST)
+    capture_day = local_capture.strftime("%Y%m%d")
 
     current_id_to_number = {
         _ascii(row, 30, 40): int(_ascii(row, 28, 30))
@@ -112,6 +114,11 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
     records = {num: {} for num in current_id_to_number.values()}
     for raw in historical_se:
         horse_id, past_race_key = _past_result_identity(raw, day)
+        # The SE creation date cannot be later than a historical local
+        # snapshot. Date-only comparison is necessary but NOT proof that
+        # the record had been published at its capture hour.
+        if raw[3:11].decode("ascii") > capture_day:
+            raise CoverageError("Historical record created after local capture")
         number = current_id_to_number.get(horse_id)
         if number is None:
             continue
