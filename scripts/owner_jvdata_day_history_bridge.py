@@ -78,7 +78,12 @@ def build_local_day_history(current_records, history_records, day, *,
             if old is not None and old != raw:
                 raise CoverageError("Conflicting current horse record")
             today_se[key] = raw
-            joined_ids.add(raw[30:40])
+            # The past-record parser decodes registration IDs to ASCII str.
+            # Compare str to str, not bytes to str (which silently loses runs).
+            try:
+                joined_ids.add(raw[30:40].decode("ascii"))
+            except UnicodeDecodeError:
+                raise CoverageError("Invalid current horse registration ID") from None
     if not today_ra or len(today_ra) > MAX_RACE_CARDS:
         raise CoverageError("No bounded day race roster")
     if {key[0] for key in today_se} != set(today_ra):
