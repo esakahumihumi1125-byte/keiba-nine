@@ -110,6 +110,19 @@ class JvDayCrosscheckTests(unittest.TestCase):
         self.assertEqual(report["races"][0]["status"], "post_off_local_capture")
         self.assertFalse(report["productionPredictionReady"])
 
+    def test_tampered_local_prestart_flags_are_rejected(self):
+        for tamper in (
+            lambda w: w["races"][0].update(
+                beforeScheduledOffAtLocalCapture=False),
+            lambda w: w.update(allCandidatesBeforeScheduledOff=False),
+            lambda w: w.update(capturedAtLocalJst="2026-11-21T11:00:00+09:00"),
+            lambda w: w.update(capturedAtLocalJst="invalid"),
+        ):
+            week, programme, entries = data()
+            tamper(week)
+            with self.subTest(tamper=tamper), self.assertRaises(CoverageError):
+                audit_day_candidate_matches(week, programme, entries, DAY)
+
     def test_empty_day_cannot_claim_complete(self):
         week, programme, entries = data()
         week["races"] = []
