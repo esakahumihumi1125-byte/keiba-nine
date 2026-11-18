@@ -164,7 +164,10 @@ def collect_weekly_candidate_records(
     finally:
         if opened:
             try:
-                jv.JVClose()
+                if jv.JVClose() != 0:
+                    raise JvLocalCheckError("JVCLOSE_FAILED")
+            except JvLocalCheckError:
+                raise
             except Exception:
                 # The existing error must never reveal a JV-Link filename or
                 # leave apparently complete data after a failed close.
