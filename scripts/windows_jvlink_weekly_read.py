@@ -86,6 +86,11 @@ def collect_weekly_candidate_records(
     monotonic = monotonic or time.monotonic
     first_download_wait = None
     raw_ra, raw_se, seen_se = {}, {}, set()
+    # Bounded, non-identifying counters distinguish an empty JVOpen payload
+    # from records without prestart numbering and records for another day.
+    # Counts are never printed (the provider content remains local).
+    numbered_any_day = 0
+    numbered_target_day = 0
     opened = False
     try:
         opened_result = jv.JVOpen("RACE", "00000000000000", 2, 0, 0, "")
@@ -139,8 +144,10 @@ def collect_weekly_candidate_records(
                 continue
             if len(data) < 30:
                 raise JvLocalCheckError("JVGETS_DATA_INVALID")
+            numbered_any_day += 1
             if data[11:19].decode("ascii", errors="ignore") != day:
                 continue
+            numbered_target_day += 1
             if kind == b"RA" and len(data) != RA_LENGTH:
                 raise JvLocalCheckError("RACE_RECORD_INVALID")
             if kind == b"SE" and len(data) != SE_LENGTH:
@@ -188,6 +195,14 @@ def collect_weekly_candidate_records(
         except CoverageError:
             raise JvLocalCheckError("CANDIDATE_RECORDS_INVALID") from None
     if not cards:
+        # Do not conclude that the JRA has not published yet or that the
+        # user's subscription is invalid: these are local read observations.
+        if total_read == 0:
+            raise JvLocalCheckError("NO_WEEKLY_PAYLOAD_RECORDS")
+        if numbered_any_day == 0:
+            raise JvLocalCheckError("NO_NUMBERED_RA_SE_RECORDS")
+        if numbered_target_day == 0:
+            raise JvLocalCheckError("NO_TARGET_DAY_NUMBERED_RA_SE")
         raise JvLocalCheckError("NO_NUMBERED_CARDS_FOR_DAY")
     # A local capture timestamp is NOT an official publication timestamp.
     # Post-off readings may be useful for diagnostics, never for prestart
@@ -349,7 +364,24 @@ def main(argv=None):
                 print("LOCAL_COVERAGE_VIEW_OPEN=MANUAL")
         return 0
     except JvLocalCheckError as error:
-        print("ARCRACE_WEEKLY_READ=" + str(error))
+        code = str(error)
+        print("ARCRACE_WEEKLY_READ=" + code)
+        guidance = {
+            "NO_WEEKLY_PAYLOAD_RECORDS":
+                "Local read returned no record payload; confirm service conditions and publication timing manually.",
+            "NO_NUMBERED_RA_SE_RECORDS":
+                "Records arrived, but no numbered RA/SE prestart records were observed.",
+            "NO_TARGET_DAY_NUMBERED_RA_SE":
+                "Numbered RA/SE records arrived, but not for the requested day.",
+            "NO_NUMBERED_CARDS_FOR_DAY":
+                "No safe numbered racecards could be assembled for the day.",
+            "JVOPEN_NOT_READY":
+                "Weekly data could not be opened; review local JV-Link and subscription status.",
+            "RACE_AND_HORSE_RECORDS_INCOMPLETE":
+                "Race and horse records did not match; no candidate file was saved.",
+        }.get(code)
+        if guidance:
+            print("ARCRACE_NEXT_STEP=" + guidance)
         return 1
 
 
