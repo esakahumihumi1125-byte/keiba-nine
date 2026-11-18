@@ -30,3 +30,15 @@ JRDBの同日/場/Rの番組と馬番集合・頭数・予定時刻を比較す�
 **現時点の境界**：`scripts/windows_check_jvlink.cmd` ではまだJVInitのみを試します。JVOpen、JVRead、RA/SE抽出は**未実装**で、PC上の実データ取得も試していません。これらのパーサーは合成レコードでのテストのみです。JV-Dataの利用権限も自動認証しません。取得時点とJV-Linkの元データが真正か、RA/SE以降の変更情報を取りこぼしていないかを別途検証するまでは正式10項目採点ゲートへ通しません。
 
 技術資料： [JRA-VAN現行SDK](https://developer.jra-van.jp/t/topic/45)、[JV-Data仕様書](https://jra-van.jp/dlb/sdv/sdk/JV-Data4901.pdf)、[RAフィールドの読み方](https://ht-0328.github.io/jvdata-store/reference/RA/)、[SEフィールドの読み方](https://ht-0328.github.io/jvdata-store/reference/SE/)。
+
+## 「今週データ」を本人PCで1回だけ取得する実行ファイル（2026-11-18）
+
+- **まだ実機未検証。** 開発ブランチの `scripts/windows_jvlink_weekly_read.cmd` をダブルクリックし、開催日を `YYYYMMDD` で1回入力する想定。PCのWindowsにJV-Link 64bitと、64bit Python（pywin32ライブラリ）がインストールされている必要がある。Pythonを自動インストールせず、権限のないAPIを自動連打しない。
+- `windows_jvlink_weekly_read.py` は `JVInit("UNKNOWN")` → **1回だけ** `JVOpen("RACE","00000000000000",2,...)` → 最大30,000レコードの `JVGets` → `JVClose`。公式JV-Data option 2（今週データ）のみで、過去データのsetup option 3/4、通常蓄積 option 1、リアルタイム監視は行わない。実行対象日はPC現地日付から7日以内の今日以降だけ。
+- 取り出すのは対象開催日の**出馬表区分2のRA/SE**のみ。日付・競馬場・レース・馬番・登録頭数が完全一致した場合だけ、各場各Rの候補をまとめる。区分3以降の結果や馬名、血統ID、ファイル名、生レコードは保存しない。欠損や矛盾、取得上限超過、JVClose失敗なら全体を保留。
+- 成功時には `%LOCALAPPDATA%\ARC-RACE-private\jvdata-candidate-YYYYMMDD.json` に**非公開の候補要約だけ**保存する。OneDriveとGitHubの作業フォルダを避けるため通常のDocumentsには保存しない。同じ開催日のファイルが既に存在したら**上書きしない**。後の発走前記録と混同しないため、現在は追記や自動再取得を許可しない。JSONを公開リポジトリ、チャット、SNS、Google Driveに転送しない。
+- 失敗時は `ARCRACE_WEEKLY_READ=...` の**固定ステータス名のみ**表示。完全なエラーログ、利用キーや実レース原票は送らない。 `PYWIN32_NOT_INSTALLED` なら同じ64bit Python環境にpywin32が未導入。 `JVOPEN_NOT_READY` はJV-Linkや利用状態、今週データの提供状態を公式設定で個別に確認する必要があるが、**自動で再試行しない**。
+- **重要**: これはJRA最終確定の証明ではなく、候補馬番・予定時刻だけ。AV(出走取消・除外)、WE(馬場)、TC(発走時刻変更)、WH(馬体重)の直前変更と元データの真正性・配信タイミング・出走馬最終確定はまだ未接続。本人用Renderへの取り込み、正式100点採点、全場全R3連単自動生成・公式結果照合は**未完成**。
+- LinuxのGitHub Actionsでは合成COMを使ったテストのみ。実際のJRA-VANサーバーへの有料アクセス、Windows COM動作、利用キーの認証、配信の同時性、契約適合性は確認していない。
+
+[公式Data Lab. SDK・JV-Linkドキュメント](https://developer.jra-van.jp/t/topic/45) を参照。
