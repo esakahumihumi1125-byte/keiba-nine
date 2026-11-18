@@ -98,3 +98,26 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from jrdb_day_pipeline_ui import JS; from pathlib import Path; Path('/tmp/keiba-jrdb-day-pipeline.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-jrdb-day-pipeline.js
           node scripts/check-private-day-pipeline-ui.cjs
+
+  # Draft PR #189 only: produce a small, source-only PC check ZIP after all
+  # synthetic tests pass. Do NOT package private data, read secrets or deploy.
+  package-jvlink-windows:
+    needs: [synthetic-tests]
+    if: ${{ github.event_name == 'pull_request' && github.head_ref == 'feature/jvlink-readonly-windows-check-20261118' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build local-only Windows check ZIP from reviewed files
+        run: python scripts/build_jvlink_windows_bundle.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ARC-RACE-JV-Link-PC-check-PR189
+          path: dist/ARC-RACE-JV-Link-PC-check.zip
+          if-no-files-found: error
+          retention-days: 7
