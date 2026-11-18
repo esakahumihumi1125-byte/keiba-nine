@@ -45,8 +45,8 @@ class FakeJv:
         if not self.raws:
             return 0, b"", bytearray()
         item = self.raws.pop(0)
-        if item == -1:
-            return -1, b"", bytearray()
+        if item in (-1, -3):
+            return item, b"", bytearray()
         return len(item), memoryview(item), bytearray(b"PRIVATE_FILE_NAME")
 
     def JVClose(self):
@@ -121,6 +121,34 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
                     JvLocalCheckError):
                 collect_weekly_candidate_records(jv, DAY)
             self.assertEqual(jv.closed, 1)
+
+    def test_download_in_progress_waits_without_reopening_or_losing_records(self):
+        jv = FakeJv([-3, -3, *weekly_records()])
+        simulated = [0.0]
+        def fake_sleep(seconds):
+            simulated[0] += seconds
+        report = collect_weekly_candidate_records(
+            jv, DAY, sleep=fake_sleep,
+            monotonic=lambda: simulated[0], max_download_wait=10)
+        self.assertEqual(report["raceCount"], 1)
+        self.assertEqual(report["weekReadRecordCount"], 5)
+        self.assertEqual(simulated[0], 4.0)
+        self.assertEqual(len(jv.open_calls), 1)
+        self.assertEqual(jv.closed, 1)
+
+    def test_download_in_progress_times_out_closes_without_output(self):
+        jv = FakeJv([-3] * 20)
+        simulated = [0.0]
+        def fake_sleep(seconds):
+            simulated[0] += seconds
+        with self.assertRaisesRegex(
+                JvLocalCheckError, "^JVDOWNLOAD_STILL_PENDING$"):
+            collect_weekly_candidate_records(
+                jv, DAY, sleep=fake_sleep,
+                monotonic=lambda: simulated[0], max_download_wait=3)
+        self.assertEqual(simulated[0], 3.0)
+        self.assertEqual(len(jv.open_calls), 1)
+        self.assertEqual(jv.closed, 1)
 
     def test_extra_nul_or_com_buffer_padding_is_not_a_record_corruption(self):
         class PaddedJv(FakeJv):
