@@ -8,10 +8,10 @@ races' research results. This consumes no paid data and changes no receipts.
 import re
 from datetime import date, timedelta, timezone
 
-from evaluation_policy import timestamp
 from jrdb_coverage import CoverageError
 from jrdb_program_preview import TRACKS
 from owner_full_ten_factor import full_ten_factor_preview, _clock, _empty
+from owner_formal_assessment_input import validate_formal_assessment_snapshot
 
 VERSION = "owner-full-ten-day-gate-1"
 JST = timezone(timedelta(hours=9))
@@ -61,21 +61,10 @@ def full_ten_day_research(day, race_snapshots, *, now):
     for row in race_snapshots:
         assessment = row["snapshot"]
         try:
-            if not isinstance(assessment, dict):
-                raise CoverageError("Missing internal full-ten snapshot")
-            # A grade-set from another race must NEVER silently appear
-            # under this race's coordinates. Both a trusted full-ten
-            # snapshot and its batch row must explicitly identify the same
-            # race; absence is held, not inferred from array position.
-            if (assessment.get("track") != row["track"]
-                    or type(assessment.get("race")) is not int
-                    or assessment["race"] != row["race"]):
-                raise CoverageError("Full-ten source race identity mismatch")
-            # Every snapshot must target this day's expected off, even when
-            # the pre-race evidence was collected on an earlier day.
-            off = timestamp(assessment.get("offAt"))
-            if off.astimezone(JST).strftime("%Y%m%d") != day:
-                raise CoverageError("Full-ten snapshot belongs to another day")
+            assessment = validate_formal_assessment_snapshot(
+                assessment, expected_track=row["track"],
+                expected_race=row["race"], day=day,
+            )
             preview = full_ten_factor_preview(assessment, now=now)
         except (CoverageError, ValueError, TypeError, KeyError, OverflowError):
             preview = _empty("invalid_internal_snapshot")
