@@ -34,10 +34,30 @@ def sample(horse=1, *, day="20251012", race="01", finish="08"):
     return row
 
 
-def preview(records, *, captured_at=PRESTART):
+
+def old_ra(*, day="20251012", race="01", created="20251101",
+           distance="1800", track="11", turf="2", dirt="0"):
+    record = make("RA")
+    for start, end, value in (
+        (2, 3, "7"),
+        (3, 11, created),
+        (11, 15, day[:4]),
+        (15, 19, day[4:]),
+        (25, 27, race),
+        (697, 701, distance),
+        (705, 707, track),
+        (888, 889, turf),
+        (889, 890, dirt),
+    ):
+        record = replace(record, start, end, value)
+    return record
+
+
+def preview(records, *, captured_at=PRESTART, historical_ra=None):
     ra, se = racecard()
     return preview_jvdata_horse_history(
         ra, se, records, DAY, captured_at=captured_at,
+        historical_ra=historical_ra,
     )
 
 
@@ -138,6 +158,67 @@ class HorseHistoryPreviewTests(unittest.TestCase):
                             for row in result["byNumber"]))
         self.assertFalse(result["predictionReady"])
         self.assertFalse(result["formalTenFactorReady"])
+
+    def test_matching_historical_ra_supplies_course_context(self):
+        row = sample(1)
+        matched = old_ra(distance="1800", track="11", turf="2")
+        report = preview([row], historical_ra=[matched, matched])
+        first = report["byNumber"][0]["recentObservedRuns"][0]
+        self.assertTrue(report["historicalRaContextJoined"])
+        self.assertTrue(first["historicalRaceContextMatched"])
+        self.assertEqual(first["distanceMeters"], 1800)
+        self.assertEqual(first["surface"], "芝")
+        self.assertEqual(first["goingCode"], 2)
+        self.assertEqual(first["going"], "稍重")
+        self.assertFalse(report["formalTenFactorReady"])
+        self.assertFalse(report["predictionReady"])
+
+    def test_dirt_going_and_foreign_historical_ra_are_not_crossed(self):
+        row = sample(1)
+        foreign = old_ra(race="02", distance="2400")
+        report = preview([row], historical_ra=[foreign])
+        prior = report["byNumber"][0]["recentObservedRuns"][0]
+        self.assertFalse(report["historicalRaContextJoined"])
+        self.assertIsNone(prior["distanceMeters"])
+        self.assertFalse(prior["historicalRaceContextMatched"])
+        report = preview([row], historical_ra=[
+            old_ra(track="24", distance="1600", dirt="3")
+        ])
+        prior = report["byNumber"][0]["recentObservedRuns"][0]
+        self.assertEqual(prior["distanceMeters"], 1600)
+        self.assertEqual(prior["surface"], "ダート")
+        self.assertEqual(prior["going"], "重")
+
+    def test_bad_or_future_ra_context_cannot_influence_a_horse(self):
+        good = old_ra()
+        cases = (
+            replace(good, 2, 3, "2"),
+            replace(good, 3, 11, "20261121"),  # later than local capture
+            replace(good, 11, 15, "2026"),     # wrong past race date
+            good[:-1],
+        )
+        for value in cases:
+            with self.subTest(value=value[:30]), self.assertRaises(CoverageError):
+                preview([sample()], historical_ra=[value])
+        unknown = replace(good, 705, 707, "00")
+        out = preview([sample()], historical_ra=[unknown])
+        run = out["byNumber"][0]["recentObservedRuns"][0]
+        self.assertIsNone(run["surface"])
+        self.assertIsNone(run["going"])
+
+    def test_conflicting_ra_revisions_are_not_silently_preferred(self):
+        a = old_ra(distance="1200")
+        b = old_ra(distance="1800")
+        with self.assertRaises(CoverageError):
+            preview([sample()], historical_ra=[a, b])
+
+    def test_post_off_ra_join_cannot_fabricate_prestart_evidence(self):
+        result = preview([sample()], historical_ra=[old_ra()],
+                         captured_at=POSTOFF)
+        self.assertEqual(result["status"], "post_off_capture_hold")
+        self.assertFalse(result["historicalRaContextJoined"])
+        self.assertTrue(all(not x["recentObservedRuns"]
+                            for x in result["byNumber"]))
 
     def test_current_race_number_mismatch_is_blocked(self):
         ra, se = racecard()
