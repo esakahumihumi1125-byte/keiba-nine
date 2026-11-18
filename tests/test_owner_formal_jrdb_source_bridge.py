@@ -88,6 +88,7 @@ class FormalJrdbSourceBridgeTests(unittest.TestCase):
             lambda x: x.update(bettingReady=True),
             lambda x: x.update(independentJraVerified=True),
             lambda x: x.update(racekey="08264b01"),
+            lambda x: x.update(racekey="05264b0a"),
             lambda x: x.update(race=2),
             lambda x: x.update(track="京都"),
             lambda x: x.update(private_horse_id="do-not-copy"),
