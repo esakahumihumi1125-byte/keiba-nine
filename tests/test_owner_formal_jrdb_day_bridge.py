@@ -108,6 +108,63 @@ class FormalJrdbDayBridgeTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(CoverageError):
                 audit(programme_rows, material_rows)
 
+    def test_bounded_source_hold_codes_identify_next_data_fix(self):
+        cases = (
+            ("source_missing", lambda p, m: m.pop(0)),
+            ("programme_headcount_unknown",
+             lambda p, m: p[0].update(headcount=None)),
+            ("roster_count_mismatch",
+             lambda p, m: p[0].update(headcount=5)),
+            ("post_time_unknown",
+             lambda p, m: p[0].update(post_time=None)),
+            ("source_contract_invalid",
+             lambda p, m: m[0]["byNumber"]["01"]["pace"].update(grade="S")),
+        )
+        for expected, mutate in cases:
+            p, m = two_races()
+            mutate(p, m)
+            with self.subTest(reason=expected):
+                report = audit(p, m)
+                tokyo = next(row for row in report["races"]
+                             if row["track"] == "東京")
+                kyoto = next(row for row in report["races"]
+                             if row["track"] == "京都")
+                self.assertEqual(tokyo["status"], "invalid_internal_snapshot")
+                self.assertEqual(tokyo["sourceHoldReason"], expected)
+                self.assertEqual(kyoto["sourceHoldReason"], "none")
+                self.assertEqual(report["sourceHoldReasonCounts"], {expected: 1})
+                self.assertEqual(report["formalVerifiedFactorCount"], 0)
+                self.assertFalse(report["productionPredictionReady"])
+                self.assertEqual(tokyo["reviewOnlyTicketCount"], 0)
+
+    def test_captured_after_post_time_has_safe_reason_no_source_leak(self):
+        p, m = two_races()
+        report = audit(p, m, as_of="2099-01-01T10:00:00+09:00",
+                       now="2099-01-01T10:01:00+09:00")
+        self.assertEqual(report["sourceHoldReasonCounts"],
+                         {"source_captured_after_post_time": 2})
+        self.assertTrue(all(
+            row["sourceHoldReason"] == "source_captured_after_post_time"
+            and row["reviewOnlyTicketCount"] == 0
+            for row in report["races"]
+        ))
+        p, m = two_races()
+        m[0]["privateRawToken"] = "DO_NOT_DISCLOSE_CREDENTIAL_VALUE"
+        report = audit(p, m)
+        self.assertEqual(report["races"][0]["sourceHoldReason"],
+                         "source_contract_invalid")
+        for forbidden in ("DO_NOT_DISCLOSE_CREDENTIAL_VALUE", "05264b01",
+                          "experimental_workout_index", "frontObserved"):
+            self.assertNotIn(forbidden, repr(report))
+
+    def test_post_start_does_not_misclassify_valid_source_as_missing(self):
+        p, m = two_races()
+        report = audit(p, m, now="2099-01-01T10:00:00+09:00")
+        self.assertEqual(report["sourceHoldReasonCounts"], {})
+        self.assertTrue(all(row["sourceHoldReason"] == "none"
+                            and row["status"] == "outside_prestart_window"
+                            for row in report["races"]))
+
     def test_invalid_time_and_post_off_never_issue_tickets(self):
         p, m = two_races()
         for as_of, now in (
