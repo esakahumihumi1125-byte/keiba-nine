@@ -10,7 +10,7 @@ readiness. JVOpen option 2 ("this-week data") is intentionally fixed. NO
 historical setup, retries, realtime polling or automatic scheduled calls.
 """
 import argparse
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 import os
 from pathlib import Path
@@ -38,6 +38,12 @@ DATE = re.compile(r"20[0-9]{6}\Z")
 
 class JvLocalCheckError(ValueError):
     """Only stable labels are user-visible, never COM error details."""
+
+
+def next_saturday(today=None):
+    """Default the one-click test to the next Saturday in PC-local Japan time."""
+    local_date = today or date.today()
+    return (local_date + timedelta(days=(5 - local_date.weekday()) % 7)).strftime("%Y%m%d")
 
 
 def validate_day(day):
@@ -203,10 +209,11 @@ def run_one_weekly_read(day, *, jv_factory=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="ARC RACE local one-time JRA-VAN weekly RA/SE read")
-    parser.add_argument("--date", required=True, help="JST race date YYYYMMDD (today to next 7 days)")
+    parser.add_argument("--date", help="JST race date YYYYMMDD (default: next Saturday)")
     args = parser.parse_args(argv)
+    day = args.date or next_saturday()
     try:
-        report = run_one_weekly_read(args.date)
+        report = run_one_weekly_read(day)
         # This owner-only JSON contains ONLY the race coordinates, horse
         # numbers and scheduled post-time candidates. It must not be uploaded
         # to public repositories or stored in shared folders.
@@ -216,7 +223,7 @@ def main(argv=None):
         folder = Path(local_base) / "ARC-RACE-private"
         try:
             folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-            target = folder / ("jvdata-candidate-" + args.date + ".json")
+            target = folder / ("jvdata-candidate-" + day + ".json")
             # Stage the complete JSON first. A crash or failed disk write
             # cannot leave a partial file with the final trusted filename.
             payload = json.dumps(report, ensure_ascii=False, indent=2)
