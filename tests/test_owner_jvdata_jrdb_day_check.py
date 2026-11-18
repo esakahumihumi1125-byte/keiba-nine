@@ -1,6 +1,7 @@
 """Synthetic offline whole-day JRA-VAN vs JRDB race-matching tests."""
 import copy
 import json
+from datetime import datetime
 import sys
 import unittest
 from pathlib import Path
@@ -12,11 +13,14 @@ from jvdata_ra_se_candidate import compare_jvdata_candidate_to_jrdb
 from owner_jvdata_jrdb_day_check import audit_day_candidate_matches
 from test_jvdata_ra_se_candidate import DAY, jrdb
 from test_windows_jvlink_weekly_read import FakeJv, weekly_records
-from windows_jvlink_weekly_read import collect_weekly_candidate_records
+from windows_jvlink_weekly_read import collect_weekly_candidate_records, JST
 
 
 def data():
-    week = collect_weekly_candidate_records(FakeJv(weekly_records()), DAY)
+    week = collect_weekly_candidate_records(
+        FakeJv(weekly_records()), DAY,
+        captured_at=datetime(2026, 11, 20, 12, tzinfo=JST),
+    )
     programme, entries = jrdb()
     return week, [programme], entries
 
@@ -92,6 +96,19 @@ class JvDayCrosscheckTests(unittest.TestCase):
             change(week, programme, entries)
             with self.subTest(change=change), self.assertRaises(CoverageError):
                 audit_day_candidate_matches(week, programme, entries, DAY)
+
+    def test_post_off_local_capture_never_matches_even_with_same_runners(self):
+        week, programme, entries = data()
+        week = collect_weekly_candidate_records(
+            FakeJv(weekly_records()), DAY,
+            captured_at=datetime(2026, 11, 21, 10, 5, tzinfo=JST),
+        )
+        report = audit_day_candidate_matches(week, programme, entries, DAY)
+        self.assertFalse(report["allCandidatesMatched"])
+        self.assertEqual(report["postOffCandidateRaces"], 1)
+        self.assertEqual(report["candidateMatchedRaces"], 0)
+        self.assertEqual(report["races"][0]["status"], "post_off_local_capture")
+        self.assertFalse(report["productionPredictionReady"])
 
     def test_empty_day_cannot_claim_complete(self):
         week, programme, entries = data()
