@@ -24,6 +24,7 @@ from jvdata_ra_se_candidate import (
     parse_jvdata_prestart_racecard,
     RA_LENGTH, SE_LENGTH,
 )
+from owner_jvdata_local_report import render_weekly_candidate_summary
 from jrdb_coverage import CoverageError
 
 VERSION = "owner-jvlink-weekly-local-candidates-1"
@@ -260,37 +261,64 @@ def main(argv=None):
             raise JvLocalCheckError("LOCALAPPDATA_UNAVAILABLE")
         folder = Path(local_base) / "ARC-RACE-private"
         try:
+            page = render_weekly_candidate_summary(report)
+        except CoverageError:
+            raise JvLocalCheckError("LOCAL_REPORT_INVALID") from None
+        try:
             folder.mkdir(mode=0o700, parents=True, exist_ok=True)
             target = folder / ("jvdata-candidate-" + day + ".json")
-            # Stage the complete JSON first. A crash or failed disk write
-            # cannot leave a partial file with the final trusted filename.
-            payload = json.dumps(report, ensure_ascii=False, indent=2)
-            staged = None
+            html_target = folder / ("jvdata-candidate-" + day + ".html")
+            # Both files must be complete before the final filenames exist.
+            # Create local NTFS hard links rather than overwriting snapshots.
+            staged_json = None
+            staged_html = None
+            linked_json = False
             try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w", encoding="utf-8", dir=folder,
-                    prefix=".arc-race-", suffix=".tmp", delete=False
-                ) as output:
-                    staged = Path(output.name)
-                    output.write(payload)
-                    output.flush()
-                    os.fsync(output.fileno())
-                # Local NTFS hard-link is atomic and never overwrites a
-                # previous race-day snapshot. No cloud/shared-folder write.
-                os.link(staged, target)
+                for body, suffix in (
+                    (json.dumps(report, ensure_ascii=False, indent=2), ".json"),
+                    (page, ".html"),
+                ):
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", encoding="utf-8", dir=folder,
+                        prefix=".arc-race-", suffix=".tmp", delete=False
+                    ) as output:
+                        pending = Path(output.name)
+                        if suffix == ".json":
+                            staged_json = pending
+                        else:
+                            staged_html = pending
+                        output.write(body)
+                        output.flush()
+                        os.fsync(output.fileno())
+                os.link(staged_json, target)
+                linked_json = True
+                os.link(staged_html, html_target)
+            except OSError:
+                if linked_json:
+                    target.unlink(missing_ok=True)
+                raise
             finally:
-                if staged is not None:
-                    staged.unlink(missing_ok=True)
+                for staged in (staged_json, staged_html):
+                    if staged is not None:
+                        staged.unlink(missing_ok=True)
         except FileExistsError:
             raise JvLocalCheckError("OUTPUT_EXISTS_NOT_OVERWRITTEN") from None
         except (OSError, TypeError, ValueError):
             raise JvLocalCheckError("PRIVATE_LOCAL_WRITE_FAILED") from None
         print("ARCRACE_WEEKLY_READ=SUCCESS")
+        print("LOCAL_COVERAGE_VIEW=READY")
         print("CANDIDATE_RACE_COUNT=" + str(report["raceCount"]))
         print("VENUES_OBSERVED=" + str(len(report["observedVenues"])))
         print("TWELVE_R_PER_OBSERVED_VENUE=" +
               ("YES" if report["allObservedVenuesHaveTwelveRaces"] else "NO"))
         print("NOTE=Only a preliminary RA/SE candidate; verify scheduled venues, late changes and final JRA data.")
+        # User already explicitly double-clicked the local tool. Show the
+        # local private summary in the default browser; no network requests.
+        if hasattr(os, "startfile"):
+            try:
+                os.startfile(str(html_target))
+            except OSError:
+                print("LOCAL_COVERAGE_VIEW_OPEN=MANUAL")
         return 0
     except JvLocalCheckError as error:
         print("ARCRACE_WEEKLY_READ=" + str(error))
