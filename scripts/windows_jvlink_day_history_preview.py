@@ -215,7 +215,10 @@ def save_private_local(report):
     if not appdata or not Path(appdata).is_absolute():
         raise JvLocalCheckError("DAY_HISTORY_LOCALAPPDATA_UNAVAILABLE")
     folder = Path(appdata) / "ARC-RACE-private"
-    folder.mkdir(parents=True, exist_ok=True)
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        raise JvLocalCheckError("DAY_HISTORY_LOCAL_SAVE_FAILED") from None
     base = "jvdata-day-history-" + report["date"]
     targets = [folder / (base + ext) for ext in (".json", ".html")]
     try:
