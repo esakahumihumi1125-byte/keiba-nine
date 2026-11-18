@@ -42,7 +42,9 @@ def render_weekly_candidate_summary(report):
             or report.get("officialFinalPostTimeVerified") is not False
             or report.get("productionPredictionReady") is not False
             or report.get("bettingReady") is not False
-            or report.get("autoPurchase") is not False):
+            or report.get("autoPurchase") is not False
+            or report.get("collectionTimeIndependentlyVerified") is not False
+            or type(report.get("allCandidatesBeforeScheduledOff")) is not bool):
         raise CoverageError("Invalid unverified private report")
     try:
         day = datetime.strptime(report["date"], "%Y%m%d").strftime("%Y年%m月%d日")
@@ -78,7 +80,9 @@ def render_weekly_candidate_summary(report):
                 or row.get("latestGoingVerified") is not False
                 or row.get("officialFinalPostTimeVerified") is not False
                 or row.get("formalTenFactorReady") is not False
-                or row.get("bettingReady") is not False):
+                or row.get("bettingReady") is not False
+                or row.get("collectionTimeIndependentlyVerified") is not False
+                or type(row.get("beforeScheduledOffAtLocalCapture")) is not bool):
             raise CoverageError("Invalid one-race private candidate")
         coord = (row["track"], row["race"])
         seen.add(coord)
@@ -95,10 +99,13 @@ def render_weekly_candidate_summary(report):
         for r in entries:
             # No horse names, registration numbers, private source values,
             # raw records, grades, odds or anything beyond schedule metadata.
+            status = ("読取時点で発走前の予定" if r["beforeScheduledOffAtLocalCapture"]
+                      else "発走予定時刻後の取得・予想使用禁止")
             cards.append(
                 '<div class="race"><b>' + str(r["race"]) + 'R</b>'
                 '<span>' + escape(r["postTimeCandidate"]) + ' 発走予定</span>'
-                '<span>' + str(r["registeredRunnerCount"]) + '頭候補</span></div>')
+                '<span>' + str(r["registeredRunnerCount"]) + '頭候補</span>'
+                '<span>' + status + '</span></div>')
         groups.append(
             '<section><h2>' + escape(track) + '</h2><p>'
             + str(count) + ' / 12R ｜ '
@@ -128,7 +135,8 @@ def render_weekly_candidate_summary(report):
         + '場 / ' + str(report["raceCount"]) + 'R</p>'
         '<p class="notice"><b>まだJRA公式最終確認ではありません。</b>'
         '馬番・発走予定の候補のみ。取消、直前の馬場・時刻変更、'
-        '開催場全体の網羅性、正式10項目採点、馬券は未確認です。</p>'
+        '開催場全体の網羅性、正式10項目採点、馬券は未確認です。'
+        'PCの取得時刻は独立認証されていません。</p>'
         + ''.join(groups)
         + '<p class="muted">PC内だけで作られた読み取り結果です。'
         '実データのダウンロード成功と、正式予想の完成は別です。</p>'
