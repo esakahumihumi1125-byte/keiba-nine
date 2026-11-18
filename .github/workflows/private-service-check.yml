@@ -113,11 +113,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Build local-only Windows check ZIP from reviewed files
-        run: python scripts/build_jvlink_windows_bundle.py
+      - name: Build source-only PC bundle and prepare a single-extract download
+        run: |
+          python scripts/build_jvlink_windows_bundle.py
+          python -c "from zipfile import ZipFile; ZipFile('dist/ARC-RACE-JV-Link-PC-check.zip').extractall('dist/download')"
       - uses: actions/upload-artifact@v4
         with:
           name: ARC-RACE-JV-Link-PC-check-PR189
-          path: dist/ARC-RACE-JV-Link-PC-check.zip
+          path: dist/download/ARC-RACE-JV-Link/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
