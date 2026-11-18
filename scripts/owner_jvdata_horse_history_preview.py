@@ -123,7 +123,10 @@ def _historical_ra_context(raw, target_day, capture_day):
     distance = _optional_number(raw, 697, 701, maximum=10000)
     if distance is not None and distance < 400:
         distance = None
-    code = raw[705:707].decode("ascii", errors="strict")
+    try:
+        code = raw[705:707].decode("ascii")
+    except UnicodeDecodeError:
+        raise CoverageError("Invalid historical track code") from None
     if code in TURF_TRACK_CODES:
         surface = "芝"
         going = _optional_number(raw, 888, 889, maximum=4)
@@ -173,13 +176,15 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
     ).replace(tzinfo=JST)
     capture_day = local_capture.strftime("%Y%m%d")
 
-    course_by_race = {}
+    course_by_race, raw_by_race = {}, {}
     for raw_ra in historical_ra or ():
         key, context = _historical_ra_context(raw_ra, day, capture_day)
-        previous = course_by_race.get(key)
+        previous = raw_by_race.get(key)
         if previous is not None:
-            # Do not accept competing versions of the same past race.
-            raise CoverageError("Duplicate historical RA context")
+            if previous != raw_ra:
+                raise CoverageError("Conflicting historical RA revisions")
+            continue
+        raw_by_race[key] = raw_ra
         course_by_race[key] = context
 
     current_id_to_number = {
@@ -234,7 +239,12 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
         ),
         "byNumber": by_number,
         "maxRunsPerHorse": MAX_VISIBLE_PRIOR_RUNS,
-        "historicalRaContextJoined": bool(course_by_race) and before_off,
+        "historicalRaContextJoined": (
+            any(run["historicalRaceContextMatched"]
+                for horse in by_number
+                for run in horse["recentObservedRuns"])
+            if before_off else False
+        ),
         "historyComplete": False,
         "dataAvailabilityIndependentlyVerified": False,
         "officialStartersVerified": False,
