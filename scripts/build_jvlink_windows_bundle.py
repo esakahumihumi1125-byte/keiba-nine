@@ -16,6 +16,8 @@ FILES = (
     "scripts/windows_check_jvlink.ps1",
     "scripts/windows_jvlink_weekly_read.cmd",
     "scripts/windows_jvlink_weekly_read.py",
+    "scripts/windows_jvlink_horse_data_probe.cmd",
+    "scripts/windows_jvlink_horse_data_probe.py",
     "scripts/jvdata_ra_se_candidate.py",
     "scripts/owner_jvdata_local_report.py",
     "scripts/owner_jvdata_jrdb_day_check.py",
@@ -41,7 +43,14 @@ JRA-VAN契約、JV-Link、64bit Python、pywin32 が別途必要です。
    JSON・ブラウザー用HTMLの候補要約を保存します。
    どちらもGitHubやRenderへ自動送信しません。
 
-画面に出る CHECK=... や ARCRACE_WEEKLY_READ=... の状態名だけ
+6. 過去走補てんデータRCVNが利用できるかを確認したい場合だけ
+   scripts/windows_jvlink_horse_data_probe.cmd を開きます。
+   画面に YES と入力した場合だけ、1回限定でRCVNへ問い合わせます。
+   取得した馬のデータは一切保存・転送しません。
+   NO_NEW_DATA や空応答だけで契約の不備を断定しないでください。
+
+画面に出る CHECK=... / ARCRACE_WEEKLY_READ=... /
+ARC_RACE_RCVN_CHECK=... の状態名だけ
 教えてください。利用キーやパスワードは見せたり送ったりしないでください。
 
 重要：
