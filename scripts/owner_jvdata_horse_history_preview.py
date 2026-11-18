@@ -8,13 +8,23 @@ Do not publish or send the returned per-horse observations to Render.
 from datetime import datetime, timezone, timedelta
 
 from jrdb_coverage import CoverageError
-from jvdata_ra_se_candidate import parse_jvdata_prestart_racecard, _ascii
+from jvdata_ra_se_candidate import (
+    RA_LENGTH, parse_jvdata_prestart_racecard, _ascii,
+)
+from jrdb_evidence_readiness import _valid_date
+from jrdb_program_preview import TRACKS
 from owner_jvdata_horse_history_coverage import (
     _past_result_identity, MAX_HISTORY_RECORDS, JST,
 )
 
 VERSION = "owner-jvdata-history-observation-preview-1"
 MAX_VISIBLE_PRIOR_RUNS = 5
+MAX_HISTORICAL_RA = 10000
+# JV-Data 2009 track codes (flat only). Obstacle or unknown surfaces are
+# deliberately left unclassified rather than guessed.
+TURF_TRACK_CODES = frozenset(f"{n:02d}" for n in range(10, 23))
+DIRT_TRACK_CODES = frozenset(f"{n:02d}" for n in (23, 24, 25, 26, 29))
+SAND_TRACK_CODES = frozenset(("27", "28"))
 
 
 def _optional_number(raw, start, end, *, maximum):
@@ -86,8 +96,60 @@ def parse_historical_se7_observation(raw, target_day):
     return result
 
 
+def _historical_ra_context(raw, target_day, capture_day):
+    """Parse race-distance/going context from one matching past RA7 record.
+
+    Key is all of date, venue, meeting number, meeting day and race. If an
+    RA7 is not supplied, SE7 alone must never invent race distance/going.
+    """
+    if (type(raw) is not bytes or len(raw) != RA_LENGTH
+            or raw[:3] != b"RA7" or raw[-2:] != b"\r\n"):
+        raise CoverageError("Unsupported historical race result record")
+    created = _ascii(raw, 3, 11)
+    year, month_day = _ascii(raw, 11, 15), _ascii(raw, 15, 19)
+    venue, meeting, meeting_day, race = (
+        _ascii(raw, 19, 21), _ascii(raw, 21, 23),
+        _ascii(raw, 23, 25), _ascii(raw, 25, 27),
+    )
+    racedate = year + month_day
+    if (not _valid_date(racedate) or not _valid_date(created)
+            or racedate >= target_day or created > target_day
+            or created > capture_day or venue not in TRACKS
+            or not 1 <= int(meeting) <= 12
+            or not 1 <= int(meeting_day) <= 12
+            or not 1 <= int(race) <= 12):
+        raise CoverageError("Historical RA identity or cutoff mismatch")
+
+    distance = _optional_number(raw, 697, 701, maximum=10000)
+    if distance is not None and distance < 400:
+        distance = None
+    code = raw[705:707].decode("ascii", errors="strict")
+    if code in TURF_TRACK_CODES:
+        surface = "芝"
+        going = _optional_number(raw, 888, 889, maximum=4)
+    elif code in DIRT_TRACK_CODES:
+        surface = "ダート"
+        going = _optional_number(raw, 889, 890, maximum=4)
+    elif code in SAND_TRACK_CODES:
+        surface = "サンド"
+        going = None
+    else:
+        # Obstacles may cross surfaces; avoid importing the wrong going.
+        surface, going = None, None
+    return (racedate, venue, meeting, meeting_day, race), {
+        "distanceMeters": distance,
+        "surface": surface,
+        "goingCode": going,
+        "going": {
+            1: "良", 2: "稍重", 3: "重", 4: "不良",
+        }.get(going),
+        "historicalTrackCode": code if code != "00" else None,
+        "historicalRaceContextMatched": True,
+    }
+
+
 def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
-                                 *, captured_at):
+                                 *, captured_at, historical_ra=None):
     """Show the most recent five *observed* SE7 results for each horse number.
 
     The return object is strictly an owner-local diagnostic, never a formal
@@ -97,6 +159,10 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
     if (not isinstance(historical_se, (list, tuple))
             or len(historical_se) > MAX_HISTORY_RECORDS):
         raise CoverageError("Invalid historical result collection")
+    if (historical_ra is not None
+            and (not isinstance(historical_ra, (list, tuple))
+                 or len(historical_ra) > MAX_HISTORICAL_RA)):
+        raise CoverageError("Invalid historical race context collection")
     if (not isinstance(captured_at, datetime)
             or captured_at.tzinfo is None
             or captured_at.utcoffset() is None):
@@ -106,6 +172,15 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
         day + card["postTimeCandidate"], "%Y%m%d%H:%M",
     ).replace(tzinfo=JST)
     capture_day = local_capture.strftime("%Y%m%d")
+
+    course_by_race = {}
+    for raw_ra in historical_ra or ():
+        key, context = _historical_ra_context(raw_ra, day, capture_day)
+        previous = course_by_race.get(key)
+        if previous is not None:
+            # Do not accept competing versions of the same past race.
+            raise CoverageError("Duplicate historical RA context")
+        course_by_race[key] = context
 
     current_id_to_number = {
         _ascii(row, 30, 40): int(_ascii(row, 28, 30))
@@ -133,10 +208,16 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
         # Race identity, including meeting ID, uniquely keys the record.
         # Descending by original race date; tie-break by full race key.
         recent = sorted(observed.items(), key=lambda row: row[0], reverse=True)
-        observations = [
-            parse_historical_se7_observation(raw, day)
-            for _key, raw in recent[:MAX_VISIBLE_PRIOR_RUNS]
-        ] if before_off else []
+        observations = []
+        if before_off:
+            for key, raw in recent[:MAX_VISIBLE_PRIOR_RUNS]:
+                observation = parse_historical_se7_observation(raw, day)
+                context = course_by_race.get(key)
+                observation.update(context or {
+                    "goingCode": None, "historicalTrackCode": None,
+                    "historicalRaceContextMatched": False,
+                })
+                observations.append(observation)
         by_number.append({
             "number": number,
             "observedRecordCount": len(observed) if before_off else 0,
@@ -153,6 +234,7 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
         ),
         "byNumber": by_number,
         "maxRunsPerHorse": MAX_VISIBLE_PRIOR_RUNS,
+        "historicalRaContextJoined": bool(course_by_race) and before_off,
         "historyComplete": False,
         "dataAvailabilityIndependentlyVerified": False,
         "officialStartersVerified": False,
@@ -166,6 +248,7 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
         "ownerPrivateOnly": True,
         "note": (
             "過去SE7の着順・時計・コーナー位置・上がり3Fの候補。"
-            "距離・馬場と提供時点未検証、正式採点・予想・馬券には未接続。"
+            "同一レースの過去RA7があれば距離・芝ダート・当時馬場も内部候補へ付与。"
+            "提供時点・網羅性未検証、正式採点・予想・馬券には未接続。"
         ),
     }
