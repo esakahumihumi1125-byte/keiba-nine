@@ -1,6 +1,7 @@
 """Synthetic tests for the completely offline owner-only coverage page."""
 import sys
 import copy
+from datetime import datetime
 import unittest
 from pathlib import Path
 
@@ -9,11 +10,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_coverage import CoverageError
 from owner_jvdata_local_report import render_weekly_candidate_summary
 from test_windows_jvlink_weekly_read import FakeJv, weekly_records, DAY
-from windows_jvlink_weekly_read import collect_weekly_candidate_records
+from windows_jvlink_weekly_read import collect_weekly_candidate_records, JST
 
 
 def sample():
-    return collect_weekly_candidate_records(FakeJv(weekly_records()), DAY)
+    return collect_weekly_candidate_records(
+        FakeJv(weekly_records()), DAY,
+        captured_at=datetime(2026, 11, 20, 12, tzinfo=JST))
 
 
 class OwnerLocalCandidateSummaryTests(unittest.TestCase):
@@ -52,6 +55,14 @@ class OwnerLocalCandidateSummaryTests(unittest.TestCase):
             change(report)
             with self.subTest(change=change), self.assertRaises(CoverageError):
                 render_weekly_candidate_summary(report)
+
+    def test_postoff_capture_is_visibly_ineligible(self):
+        data = collect_weekly_candidate_records(
+            FakeJv(weekly_records()), DAY,
+            captured_at=datetime(2026, 11, 21, 10, 1, tzinfo=JST))
+        page = render_weekly_candidate_summary(data)
+        self.assertIn("発走予定時刻後の取得・予想使用禁止", page)
+        self.assertNotIn("1000000001", page)
 
     def test_unknown_optional_fields_are_never_placed_in_html(self):
         data = sample()
