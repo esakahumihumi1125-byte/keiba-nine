@@ -7,6 +7,7 @@ provider records. A matching roster is NOT official JRA starters, scratches,
 going, or final post-time verification.
 """
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 from jrdb_coverage import CoverageError
 from jrdb_evidence_readiness import _valid_date
@@ -17,6 +18,7 @@ from windows_jvlink_weekly_read import VERSION as WEEK_VERSION
 
 VERSION = "owner-jvdata-jrdb-day-candidate-crosscheck-1"
 MAX_RACES = 36
+JST = timezone(timedelta(hours=9))
 VENUES = frozenset(("札幌", "函館", "福島", "新潟", "東京",
                     "中山", "中京", "京都", "阪神", "小倉"))
 
@@ -65,6 +67,16 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
             or len(jrdb_entries) > 18 * MAX_RACES):
         raise CoverageError("Invalid private day comparison contract")
 
+    # A local JSON file is editable: recompute all prestart flags from the
+    # same local timestamp. This detects accidental mismatches, but does NOT
+    # attest the PC clock or the JV-Link provider's original delivery time.
+    try:
+        captured = datetime.fromisoformat(jv_week["capturedAtLocalJst"])
+        if captured.tzinfo is None or captured.utcoffset() is None:
+            raise ValueError()
+        captured = captured.astimezone(JST)
+    except (KeyError, TypeError, ValueError, OverflowError):
+        raise CoverageError("Missing local candidate capture time") from None
     cards, programme = {}, {}
     for card in jv_week["races"]:
         key = _coordinate(card)
@@ -76,8 +88,19 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
             or card.get("collectionTimeIndependentlyVerified") is not False
             or type(card.get("beforeScheduledOffAtLocalCapture")) is not bool):
             raise CoverageError("Duplicated or promoted JV-data candidate")
+        try:
+            off = datetime.strptime(day + card["postTimeCandidate"],
+                                    "%Y%m%d%H:%M").replace(tzinfo=JST)
+        except (KeyError, TypeError, ValueError):
+            raise CoverageError("Invalid scheduled candidate time") from None
+        if card["beforeScheduledOffAtLocalCapture"] != (captured < off):
+            raise CoverageError("Inconsistent candidate collection timestamp")
         cards[key] = card
 
+    if jv_week["allCandidatesBeforeScheduledOff"] != all(
+        card["beforeScheduledOffAtLocalCapture"] for card in cards.values()
+    ):
+        raise CoverageError("Inconsistent whole-day candidate timing")
     for row in jrdb_programme:
         key = _coordinate(row)
         if (key in programme or row.get("racedate") != day
