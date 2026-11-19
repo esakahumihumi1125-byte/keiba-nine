@@ -99,7 +99,7 @@ class WindowsHistoryDayTests(unittest.TestCase):
     def test_empty_or_no_recent_data_cannot_claim_a_debut(self):
         jv = FakeJv({"RACE": sources()["RACE"], "RCVN": []})
         with self.assertRaisesRegex(
-                JvLocalCheckError, "^DAY_HISTORY_NO_RCVN_RESULTS$"):
+                JvLocalCheckError, "^DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS$"):
             self.get_report(jv)
         self.assertEqual(jv.closes, 2)
         jv = FakeJv(sources(), result_codes={"RCVN": -1})
@@ -107,6 +107,72 @@ class WindowsHistoryDayTests(unittest.TestCase):
                 JvLocalCheckError, "^DAY_HISTORY_RCVN_NO_NEW_DATA$"):
             self.get_report(jv)
         self.assertEqual(jv.closes, 1)
+
+    def test_realistic_ra_prefix_then_current_horse_se_join(self):
+        # Live first attempt observed >5000 RA7 records before SE7.
+        # They must not exhaust a 5000-row history buffer, and only
+        # current runners' SE7 may enter the private downstream bridge.
+        rows = {
+            "RACE": sources()["RACE"],
+            "RCVN": [old_ra()] * 5200
+            + [sample(9), sample(1), sample(3)],
+        }
+        jv = FakeJv(rows)
+        report = self.get_report(jv)
+        self.assertEqual(jv.closes, 2)
+        self.assertEqual(report["races"][0]["observedHorseHistory"], 2)
+        self.assertEqual(
+            [x["number"] for x in report["races"][0]["byNumber"]
+             if x["observedRecordCount"]], [1, 3])
+        self.assertFalse(report["historyCompletenessVerified"])
+        # RA7 is intentionally omitted in this initial current-horse
+        # identity test. Unverified course/going cannot be fabricated.
+        for race in report["races"]:
+            for horse in race["byNumber"]:
+                for run in horse["recentObservedRuns"]:
+                    self.assertIsNone(run["distanceMeters"])
+                    self.assertIsNone(run["going"])
+        self.assertNotIn("1000000001", repr(report))
+
+    def test_no_matching_se_does_not_claim_horse_is_new(self):
+        jv = FakeJv({
+            "RACE": sources()["RACE"],
+            "RCVN": [old_ra(), sample(8)],
+        })
+        with self.assertRaisesRegex(
+                JvLocalCheckError, "^DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS$"):
+            self.get_report(jv)
+        self.assertEqual(jv.closes, 2)
+
+    def test_rcvn_time_limit_stops_early_and_closes(self):
+        rows = [old_ra()] * 12
+        jv = FakeJv({"RCVN": rows})
+        clock = [0.0]
+        def monotonic():
+            clock[0] += 1
+            return clock[0]
+        with self.assertRaisesRegex(
+                JvLocalCheckError, "^DAY_HISTORY_RCVN_TIME_LIMIT$"):
+            read_source_once(jv, "RCVN", relevant_ids={b"1000000001"},
+                             max_rcvn_seconds=3, monotonic=monotonic)
+        self.assertEqual(jv.closes, 1)
+        self.assertEqual(len(jv.opens), 1)
+
+    def test_rcvn_max_steps_and_memory_are_bounded(self):
+        jv = FakeJv({"RCVN": [old_ra()] * 11})
+        with self.assertRaisesRegex(
+                JvLocalCheckError, "^DAY_HISTORY_RCVN_BUDGET_LIMIT$"):
+            read_source_once(jv, "RCVN", relevant_ids={b"1000000001"},
+                             max_steps=10)
+        self.assertEqual(jv.closes, 1)
+        for kwargs in (
+            {"max_steps": 80001},
+            {"max_rcvn_seconds": 61},
+            {"relevant_ids": {b"bad"}},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(
+                    JvLocalCheckError, "^DAY_HISTORY_BUDGET_OR_INPUT_INVALID$"):
+                read_source_once(FakeJv({"RCVN": []}), "RCVN", **kwargs)
 
     def test_empty_current_race_never_requests_history(self):
         jv = FakeJv({"RACE": [], "RCVN": sources()["RCVN"]})

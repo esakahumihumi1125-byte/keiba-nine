@@ -27,29 +27,48 @@ from windows_jvlink_weekly_read import (
     MAX_FILE_SWITCHES, MAX_READ_BYTES, next_saturday, validate_day,
 )
 
-VERSION = "owner-jvlink-local-day-history-read-1"
-MAX_STREAM_STEPS = 5000
+VERSION = "owner-jvlink-local-day-history-read-2"
+MAX_RACE_STREAM_STEPS = 5000
+MAX_RCVN_STREAM_STEPS = 80000
+MAX_RCVN_SCAN_SECONDS = 60
+MAX_MATCHED_HISTORIES = 5000
 FIELDS = {
     "RACE": {b"RA2": 1272, b"SE2": 555},
     "RCVN": {b"RA7": 1272, b"SE7": 555},
 }
 
 
-def read_source_once(jv, dataspec, *, day=None, max_steps=MAX_STREAM_STEPS,
-                     sleep=None, monotonic=None,
-                     max_download_wait=MAX_DOWNLOAD_WAIT_SECONDS):
+def read_source_once(jv, dataspec, *, day=None, max_steps=None,
+                     relevant_ids=None, sleep=None, monotonic=None,
+                     max_download_wait=MAX_DOWNLOAD_WAIT_SECONDS,
+                     max_rcvn_seconds=MAX_RCVN_SCAN_SECONDS):
     """Bounded single JVOpen+JVGets+JVClose stream, no retries or disk I/O.
 
-    For RACE, keep only exact-day RA2/SE2. For RCVN, retain only completed
-    RA7/SE7; the pure bridge discards horses not in the current racecard.
-    A 5000-step cap is a safety limit and intentionally returns HOLD on cap.
+    RACE retains only requested-day RA2/SE2 (up to 5,000 reads). If
+    relevant_ids are passed, RCVN keeps ONLY matching SE7 in memory, never
+    entire history or unrelated RA7, because the user's first real read
+    found 5,000+ RA7 before reaching any SE7. The research output has
+    unknown past race surface/distance until separately verified.
+    RCVN scans at most 80,000 steps/60 seconds after JVOpen. Reaching
+    either limit is a HOLD, not an assertion of historical completeness.
     """
+    cap = MAX_RACE_STREAM_STEPS if dataspec == "RACE" else MAX_RCVN_STREAM_STEPS
+    if max_steps is None:
+        max_steps = cap
     if (dataspec not in FIELDS
-            or type(max_steps) is not int or not 1 <= max_steps <= MAX_STREAM_STEPS
+            or type(max_steps) is not int or not 1 <= max_steps <= cap
             or type(max_download_wait) not in (int, float)
             or not 0 < max_download_wait <= MAX_DOWNLOAD_WAIT_SECONDS
+            or type(max_rcvn_seconds) not in (int, float)
+            or not 0 < max_rcvn_seconds <= MAX_RCVN_SCAN_SECONDS
             or (dataspec == "RACE"
-                and (type(day) is not str or DATE.fullmatch(day) is None))):
+                and (type(day) is not str or DATE.fullmatch(day) is None
+                     or relevant_ids is not None))
+            or (relevant_ids is not None
+                and (dataspec != "RCVN" or type(relevant_ids) is not set
+                     or not 1 <= len(relevant_ids) <= 648
+                     or any(type(x) is not bytes or len(x) != 10
+                            or not x.isalnum() for x in relevant_ids)))):
         raise JvLocalCheckError("DAY_HISTORY_BUDGET_OR_INPUT_INVALID")
     sleep = sleep or time.sleep
     monotonic = monotonic or time.monotonic
@@ -67,7 +86,11 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=MAX_STREAM_STEPS,
             raise JvLocalCheckError("DAY_HISTORY_" + dataspec + "_UNAVAILABLE")
         opened = True
         file_switches = 0
+        scan_started_at = monotonic()
         for _ in range(max_steps):
+            if (dataspec == "RCVN"
+                    and monotonic() - scan_started_at >= max_rcvn_seconds):
+                raise JvLocalCheckError("DAY_HISTORY_RCVN_TIME_LIMIT")
             result = jv.JVGets(bytearray(), MAX_READ_BYTES, bytearray())
             if (not isinstance(result, (tuple, list)) or len(result) != 3
                     or type(result[0]) is not int):
@@ -106,6 +129,14 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=MAX_STREAM_STEPS,
             if dataspec == "RACE":
                 if record[11:19].decode("ascii", errors="replace") != day:
                     continue
+            elif relevant_ids is not None:
+                # Do not retain unrelated RA7 or any other horse's SE7.
+                # Past RA details stay unverified; this is first a proof of
+                # actual current-horse / past-result identity matching.
+                if record[:3] != b"SE7" or record[30:40] not in relevant_ids:
+                    continue
+                if len(observed) >= MAX_MATCHED_HISTORIES:
+                    raise JvLocalCheckError("DAY_HISTORY_RCVN_MATCH_LIMIT")
             observed.append(record)
         else:
             raise JvLocalCheckError("DAY_HISTORY_" + dataspec + "_BUDGET_LIMIT")
@@ -139,9 +170,17 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None):
         current = read_source_once(jv, "RACE", day=day)
         if not current:
             raise JvLocalCheckError("DAY_HISTORY_NO_CURRENT_CARDS")
-        history = read_source_once(jv, "RCVN")
+        # The records contain sensitive registration identifiers only while
+        # this process runs. Never serialize them into JSON, HTML or logs.
+        current_ids = {
+            raw[30:40] for raw in current if raw[:3] == b"SE2"
+            and len(raw) == FIELDS["RACE"][b"SE2"]
+        }
+        if not current_ids:
+            raise JvLocalCheckError("DAY_HISTORY_NO_CURRENT_HORSES")
+        history = read_source_once(jv, "RCVN", relevant_ids=current_ids)
         if not history:
-            raise JvLocalCheckError("DAY_HISTORY_NO_RCVN_RESULTS")
+            raise JvLocalCheckError("DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS")
         observed_at = captured_at or datetime.now(JST)
         return build_local_day_history(
             current, history, day, captured_at=observed_at,
