@@ -129,6 +129,54 @@ class HorseDataProbeTests(unittest.TestCase):
                 probe_rcvn_once(jv)
             self.assertEqual(jv.closes, 1)
 
+    def test_actual_5000_ra_prefix_no_longer_hides_first_se(self):
+        ra, se = history_records()
+        # Simulates the user's first read: 5,000+ RA7 before any SE7.
+        # The old cap would always say SE=NO even when present later.
+        jv = FakeJv([ra] * 5100 + [se, b"PRIVATE_FOLLOWING_ROW"])
+        report = probe_rcvn_once(jv, stop_when_both=True)
+        self.assertEqual(report["status"], "RCVN_HISTORY_RA_SE_OBSERVED_PARTIAL")
+        self.assertTrue(report["historicalRaceRecordsObserved"])
+        self.assertTrue(report["historicalHorseResultsObserved"])
+        self.assertFalse(report["readWasBudgetLimited"])
+        self.assertTrue(report["stoppedWhenBothObserved"])
+        self.assertFalse(report["historicalDatasetComplete"])
+        self.assertFalse(report["predictionReady"])
+        self.assertEqual(jv.closes, 1)
+        # Once both formats are visible, don't touch the remaining bytes.
+        self.assertEqual(jv.rows, [b"PRIVATE_FOLLOWING_ROW"])
+        self.assertNotIn("PRIVATE_FOLLOWING_ROW", repr(report))
+
+    def test_hard_wall_scan_cap_without_guessing_se_absence(self):
+        clock = [0]
+        def tick():
+            clock[0] += 1
+            return clock[0]
+        ra, _ = history_records()
+        jv = FakeJv([ra] * 50)
+        report = probe_rcvn_once(
+            jv, monotonic=tick, max_scan_seconds=2,
+            stop_when_both=True,
+        )
+        self.assertEqual(report["status"], "RCVN_PARTIAL_TIME_LIMIT")
+        self.assertTrue(report["historicalRaceRecordsObserved"])
+        self.assertFalse(report["historicalHorseResultsObserved"])
+        self.assertTrue(report["readWasTimeLimited"])
+        self.assertFalse(report["readWasBudgetLimited"])
+        self.assertEqual(jv.closes, 1)
+
+    def test_real_read_cap_remains_bounded_if_se_never_arrives(self):
+        ra, _ = history_records()
+        jv = FakeJv([ra] * 4)
+        report = probe_rcvn_once(jv, budget=3, stop_when_both=True)
+        self.assertEqual(report["status"], "RCVN_PARTIAL_BUDGET_LIMIT")
+        self.assertFalse(report["historicalHorseResultsObserved"])
+        self.assertEqual(jv.closes, 1)
+
+    def test_scan_seconds_cannot_be_extended_by_caller(self):
+        with self.assertRaisesRegex(JvLocalCheckError, "RCVN_READ_BUDGET_INVALID"):
+            probe_rcvn_once(FakeJv([]), max_scan_seconds=61)
+
     def test_run_once_handles_local_com_without_debug_leaks(self):
         jv = FakeJv(history_records())
         self.assertTrue(run_once(jv_factory=lambda: jv)["privateOwnerOnly"])
