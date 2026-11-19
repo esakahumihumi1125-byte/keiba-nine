@@ -151,3 +151,15 @@ JRDBの同日/場/Rの番組と馬番集合・頭数・予定時刻を比較す�
 **次の検証点**：週末のRA2/SE2提供が始まったとき、本人のPCでこの統合プレビューが実データでも作成できるか。成功したら、最新取消・馬場・時刻照合と調教・血統のデータ入力に進める。JRA-VANの権利条件を満たした方法以外で有料生データをサーバーへ移さない。
 
 参考: [今週データ初回fromtimeの公式案内](https://support.jra-van.jp/jravan/detail?category=16&id=240&site=SVKNEGBV)、[RCVNの推奨に関するJRA-VAN開発者回答](https://developer.jra-van.jp/t/topic/1340)、[JRA-VAN提供仕様書](https://jra-van.jp/dlb/sdv/sdk/JV-Data4901.pdf)。
+
+
+## 2026-11-19実機進捗：RCVN RA7/SE7両形式確認、その後の統合版修正
+
+同日夜に本人ThinkPadで改良版の`windows_jvlink_horse_data_probe.cmd`を実行。
+`RCVN_HISTORY_RA_SE_OBSERVED_PARTIAL`、`RCVN_HISTORICAL_RA_OBSERVED=YES`、`RCVN_HISTORICAL_SE_OBSERVED=YES`、`RCVN_SE_FOUND_EARLY=YES`、`RCVN_PARTIAL_READ=NO`と表示された。**実機で両種類のレコード形式が観測された。** これは土曜出走馬の履歴が取得できたことや、JRA最終確定との一致を証明するものではない。
+
+既存の統合ビュー`windows_jvlink_day_history_preview.py`はRCVNを5,000件で打ち切るため、実機の「5,000件より後にSE7がある」という状況では失敗する。そこで、RCVNの`JVGets`を**最大80,000件、読み取り開始から60秒**に修正した（`JVOpen`のダウンロード時間・量はここで制限できない）。今回の最優先は**今週の出走馬と同じ登録番号のSE7が実際に見つかるか**なので、RCVNのRA7は読み捨て、当日SE2登録IDと一致するSE7のみを最大5,000件メモリに保持し、研究用に結合する。
+
+この段階では過去RA7の走路・距離・当日馬場との結合は**未実施**。過去SE7にレース条件を推測で補わず`distanceMeters`・`surface`・`going`は未確認とする。RCVNが上限で終了したり、該当馬のSE7が見つからなければ安全に停止し、「新馬」や「全履歴なし」と決めつけない。生の登録ID、馬名、原票、認証情報は保存・アップロードせず、馬番単位の研究要約のみローカルPCに作成する。完備性、正式採点、本番予想、JRA公式出走照合は引き続き未達成。
+
+**次の本人操作**：馬番付き出馬表の提供開始後、改良版ZIPを別フォルダーに完全展開し、`windows_jvlink_day_history_preview.cmd`を選んで、明示的に`YES`入力、対象日`20261121`を指定。表示される`ARC_RACE_DAY_HISTORY=`の固定ステータスだけを共有。別の新しいデータ取得が行われる可能性があるため、利用権限・通信料条件は本人側で事前確認。
