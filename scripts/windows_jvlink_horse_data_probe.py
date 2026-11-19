@@ -17,13 +17,19 @@ from windows_jvlink_weekly_read import (
     MAX_DOWNLOAD_WAIT_SECONDS, MAX_FILE_SWITCHES,
 )
 
-VERSION = "owner-jvlink-rcvn-once-1"
-MAX_PROBE_RECORDS = 5000
+VERSION = "owner-jvlink-rcvn-once-2"
+# RCVN can place many RA records before any SE records. The previous
+# 5,000-record diagnostic never reached the result records on real hardware.
+# Bounded scan is still observation-only; not a full-history export.
+MAX_PROBE_RECORDS = 80000
+MAX_PROBE_SECONDS = 60
 
 
 def probe_rcvn_once(jv, *, budget=MAX_PROBE_RECORDS,
                     sleep=None, monotonic=None,
-                    max_download_wait=MAX_DOWNLOAD_WAIT_SECONDS):
+                    max_download_wait=MAX_DOWNLOAD_WAIT_SECONDS,
+                    max_scan_seconds=MAX_PROBE_SECONDS,
+                    stop_when_both=False):
     """Only inspect type/version and record length; never retain raw bytes.
 
     The record limit is a strict safety cap. Hitting it does NOT prove that
@@ -31,7 +37,10 @@ def probe_rcvn_once(jv, *, budget=MAX_PROBE_RECORDS,
     """
     if (type(budget) is not int or not 1 <= budget <= MAX_PROBE_RECORDS
             or type(max_download_wait) not in (int, float)
-            or not 0 < max_download_wait <= MAX_DOWNLOAD_WAIT_SECONDS):
+            or not 0 < max_download_wait <= MAX_DOWNLOAD_WAIT_SECONDS
+            or type(max_scan_seconds) not in (int, float)
+            or not 0 < max_scan_seconds <= MAX_PROBE_SECONDS
+            or type(stop_when_both) is not bool):
         raise JvLocalCheckError("RCVN_READ_BUDGET_INVALID")
     sleep = sleep or time.sleep
     monotonic = monotonic or time.monotonic
@@ -41,6 +50,8 @@ def probe_rcvn_once(jv, *, budget=MAX_PROBE_RECORDS,
     other_records = 0
     first_download_wait = None
     hit_limit = True
+    hit_time = False
+    goal_stop = False
     try:
         # Option 2 = this-week material; NOT historical setup/initial load.
         # Do not automatically repeat a failed JVOpen or request option 3/4.
@@ -55,7 +66,12 @@ def probe_rcvn_once(jv, *, budget=MAX_PROBE_RECORDS,
             raise JvLocalCheckError("RCVN_OPEN_UNAVAILABLE")
         opened = True
         file_switches = 0
+        scan_started_at = monotonic()
         for _ in range(budget):
+            if monotonic() - scan_started_at >= max_scan_seconds:
+                hit_time = True
+                hit_limit = False
+                break
             item = jv.JVGets(bytearray(), MAX_READ_BYTES, bytearray())
             if not isinstance(item, (tuple, list)) or len(item) != 3:
                 raise JvLocalCheckError("RCVN_READ_SHAPE_INVALID")
@@ -95,6 +111,12 @@ def probe_rcvn_once(jv, *, budget=MAX_PROBE_RECORDS,
                 numbered_history_se += 1
             else:
                 other_records += 1
+            # The user only needs proof that BOTH formats are visible.
+            # Stop immediately, rather than scanning the whole provider feed.
+            if stop_when_both and numbered_history_ra and numbered_history_se:
+                goal_stop = True
+                hit_limit = False
+                break
     finally:
         if opened:
             try:
@@ -107,7 +129,9 @@ def probe_rcvn_once(jv, *, budget=MAX_PROBE_RECORDS,
 
     # Fixed flags only: never emit raw provider fields or individual IDs.
     # This is a partial diagnostic even if RA7 and SE7 have been observed.
-    status = ("RCVN_PARTIAL_BUDGET_LIMIT" if hit_limit
+    status = ("RCVN_HISTORY_RA_SE_OBSERVED_PARTIAL" if goal_stop
+              else "RCVN_PARTIAL_TIME_LIMIT" if hit_time
+              else "RCVN_PARTIAL_BUDGET_LIMIT" if hit_limit
               else "RCVN_HISTORY_RA_SE_OBSERVED"
               if numbered_history_ra and numbered_history_se
               else "RCVN_NO_RA_SE_RESULT_OBSERVED"
@@ -120,6 +144,8 @@ def probe_rcvn_once(jv, *, budget=MAX_PROBE_RECORDS,
         "historicalHorseResultsObserved": numbered_history_se > 0,
         "nonHistoricalRecordsObserved": other_records > 0,
         "readWasBudgetLimited": hit_limit,
+        "readWasTimeLimited": hit_time,
+        "stoppedWhenBothObserved": goal_stop,
         "weeklyCoverageComplete": False,
         "historicalDatasetComplete": False,
         "futureRaceUsabilityVerified": False,
@@ -149,7 +175,7 @@ def run_once(*, jv_factory=None):
         jv = jv_factory()
         if jv.JVInit("UNKNOWN") != 0:
             raise JvLocalCheckError("JVINIT_FAILED")
-        return probe_rcvn_once(jv)
+        return probe_rcvn_once(jv, stop_when_both=True)
     except JvLocalCheckError:
         raise
     except Exception:
@@ -168,9 +194,11 @@ def main():
         ("historicalRaceRecordsObserved", "RCVN_HISTORICAL_RA_OBSERVED"),
         ("historicalHorseResultsObserved", "RCVN_HISTORICAL_SE_OBSERVED"),
         ("readWasBudgetLimited", "RCVN_PARTIAL_READ"),
+        ("readWasTimeLimited", "RCVN_TIME_LIMITED"),
+        ("stoppedWhenBothObserved", "RCVN_SE_FOUND_EARLY"),
     ):
         print(label + "=" + ("YES" if report[key] else "NO"))
-    print("NOTE=Observed records are not a complete history or verified predictions.")
+    print("NOTE=Only record types were checked. No complete history or prediction.")
     return 0
 
 
