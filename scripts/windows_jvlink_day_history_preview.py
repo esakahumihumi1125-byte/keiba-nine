@@ -23,6 +23,8 @@ import time
 from jrdb_coverage import CoverageError
 from owner_jvdata_day_history_bridge import build_local_day_history
 from jvdata_ra_se_candidate import parse_jvdata_prestart_racecard
+from jrdb_program_preview import TRACKS
+from jrdb_evidence_readiness import _valid_date
 from windows_jvlink_weekly_read import (
     DATE, JST, JvLocalCheckError, MAX_DOWNLOAD_WAIT_SECONDS,
     MAX_FILE_SWITCHES, MAX_READ_BYTES, next_saturday, validate_day,
@@ -321,12 +323,29 @@ def save_private_local(report):
     appdata = os.environ.get("LOCALAPPDATA")
     if not appdata or not Path(appdata).is_absolute():
         raise JvLocalCheckError("DAY_HISTORY_LOCALAPPDATA_UNAVAILABLE")
+    # One preview per original race; never overwrite the previous first-R
+    # research record when another race becomes the earliest live option.
+    if (not isinstance(report, dict)
+            or report.get("version") != "owner-jvdata-local-day-history-bridge-1"
+            or type(report.get("date")) is not str
+            or not _valid_date(report["date"])
+            or report.get("raceCount") != 1
+            or not isinstance(report.get("races"), list)
+            or len(report["races"]) != 1
+            or type(report["races"][0].get("race")) is not int
+            or not 1 <= report["races"][0]["race"] <= 12
+            or report["races"][0].get("track") not in TRACKS.values()):
+        raise JvLocalCheckError("DAY_HISTORY_LOCAL_REPORT_INVALID")
+    race = report["races"][0]
+    track_code = next(code for code, name in TRACKS.items()
+                      if name == race["track"])
     folder = Path(appdata) / "ARC-RACE-private"
     try:
         folder.mkdir(parents=True, exist_ok=True)
     except OSError:
         raise JvLocalCheckError("DAY_HISTORY_LOCAL_SAVE_FAILED") from None
-    base = "jvdata-day-history-" + report["date"]
+    base = "jvdata-one-race-{}-{}-{:02d}".format(
+        report["date"], track_code, race["race"])
     targets = [folder / (base + ext) for ext in (".json", ".html")]
     try:
         bodies = (
