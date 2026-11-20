@@ -103,7 +103,7 @@ jobs:
   # synthetic tests pass. Do NOT package private data, read secrets or deploy.
   package-jvlink-windows:
     needs: [synthetic-tests]
-    if: ${{ github.event_name == 'pull_request' && (github.head_ref == 'feature/jvlink-readonly-windows-check-20261118' || github.head_ref == 'fix/rcvn-se-probe-bounded-scan-20261119' || github.head_ref == 'fix/day-history-targeted-rcvn-scan-20261119' || github.head_ref == 'fix/owner-one-race-preflight-before-rcvn-20261120' || github.head_ref == 'feat/arc-owner-offline-evidence-review-20261121') }}
+    if: ${{ github.event_name == 'pull_request' && (github.head_ref == 'feature/jvlink-readonly-windows-check-20261118' || github.head_ref == 'fix/rcvn-se-probe-bounded-scan-20261119' || github.head_ref == 'fix/day-history-targeted-rcvn-scan-20261119' || github.head_ref == 'fix/owner-one-race-preflight-before-rcvn-20261120' || github.head_ref == 'feat/arc-owner-offline-evidence-review-20261121' || github.head_ref == 'feat/owner-jvlink-historical-race-context-20261121') }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

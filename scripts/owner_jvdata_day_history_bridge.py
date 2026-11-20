@@ -23,7 +23,7 @@ from owner_jvdata_horse_history_preview import (
 
 VERSION = "owner-jvdata-local-day-history-bridge-1"
 MAX_CURRENT_RECORDS = 5000
-MAX_HISTORY_BATCH = 5000
+MAX_HISTORY_BATCH = 15000  # up to 5k matched SE7 + 10k transient RA7
 MAX_RACE_CARDS = 36
 
 
@@ -145,6 +145,7 @@ def build_local_day_history(current_records, history_records, day, *,
             "observedHorseHistory": sum(
                 bool(h["observedRecordCount"]) for h in preview["byNumber"]
             ),
+            "historicalRaContextJoined": preview["historicalRaContextJoined"],
             "historyComplete": False, "graded": False,
             "bettingReady": False,
         }
@@ -166,7 +167,8 @@ def build_local_day_history(current_records, history_records, day, *,
         "newProviderRequests": 0,
         "privateOwnerOnly": True, "researchOnly": True,
         "note": (
-            "RACE候補馬番にRCVN過去SE7/RA7を照合。資料不足は未出走と断定しない。"
+            "RACE候補馬番にRCVN過去SE7と一致する過去RA7を照合。"
+            "過去の距離や馬場は一致したものだけ表示。"
             "履歴の完備性・配信時刻・当日取消は未検証。"
             "正式採点や馬券・外部送信は行わない。"
         ),
