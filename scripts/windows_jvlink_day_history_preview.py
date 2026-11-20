@@ -22,12 +22,13 @@ import time
 
 from jrdb_coverage import CoverageError
 from owner_jvdata_day_history_bridge import build_local_day_history
+from jvdata_ra_se_candidate import parse_jvdata_prestart_racecard
 from windows_jvlink_weekly_read import (
     DATE, JST, JvLocalCheckError, MAX_DOWNLOAD_WAIT_SECONDS,
     MAX_FILE_SWITCHES, MAX_READ_BYTES, next_saturday, validate_day,
 )
 
-VERSION = "owner-jvlink-local-day-history-read-2"
+VERSION = "owner-jvlink-local-day-history-read-3"
 MAX_RACE_STREAM_STEPS = 5000
 MAX_RCVN_STREAM_STEPS = 80000
 MAX_RCVN_SCAN_SECONDS = 60
@@ -152,6 +153,69 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
     return observed
 
 
+
+def select_one_complete_prestart_race(current, day, *, as_of):
+    """Select ONE complete RA2/SE2 candidate before any RCVN request.
+
+    This is a pure, in-memory preflight. First find exact race identities,
+    reject divergent replay rows and check the entire runner count. A single
+    partial race must not trigger a potentially billable historical download.
+    Prefer the earliest still-upcoming, fully numbered race, not just the
+    first RA file row. No race identifiers, paid rows or horse IDs are logged.
+    """
+    if (not isinstance(current, (list, tuple))
+            or not isinstance(as_of, datetime) or as_of.tzinfo is None
+            or as_of.utcoffset() is None):
+        raise JvLocalCheckError("DAY_HISTORY_PRESTART_INPUT_INVALID")
+    ra_by_key, se_by_key = {}, {}
+    for raw in current:
+        if (type(raw) is not bytes or len(raw) < 40
+                or raw[:3] not in (b"RA2", b"SE2")
+                or raw[11:19] != day.encode("ascii")):
+            raise JvLocalCheckError("DAY_HISTORY_CURRENT_CARD_INVALID")
+        identity = raw[11:27]
+        if len(identity) != 16 or not identity.isdigit():
+            raise JvLocalCheckError("DAY_HISTORY_CURRENT_CARD_INVALID")
+        if raw[:3] == b"RA2":
+            previous = ra_by_key.get(identity)
+            if previous is not None and previous != raw:
+                raise JvLocalCheckError("DAY_HISTORY_CURRENT_ROSTER_CONFLICT")
+            ra_by_key[identity] = raw
+        else:
+            horse_key = (identity, raw[28:30])
+            previous = se_by_key.get(horse_key)
+            if previous is not None and previous != raw:
+                raise JvLocalCheckError("DAY_HISTORY_CURRENT_ROSTER_CONFLICT")
+            se_by_key[horse_key] = raw
+
+    eligible = []
+    any_complete = False
+    for identity, ra in ra_by_key.items():
+        horse_rows = [row for (key, _number), row in se_by_key.items()
+                      if key == identity]
+        try:
+            parsed = parse_jvdata_prestart_racecard(ra, horse_rows, day)
+        except CoverageError:
+            # An incomplete pre-publication race is not a verified starter
+            # list and may not be used to justify an RCVN lookup.
+            continue
+        any_complete = True
+        off_time = datetime.strptime(
+            day + parsed["postTimeCandidate"], "%Y%m%d%H:%M"
+        ).replace(tzinfo=JST)
+        if as_of.astimezone(JST) >= off_time:
+            continue
+        eligible.append((off_time, parsed["track"], parsed["race"], ra,
+                         tuple(horse_rows)))
+    if not any_complete:
+        raise JvLocalCheckError("DAY_HISTORY_NO_COMPLETE_RACE")
+    if not eligible:
+        raise JvLocalCheckError("DAY_HISTORY_ALL_RACES_STARTED")
+    eligible.sort(key=lambda row: (row[0], row[1], row[2]))
+    _off, _track, _number, ra, horses = eligible[0]
+    return [ra, *horses]
+
+
 def read_local_day_history(day, *, jv_factory=None, captured_at=None):
     """One RACE read and one RCVN read, no unattended resubmission."""
     validate_day(day)
@@ -170,20 +234,24 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None):
         current = read_source_once(jv, "RACE", day=day)
         if not current:
             raise JvLocalCheckError("DAY_HISTORY_NO_CURRENT_CARDS")
-        # The records contain sensitive registration identifiers only while
-        # this process runs. Never serialize them into JSON, HTML or logs.
-        current_ids = {
-            raw[30:40] for raw in current if raw[:3] == b"SE2"
-            and len(raw) == FIELDS["RACE"][b"SE2"]
-        }
+        # Do not fetch RCVN before one actual prestart race's complete
+        # roster is validated. Only selected horse IDs may enter RCVN.
+        observed_at = captured_at or datetime.now(JST)
+        current = select_one_complete_prestart_race(
+            current, day, as_of=observed_at)
+        # IDs remain process-local; JSON/HTML contains only race and numbers.
+        current_ids = {raw[30:40] for raw in current if raw[:3] == b"SE2"}
         if not current_ids:
             raise JvLocalCheckError("DAY_HISTORY_NO_CURRENT_HORSES")
         history = read_source_once(jv, "RCVN", relevant_ids=current_ids)
         if not history:
             raise JvLocalCheckError("DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS")
-        observed_at = captured_at or datetime.now(JST)
+        # Always recheck the local clock after the second provider read.
+        # It is unsafe to label a race "prestart" solely because it was
+        # prestart when the first request began.
+        completed_at = captured_at or datetime.now(JST)
         return build_local_day_history(
-            current, history, day, captured_at=observed_at,
+            current, history, day, captured_at=completed_at,
         )
     except JvLocalCheckError:
         raise
