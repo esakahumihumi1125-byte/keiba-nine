@@ -320,9 +320,6 @@ def local_html(report):
 
 def save_private_local(report):
     """Atomic create-only JSON/HTML under LOCALAPPDATA. No overwrite."""
-    appdata = os.environ.get("LOCALAPPDATA")
-    if not appdata or not Path(appdata).is_absolute():
-        raise JvLocalCheckError("DAY_HISTORY_LOCALAPPDATA_UNAVAILABLE")
     # One preview per original race; never overwrite the previous first-R
     # research record when another race becomes the earliest live option.
     if (not isinstance(report, dict)
@@ -338,6 +335,9 @@ def save_private_local(report):
             or not 1 <= report["races"][0]["race"] <= 12
             or report["races"][0].get("track") not in TRACKS.values()):
         raise JvLocalCheckError("DAY_HISTORY_LOCAL_REPORT_INVALID")
+    appdata = os.environ.get("LOCALAPPDATA")
+    if not appdata or not Path(appdata).is_absolute():
+        raise JvLocalCheckError("DAY_HISTORY_LOCALAPPDATA_UNAVAILABLE")
     race = report["races"][0]
     track_code = next(code for code, name in TRACKS.items()
                       if name == race["track"])
