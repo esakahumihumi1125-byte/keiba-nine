@@ -334,6 +334,43 @@ class WindowsHistoryDayTests(unittest.TestCase):
                     save_private_local(report)
                 self.assertEqual(list(target.parent.glob(".arc-race-history-*.tmp")), [])
 
+    def test_same_day_second_race_creates_separate_private_file(self):
+        first = self.get_report(FakeJv(sources()))
+        other_ra = replace(
+            replace(sources()["RACE"][0], 25, 27, "02"),
+            873, 877, "1040")
+        other_se = [
+            replace(row, 25, 27, "02") for row in sources()["RACE"][1:]
+        ]
+        other = self.get_report(FakeJv({
+            "RACE": [other_ra, *other_se],
+            "RCVN": sources()["RCVN"],
+        }))
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.dict(os.environ, {"LOCALAPPDATA": folder}):
+                first_file = save_private_local(first)
+                second_file = save_private_local(other)
+                self.assertNotEqual(first_file, second_file)
+                self.assertTrue(first_file.is_file())
+                self.assertTrue(second_file.is_file())
+                self.assertEqual(
+                    json.loads(first_file.with_suffix(".json").read_text("utf-8"))
+                        ["races"][0]["race"], 1)
+                self.assertEqual(
+                    json.loads(second_file.with_suffix(".json").read_text("utf-8"))
+                        ["races"][0]["race"], 2)
+                with self.assertRaisesRegex(
+                        JvLocalCheckError, "^DAY_HISTORY_ALREADY_SAVED$"):
+                    save_private_local(first)
+
+    def test_local_save_does_not_trust_modified_date_or_race_metadata(self):
+        first = self.get_report(FakeJv(sources()))
+        for key, val in (("date", "../SECRET"), ("raceCount", True)):
+            altered = {**first, key: val}
+            with self.subTest(key=key), self.assertRaisesRegex(
+                    JvLocalCheckError, "^DAY_HISTORY_LOCAL_REPORT_INVALID$"):
+                save_private_local(altered)
+
     def test_html_rejects_unverified_or_client_supplied_report(self):
         report = self.get_report(FakeJv(sources()))
         report["bettingReady"] = True
