@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_coverage import CoverageError
-from owner_jvdata_day_history_bridge import build_local_day_history
+from owner_jvdata_day_history_bridge import build_local_day_history, MAX_HISTORY_BATCH
 from test_jvdata_ra_se_candidate import make, replace, DAY
 from test_owner_jvdata_horse_history_preview import sample, old_ra
 
@@ -109,7 +109,7 @@ class DayJvDataHistoryBridgeTests(unittest.TestCase):
         with self.assertRaises(CoverageError):
             bridge([], sources=current() * 1001)
         with self.assertRaises(CoverageError):
-            bridge([sample(1)] * 5001)
+            bridge([sample(1)] * (MAX_HISTORY_BATCH + 1))
 
     def test_unrelated_overseas_historical_races_cannot_block_matched_horse(self):
         # Full RCVN streams can include other horses and venues; unrelated
