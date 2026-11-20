@@ -307,14 +307,17 @@ def local_html(report):
     ]
     for race in report["races"]:
         title = "{} {}R".format(_display_value(race["track"]), race["race"])
-        lines.append("<section><h2>" + title + "</h2>")
+        lines.append("<section><h2>" + title + "</h2><p>"
+                     "過去RA7とSE7の同一レース照合ができた場合のみ"
+                     "過去の距離・馬場を表示。今回の馬場・適性とは別です。</p>")
         for horse in race["byNumber"]:
             label = "{}番 / 過去走観測 {}件".format(
                 horse["number"], horse["observedRecordCount"],
             )
             lines.append("<details><summary>" + label + "</summary>")
-            lines.append("<table><tr><th>日付</th><th>コース</th><th>着順</th>"
-                         "<th>距離</th><th>馬場</th><th>上がり3F</th></tr>")
+            lines.append("<table><tr><th>過去開催日</th><th>過去の芝・ダ</th>"
+                         "<th>過去着順</th><th>過去距離</th>"
+                         "<th>当時馬場</th><th>上がり3F候補</th></tr>")
             for run in horse["recentObservedRuns"]:
                 rows = (
                     run.get("date"), run.get("surface"),
