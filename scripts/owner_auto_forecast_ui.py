@@ -7332,6 +7332,16 @@ function revealOneTapForecast(selectedDay){
  if(!latestDisplayedReport||latestDisplayedReport.raceCount<=0||
     latestDisplayedDay!==selectedDay||
     $('autoDay').value.replaceAll('-','')!==selectedDay)return;
+ // The server's verified draft slots have already passed the normal
+ // date/roster/signature and local off-time checks inside render().
+ // Reuse THAT existing filtered shortcut instead of dropping a new owner
+ // into a full 24/36-R list dominated by held and past-off races.
+ // A 0R/held/expired response must never open an actionable-looking card.
+ const shortcut=$('autoDraftShortcut');
+ if(typeof shortcut.onclick!=='function'||
+    !/^買い目あり [1-9][0-9]*Rだけ見る/.test(shortcut.textContent))
+  return;
+ shortcut.onclick(); // display only: no new request, score or receipt write
  const main=$('forecastRacesSection');
  if(typeof main.scrollIntoView==='function')
   main.scrollIntoView({behavior:'smooth',block:'start'});
