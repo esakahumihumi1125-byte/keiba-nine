@@ -20,6 +20,10 @@ FILES = (
     "scripts/windows_jvlink_horse_data_probe.py",
     "scripts/windows_jvlink_day_history_preview.cmd",
     "scripts/windows_jvlink_day_history_preview.py",
+    "scripts/windows_arc_race_saved_history_review.cmd",
+    "scripts/windows_arc_race_saved_history_review.py",
+    "scripts/owner_jvdata_offline_evidence.py",
+    "scripts/evaluation_policy.py",
     "scripts/owner_jvdata_day_history_bridge.py",
     "scripts/owner_jvdata_horse_history_coverage.py",
     "scripts/owner_jvdata_horse_history_preview.py",
@@ -73,8 +77,18 @@ JRA-VAN契約、JV-Link、64bit Python、pywin32 が別途必要です。
    過去走が0件でも「新馬」「全履歴なし」とは断定しません。
    直前の取消や最終出走確定、配信時刻の真正性は検証していません。
 
+8. 一度取得済みの1レースを追加のJRA-VAN接続なしで確認するには
+   scripts/windows_arc_race_saved_history_review.cmd をダブルクリック。
+   当日（日本時間）の保存済みJSONから最新1レースを探して、
+   「近走」「展開・脚質」の観測状況と、正式10項目の未採点状態を
+   PC内の新規HTMLに表示します。再ダウンロード・画像送付は不要。
+   HTMLとJSONは %LOCALAPPDATA%\ARC-RACE-private に新規作成し、
+   生データ・馬登録ID・秘密キーを保存、転送しません。
+   「資料あり」と「S/A/B判定」は別物で、3連単は生成しません。
+
 画面に出る CHECK=... / ARCRACE_WEEKLY_READ=... /
-ARC_RACE_RCVN_CHECK=... / ARC_RACE_DAY_HISTORY=... の状態名だけ
+ARC_RACE_RCVN_CHECK=... / ARC_RACE_DAY_HISTORY=... /
+ARC_RACE_OFFLINE_EVIDENCE=... の状態名だけ
 教えてください。利用キーやパスワードは見せたり送ったりしないでください。
 
 重要：
