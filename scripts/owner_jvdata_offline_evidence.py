@@ -1,0 +1,258 @@
+"""Offline ARC RACE evidence readiness from an existing PRIVATE per-race report.
+
+No JV-Link, JRDB, HTTP, Render, GitHub, account access or odds. Input is
+the already sanitized JSON left on the owner's PC by the RACE+RCVN probe.
+It must never convert history observations into scores/grades or bets.
+"""
+from datetime import datetime
+from html import escape
+from pathlib import Path
+import re
+
+from evaluation_policy import OWNER_FORMAL_FACTORS
+from jrdb_coverage import CoverageError
+from jrdb_evidence_readiness import _valid_date
+from jrdb_program_preview import TRACKS
+
+VERSION = "arc-race-offline-factor-evidence-1"
+SOURCE_VERSION = "owner-jvdata-local-day-history-bridge-1"
+MAX_RUNNERS = 18
+MAX_RECENT = 5
+MAX_OBSERVED = 5000
+NUMERIC_KEYS = ("finishPosition", "last3fTenths", "historicalRunningStyleCode")
+FACTORS_JP = {
+    "training": "調教", "recent": "近走", "course_distance": "コース・距離",
+    "pace": "展開・脚質", "ground": "馬場", "pedigree": "血統",
+    "draw_weight": "枠・斤量", "jockey_stable": "騎手・厩舎",
+    "rotation": "ローテ", "body_condition": "馬体重",
+}
+assert set(OWNER_FORMAL_FACTORS) == set(FACTORS_JP)
+
+
+def _int_in(value, low, high):
+    return type(value) is int and low <= value <= high
+
+
+def summarize_runner(horse):
+    """Never infer quality from positions, missing history, or running style."""
+    if not isinstance(horse, dict):
+        raise CoverageError("Invalid private runner summary")
+    number, count, recent = (
+        horse.get("number"), horse.get("observedRecordCount"),
+        horse.get("recentObservedRuns"),
+    )
+    if (not _int_in(number, 1, MAX_RUNNERS)
+            or not _int_in(count, 0, MAX_OBSERVED)
+            or not isinstance(recent, list)
+            or len(recent) > MAX_RECENT or len(recent) > count
+            or horse.get("graded") is not False
+            or horse.get("missingHistoryUnproven") is not True):
+        raise CoverageError("Invalid private history collection")
+
+    finishes, corners, styles, last3f, dates = [], [], [], [], []
+    for run in recent:
+        if not isinstance(run, dict) or not isinstance(run.get("date"), str):
+            raise CoverageError("Invalid private prior run")
+        day = run["date"]
+        if not _valid_date(day):
+            raise CoverageError("Invalid private prior date")
+        dates.append(day)
+        finish, closing, style = [run.get(k) for k in NUMERIC_KEYS]
+        if finish is not None and not _int_in(finish, 1, 18):
+            raise CoverageError("Invalid private finish position")
+        if closing is not None and not _int_in(closing, 1, 998):
+            raise CoverageError("Invalid private closing time")
+        if style is not None and not _int_in(style, 1, 4):
+            raise CoverageError("Invalid private historical style")
+        raw_corners = run.get("cornerPositions")
+        if not isinstance(raw_corners, list) or len(raw_corners) != 4:
+            raise CoverageError("Invalid private corner data")
+        if any(x is not None and not _int_in(x, 1, 18)
+               for x in raw_corners):
+            raise CoverageError("Invalid private corner value")
+        finishes.append(finish)
+        corners.append(raw_corners)
+        styles.append(style)
+        last3f.append(closing)
+    if dates != sorted(dates, reverse=True):
+        raise CoverageError("Non-chronological private observations")
+    recent_evidence = any(x is not None for x in finishes)
+    pace_evidence = any(x is not None for x in styles + last3f) or any(
+        x is not None for row in corners for x in row
+    )
+    factors = {
+        name: {
+            "label": FACTORS_JP[name],
+            "weight": weight,
+            "status": ("observed_not_scored"
+                       if (name == "recent" and recent_evidence)
+                       or (name == "pace" and pace_evidence)
+                       else "unverified"),
+            "score": None,
+            "grade": None,
+        }
+        for name, weight in OWNER_FORMAL_FACTORS.items()
+    }
+    return {
+        "number": number,
+        "historicalRowsObserved": count,
+        "visiblePriorRuns": len(recent),
+        "observedFinishes": finishes,
+        "observedLast3fTenths": last3f,
+        "observedCornerPositions": corners,
+        "observedStyleCodes": styles,
+        "factorEvidence": factors,
+        "factorsWithObservations": [
+            name for name in OWNER_FORMAL_FACTORS
+            if factors[name]["status"] == "observed_not_scored"
+        ],
+        "totalScore": None,
+        "overallGrade": None,
+        "eligibleForPrediction": False,
+        "historyComplete": False,
+        "missingHistoryUnproven": True,
+    }
+
+
+def summarize_one_race(report):
+    """Strict version/flags + data minimization for local evidence readiness.
+
+    Unrecognised input fields are never copied into the output, including
+    the provider's private record fields, file paths and any horse IDs.
+    """
+    if (not isinstance(report, dict)
+            or report.get("version") != SOURCE_VERSION
+            or report.get("privateOwnerOnly") is not True
+            or report.get("researchOnly") is not True
+            or report.get("formalTenFactorReady") is not False
+            or report.get("productionPredictionReady") is not False
+            or report.get("bettingReady") is not False
+            or report.get("historyCompletenessVerified") is not False
+            or report.get("officialStarterListVerified") is not False
+            or type(report.get("date")) is not str
+            or not _valid_date(report["date"])
+            or type(report.get("raceCount")) is not int
+            or report["raceCount"] != 1
+            or not isinstance(report.get("races"), list)
+            or len(report["races"]) != 1
+            or not isinstance(report["races"][0], dict)):
+        raise CoverageError("Not a private research-only one-race report")
+    race = report["races"][0]
+    if (race.get("track") not in TRACKS.values()
+            or not _int_in(race.get("race"), 1, 12)
+            or race.get("graded") is not False
+            or race.get("bettingReady") is not False
+            or race.get("historyComplete") is not False
+            or not isinstance(race.get("byNumber"), list)
+            or not 4 <= len(race["byNumber"]) <= MAX_RUNNERS):
+        raise CoverageError("Invalid research race details")
+    horses = [summarize_runner(row) for row in race["byNumber"]]
+    numbers = [horse["number"] for horse in horses]
+    if sorted(numbers) != list(range(1, len(numbers) + 1)):
+        raise CoverageError("Private runner numbering incomplete")
+    observed = sum(bool(x["historicalRowsObserved"]) for x in horses)
+    if not _int_in(race.get("observedHorseHistory"), 0, MAX_RUNNERS):
+        raise CoverageError("Invalid private history coverage counter")
+    if observed != race["observedHorseHistory"]:
+        raise CoverageError("History coverage counter inconsistent")
+    return {
+        "version": VERSION,
+        "date": report["date"],
+        "track": race["track"], "race": race["race"],
+        "runnerCount": len(horses),
+        "runnersWithObservedHistory": observed,
+        "runnersWithRecentFinishObservation": sum(
+            "recent" in x["factorsWithObservations"] for x in horses),
+        "runnersWithPaceObservation": sum(
+            "pace" in x["factorsWithObservations"] for x in horses),
+        "byNumber": horses,
+        "factorNames": [FACTORS_JP[k] for k in OWNER_FORMAL_FACTORS],
+        "tenFactorScoresReady": False,
+        "formalForecastReady": False,
+        "trifectaReady": False,
+        "rankedByAbility": False,
+        "officialStartersVerified": False,
+        "sourceCompletenessVerified": False,
+        "networkCalls": 0,
+        "rawJvdataExported": False,
+        "ownerPrivateOnly": True,
+        "researchOnly": True,
+        "note": (
+            "過去走由来の近走・展開脚質の一部を資料として観測しただけ。"
+            "距離/馬場・調教等の検証不足は未確認のまま。"
+            "近走の着順や人気を根拠に加点せず、正式10項目採点・"
+            "3連単予想・馬券購入には使わない。"
+        ),
+    }
+
+
+def render_evidence_html(result):
+    """Static, readable per-horse HTML. No script, links, remote assets."""
+    if (not isinstance(result, dict)
+            or result.get("version") != VERSION
+            or result.get("ownerPrivateOnly") is not True
+            or result.get("researchOnly") is not True
+            or result.get("formalForecastReady") is not False
+            or result.get("trifectaReady") is not False
+            or result.get("tenFactorScoresReady") is not False):
+        raise CoverageError("Not an offline research-only evidence report")
+    def e(value):
+        return escape(str(value), quote=True)
+    lines = [
+        "<!doctype html><html lang='ja'><meta charset='utf-8'>",
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>",
+        "<title>ARC RACE｜資料確認（PC内）</title>",
+        "<style>body{font-family:system-ui,sans-serif;max-width:900px;",
+        "margin:auto;padding:20px;background:#f5f7fb;color:#152237}",
+        "section{background:white;padding:16px;margin:10px 0;",
+        "border-radius:12px}table{border-collapse:collapse;width:100%}",
+        "td,th{border-bottom:1px solid #dbe2ec;padding:8px;text-align:left}",
+        ".muted{color:#49566a}.warn{padding:14px;border:1px solid #c3a763}",
+        "details{margin:8px 0}summary{cursor:pointer;font-weight:700}",
+        "</style><h1>ARC RACE｜10項目の資料確認（未採点）</h1>",
+        "<p class='warn'>⚠ これは予想ではありません。正式採点、"
+        "3連単の買い目、JRAの最終出走・取消・馬場・発走時刻は未確認。</p>",
+        "<h2>" + e(result["date"]) + " "
+        + e(result["track"]) + " " + e(result["race"]) + "R</h2>",
+        "<p>出走馬番 " + e(result["runnerCount"])
+        + "頭／過去走記録を観測 " + e(result["runnersWithObservedHistory"])
+        + "頭／近走着順の観測 "
+        + e(result["runnersWithRecentFinishObservation"])
+        + "頭／脚質・展開関連記録の観測 "
+        + e(result["runnersWithPaceObservation"]) + "頭</p>",
+        "<p class='muted'>馬番順。優劣順でも人気順でもありません。"
+        "過去走の記録が見つからなくても新馬とは断定しません。</p>",
+    ]
+    for horse in result["byNumber"]:
+        recent = horse["factorEvidence"]["recent"]["status"]
+        pace = horse["factorEvidence"]["pace"]["status"]
+        observed = lambda s: "資料あり・未採点" if s == "observed_not_scored" else "未確認"
+        finishes = "、".join(
+            "不明" if x is None else str(x) + "着"
+            for x in horse["observedFinishes"]
+        ) or "観測なし"
+        three_f = "、".join(
+            "不明" if x is None else f"{x / 10:.1f}秒"
+            for x in horse["observedLast3fTenths"]
+        ) or "観測なし"
+        lines.append(
+            "<section><details><summary>" + e(horse["number"])
+            + "番｜過去走 " + e(horse["historicalRowsObserved"])
+            + "件｜近走 " + observed(recent)
+            + "｜展開・脚質 " + observed(pace)
+            + "</summary><p>観測した着順：" + e(finishes)
+            + "</p><p>上がり3F候補：" + e(three_f)
+            + "</p><table><tr><th>10項目</th><th>状態</th></tr>"
+        )
+        for item in horse["factorEvidence"].values():
+            lines.append(
+                "<tr><td>" + e(item["label"]) + "</td><td>"
+                + observed(item["status"]) + "</td></tr>"
+            )
+        lines.append("</table></details></section>")
+    lines.append(
+        "<p class='muted'>調教・コース距離・馬場・血統・枠斤量・騎手厩舎・"
+        "ローテ・馬体重は別資料が必要。"
+        "過去走の観測件数は強さや勝率を表しません。</p></html>"
+    )
+    return "".join(lines)
