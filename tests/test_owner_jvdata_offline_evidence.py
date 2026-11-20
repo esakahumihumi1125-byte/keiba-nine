@@ -174,6 +174,12 @@ class OfflineEvidenceTests(unittest.TestCase):
                 self.assertEqual(save_offline_review(chosen)[0], view)
                 self.assertEqual(list(view.parent.glob(
                     ".arc-race-evidence-*.tmp")), [])
+                # A manually edited HTML should NEVER be silently opened
+                # merely because the output filename already exists.
+                view.write_text("<script>tampered</script>", encoding="utf-8")
+                with self.assertRaisesRegex(
+                        JvLocalCheckError, "OFFLINE_EVIDENCE_TARGET_CONFLICT"):
+                    save_offline_review(chosen)
 
     def test_no_saved_file_really_does_not_start_provider_read(self):
         with tempfile.TemporaryDirectory() as folder:
