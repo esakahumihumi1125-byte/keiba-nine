@@ -2683,6 +2683,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(oneTapScrolls,1,
   'manual Saturday 1-tap takes iPhone straight to checked race list');
  assert.equal(successQuick.get('autoDay').value,'2099-01-03');
+ assert.equal(successQuick.get('autoRacePick').value,'東京|1');
+ assert.match(successQuick.get('autoViewingStatus').textContent,
+  /選択中：東京 1R/,
+  'with one safe draft, Saturday 1-tap must open the actionable 1R card');
  assert.equal(successQuick.requests.length,beforeSuccess+1);
  assert.match(successQuick.get('autoStatus').textContent,
   /発走前の研究用暫定案 1Rを確認/);
@@ -2697,6 +2701,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.match(successQuick.get('autoStatus').textContent,
   /土曜データ取得済み.*追加のJRDB照会は0回/);
  assert.equal(oneTapScrolls,2,'cached one-tap reopens list without JRDB requests');
+ assert.equal(successQuick.get('autoRacePick').value,'東京|1',
+  'same-day verified in-memory result must reopen the focused 1R');
  // Cached Saturday data is still a historical prestart research record
  // after the clock reaches off-time. Even the top status must not falsely
  // advertise 1R as an active draft when one-tap reopens the local result.
@@ -2704,6 +2710,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const afterOffReads=successQuick.requests.length;
  await successQuick.get('autoSaturdayQuick').onclick();
  assert.equal(successQuick.requests.length,afterOffReads);
+ assert.equal(oneTapScrolls,2,
+  'post-off one-tap must not jump to a stale draft');
  assert.equal(successQuick.storage.get(STORAGE),firstWrite);
  assert.match(successQuick.get('autoSummary').textContent,/研究用自動案 0R/);
  assert.match(successQuick.get('autoMorningStatus').textContent,
