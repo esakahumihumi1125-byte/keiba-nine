@@ -59,7 +59,15 @@ class OfflineEvidenceTests(unittest.TestCase):
         self.assertEqual(horse1["factorEvidence"]["training"]["status"],
                          "unverified")
         self.assertEqual(horse1["factorEvidence"]["course_distance"]["status"],
-                         "unverified")
+                         "past_context_only")
+        self.assertEqual(horse1["factorEvidence"]["ground"]["status"],
+                         "past_context_only")
+        self.assertEqual(horse1["historicalCourseContextRowsObserved"], 1)
+        self.assertEqual(horse1["historicalGoingContextRowsObserved"], 1)
+        self.assertEqual(result["runnersWithPastCourseContext"], 2)
+        self.assertEqual(result["runnersWithPastGoingContext"], 2)
+        self.assertIsNone(horse1["factorEvidence"]["course_distance"]["score"])
+        self.assertIsNone(horse1["factorEvidence"]["ground"]["score"])
         self.assertEqual(horse1["factorEvidence"]["pace"]["status"],
                          "observed_not_scored")
         self.assertTrue(all(
@@ -73,6 +81,37 @@ class OfflineEvidenceTests(unittest.TestCase):
         for forbidden in ("1000000001", "PRIVATE_FILENAME", "horse_id",
                           "source_raw", "SECRET_TOKEN", "privateApi"):
             self.assertNotIn(forbidden, repr(result))
+
+    def test_past_course_without_verified_today_remains_ungraded(self):
+        report = self.report()
+        horse = report["races"][0]["byNumber"][0]
+        run = horse["recentObservedRuns"][0]
+        self.assertTrue(run["historicalRaceContextMatched"])
+        self.assertEqual(run["surface"], "芝")
+        self.assertEqual(run["distanceMeters"], 1800)
+        self.assertEqual(run["going"], "稍重")
+        result = summarize_one_race(report)
+        self.assertEqual(result["byNumber"][0][
+            "factorEvidence"]["course_distance"]["status"], "past_context_only")
+        self.assertEqual(result["byNumber"][0][
+            "factorEvidence"]["ground"]["status"], "past_context_only")
+        self.assertFalse(result["tenFactorScoresReady"])
+        self.assertFalse(result["trifectaReady"])
+        html = render_evidence_html(result)
+        self.assertIn("過去の条件のみ", html)
+        self.assertIn("今回の適性は未評価", html)
+
+        # A partial old JSON with no RA7 context cannot be upgraded by
+        # assuming the missing past race was comparable.
+        run["historicalRaceContextMatched"] = False
+        run["surface"] = None
+        run["distanceMeters"] = None
+        run["going"] = None
+        partial = summarize_one_race(report)
+        self.assertEqual(partial["byNumber"][0][
+            "factorEvidence"]["course_distance"]["status"], "unverified")
+        self.assertEqual(partial["byNumber"][0][
+            "factorEvidence"]["ground"]["status"], "unverified")
 
     def test_only_weak_observations_dont_become_strength_or_a_debut(self):
         report = self.report()
