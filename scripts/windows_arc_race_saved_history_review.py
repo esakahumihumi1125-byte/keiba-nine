@@ -72,6 +72,15 @@ def save_offline_review(source):
         source.with_name(source.stem + "-evidence.html"),
     )
     if all(p.is_file() and not p.is_symlink() for p in targets):
+        # A pre-existing view is safe to reopen only if it still matches
+        # the exact sanitized evidence derived from today's source JSON.
+        # Never open a modified local HTML file under a trusted label.
+        try:
+            if (targets[0].read_text("utf-8") != json_body
+                    or targets[1].read_text("utf-8") != html):
+                raise JvLocalCheckError("OFFLINE_EVIDENCE_TARGET_CONFLICT")
+        except (OSError, UnicodeError):
+            raise JvLocalCheckError("OFFLINE_EVIDENCE_TARGET_CONFLICT") from None
         return targets[1], evidence
     if any(p.exists() or p.is_symlink() for p in targets):
         raise JvLocalCheckError("OFFLINE_EVIDENCE_TARGET_CONFLICT")
