@@ -329,9 +329,11 @@ def save_private_local(report):
             or report.get("version") != "owner-jvdata-local-day-history-bridge-1"
             or type(report.get("date")) is not str
             or not _valid_date(report["date"])
-            or report.get("raceCount") != 1
+            or type(report.get("raceCount")) is not int
+            or report["raceCount"] != 1
             or not isinstance(report.get("races"), list)
             or len(report["races"]) != 1
+            or not isinstance(report["races"][0], dict)
             or type(report["races"][0].get("race")) is not int
             or not 1 <= report["races"][0]["race"] <= 12
             or report["races"][0].get("track") not in TRACKS.values()):
