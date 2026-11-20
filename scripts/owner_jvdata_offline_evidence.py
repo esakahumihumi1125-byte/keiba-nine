@@ -50,6 +50,7 @@ def summarize_runner(horse):
         raise CoverageError("Invalid private history collection")
 
     finishes, corners, styles, last3f, dates = [], [], [], [], []
+    historical_course_rows = historical_going_rows = 0
     for run in recent:
         if not isinstance(run, dict) or not isinstance(run.get("date"), str):
             raise CoverageError("Invalid private prior run")
@@ -70,6 +71,18 @@ def summarize_runner(horse):
         if any(x is not None and not _int_in(x, 1, 18)
                for x in raw_corners):
             raise CoverageError("Invalid private corner value")
+        # RA7 describes the PAST race, not the target race. Only count
+        # a genuine, explicitly joined course; never infer current course
+        # or current going from a past performance.
+        ra_joined = run.get("historicalRaceContextMatched") is True
+        past_surface = run.get("surface")
+        past_distance = run.get("distanceMeters")
+        past_going = run.get("going")
+        if (ra_joined and past_surface in ("芝", "ダート")
+                and _int_in(past_distance, 400, 10000)):
+            historical_course_rows += 1
+            if past_going in ("良", "稍重", "重", "不良"):
+                historical_going_rows += 1
         finishes.append(finish)
         corners.append(raw_corners)
         styles.append(style)
@@ -87,6 +100,9 @@ def summarize_runner(horse):
             "status": ("observed_not_scored"
                        if (name == "recent" and recent_evidence)
                        or (name == "pace" and pace_evidence)
+                       else "past_context_only"
+                       if (name == "course_distance" and historical_course_rows)
+                       or (name == "ground" and historical_going_rows)
                        else "unverified"),
             "score": None,
             "grade": None,
@@ -101,6 +117,8 @@ def summarize_runner(horse):
         "observedLast3fTenths": last3f,
         "observedCornerPositions": corners,
         "observedStyleCodes": styles,
+        "historicalCourseContextRowsObserved": historical_course_rows,
+        "historicalGoingContextRowsObserved": historical_going_rows,
         "factorEvidence": factors,
         "factorsWithObservations": [
             name for name in OWNER_FORMAL_FACTORS
@@ -165,6 +183,10 @@ def summarize_one_race(report):
             "recent" in x["factorsWithObservations"] for x in horses),
         "runnersWithPaceObservation": sum(
             "pace" in x["factorsWithObservations"] for x in horses),
+        "runnersWithPastCourseContext": sum(
+            x["historicalCourseContextRowsObserved"] > 0 for x in horses),
+        "runnersWithPastGoingContext": sum(
+            x["historicalGoingContextRowsObserved"] > 0 for x in horses),
         "byNumber": horses,
         "factorNames": [FACTORS_JP[k] for k in OWNER_FORMAL_FACTORS],
         "tenFactorScoresReady": False,
@@ -179,7 +201,8 @@ def summarize_one_race(report):
         "researchOnly": True,
         "note": (
             "過去走由来の近走・展開脚質の一部を資料として観測しただけ。"
-            "距離/馬場・調教等の検証不足は未確認のまま。"
+            "過去走RA7が一致すれば当時の距離・馬場だけ観測する。"
+            "今回の条件との比較、調教等の検証不足は未確認のまま。"
             "近走の着順や人気を根拠に加点せず、正式10項目採点・"
             "3連単予想・馬券購入には使わない。"
         ),
@@ -219,14 +242,19 @@ def render_evidence_html(result):
         + "頭／近走着順の観測 "
         + e(result["runnersWithRecentFinishObservation"])
         + "頭／脚質・展開関連記録の観測 "
-        + e(result["runnersWithPaceObservation"]) + "頭</p>",
+        + e(result["runnersWithPaceObservation"])
+        + "頭／過去レースのコース条件あり "
+        + e(result["runnersWithPastCourseContext"])
+        + "頭（今回の適性は未評価）</p>",
         "<p class='muted'>馬番順。優劣順でも人気順でもありません。"
         "過去走の記録が見つからなくても新馬とは断定しません。</p>",
     ]
     for horse in result["byNumber"]:
         recent = horse["factorEvidence"]["recent"]["status"]
         pace = horse["factorEvidence"]["pace"]["status"]
-        observed = lambda s: "資料あり・未採点" if s == "observed_not_scored" else "未確認"
+        observed = lambda s: ("資料あり・未採点" if s == "observed_not_scored"
+                              else "過去の条件のみ・今回の適性は未評価"
+                              if s == "past_context_only" else "未確認")
         finishes = "、".join(
             "不明" if x is None else str(x) + "着"
             for x in horse["observedFinishes"]
@@ -240,7 +268,12 @@ def render_evidence_html(result):
             + "番｜過去走 " + e(horse["historicalRowsObserved"])
             + "件｜近走 " + observed(recent)
             + "｜展開・脚質 " + observed(pace)
-            + "</summary><p>観測した着順：" + e(finishes)
+            + "</summary><p>過去コース条件の観測 "
+            + e(horse["historicalCourseContextRowsObserved"])
+            + "走／過去の馬場条件の観測 "
+            + e(horse["historicalGoingContextRowsObserved"])
+            + "走（いずれも今回の適性評価ではない）</p>"
+            + "<p>観測した着順：" + e(finishes)
             + "</p><p>上がり3F候補：" + e(three_f)
             + "</p><table><tr><th>10項目</th><th>状態</th></tr>"
         )
@@ -251,7 +284,7 @@ def render_evidence_html(result):
             )
         lines.append("</table></details></section>")
     lines.append(
-        "<p class='muted'>調教・コース距離・馬場・血統・枠斤量・騎手厩舎・"
+        "<p class='muted'>調教・今回のコース適性・今回の馬場適性・血統・枠斤量・騎手厩舎・"
         "ローテ・馬体重は別資料が必要。"
         "過去走の観測件数は強さや勝率を表しません。</p></html>"
     )
