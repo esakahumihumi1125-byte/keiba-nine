@@ -10,6 +10,7 @@ A valid report is still not a final JRA card, verified historical delivery,
 formal score, wager, or production prediction.
 """
 import argparse
+from collections import deque
 from datetime import datetime
 from html import escape
 import json
@@ -30,11 +31,12 @@ from windows_jvlink_weekly_read import (
     MAX_FILE_SWITCHES, MAX_READ_BYTES, next_saturday, validate_day,
 )
 
-VERSION = "owner-jvlink-local-day-history-read-3"
+VERSION = "owner-jvlink-local-day-history-read-4"
 MAX_RACE_STREAM_STEPS = 5000
 MAX_RCVN_STREAM_STEPS = 80000
 MAX_RCVN_SCAN_SECONDS = 60
 MAX_MATCHED_HISTORIES = 5000
+MAX_CONTEXT_RA = 10000  # bounded in-memory historical race-context buffer
 FIELDS = {
     "RACE": {b"RA2": 1272, b"SE2": 555},
     "RCVN": {b"RA7": 1272, b"SE7": 555},
@@ -48,10 +50,12 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
     """Bounded single JVOpen+JVGets+JVClose stream, no retries or disk I/O.
 
     RACE retains only requested-day RA2/SE2 (up to 5,000 reads). If
-    relevant_ids are passed, RCVN keeps ONLY matching SE7 in memory, never
-    entire history or unrelated RA7, because the user's first real read
-    found 5,000+ RA7 before reaching any SE7. The research output has
-    unknown past race surface/distance until separately verified.
+    relevant_ids are passed, RCVN keeps ONLY matching SE7 plus a bounded
+    ring of 10,000 RA7 race-context rows in process memory. Actual RA7
+    context is joined to matched SE7 by exact race ID downstream; unrelated
+    RA7 and all IDs are discarded before any local JSON/HTML is created.
+    If a matching RA7 was outside the ring, its distance/going stays unknown.
+    This is NOT a complete historical database.
     RCVN scans at most 80,000 steps/60 seconds after JVOpen. Reaching
     either limit is a HOLD, not an assertion of historical completeness.
     """
@@ -78,6 +82,9 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
     opened = False
     first_pending_at = None
     observed = []
+    # Real RCVN delivered >5,000 RA7 rows before any SE7 on the owner PC.
+    # Keep a bounded trailing context window while selecting only relevant SE.
+    context_ra = deque(maxlen=MAX_CONTEXT_RA)
     try:
         response = jv.JVOpen(dataspec, "00000000000000", 2, 0, 0, "")
         if (not isinstance(response, (tuple, list))
@@ -133,9 +140,12 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
                 if record[11:19].decode("ascii", errors="replace") != day:
                     continue
             elif relevant_ids is not None:
-                # Do not retain unrelated RA7 or any other horse's SE7.
-                # Past RA details stay unverified; this is first a proof of
-                # actual current-horse / past-result identity matching.
+                if record[:3] == b"RA7":
+                    # Historical RA7 does not contain horse IDs. Retain only
+                    # a bounded in-memory candidate set; match to selected
+                    # runners' SE7 before exposing any race context.
+                    context_ra.append(record)
+                    continue
                 if record[:3] != b"SE7" or record[30:40] not in relevant_ids:
                     continue
                 if len(observed) >= MAX_MATCHED_HISTORIES:
@@ -152,6 +162,8 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
                 raise
             except Exception:
                 raise JvLocalCheckError("DAY_HISTORY_CLOSE_FAILED") from None
+    if dataspec == "RCVN" and relevant_ids is not None:
+        return observed + list(context_ra)
     return observed
 
 
@@ -246,7 +258,7 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None):
         if not current_ids:
             raise JvLocalCheckError("DAY_HISTORY_NO_CURRENT_HORSES")
         history = read_source_once(jv, "RCVN", relevant_ids=current_ids)
-        if not history:
+        if not any(row[:3] == b"SE7" for row in history):
             raise JvLocalCheckError("DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS")
         # Always recheck the local clock after the second provider read.
         # It is unsafe to label a race "prestart" solely because it was
