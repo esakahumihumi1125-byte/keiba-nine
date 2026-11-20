@@ -96,6 +96,84 @@ class WindowsHistoryDayTests(unittest.TestCase):
                       "jvlink_token", "source_raw"):
             self.assertNotIn(token, repr(report).lower())
 
+    def test_two_complete_races_only_earliest_is_sent_to_rcvn_bridge(self):
+        race_2 = [
+            replace(replace(row, 25, 27, "02"), 873, 877, "1040")
+            if row[:3] == b"RA2" else replace(row, 25, 27, "02")
+            for row in sources()["RACE"]
+        ]
+        jv = FakeJv({
+            "RACE": [*race_2, *sources()["RACE"]],
+            "RCVN": sources()["RCVN"],
+        })
+        report = self.get_report(jv)
+        self.assertEqual(report["raceCount"], 1)
+        self.assertEqual(report["races"][0]["track"], "東京")
+        self.assertEqual(report["races"][0]["race"], 1)
+        self.assertEqual(jv.closes, 2)
+        self.assertTrue(report["races"][0]["observedHorseHistory"] > 0)
+        self.assertFalse(report["productionPredictionReady"])
+
+    def test_unpublished_first_race_falls_back_to_complete_second(self):
+        original = sources()["RACE"]
+        race_2 = [
+            replace(replace(row, 25, 27, "02"), 873, 877, "1040")
+            if row[:3] == b"RA2" else replace(row, 25, 27, "02")
+            for row in original
+        ]
+        jv = FakeJv({
+            "RACE": [original[0], original[1], *race_2],
+            "RCVN": sources()["RCVN"],
+        })
+        report = self.get_report(jv)
+        self.assertEqual(report["raceCount"], 1)
+        self.assertEqual(report["races"][0]["race"], 2)
+        self.assertEqual(len(jv.opens), 2)
+
+    def test_started_race_is_skipped_before_rcvn(self):
+        original = sources()["RACE"]
+        race_2 = [
+            replace(replace(row, 25, 27, "02"), 873, 877, "1040")
+            if row[:3] == b"RA2" else replace(row, 25, 27, "02")
+            for row in original
+        ]
+        jv = FakeJv({
+            "RACE": [*original, *race_2],
+            "RCVN": sources()["RCVN"],
+        })
+        with patch("windows_jvlink_day_history_preview.validate_day",
+                   return_value=DAY):
+            report = read_local_day_history(
+                DAY, jv_factory=lambda: jv,
+                captured_at=datetime(2026, 11, 21, 10, 10, tzinfo=JST))
+        self.assertEqual(report["races"][0]["race"], 2)
+        self.assertEqual(jv.closes, 2)
+
+        past = FakeJv({
+            "RACE": original, "RCVN": sources()["RCVN"],
+        })
+        with patch("windows_jvlink_day_history_preview.validate_day",
+                   return_value=DAY):
+            with self.assertRaisesRegex(
+                    JvLocalCheckError, "^DAY_HISTORY_ALL_RACES_STARTED$"):
+                read_local_day_history(
+                    DAY, jv_factory=lambda: past,
+                    captured_at=datetime(2026, 11, 21, 10, 10, tzinfo=JST))
+        self.assertEqual(len(past.opens), 1)
+        self.assertEqual(past.closes, 1)
+
+    def test_current_race_replay_conflict_blocks_history_read(self):
+        original = sources()["RACE"]
+        jv = FakeJv({
+            "RACE": [*original, replace(original[0], 873, 877, "1120")],
+            "RCVN": sources()["RCVN"],
+        })
+        with self.assertRaisesRegex(
+                JvLocalCheckError, "^DAY_HISTORY_CURRENT_ROSTER_CONFLICT$"):
+            self.get_report(jv)
+        self.assertEqual(len(jv.opens), 1)
+        self.assertEqual(jv.closes, 1)
+
     def test_empty_or_no_recent_data_cannot_claim_a_debut(self):
         jv = FakeJv({"RACE": sources()["RACE"], "RCVN": []})
         with self.assertRaisesRegex(
@@ -211,19 +289,29 @@ class WindowsHistoryDayTests(unittest.TestCase):
         self.assertEqual(len(jv.opens), 1)
         self.assertEqual(jv.closes, 1)
 
-    def test_fail_closed_on_malformed_current_or_history(self):
-        problems = [
-            {"RACE": sources()["RACE"][:-1], "RCVN": sources()["RCVN"]},
-            {"RACE": sources()["RACE"], "RCVN": [
+    def test_incomplete_current_race_does_not_trigger_rcvn(self):
+        jv = FakeJv({
+            "RACE": sources()["RACE"][:-1],
+            "RCVN": sources()["RCVN"],
+        })
+        with self.assertRaisesRegex(
+                JvLocalCheckError, "^DAY_HISTORY_NO_COMPLETE_RACE$"):
+            self.get_report(jv)
+        self.assertEqual(jv.closes, 1)
+        self.assertEqual(len(jv.opens), 1)
+        self.assertEqual(jv.opens[0][0], "RACE")
+
+    def test_conflicting_history_remains_fail_closed(self):
+        jv = FakeJv({
+            "RACE": sources()["RACE"],
+            "RCVN": [
                 sample(1), replace(sample(1), 334, 336, "01"), old_ra(),
-            ]},
-        ]
-        for rows in problems:
-            jv = FakeJv(rows)
-            with self.subTest(rows=rows["RCVN"][0][:3]), self.assertRaisesRegex(
-                    JvLocalCheckError, "^DAY_HISTORY_INCOMPLETE_OR_MISMATCHED$"):
-                self.get_report(jv)
-            self.assertEqual(jv.closes, 2)
+            ],
+        })
+        with self.assertRaisesRegex(
+                JvLocalCheckError, "^DAY_HISTORY_INCOMPLETE_OR_MISMATCHED$"):
+            self.get_report(jv)
+        self.assertEqual(jv.closes, 2)
 
     def test_local_json_and_html_are_create_only_no_raw_sources(self):
         report = self.get_report(FakeJv(sources()))
