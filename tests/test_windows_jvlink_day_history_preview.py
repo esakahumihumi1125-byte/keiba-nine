@@ -203,14 +203,52 @@ class WindowsHistoryDayTests(unittest.TestCase):
             [x["number"] for x in report["races"][0]["byNumber"]
              if x["observedRecordCount"]], [1, 3])
         self.assertFalse(report["historyCompletenessVerified"])
-        # RA7 is intentionally omitted in this initial current-horse
-        # identity test. Unverified course/going cannot be fabricated.
-        for race in report["races"]:
-            for horse in race["byNumber"]:
-                for run in horse["recentObservedRuns"]:
-                    self.assertIsNone(run["distanceMeters"])
-                    self.assertIsNone(run["going"])
+        # The 5,200 prior RA7 rows are now retained only in a bounded
+        # memory ring, and the exact matching race fills historical
+        # context (NOT present-day suitability or final going).
+        self.assertTrue(report["races"][0]["historicalRaContextJoined"])
+        for horse in (report["races"][0]["byNumber"][0],
+                      report["races"][0]["byNumber"][2]):
+            run = horse["recentObservedRuns"][0]
+            self.assertEqual(run["distanceMeters"], 1800)
+            self.assertEqual(run["surface"], "芝")
+            self.assertEqual(run["going"], "稍重")
+            self.assertTrue(run["historicalRaceContextMatched"])
         self.assertNotIn("1000000001", repr(report))
+
+    def test_ra_window_is_bounded_and_missing_context_is_unknown(self):
+        # More than the 10k context window may occur. Dropping earlier
+        # historical RA7 must never invent a distance/ground assessment.
+        earlier = old_ra()
+        unrelated = replace(
+            old_ra(day="20250910", created="20250930"), 25, 27, "02")
+        rows = [earlier, *([unrelated] * 10005), sample(1)]
+        jv = FakeJv({
+            "RACE": sources()["RACE"],
+            "RCVN": rows,
+        })
+        report = self.get_report(jv)
+        self.assertEqual(report["races"][0]["observedHorseHistory"], 1)
+        run = report["races"][0]["byNumber"][0]["recentObservedRuns"][0]
+        self.assertIsNone(run["distanceMeters"])
+        self.assertIsNone(run["going"])
+        self.assertFalse(run["historicalRaceContextMatched"])
+        self.assertFalse(report["historyCompletenessVerified"])
+
+    def test_matched_ra_context_updates_local_html_no_raw_provider_id(self):
+        jv = FakeJv(sources())
+        report = self.get_report(jv)
+        self.assertTrue(report["races"][0]["historicalRaContextJoined"])
+        first_run = report["races"][0]["byNumber"][0]["recentObservedRuns"][0]
+        self.assertEqual(first_run["distanceMeters"], 1800)
+        self.assertEqual(first_run["surface"], "芝")
+        self.assertEqual(first_run["going"], "稍重")
+        html = local_html(report)
+        self.assertIn("1800", html)
+        self.assertIn("稍重", html)
+        self.assertNotIn("1000000001", html)
+        self.assertFalse(report["formalTenFactorReady"])
+        self.assertFalse(report["productionPredictionReady"])
 
     def test_no_matching_se_does_not_claim_horse_is_new(self):
         jv = FakeJv({
