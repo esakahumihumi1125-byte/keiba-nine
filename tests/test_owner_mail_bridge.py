@@ -63,6 +63,29 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(called[0][0].get_method(), "POST")
         self.assertNotIn(TOKEN, called[0][0].full_url)
 
+    def test_all_jra_venues_require_an_existing_private_race_calendar(self):
+        venues = ("札幌", "函館", "福島", "新潟", "東京",
+                  "中山", "中京", "京都", "阪神", "小倉")
+        times = {(track, i): "14:30"
+                 for i, track in enumerate(venues, 1)}
+        rows = [
+            {"track": track, "race": i, "time": "14:30",
+             "observedAt": "14:20", "ground": "未確認",
+             "paddock": [3, 4, 5]}
+            for i, track in enumerate(venues, 1)
+        ]
+        message = {"schema": BRIDGE_SCHEMA, "date": DATE, "races": rows}
+        parsed = validate_bridge_feed(message, DATE, times)
+        self.assertEqual([r["track"] for r in parsed["races"]], list(venues))
+        self.assertFalse(parsed["predictionReady"])
+        self.assertFalse(parsed["officialJraVerified"])
+        with self.assertRaisesRegex(BridgeUnavailable, "Wrong start"):
+            validate_bridge_feed(message, DATE, {("福島", 3): "14:30"})
+        bad = copy.deepcopy(message)
+        bad["races"][0]["track"] = "海外"
+        with self.assertRaisesRegex(BridgeUnavailable, "Invalid race reference"):
+            validate_bridge_feed(bad, DATE, times)
+
     def test_rejected_mail_bridge_response_is_distinguishable(self):
         settings = {BRIDGE_URL: URL, BRIDGE_TOKEN: TOKEN}
         with self.assertRaisesRegex(BridgeUnavailable, "Remote rejected request"):
