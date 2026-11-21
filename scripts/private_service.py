@@ -160,6 +160,7 @@ from owner_preday_forecast_ui import HTML as FORECAST_HTML, JS as FORECAST_JS, C
 from owner_decision_receipt import (issue_decision_captures, verify_decision_captures,
                                     DecisionReceiptError)
 from owner_decision_audit_ui import HTML as DECISION_HTML, JS as DECISION_JS, CSS as DECISION_CSS
+from owner_jvlink_compare_ui import HTML as VAN_COMPARE_HTML, JS as VAN_COMPARE_JS, CSS as VAN_COMPARE_CSS
 from owner_gmail_setup_ui import HTML as GMAIL_SETUP_HTML, JS as GMAIL_SETUP_JS, CSS as GMAIL_SETUP_CSS
 from owner_forecast_delivery import decode_forecast, decode_plain_owner_snapshot, OwnerForecastError, ENV_KEY as OWNER_FORECAST_ENV_KEY
 from owner_live_notes import parse_live_notes, LiveNoteError, ENV_KEY as OWNER_LIVE_ENV_KEY
@@ -1354,7 +1355,7 @@ def create_app(settings=None):
                             extra=[('Location', '/login?session=check'),
                                    ('Set-Cookie', session_cookie(expected))])
         if not valid:
-            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/my-scorecard', '/owner-races', '/owner-preday-forecast', '/owner-decision-audit', '/owner-jrdb-day-research', '/owner-auto-forecast', '/owner-gmail-setup', '/owner-review', '/owner-daily-review', '/owner-100yen-review', '/owner-auto-trial', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
+            if method == 'GET' and path in ('/', '/preview-v2', '/my-tickets', '/owner-backup', '/my-scorecard', '/owner-races', '/owner-preday-forecast', '/owner-jvlink-compare', '/owner-decision-audit', '/owner-jrdb-day-research', '/owner-auto-forecast', '/owner-gmail-setup', '/owner-review', '/owner-daily-review', '/owner-100yen-review', '/owner-auto-trial', '/research-batch-demo', '/research-validation-demo', '/day-pipeline', '/jrdb-mail-local'):
                 return response('303 See Other', '', 'text/plain; charset=utf-8',
                                 extra=[('Location', '/login')])
             # Do not summon an iPhone native Basic-password popup when an
@@ -1364,7 +1365,7 @@ def create_app(settings=None):
                 '/app.js', '/app.css', '/my-tickets.js',
                 '/my-tickets.css', '/my-purchases.js', '/research-batch-demo.css',
                 '/day-pipeline.css', '/day-pipeline.js',
-                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/owner-scorecard.js', '/owner-scorecard.css', '/owner-race-workbench.js', '/owner-race-workbench.css', '/owner-preday-forecast.js', '/owner-preday-forecast.css', '/owner-decision-audit.js', '/owner-decision-audit.css', '/owner-gmail-setup.js', '/owner-gmail-setup.css', '/owner-jrdb-day-research.js', '/owner-jrdb-day-research.css', '/owner-auto-forecast.js', '/owner-auto-forecast.css', '/owner-review.js', '/owner-review.css', '/owner-daily-review.js', '/owner-daily-review.css', '/owner-100yen-review.js', '/owner-100yen-review.css', '/owner-auto-trial.js', '/owner-auto-trial.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
+                '/jrdb-mail-local.js', '/jrdb-mail-local.css', '/jrdb-manual-numbers.js', '/owner-backup.js', '/owner-backup.css', '/owner-scorecard.js', '/owner-scorecard.css', '/owner-race-workbench.js', '/owner-race-workbench.css', '/owner-preday-forecast.js', '/owner-preday-forecast.css', '/owner-jvlink-compare.js', '/owner-jvlink-compare.css', '/owner-decision-audit.js', '/owner-decision-audit.css', '/owner-gmail-setup.js', '/owner-gmail-setup.css', '/owner-jrdb-day-research.js', '/owner-jrdb-day-research.css', '/owner-auto-forecast.js', '/owner-auto-forecast.css', '/owner-review.js', '/owner-review.css', '/owner-daily-review.js', '/owner-daily-review.css', '/owner-100yen-review.js', '/owner-100yen-review.css', '/owner-auto-trial.js', '/owner-auto-trial.css', '/jra-official-pdf.js', '/jra-web-card.js', '/owner-update.js', '/ui-version'
             ):
                 return response('401 Unauthorized', {'error': 'ログインが必要です。'})
             return response('401 Unauthorized', {'error': '本人認証が必要です。'},
@@ -1525,6 +1526,19 @@ def create_app(settings=None):
                 '/owner-decision-audit.css': (DECISION_CSS, 'text/css; charset=utf-8'),
             }[path]
             return response('200 OK', body, mime)
+        if method == 'GET' and path in (
+                '/owner-jvlink-compare', '/owner-jvlink-compare.js',
+                '/owner-jvlink-compare.css'):
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'):
+                return response('404 Not Found', {
+                    'error': '本人専用でのみ利用できます。'})
+            page, mime = {
+                '/owner-jvlink-compare': (VAN_COMPARE_HTML, 'text/html; charset=utf-8'),
+                '/owner-jvlink-compare.js': (VAN_COMPARE_JS, 'text/javascript; charset=utf-8'),
+                '/owner-jvlink-compare.css': (VAN_COMPARE_CSS, 'text/css; charset=utf-8'),
+            }[path]
+            return response('200 OK', page, mime)
         if method == 'GET' and path in ('/owner-preday-forecast', '/owner-preday-forecast.js', '/owner-preday-forecast.css'):
             page, mime = {
                 '/owner-preday-forecast': (FORECAST_HTML, 'text/html; charset=utf-8'),
