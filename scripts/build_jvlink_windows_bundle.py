@@ -50,7 +50,7 @@ JRA-VAN契約、JV-Link、64bit Python、pywin32 が別途必要です。
    まだ実際のJRA出馬表データの取得成功ではありません。
 4. JRA-VANの本人利用権限と提供開始を確認できた場合だけ、
    scripts/windows_jvlink_weekly_read.cmd をダブルクリック。
-   Enterだけなら次の土曜日。日曜日は YYYYMMDD を入力。
+   Enterだけなら土日は今日（日本時間）、平日は次の土曜日。祝日は YYYYMMDD を指定。
 5. 成功時はPC内の %LOCALAPPDATA%\\ARC-RACE-private に
    JSON・ブラウザー用HTMLの候補要約を保存します。
    どちらもGitHubやRenderへ自動送信しません。
