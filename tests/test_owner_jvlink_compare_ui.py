@@ -34,6 +34,9 @@ class OwnerJvlinkCompareTests(unittest.TestCase):
                          "404 Not Found")
         self.assertIn('href="/owner-jvlink-compare"', PREDAY_HTML)
         self.assertIn("JRA-VAN", HTML)
+        self.assertIn("vanJrdbProbe", HTML)
+        self.assertIn("/api/jrdb/connection-test?date=", JS)
+        self.assertIn("button.disabled=true", JS)
         self.assertIn("jvdata-candidate-YYYYMMDD.json", HTML)
         self.assertIn("JRDB", HTML)
         self.assertIn("JRA", HTML)
@@ -52,7 +55,7 @@ class OwnerJvlinkCompareTests(unittest.TestCase):
 const vm=require('node:vm'),assert=require('node:assert/strict');
 const source=require('node:fs').readFileSync(0,'utf8'),module={exports:{}};
 vm.runInNewContext(source,{module},{timeout:2000});
-const {compareLocalJvWithJrdb,compareWeeklyJvCandidate}=module.exports;
+const {compareLocalJvWithJrdb,compareWeeklyJvCandidate,normalizeJrdbProbeResult}=module.exports;
 const date='2026-11-22';
 const jrdb={schema:'keiba-nine-private-preday-review-v1',date,
  sourceKind:'owner-private-authored-preday',predictionReady:false,
@@ -163,6 +166,39 @@ for(const malformed of [
 ]){
  assert.throws(()=>compareWeeklyJvCandidate(malformed,dailyReference),/./);
 }
+
+
+const goodProbe={
+ date:'20261122',connectionVerified:true,programmeCount:24,
+ providerDataStored:false,predictionReady:false
+};
+const checked=normalizeJrdbProbeResult(200,goodProbe,'20261122');
+assert.equal(checked.connected,true);
+assert.match(checked.label,/接続は成功/);
+assert.match(checked.label,/正式10項目予想/);
+assert.equal(normalizeJrdbProbeResult(502,{
+ error:'JRDB β版アカウントの利用権限・有効期限を確認してください。'
+ },'20261122').connected,false);
+assert.match(normalizeJrdbProbeResult(502,{
+ error:'JRDBの通信回数制限です。再試行の間隔を空けてください。'
+ },'20261122').label,/通信回数制限/);
+assert.match(normalizeJrdbProbeResult(502,{
+ error:'Do not echo secrets'
+ },'20261122').label,/接続診断に失敗/);
+assert.doesNotMatch(normalizeJrdbProbeResult(502,{
+ error:'Do not echo secrets'
+ },'20261122').label,/secrets/);
+for(const bad of [
+ {...goodProbe,date:'20261121'},
+ {...goodProbe,connectionVerified:false},
+ {...goodProbe,predictionReady:true},
+ {...goodProbe,providerDataStored:true},
+ {...goodProbe,programmeCount:-1},
+ {...goodProbe,programmeCount:'24'},
+]){
+ assert.throws(()=>normalizeJrdbProbeResult(200,bad,'20261122'),/./);
+}
+assert.throws(()=>normalizeJrdbProbeResult(200,goodProbe,'2026-11-22'),/./);
 
 console.log('private local dual-source observation tests PASS');
 """
