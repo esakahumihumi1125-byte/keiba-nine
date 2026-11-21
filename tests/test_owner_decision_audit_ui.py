@@ -219,21 +219,21 @@ assert.throws(()=>portableBackup(day,mergedCaptures,'福島7 7-3-3'),/馬番/);
 assert.throws(()=>portableBackup(day,mergedCaptures,
  '福島7 7-3-1 42510\n福島7 7-3-2 999'),/重複/);
 
-const day='2026-11-21', tomorrow='2026-11-22', yesterday='2026-11-20';
-assert.equal(preferredAuditDate(day,day,tomorrow,false,false),tomorrow,
+const todayAudit='2026-11-21', tomorrow='2026-11-22', yesterday='2026-11-20';
+assert.equal(preferredAuditDate(todayAudit,todayAudit,tomorrow,false,false),tomorrow,
  'tomorrow reference shown by default when there is no prior local evidence');
-assert.equal(preferredAuditDate(day,day,tomorrow,false,true),day,
+assert.equal(preferredAuditDate(todayAudit,todayAudit,tomorrow,false,true),todayAudit,
  'existing signed decisions or reviewed results must keep todays review');
-assert.equal(preferredAuditDate(day,day,tomorrow,true,false),day,
+assert.equal(preferredAuditDate(todayAudit,todayAudit,tomorrow,true,false),todayAudit,
  'explicitly selected date stays selected');
-assert.equal(preferredAuditDate(day,yesterday,tomorrow,true,false),yesterday,
+assert.equal(preferredAuditDate(todayAudit,yesterday,tomorrow,true,false),yesterday,
  'user can review an earlier date');
-assert.equal(preferredAuditDate(day,day,'2026-11-23',false,false),day,
+assert.equal(preferredAuditDate(todayAudit,todayAudit,'2026-11-23',false,false),todayAudit,
  'day after tomorrow cannot hijack audit selection');
-assert.equal(preferredAuditDate(day,day,yesterday,false,false),day,
+assert.equal(preferredAuditDate(todayAudit,todayAudit,yesterday,false,false),todayAudit,
  'stale server forecast cannot hijack audit selection');
-assert.equal(preferredAuditDate(day,day,day,false,false),day);
-assert.equal(preferredAuditDate(day,day,'invalid',false,false),day);
+assert.equal(preferredAuditDate(todayAudit,todayAudit,day,false,false),todayAudit);
+assert.equal(preferredAuditDate(todayAudit,todayAudit,'invalid',false,false),todayAudit);
 console.log('owner buy-vs-hold pure audit synthetic cases PASS');
 """
         result = subprocess.run(["node", "-e", script], input=JS, text=True,
