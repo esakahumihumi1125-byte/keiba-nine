@@ -46,9 +46,23 @@ class JvLocalCheckError(ValueError):
 
 
 def next_saturday(today=None):
-    """Default the one-click test to the next Saturday in PC-local Japan time."""
-    local_date = today or date.today()
+    """Return this/next Saturday. Keep this utility stable for callers."""
+    local_date = today or datetime.now(JST).date()
     return (local_date + timedelta(days=(5 - local_date.weekday()) % 7)).strftime("%Y%m%d")
+
+
+def default_race_day(today=None):
+    """Current Japan race date on weekends, otherwise next Saturday.
+
+    This chooses a day only: JVOpen still needs one user-initiated local
+    invocation, valid JV-Link data rights, and successfully delivered cards.
+    """
+    local_date = today if today is not None else datetime.now(JST).date()
+    if type(local_date) is not date:
+        raise JvLocalCheckError("DATE_INVALID")
+    if local_date.weekday() in (5, 6):
+        return local_date.strftime("%Y%m%d")
+    return next_saturday(local_date)
 
 
 def validate_day(day):
@@ -58,8 +72,9 @@ def validate_day(day):
         candidate = datetime.strptime(day, "%Y%m%d").date()
     except ValueError:
         raise JvLocalCheckError("DATE_INVALID") from None
-    today = date.today()
-    # Today or upcoming weekend only; no historical bulk backfill.
+    today = datetime.now(JST).date()
+    # Today or upcoming weekend only, based on Japanese race day;
+    # no historical bulk backfill and no dependence on Windows clock zone.
     if not today <= candidate <= date.fromordinal(today.toordinal() + 7):
         raise JvLocalCheckError("DATE_OUTSIDE_NEXT_WEEK")
     return day
@@ -289,9 +304,9 @@ def run_one_weekly_read(day, *, jv_factory=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="ARC RACE local one-time JRA-VAN weekly RA/SE read")
-    parser.add_argument("--date", help="JST race date YYYYMMDD (default: next Saturday)")
+    parser.add_argument("--date", help="JST race date YYYYMMDD (default: today Sat/Sun, else next Saturday)")
     args = parser.parse_args(argv)
-    day = args.date or next_saturday()
+    day = args.date or default_race_day()
     try:
         report = run_one_weekly_read(day)
         # This owner-only JSON contains ONLY the race coordinates, horse

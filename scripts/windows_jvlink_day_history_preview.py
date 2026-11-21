@@ -28,7 +28,7 @@ from jrdb_program_preview import TRACKS
 from jrdb_evidence_readiness import _valid_date
 from windows_jvlink_weekly_read import (
     DATE, JST, JvLocalCheckError, MAX_DOWNLOAD_WAIT_SECONDS,
-    MAX_FILE_SWITCHES, MAX_READ_BYTES, next_saturday, validate_day,
+    MAX_FILE_SWITCHES, MAX_READ_BYTES, default_race_day, validate_day,
 )
 
 VERSION = "owner-jvlink-local-day-history-read-4"
@@ -452,11 +452,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description="ARC RACE private this-week JRA-VAN RACE+RCVN preview"
     )
-    parser.add_argument("--date", default=None, help="YYYYMMDD; next Saturday if omitted")
+    parser.add_argument("--date", default=None, help="YYYYMMDD; today on Sat/Sun, next Saturday otherwise")
     parser.add_argument("--flat-only", action="store_true",
                         help="Skip jump/unknown course before history read")
     args = parser.parse_args(argv)
-    day = args.date or next_saturday()
+    day = args.date or default_race_day()
     diagnostics = {}
     try:
         report = read_local_day_history(

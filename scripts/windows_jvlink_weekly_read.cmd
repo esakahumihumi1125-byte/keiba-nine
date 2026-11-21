@@ -6,7 +6,7 @@ echo ARC RACE / JRA-VAN weekly RA+SE candidate read
 echo This attempts ONE local JV-Link weekly data fetch.
 echo No registration key is entered here. No bets or predictions are made.
 echo.
-set /p "TARGET_DAY=Race date YYYYMMDD (Enter = next Saturday): "
+set /p "TARGET_DAY=Race date YYYYMMDD (Enter = today Sat/Sun, else next Saturday): "
 where py >nul 2>nul
 if errorlevel 1 (
   echo Python launcher is unavailable. Please install 64-bit Python first.

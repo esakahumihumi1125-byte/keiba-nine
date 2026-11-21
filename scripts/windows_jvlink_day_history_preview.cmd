@@ -15,7 +15,7 @@ if /I not "%CONFIRM%"=="YES" (
   pause
   exit /b 0
 )
-set /p "TARGET_DAY=Race date YYYYMMDD (Enter = next Saturday): "
+set /p "TARGET_DAY=Race date YYYYMMDD (Enter = today Sat/Sun, else next Saturday): "
 where py >nul 2>nul
 if errorlevel 1 (
   echo ARC_RACE_DAY_HISTORY=PYTHON_LAUNCHER_UNAVAILABLE
