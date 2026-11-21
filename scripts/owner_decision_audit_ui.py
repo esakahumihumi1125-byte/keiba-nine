@@ -95,6 +95,7 @@ JS = r"""(()=>{'use strict';
 const tracks=['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'];
 const $=id=>document.getElementById(id);
 let forecast=null, activeSource=null, isSigned=false, jraAuditRequest=0;
+let auditDayManuallySelected=false;
 const CAPTURE_PREFIX='arc-race-owner-decision-capture-v1:';
 const RESULT_PREFIX='arc-race-owner-audit-results-v1:';
 const BACKUP_SCHEMA='arc-race-private-decision-review-export-v1';
@@ -350,6 +351,16 @@ async function requestDecision(path,body){
  if(!res.ok)throw Error('サーバー署名・検証に失敗しました。');
  return res.json();
 }
+function preferredAuditDate(today, savedDay, forecastDay, explicitChoice, hasLocalToday){
+ // Keep a manually chosen day or existing results/captures for today.
+ // A future unproven editorial forecast must never override past evidence.
+ if(explicitChoice||hasLocalToday||typeof forecastDay!=='string'||
+    !/^20\d{2}-\d{2}-\d{2}$/.test(forecastDay)||
+    forecastDay<today||forecastDay>new Date(
+     Date.parse(today+'T12:00:00Z')+86400000).toISOString().slice(0,10))
+  return savedDay;
+ return forecastDay;
+}
 function dateJst(){
  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Tokyo',
   year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
@@ -490,7 +501,7 @@ function renderAudit(report){
  }
 }
 // Pure parser/accounting can be verified in Node without a browser or live source.
-if(typeof module!=='undefined'&&module.exports){module.exports={parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow,reviewLines,mergeResults,mergeSignedCaptures,portableBackup,ensureReviewFitsCaptures};return;}
+if(typeof module!=='undefined'&&module.exports){module.exports={parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow,reviewLines,mergeResults,mergeSignedCaptures,portableBackup,ensureReviewFitsCaptures,preferredAuditDate};return;}
 $('jraAuditFetch').addEventListener('click',async()=>{
  if(!activeSource)return;
  const select=$('jraAuditRace').value,day=$('auditDate').value;
@@ -573,7 +584,11 @@ async function load(){
   forecast=f;
   $('sourceStatus').textContent=f.date+'｜'+f.races.length+'Rの登録済み参考予想を読込。'
     +' 発走前固定とは別の、現在の参考予想です。';
-  if(!$('auditDate').value)$('auditDate').value=f.date;
+  const today=dateJst();
+  const currentDate=$('auditDate').value;
+  const hasLocalToday=!!(stored(today).length||readReview(today).trim());
+  $('auditDate').value=preferredAuditDate(
+    today,currentDate,f.date,auditDayManuallySelected,hasLocalToday);
   await restoreDay();
  }catch(e){
   $('sourceStatus').textContent=e.message;
@@ -643,6 +658,7 @@ $('auditBackupRestore').addEventListener('click',async()=>{
    throw Error('端末の保存容量が不足しました。既存記録の確認が必要です。');
   }
   $('auditDate').value=packed.date;
+  auditDayManuallySelected=true;
   await restoreDay();
   status.textContent=packed.date+'の個人用記録を検証・復元しました。'+
     '固定'+combined.length+'R、自己入力結果'+reviewLines(merged).length+
@@ -651,6 +667,7 @@ $('auditBackupRestore').addEventListener('click',async()=>{
  finally{btn.disabled=false;}
 });
 $('auditDate').value=dateJst();
+$('auditDate').addEventListener('change',()=>{auditDayManuallySelected=true;});
 $('loadCaptured').addEventListener('click',async()=>{
  try{await restoreDay();}catch(e){$('captureStatus').textContent=e.message;
   $('auditButton').disabled=true;activeSource=null;}
