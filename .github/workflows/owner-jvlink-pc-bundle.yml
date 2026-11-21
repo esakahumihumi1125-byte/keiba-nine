@@ -1,0 +1,46 @@
+name: ARC RACE owner Windows JV-Link source bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/owner-jvlink-pc-bundle.yml'
+      - 'scripts/build_jvlink_windows_bundle.py'
+      - 'scripts/windows_jvlink_*'
+      - 'scripts/windows_arc_race_*'
+      - 'scripts/owner_jvdata_*'
+      - 'scripts/jvdata_*'
+      - 'docs/windows-jvlink-local-check.md'
+      - 'tests/test_build_jvlink_windows_bundle.py'
+      - 'tests/test_owner_jvdata_offline_trifecta_trial.py'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check out public source without persisting credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Python for source checks
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check source-only allowlist and offline study tests
+        run: |
+          python -m unittest discover -s tests -p 'test_build_jvlink_windows_bundle.py'
+          python -m unittest discover -s tests -p 'test_owner_jvdata_offline_trifecta_trial.py'
+          python scripts/build_jvlink_windows_bundle.py
+          python -c "from zipfile import ZipFile; ZipFile('dist/ARC-RACE-JV-Link-PC-check.zip').extractall('dist/owner-download')"
+      - name: Publish one-extract Windows source package (no licensed records)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARC-RACE-Windows-PC-one-extract
+          path: dist/owner-download/ARC-RACE-JV-Link/
+          if-no-files-found: error
+          retention-days: 30
