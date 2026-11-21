@@ -33,8 +33,15 @@ def _int_in(value, low, high):
     return type(value) is int and low <= value <= high
 
 
-def summarize_runner(horse):
-    """Never infer quality from positions, missing history, or running style."""
+def summarize_runner(horse, *, target_day=None):
+    """Never infer quality from positions, missing history, or running style.
+
+    A saved prior result must predate the race being studied. This blocks
+    future/same-day results from silently becoming pre-off evidence.
+    """
+    if target_day is not None and (type(target_day) is not str
+                                   or not _valid_date(target_day)):
+        raise CoverageError("Invalid target race date")
     if not isinstance(horse, dict):
         raise CoverageError("Invalid private runner summary")
     number, count, recent = (
@@ -57,6 +64,10 @@ def summarize_runner(horse):
         day = run["date"]
         if not _valid_date(day):
             raise CoverageError("Invalid private prior date")
+        if target_day is not None and day >= target_day:
+            raise CoverageError("Historical race is not before target date")
+        if day in dates:
+            raise CoverageError("Duplicate private prior race date")
         dates.append(day)
         finish, closing, style = [run.get(k) for k in NUMERIC_KEYS]
         if finish is not None and not _int_in(finish, 1, 18):
@@ -164,7 +175,8 @@ def summarize_one_race(report):
             or not isinstance(race.get("byNumber"), list)
             or not 4 <= len(race["byNumber"]) <= MAX_RUNNERS):
         raise CoverageError("Invalid research race details")
-    horses = [summarize_runner(row) for row in race["byNumber"]]
+    horses = [summarize_runner(row, target_day=report["date"])
+              for row in race["byNumber"]]
     numbers = [horse["number"] for horse in horses]
     if sorted(numbers) != list(range(1, len(numbers) + 1)):
         raise CoverageError("Private runner numbering incomplete")
