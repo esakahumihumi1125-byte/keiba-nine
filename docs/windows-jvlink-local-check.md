@@ -33,7 +33,7 @@ JRDBの同日/場/Rの番組と馬番集合・頭数・予定時刻を比較す�
 
 ## 「今週データ」を本人PCで1回だけ取得する実行ファイル（2026-11-18）
 
-- **まだ実機未検証。** 開発ブランチの `scripts/windows_jvlink_weekly_read.cmd` をダブルクリック。**Enterだけなら直近の土曜日**、日曜や祝日なら開催日を `YYYYMMDD` で1回入力する想定。PCのWindowsにJV-Link 64bitと、64bit Python（pywin32ライブラリ）がインストールされている必要がある。Pythonを自動インストールせず、権限のないAPIを自動連打しない。
+- **まだ実機未検証。** 開発ブランチの `scripts/windows_jvlink_weekly_read.cmd` をダブルクリック。**Enterだけなら土日は当日（日本時間）、平日は次の土曜日**を対象にする。日曜にも日付を入力し直す必要はない。祝日や例外開催日は開催日 `YYYYMMDD` を明示入力する。PCのWindowsにJV-Link 64bitと、64bit Python（pywin32ライブラリ）がインストールされている必要がある。Pythonを自動インストールせず、権限のないAPIを自動連打しない。
 - `windows_jvlink_weekly_read.py` は `JVInit("UNKNOWN")` → **1回だけ** `JVOpen("RACE","00000000000000",2,...)` → 最大5,000レコード（小さいWindows PCでのCOMバッファ消費を抑えるため）の `JVGets` → `JVClose`。公式JV-Data option 2（今週データ）のみで、過去データのsetup option 3/4、通常蓄積 option 1、リアルタイム監視は行わない。実行対象日はPC現地日付から7日以内の今日以降だけ。
 - 取り出すのは対象開催日の**出馬表区分2のRA/SE**のみ。日付・競馬場・レース・馬番・登録頭数が完全一致した場合だけ、各場各Rの候補をまとめる。区分3以降の結果や馬名、血統ID、ファイル名、生レコードは保存しない。欠損や矛盾、取得上限超過、JVClose失敗なら全体を保留。
 - 成功時には `%LOCALAPPDATA%\ARC-RACE-private\jvdata-candidate-YYYYMMDD.json` に**非公開の候補要約だけ**保存する。OneDriveとGitHubの作業フォルダを避けるため通常のDocumentsには保存しない。候補JSONを同じフォルダで完全に書いてから原子的に確定名へリンクし、途中書き込みで不完全な確定ファイルを残さない。同じ開催日のファイルが既に存在したら**上書きしない**。後の発走前記録と混同しないため、現在は追記や自動再取得を許可しない。JSONを公開リポジトリ、チャット、SNS、Google Driveに転送しない。
