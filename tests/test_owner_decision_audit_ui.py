@@ -79,7 +79,7 @@ const vm=require('node:vm'),assert=require('node:assert/strict');
 const source=require('node:fs').readFileSync(0,'utf8');
 const module={exports:{}};
 vm.runInNewContext(source,{module},{timeout:2000});
-const {parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow,reviewLines,mergeResults,mergeSignedCaptures,portableBackup,ensureReviewFitsCaptures}=module.exports;
+const {parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow,reviewLines,mergeResults,mergeSignedCaptures,portableBackup,ensureReviewFitsCaptures,preferredAuditDate}=module.exports;
 assert.equal(parseLine('京都３Ｒ 13→15→4 701850').finish.join(','),'13,15,4');
 const race=(track,race,status,a)=>({
   track,race,status,first:[a,a+1],second:[a,a+1,a+2],
@@ -219,6 +219,21 @@ assert.throws(()=>portableBackup(day,mergedCaptures,'福島7 7-3-3'),/馬番/);
 assert.throws(()=>portableBackup(day,mergedCaptures,
  '福島7 7-3-1 42510\n福島7 7-3-2 999'),/重複/);
 
+const todayAudit='2026-11-21', tomorrow='2026-11-22', yesterday='2026-11-20';
+assert.equal(preferredAuditDate(todayAudit,todayAudit,tomorrow,false,false),tomorrow,
+ 'tomorrow reference shown by default when there is no prior local evidence');
+assert.equal(preferredAuditDate(todayAudit,todayAudit,tomorrow,false,true),todayAudit,
+ 'existing signed decisions or reviewed results must keep todays review');
+assert.equal(preferredAuditDate(todayAudit,todayAudit,tomorrow,true,false),todayAudit,
+ 'explicitly selected date stays selected');
+assert.equal(preferredAuditDate(todayAudit,yesterday,tomorrow,true,false),yesterday,
+ 'user can review an earlier date');
+assert.equal(preferredAuditDate(todayAudit,todayAudit,'2026-11-23',false,false),todayAudit,
+ 'day after tomorrow cannot hijack audit selection');
+assert.equal(preferredAuditDate(todayAudit,todayAudit,yesterday,false,false),todayAudit,
+ 'stale server forecast cannot hijack audit selection');
+assert.equal(preferredAuditDate(todayAudit,todayAudit,day,false,false),todayAudit);
+assert.equal(preferredAuditDate(todayAudit,todayAudit,'invalid',false,false),todayAudit);
 console.log('owner buy-vs-hold pure audit synthetic cases PASS');
 """
         result = subprocess.run(["node", "-e", script], input=JS, text=True,
