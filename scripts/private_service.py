@@ -10,7 +10,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs
 from pathlib import Path
@@ -1389,21 +1389,26 @@ def create_app(settings=None):
                 # Prefer a TODAY-only validated owner-authored preday snapshot,
                 # avoiding a redundant paid API attempt from the home screen.
                 # This does NOT turn a draft into a formal 10-factor forecast.
-                preday_today = False
+                preday_day_label = None
                 if private_owner:
                     try:
                         plain = settings.get('KEIBA_OWNER_FORECAST_JSON', '')
                         packed = settings.get(OWNER_FORECAST_ENV_KEY, '')
                         saved = (decode_plain_owner_snapshot(plain) if plain
                                  else decode_forecast(packed) if packed else None)
-                        preday_today = bool(saved and saved['date'] == _now_in_jst()[:10]
-                                            and saved['races'])
+                        now_day = datetime.fromisoformat(_now_in_jst()).date()
+                        if saved and saved['races']:
+                            if saved['date'] == now_day.isoformat():
+                                preday_day_label = '今日'
+                            elif saved['date'] == (now_day + timedelta(days=1)).isoformat():
+                                preday_day_label = '明日'
                     except (OwnerForecastError, ValueError, TypeError):
-                        preday_today = False
-                primary_route = ('/owner-preday-forecast' if preday_today else
+                        preday_day_label = None
+                primary_route = ('/owner-preday-forecast' if preday_day_label else
                                  '/owner-auto-forecast' if private_owner else
                                  '/owner-auto-trial')
-                primary_label = ('今日の前日参考予想（研究用）' if preday_today else
+                primary_label = (preday_day_label + 'の前日参考予想（研究用）'
+                                 if preday_day_label else
                                  '予想を見る（本人用）' if private_owner else
                                  '暫定予想の研究画面（プレビュー）')
                 text = (text.replace('__OWNER_FORECAST_ROUTE__', primary_route)
