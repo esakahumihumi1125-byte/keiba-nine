@@ -37,6 +37,20 @@ class OwnerHomePredayNavigationTests(unittest.TestCase):
         self.assertNotIn("NOT_TO_EXPOSE", html)
         self.assertNotIn("rawPrivateIndex", html)
 
+    def test_tomorrows_registered_private_reference_opens_from_home(self):
+        from owner_preday_forecast_ui import HTML as PRE_DAY_HTML
+        data = forecast()
+        html = self.page({
+            **SETTINGS, "KEIBA_RENDER_PRIVATE_ONLY": "1",
+            "KEIBA_OWNER_FORECAST_JSON": json.dumps(data, ensure_ascii=False),
+        }, day="2026-11-06")
+        self.assertIn(
+            '<a class="owner-main-action" href="/owner-preday-forecast">'
+            '🐎 明日の前日参考予想（研究用）</a>', html)
+        self.assertIn("JRA-VAN", PRE_DAY_HTML)
+        self.assertIn("JRDB", PRE_DAY_HTML)
+        self.assertIn("正式10項目", PRE_DAY_HTML)
+
     def test_old_or_untrusted_snapshot_cannot_override_primary(self):
         original = forecast()
         for raw in (
