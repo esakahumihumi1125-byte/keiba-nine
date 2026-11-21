@@ -161,6 +161,63 @@ class WindowsHistoryDayTests(unittest.TestCase):
         self.assertEqual(len(jv.opens), 1)
         self.assertEqual(jv.closes, 1)
 
+    def test_flat_mode_scans_all_prestart_races_with_one_rcvn_open(self):
+        original = sources()["RACE"]
+        # Race 1 has FOUR valid but unrelated horse IDs; race 2 has
+        # the original four horses whose SE7 history is in one RCVN stream.
+        first = [
+            replace(row, 30, 40,
+                    f"{2000000000 + int(row[28:30]):010d}")
+            if row[:3] == b"SE2"
+            else replace(replace(row, 697, 701, "1800"), 705, 707, "17")
+            for row in original
+        ]
+        second = [
+            replace(replace(replace(replace(row, 25, 27, "02"),
+                                    873, 877, "1040"), 697, 701, "1800"),
+                    705, 707, "17")
+            if row[:3] == b"RA2" else replace(row, 25, 27, "02")
+            for row in original
+        ]
+        jv = FakeJv({
+            "RACE": [*first, *second],
+            "RCVN": sources()["RCVN"],
+        })
+        with patch("windows_jvlink_day_history_preview.validate_day",
+                   return_value=DAY):
+            output = read_local_day_history(
+                DAY, jv_factory=lambda: jv, captured_at=PRESTART,
+                flat_only=True,
+            )
+        self.assertEqual(output["races"][0]["race"], 2)
+        self.assertEqual(output["races"][0]["observedHorseHistory"], 2)
+        self.assertEqual([o[0] for o in jv.opens], ["RACE", "RCVN"])
+        self.assertEqual(jv.closes, 2)
+        self.assertNotIn("2000000001", repr(output))
+
+    def test_flat_mode_no_matching_se7_never_retries_rcvn(self):
+        original = sources()["RACE"]
+        first = [
+            replace(row, 30, 40,
+                    f"{2000000000 + int(row[28:30]):010d}")
+            if row[:3] == b"SE2"
+            else replace(replace(row, 697, 701, "1800"),
+                         705, 707, "17")
+            for row in original
+        ]
+        jv = FakeJv({"RACE": first, "RCVN": sources()["RCVN"]})
+        with patch("windows_jvlink_day_history_preview.validate_day",
+                   return_value=DAY):
+            with self.assertRaisesRegex(
+                    JvLocalCheckError,
+                    "^DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS$"):
+                read_local_day_history(
+                    DAY, jv_factory=lambda: jv, captured_at=PRESTART,
+                    flat_only=True,
+                )
+        self.assertEqual([o[0] for o in jv.opens], ["RACE", "RCVN"])
+        self.assertEqual(jv.closes, 2)
+
     def test_unpublished_first_race_falls_back_to_complete_second(self):
         original = sources()["RACE"]
         race_2 = [
