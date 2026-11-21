@@ -58,7 +58,7 @@ const jrdb={schema:'keiba-nine-private-preday-review-v1',date,
  sourceKind:'owner-private-authored-preday',predictionReady:false,
  officialJraVerified:false,purchased:false,races:[
   {track:'東京',race:1,time:'09:50',course:'ダ・左1300M',
-   field:3,rank:[3,2,1]}]};
+   field:3,rank:[3,2,1],status:'買い候補'}]};
 const file={version:'owner-jvdata-local-day-history-bridge-1',date,
  raceCount:1,privateOwnerOnly:true,researchOnly:true,
  historySource:'private_jvlink_rcvn_partial_observations',
@@ -115,7 +115,7 @@ const dayCard=weeklyCard('東京',1,'09:50',1300,'ダート',[1,2,3]);
 const extraCard=weeklyCard('京都',2,'10:35',1200,'ダート',[1,2,3,4]);
 const dailyReference={...jrdb,races:[...jrdb.races,
  {track:'京都',race:2,time:'10:35',course:'ダ・右1200M',
-  field:4,rank:[1,4,2]}]};
+  field:4,rank:[1,4,2],status:'見送り'}]};
 const weekly={version:'owner-jvlink-weekly-local-candidates-1',date,
  source:'private_jvlink_weekly_ra_se_candidate',
  raceCount:2,races:[dayCard,extraCard],
