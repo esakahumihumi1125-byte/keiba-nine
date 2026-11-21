@@ -16,7 +16,8 @@ from owner_live_notes import parse_live_notes, LiveNoteError
 BRIDGE_SCHEMA = "keiba-nine-mail-bridge-v1"
 BRIDGE_URL = "KEIBA_MAIL_BRIDGE_URL"
 BRIDGE_TOKEN = "KEIBA_MAIL_BRIDGE_TOKEN"
-TRACKS = ("東京", "京都", "福島")
+TRACKS = ("札幌", "函館", "福島", "新潟", "東京",
+          "中山", "中京", "京都", "阪神", "小倉")
 _ALLOWED_URL = re.compile(r"https://script\.google\.com/macros/s/[A-Za-z0-9_-]{20,}/exec")
 _TIME = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d")
 _DATE = re.compile(r"20\d{2}-\d{2}-\d{2}")
