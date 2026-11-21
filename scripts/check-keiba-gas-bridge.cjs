@@ -53,7 +53,7 @@ const allTen=['札幌','函館','福島','新潟','東京','中山','中京','�
 for(const venue of allTen){
  const example=msg('jrdb-minig2','test-'+venue,
    '[Jrdb-minig2 8401] 3回'+venue+'2日1R',
-   venue+' 1R\\n09:45発走\\n総合 パドック点\\n◎ 3　◎ 3(3.3)\\nパドック☆\\n');
+   venue+' 1R\n09:45発走\n総合 パドック点\n◎ 3　◎ 3(3.3)\nパドック☆\n');
  const parsed=ctx.keibaMatchEmail_(example);
  assert.equal(parsed?.track,venue,'Gmail bridge should recognize '+venue);
  assert.deepEqual([parsed.race,parsed.time],[1,'09:45']);
