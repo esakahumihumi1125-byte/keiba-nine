@@ -52,6 +52,14 @@ class OwnerDecisionAuditTests(unittest.TestCase):
         self.assertIn("同着", HTML)
         self.assertIn("公式", HTML)
         self.assertIn("stored(day)", JS)
+        self.assertIn("auditBackupDownload", HTML)
+        self.assertIn("auditBackupFile", HTML)
+        self.assertIn("auditBackupRestore", HTML)
+        self.assertIn("RESULT_PREFIX", JS)
+        self.assertIn("mergeSignedCaptures", JS)
+        self.assertIn("auditBackupStatus", JS)
+        self.assertIn("localStorage.setItem(RESULT_PREFIX+report.date", JS)
+        self.assertNotIn("method:'POST',credentials:'include'", JS)
         self.assertNotIn("sessionStorage", JS)
         self.assertNotIn("JRDB_API", JS)
         self.assertNotIn("GmailApp", JS)
@@ -64,7 +72,7 @@ const vm=require('node:vm'),assert=require('node:assert/strict');
 const source=require('node:fs').readFileSync(0,'utf8');
 const module={exports:{}};
 vm.runInNewContext(source,{module},{timeout:2000});
-const {parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow}=module.exports;
+const {parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow,reviewLines,mergeResults,mergeSignedCaptures,portableBackup,ensureReviewFitsCaptures}=module.exports;
 assert.equal(parseLine('京都３Ｒ 13→15→4 701850').finish.join(','),'13,15,4');
 const race=(track,race,status,a)=>({
   track,race,status,first:[a,a+1],second:[a,a+1,a+2],
@@ -153,6 +161,56 @@ assert.throws(()=>candidateToInputLine(candidate,'2026-11-21','福島',3),/./);
 assert.equal(candidateToInputLine(
  {...candidate,trifectaCandidates:[{ticket:[13,15,4],payoutYen:100000000}]},
  '2026-11-21','京都',3).line,null);
+
+
+const day='2026-11-21';
+const old={
+  snapshot:{date:day,track:'福島',race:7},
+  signature:'a'.repeat(64)
+}, next={
+  snapshot:{date:day,track:'京都',race:4},
+  signature:'b'.repeat(64)
+};
+const oldClone=JSON.parse(JSON.stringify(old));
+const mergedCaptures=mergeSignedCaptures([old],[old,next],day);
+assert.equal(mergedCaptures.length,2);
+assert.equal(mergedCaptures[0],old,'first sealed race stays first');
+assert.equal(mergedCaptures[1],next);
+assert.deepEqual(JSON.parse(JSON.stringify(old)),oldClone,
+  'a backup must never mutate the first capture');
+for(const bad of [
+ {...old,signature:'c'.repeat(64)},
+ {...old,snapshot:{...old.snapshot,date:'2026-11-20'}},
+ {...old,signature:'INVALID'},
+]){
+ assert.throws(()=>mergeSignedCaptures([old],[bad],day),/./);
+}
+assert.throws(()=>mergeSignedCaptures([old,old],[],day),/./);
+assert.throws(()=>mergeSignedCaptures([old],[], '2026-11-20'),/./);
+const userResults=mergeResults('福島7 7-3-1 42510',
+  '福島7 7-3-1 42510\n京都4 6-9-2 1910');
+assert.equal(reviewLines(userResults).length,2);
+assert.equal(mergeResults(userResults,'京都4 6-9-2 1910'),userResults);
+assert.throws(()=>mergeResults('福島7 7-3-1 42510',
+  '福島7 7-3-1 42511'),/上書き/);
+assert.throws(()=>mergeResults('福島7 7-3-1 42510',
+  '福島7 7-3-2 42510'),/上書き/);
+assert.throws(()=>reviewLines('福島7 7-3-1\n福島7 7-3-2'),/重複/);
+assert.throws(()=>reviewLines('invalid result'),/書式/);
+ensureReviewFitsCaptures('福島7 7-3-1 42510',mergedCaptures);
+assert.throws(()=>ensureReviewFitsCaptures(
+ '東京11 1-2-3 15000',mergedCaptures),/固定記録のない/);
+const packed=portableBackup(day,mergedCaptures,userResults);
+assert.equal(packed.schema,'arc-race-private-decision-review-export-v1');
+assert.equal(packed.date,day);
+assert.equal(packed.captures.length,2);
+assert.equal(packed.lines,userResults);
+assert.equal(packed.captures[0],old);
+assert.throws(()=>portableBackup('2026-02-31',[old],''),/日付/);
+assert.throws(()=>portableBackup(day,[],''),/保存対象/);
+assert.throws(()=>portableBackup(day,mergedCaptures,'福島7 7-3-3'),/馬番/);
+assert.throws(()=>portableBackup(day,mergedCaptures,
+ '福島7 7-3-1 42510\n福島7 7-3-2 999'),/重複/);
 
 console.log('owner buy-vs-hold pure audit synthetic cases PASS');
 """
