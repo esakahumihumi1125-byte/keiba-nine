@@ -114,6 +114,53 @@ class WindowsHistoryDayTests(unittest.TestCase):
         self.assertTrue(report["races"][0]["observedHorseHistory"] > 0)
         self.assertFalse(report["productionPredictionReady"])
 
+    def test_flat_only_skips_early_obstacle_and_chooses_next_flat(self):
+        original = sources()["RACE"]
+        # Synthetic 13? no paid data here: track code 54 represents jumping.
+        jump = [
+            replace(replace(row, 697, 701, "3380"), 705, 707, "54")
+            if row[:3] == b"RA2" else row for row in original
+        ]
+        flat = [
+            replace(replace(replace(replace(row, 25, 27, "02"),
+                                    873, 877, "1040"), 697, 701, "1800"),
+                    705, 707, "17")
+            if row[:3] == b"RA2" else replace(row, 25, 27, "02")
+            for row in original
+        ]
+        jv = FakeJv({"RACE": [*jump, *flat], "RCVN": sources()["RCVN"]})
+        with patch("windows_jvlink_day_history_preview.validate_day",
+                   return_value=DAY):
+            report = read_local_day_history(
+                DAY, jv_factory=lambda: jv, captured_at=PRESTART,
+                flat_only=True,
+            )
+        race = report["races"][0]
+        self.assertEqual(race["race"], 2)
+        self.assertEqual(race["surfaceCandidate"], "芝")
+        self.assertEqual(race["distanceMetersCandidate"], 1800)
+        self.assertEqual(len(jv.opens), 2)
+        self.assertEqual([opening[0] for opening in jv.opens], ["RACE", "RCVN"])
+
+    def test_flat_only_obstacle_only_returns_before_rcvn(self):
+        original = sources()["RACE"]
+        jump = [
+            replace(replace(row, 697, 701, "3380"), 705, 707, "54")
+            if row[:3] == b"RA2" else row for row in original
+        ]
+        jv = FakeJv({"RACE": jump, "RCVN": sources()["RCVN"]})
+        with patch("windows_jvlink_day_history_preview.validate_day",
+                   return_value=DAY):
+            with self.assertRaisesRegex(
+                    JvLocalCheckError,
+                    "^DAY_HISTORY_NO_SUPPORTED_FLAT_PRESTART$"):
+                read_local_day_history(
+                    DAY, jv_factory=lambda: jv, captured_at=PRESTART,
+                    flat_only=True,
+                )
+        self.assertEqual(len(jv.opens), 1)
+        self.assertEqual(jv.closes, 1)
+
     def test_unpublished_first_race_falls_back_to_complete_second(self):
         original = sources()["RACE"]
         race_2 = [

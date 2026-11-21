@@ -168,7 +168,7 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
 
 
 
-def select_one_complete_prestart_race(current, day, *, as_of):
+def select_one_complete_prestart_race(current, day, *, as_of, flat_only=False):
     """Select ONE complete RA2/SE2 candidate before any RCVN request.
 
     This is a pure, in-memory preflight. First find exact race identities,
@@ -177,7 +177,8 @@ def select_one_complete_prestart_race(current, day, *, as_of):
     Prefer the earliest still-upcoming, fully numbered race, not just the
     first RA file row. No race identifiers, paid rows or horse IDs are logged.
     """
-    if (not isinstance(current, (list, tuple))
+    if (type(flat_only) is not bool
+            or not isinstance(current, (list, tuple))
             or not isinstance(as_of, datetime) or as_of.tzinfo is None
             or as_of.utcoffset() is None):
         raise JvLocalCheckError("DAY_HISTORY_PRESTART_INPUT_INVALID")
@@ -204,6 +205,7 @@ def select_one_complete_prestart_race(current, day, *, as_of):
 
     eligible = []
     any_complete = False
+    any_upcoming = False
     for identity, ra in ra_by_key.items():
         horse_rows = [row for (key, _number), row in se_by_key.items()
                       if key == identity]
@@ -219,18 +221,27 @@ def select_one_complete_prestart_race(current, day, *, as_of):
         ).replace(tzinfo=JST)
         if as_of.astimezone(JST) >= off_time:
             continue
+        any_upcoming = True
+        # An obstacle or unknown RA track/distance cannot be evaluated by
+        # the flat turf/dirt historical study. Skip before paid RCVN reading.
+        if flat_only and (parsed.get("surfaceCandidate") not in ("芝", "ダート")
+                          or type(parsed.get("distanceMetersCandidate")) is not int):
+            continue
         eligible.append((off_time, parsed["track"], parsed["race"], ra,
                          tuple(horse_rows)))
     if not any_complete:
         raise JvLocalCheckError("DAY_HISTORY_NO_COMPLETE_RACE")
     if not eligible:
+        if flat_only and any_upcoming:
+            raise JvLocalCheckError("DAY_HISTORY_NO_SUPPORTED_FLAT_PRESTART")
         raise JvLocalCheckError("DAY_HISTORY_ALL_RACES_STARTED")
     eligible.sort(key=lambda row: (row[0], row[1], row[2]))
     _off, _track, _number, ra, horses = eligible[0]
     return [ra, *horses]
 
 
-def read_local_day_history(day, *, jv_factory=None, captured_at=None):
+def read_local_day_history(day, *, jv_factory=None, captured_at=None,
+                           flat_only=False):
     """One RACE read and one RCVN read, no unattended resubmission."""
     validate_day(day)
     if struct.calcsize("P") != 8:
@@ -252,7 +263,7 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None):
         # roster is validated. Only selected horse IDs may enter RCVN.
         observed_at = captured_at or datetime.now(JST)
         current = select_one_complete_prestart_race(
-            current, day, as_of=observed_at)
+            current, day, as_of=observed_at, flat_only=flat_only)
         # IDs remain process-local; JSON/HTML contains only race and numbers.
         current_ids = {raw[30:40] for raw in current if raw[:3] == b"SE2"}
         if not current_ids:
@@ -406,10 +417,12 @@ def main(argv=None):
         description="ARC RACE private this-week JRA-VAN RACE+RCVN preview"
     )
     parser.add_argument("--date", default=None, help="YYYYMMDD; next Saturday if omitted")
+    parser.add_argument("--flat-only", action="store_true",
+                        help="Skip jump/unknown course before history read")
     args = parser.parse_args(argv)
     day = args.date or next_saturday()
     try:
-        report = read_local_day_history(day)
+        report = read_local_day_history(day, flat_only=args.flat_only)
         target = save_private_local(report)
         print("ARC_RACE_DAY_HISTORY=SUCCESS_RESEARCH_ONLY")
         print("RACE_COUNT=" + str(report["raceCount"]))
