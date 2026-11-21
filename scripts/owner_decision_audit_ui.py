@@ -161,6 +161,8 @@ function renderAudit(report){
   detail.append(box);
  }
 }
+// Pure parser/accounting can be verified in Node without a browser or live source.
+if(typeof module!=='undefined'&&module.exports){module.exports={parseLine,auditForecast};return;}
 $('clearButton').addEventListener('click',()=>{
  $('results').value='';
  $('status').textContent='入力を消しました。予想と購入・記録は変更していません。';
