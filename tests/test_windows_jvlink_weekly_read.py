@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from test_jvdata_ra_se_candidate import make, replace, DAY
 from windows_jvlink_weekly_read import (
     JvLocalCheckError, collect_weekly_candidate_records,
-    run_one_weekly_read, main, next_saturday, MAX_RECORDS,
+    run_one_weekly_read, main, next_saturday, default_race_day, MAX_RECORDS,
 )
 
 
@@ -63,6 +63,18 @@ class WeeklyJvLinkLocalTests(unittest.TestCase):
         self.assertEqual(next_saturday(date(2026, 11, 18)), "20261121")
         self.assertEqual(next_saturday(date(2026, 11, 21)), "20261121")
         self.assertEqual(next_saturday(date(2026, 11, 22)), "20261128")
+
+    def test_default_race_day_is_todays_japanese_saturday_and_sunday(self):
+        self.assertEqual(default_race_day(date(2026, 11, 18)), "20261121")
+        self.assertEqual(default_race_day(date(2026, 11, 20)), "20261121")
+        self.assertEqual(default_race_day(date(2026, 11, 21)), "20261121")
+        self.assertEqual(default_race_day(date(2026, 11, 22)), "20261122")
+        self.assertEqual(default_race_day(date(2026, 11, 23)), "20261128")
+        self.assertEqual(default_race_day(date(2026, 11, 28)), "20261128")
+        self.assertEqual(default_race_day(date(2026, 11, 29)), "20261129")
+        self.assertEqual(default_race_day(date(2026, 11, 30)), "20261205")
+        with self.assertRaisesRegex(JvLocalCheckError, "DATE_INVALID"):
+            default_race_day("2026-11-22")
 
     def test_one_opt_in_weekly_open_and_matched_private_candidates(self):
         jv = FakeJv([-1, *weekly_records()])
