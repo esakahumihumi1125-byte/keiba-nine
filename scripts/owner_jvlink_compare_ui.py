@@ -21,8 +21,8 @@ JRDB前日情報由来の参考予想と、本人PCで取得したJRA-VANの研�
 <p id="vanJrdb" role="status">本人用の参考予想を確認中…</p></section>
 <section><h2>2．JRA-VANの研究用ファイル</h2>
 <p>PCの <code>ARC-RACE-private</code> に保存された
-<code>jvdata-one-race-YYYYMMDD-xx-xx.json</code> を選択してください。
-現状のPCツールは1回につき1R分の研究用ファイルを作ります。</p>
+<code>jvdata-candidate-YYYYMMDD.json</code>（RACEだけを1回読む）または <code>jvdata-one-race-YYYYMMDD-xx-xx.json</code> を選択してください。
+PCの「jvdata-candidate-YYYYMMDD.json」なら同じ日の全Rの候補を一度に比較できます。過去走の研究ファイル「jvdata-one-race-...json」も1Rずつ比較できます。JRA-VANの取得自体はこの画面から実行しません。</p>
 <label for="vanFile">端末内のJRA-VANファイル</label>
 <input type="file" id="vanFile" accept=".json,application/json">
 <button id="vanCheck" type="button" disabled>1Rの2資料を照合</button>
@@ -141,8 +141,112 @@ function compareLocalJvWithJrdb(fileData,reference){
    '候補に不一致があるため保留。出走馬・馬番の再確認が必要。'
  };
 }
+function compareWeeklyJvCandidate(fileData,reference){
+ if(!reference||reference.schema!=='keiba-nine-private-preday-review-v1'||
+    reference.sourceKind!=='owner-private-authored-preday'||
+    reference.predictionReady!==false||reference.officialJraVerified!==false||
+    reference.purchased!==false||
+    !Array.isArray(reference.races)||reference.races.length<1||
+    reference.races.length>36||
+    !/^\d{4}-\d{2}-\d{2}$/.test(reference.date))
+  throw Error('JRDB前日参考予想の形式が不正です。');
+ if(!fileData||fileData.version!=='owner-jvlink-weekly-local-candidates-1'||
+    fileData.source!=='private_jvlink_weekly_ra_se_candidate'||
+    fileData.date!==reference.date||
+    fileData.privateOwnerOnly!==true||fileData.researchOnly!==true||
+    fileData.providerDataRawIncluded!==false||
+    fileData.collectionTimeIndependentlyVerified!==false||
+    fileData.allScheduledVenuesVerified!==false||
+    fileData.independentJraVerified!==false||
+    fileData.officialScratchesVerified!==false||
+    fileData.officialGoingVerified!==false||
+    fileData.officialFinalPostTimeVerified!==false||
+    fileData.productionPredictionReady!==false||
+    fileData.bettingReady!==false||fileData.autoPurchase!==false||
+    !Array.isArray(fileData.races)||fileData.races.length<1||
+    fileData.races.length>36||fileData.raceCount!==fileData.races.length)
+  throw Error('開催日が違うか、本人PCのJRA-VAN一括研究用ファイルではありません。');
+ const seen=new Map();
+ for(const card of fileData.races){
+  if(!card||!TRACKS.has(card.track)||!Number.isInteger(card.race)||
+     card.race<1||card.race>12||
+     card.sourceRecordCategory!=='numbered_racecard_not_final_changes'||
+     card.privateInputOnly!==true||
+     card.finalStarterListVerified!==false||
+     card.scratchStatusVerified!==false||
+     card.latestGoingVerified!==false||
+     card.officialFinalPostTimeVerified!==false||
+     card.formalTenFactorReady!==false||
+     card.bettingReady!==false||
+     typeof card.postTimeCandidate!=='string'||
+     !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(card.postTimeCandidate)||
+     !Number.isInteger(card.distanceMetersCandidate)||
+     card.distanceMetersCandidate<400||card.distanceMetersCandidate>10000||
+     !['芝','ダート'].includes(card.surfaceCandidate)||
+     !Number.isInteger(card.registeredRunnerCount)||
+     card.registeredRunnerCount<3||card.registeredRunnerCount>18||
+     !Array.isArray(card.horseNumbersCandidate)||
+     card.horseNumbersCandidate.length!==card.registeredRunnerCount||
+     card.horseNumbersCandidate.some(n=>!Number.isInteger(n)||n<1||n>18)||
+     new Set(card.horseNumbersCandidate).size!==card.registeredRunnerCount)
+   throw Error('JRA-VANの出走馬番候補に不正な形式があります。');
+  const key=card.track+'|'+card.race;
+  if(seen.has(key))throw Error('JRA-VAN候補のレースが重複しています。');
+  seen.set(key,card);
+ }
+ const examined=[],refSeen=new Set();
+ for(const row of reference.races){
+  if(!row||!TRACKS.has(row.track)||!Number.isInteger(row.race)||
+     row.race<1||row.race>12||refSeen.has(row.track+'|'+row.race)||
+     !Number.isInteger(row.field)||row.field<3||row.field>18||
+     !Array.isArray(row.rank)||row.rank.length<3||
+     row.rank.length>7||!['買い候補','見送り'].includes(row.status))
+   throw Error('JRDBの参考レース情報を検査できません。');
+  const key=row.track+'|'+row.race;refSeen.add(key);
+  const source=seen.get(key);
+  if(!source){
+   examined.push({track:row.track,race:row.race,
+     status:'jvlink_not_observed',candidateFieldsConsistent:false});
+   continue;
+  }
+  const numbers=new Set(source.horseNumbersCandidate);
+  const course=row.course;
+  const distanceMatch=typeof course==='string' &&
+   Number((course.match(/(\d{3,4})M/)||[])[1])===source.distanceMetersCandidate;
+  const surfaceMatch=typeof course==='string' &&
+    ((course.includes('芝')&&source.surfaceCandidate==='芝')||
+     (course.includes('ダ')&&source.surfaceCandidate==='ダート'));
+  const fieldMatch=row.field===numbers.size;
+  const timeMatch=row.time===source.postTimeCandidate;
+  const chosenNumbersPresent=row.rank.every(n=>numbers.has(n));
+  const candidateFieldsConsistent=Boolean(
+    distanceMatch&&surfaceMatch&&fieldMatch&&timeMatch&&chosenNumbersPresent);
+  examined.push({track:row.track,race:row.race,
+    status:candidateFieldsConsistent?'candidate_fields_consistent':'hold_source_mismatch',
+    candidateFieldsConsistent,timeMatch,distanceMatch,surfaceMatch,
+    fieldMatch,chosenNumbersPresent});
+ }
+ const observed=new Set(seen.keys());
+ const unexpected=[...observed].filter(x=>!refSeen.has(x));
+ const consistent=examined.filter(x=>x.candidateFieldsConsistent).length;
+ return {
+  date:reference.date,editorialRaceCount:reference.races.length,
+  observedJvRaceCount:fileData.races.length,
+  consistentCandidateRaceCount:consistent,
+  missingJvRaces:examined.filter(x=>x.status==='jvlink_not_observed').length,
+  mismatchJvRaces:examined.filter(x=>x.status==='hold_source_mismatch').length,
+  unexpectedJvRaceCount:unexpected.length,
+  races:examined,
+  allHorseIdentityMatched:false,
+  officialStarterListVerified:false,officialScratchesVerified:false,
+  officialGoingVerified:false,formalTenFactorReady:false,bettingReady:false,
+  referenceCardAndJvCandidateFieldsAllConsistent:
+    consistent===reference.races.length&&unexpected.length===0,
+  note:'一括照合は馬番・頭数・予定時刻・距離・芝ダの研究用候補のみ。JRDB全頭馬名の独立照合、当日JRA最終情報、正式10項目は未確認。'
+ };
+}
 if(typeof module!=='undefined'&&module.exports){
- module.exports={compareLocalJvWithJrdb};return;
+ module.exports={compareLocalJvWithJrdb,compareWeeklyJvCandidate};return;
 }
 async function load(){
  try{
@@ -173,24 +277,45 @@ $('vanCheck').addEventListener('click',async()=>{
  button.disabled=true;
  $('vanDetails').replaceChildren();
  try{
-  if(!file||!/^jvdata-one-race-20\d{6}-\d{2}-\d{2}\.json$/.test(file.name)||
+  if(!file||!/^jvdata-(?:one-race-20\d{6}-\d{2}-\d{2}|candidate-20\d{6})\.json$/.test(file.name)||
      file.size<1||file.size>2000000)
-   throw Error('本人PCの2MB以内のjvdata-one-race-...jsonファイルを選んでください。');
+   throw Error('PCに保存された2MB以内のjvdata-candidate-...jsonまたはjvdata-one-race-...jsonを選んでください。');
   const raw=await file.text();
   if(raw.length>2000000)throw Error('ファイルが大きすぎます。');
-  const report=compareLocalJvWithJrdb(JSON.parse(raw),forecast);
-  const key=report.track+report.race+'R';
-  status.textContent=key+'｜'+(report.candidateFieldsConsistent?'候補に矛盾なし':'候補不一致')+
-   '。ただし正式予想・JRA最終確認には進みません。';
-  const paragraph=document.createElement('p');
-  paragraph.className=report.candidateFieldsConsistent?'good':'warn';
-  paragraph.textContent='JRA-VAN候補'+report.candidateRunners+'頭、JRDB参考'+
-    report.editorialRunners+'頭。予定時刻'+(report.postTimeMatch?'一致':'不一致')+
-    '／距離'+(report.distanceMatch?'一致':'不一致')+
-    '／芝・ダ'+(report.surfaceMatch?'一致':'不一致')+
-    '／参考上位馬番'+(report.pickedNumbersPresent?'存在':'欠落')+
-    '。過去走観測のある馬'+report.observedHorseHistories+'頭。'+report.note;
-  $('vanDetails').append(paragraph);
+  const parsed=JSON.parse(raw);
+  if(parsed.version==='owner-jvlink-weekly-local-candidates-1'){
+   const weekly=compareWeeklyJvCandidate(parsed,forecast);
+   status.textContent=weekly.date+'｜JRA-VAN観測'+weekly.observedJvRaceCount+
+    'R／JRDB参考'+weekly.editorialRaceCount+'R。研究用候補の矛盾なし'+
+    weekly.consistentCandidateRaceCount+'R、未観測'+weekly.missingJvRaces+
+    'R、候補不一致'+weekly.mismatchJvRaces+'R、予想外の候補'+
+    weekly.unexpectedJvRaceCount+'R。正式予想ではありません。';
+   const desc=document.createElement('p');desc.className='small';
+   desc.textContent=weekly.note;$('vanDetails').append(desc);
+   for(const item of weekly.races){
+    const p=document.createElement('p');
+    p.className=item.candidateFieldsConsistent?'good':'warn';
+    p.textContent=item.track+item.race+'R：'+(
+     item.status==='candidate_fields_consistent'?'候補の項目に矛盾なし':
+     item.status==='jvlink_not_observed'?'JRA-VAN候補未観測':
+     'JRDB参考との不一致（保留）');
+    $('vanDetails').append(p);
+   }
+  }else{
+   const report=compareLocalJvWithJrdb(parsed,forecast);
+   const key=report.track+report.race+'R';
+   status.textContent=key+'｜'+(report.candidateFieldsConsistent?'候補に矛盾なし':'候補不一致')+
+    '。ただし正式予想・JRA最終確認には進みません。';
+   const paragraph=document.createElement('p');
+   paragraph.className=report.candidateFieldsConsistent?'good':'warn';
+   paragraph.textContent='JRA-VAN候補'+report.candidateRunners+'頭、JRDB参考'+
+     report.editorialRunners+'頭。予定時刻'+(report.postTimeMatch?'一致':'不一致')+
+     '／距離'+(report.distanceMatch?'一致':'不一致')+
+     '／芝・ダ'+(report.surfaceMatch?'一致':'不一致')+
+     '／参考上位馬番'+(report.pickedNumbersPresent?'存在':'欠落')+
+     '。過去走観測のある馬'+report.observedHorseHistories+'頭。'+report.note;
+   $('vanDetails').append(paragraph);
+  }
  }catch(e){status.textContent=e.message||'照合できませんでした。';}
  finally{button.disabled=false;}
 });
