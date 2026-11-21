@@ -218,7 +218,56 @@ class WindowsHistoryDayTests(unittest.TestCase):
         self.assertEqual([o[0] for o in jv.opens], ["RACE", "RCVN"])
         self.assertEqual(jv.closes, 2)
 
-    def test_unpublished_first_race_falls_back_to_complete_second(self):
+    def test_aggregate_rcvn_counts_distinguish_unseen_vs_unmatched(self):
+        original = sources()["RACE"]
+        current = [
+            replace(replace(row, 697, 701, "1800"), 705, 707, "17")
+            if row[:3] == b"RA2" else row for row in original
+        ]
+        for historic, expected_se7 in (
+            ([old_ra()], 0),
+            ([old_ra(), sample(8)], 1),
+        ):
+            with self.subTest(expected_se7=expected_se7):
+                jv = FakeJv({"RACE": current, "RCVN": historic})
+                counts = {}
+                with patch("windows_jvlink_day_history_preview.validate_day",
+                           return_value=DAY):
+                    with self.assertRaisesRegex(
+                            JvLocalCheckError,
+                            "^DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS$"):
+                        read_local_day_history(
+                            DAY, jv_factory=lambda: jv, captured_at=PRESTART,
+                            flat_only=True, diagnostics=counts,
+                        )
+                self.assertTrue(counts["streamCompleted"])
+                self.assertEqual(counts["candidateFlatRaceCount"], 1)
+                self.assertEqual(counts["candidateHorseCount"], 4)
+                self.assertEqual(counts["ra7RowsObserved"], 1)
+                self.assertEqual(counts["se7RowsObserved"], expected_se7)
+                self.assertEqual(counts["matchedSe7Rows"], 0)
+                self.assertNotIn("100000000", repr(counts))
+                self.assertNotIn("PRIVATE_FILENAME", repr(counts))
+                self.assertEqual([x[0] for x in jv.opens], ["RACE", "RCVN"])
+                self.assertEqual(jv.closes, 2)
+
+    def test_aggregate_rcvn_counts_match_but_never_prove_history_complete(self):
+        jv = FakeJv(sources())
+        counts = {}
+        with patch("windows_jvlink_day_history_preview.validate_day",
+                   return_value=DAY):
+            report = read_local_day_history(
+                DAY, jv_factory=lambda: jv, captured_at=PRESTART,
+                diagnostics=counts,
+            )
+        self.assertEqual(counts["ra7RowsObserved"], 1)
+        self.assertEqual(counts["se7RowsObserved"], 2)
+        self.assertEqual(counts["matchedSe7Rows"], 2)
+        self.assertTrue(counts["streamCompleted"])
+        self.assertFalse(report["historyCompletenessVerified"])
+        self.assertFalse(report["formalTenFactorReady"])
+
+
         original = sources()["RACE"]
         race_2 = [
             replace(replace(row, 25, 27, "02"), 873, 877, "1040")
