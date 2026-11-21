@@ -29,6 +29,10 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </nav>
 <p class="warning"><strong>現在は研究用の暫定予想です。</strong>調教・近走の2項目で3連単を試算しています。
 正式10項目の予想とJRA公式照合は未完成。自動購入はしません。</p>
+<section class="owner-preday-recovery" aria-label="別経路の前日参考予想">
+<p><strong>JRDB APIが403で停止するとき</strong>：自動取得とは別に、登録済みの前日参考予想を確認できます。JRA公式未照合の研究用であり、購入推奨ではありません。</p>
+<a class="owner-forecast-cta" id="autoPredayRecovery" href="/owner-preday-forecast">登録済みの前日参考予想を見る（別画面）</a>
+</section>
 <section class="daily-start" id="autoDailyStart">
 <h2>1. 予想を見る</h2>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
@@ -407,6 +411,10 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
 main{max-width:780px;margin:auto;padding:16px 13px 46px}
+.owner-preday-recovery{margin:12px 0 18px;padding:13px;border:1px solid #648aa6;border-radius:13px;background:#143452}
+.owner-preday-recovery p{margin:0 0 9px;font-size:14px;line-height:1.6}
+.owner-preday-recovery strong{color:#f1d48d}
+.owner-preday-recovery .owner-forecast-cta{margin:8px 0 0}
 h1{font-size:24px;color:#f0d07e;margin:17px 0}
 h1 small{display:block;color:#c7d7e7;font-size:13px}
 /* ARC RACE B direction: dynamic gold/blue course arcs + readable horse silhouette.
@@ -8392,6 +8400,9 @@ $('autoRun').onclick=async()=>{
    '安全な自動生成ができません。JRDB接続・出走資料・認証状態を確認してください。';
   $('autoRaces').replaceChildren();$('autoVenues').replaceChildren();
   $('autoEasyPulse').textContent='取得に失敗。新しい研究用予想は確認できません。上のエラーを確認してください。';
+  // The separate private pre-day page is not a JRDB API retry or a formal
+  // prediction. Its link remains visible if an API call fails with 403.
+  $('autoPredayRecovery').textContent='登録済みの前日参考予想を見る（JRDB APIへの追加照会なし）';
   $('autoRaceQuickSummary').textContent='予想は未取得です。以前の固定記録はそのままです。';
  $('autoHoldReasons').replaceChildren();
  $('autoHoldStatus').textContent='開催日を取得すると見送り理由を確認できます。';
@@ -8421,7 +8432,7 @@ $('autoRun').onclick=async()=>{
    ?'【通信切断・新規予想なし】端末の回線とRenderの稼働を確認。保存済み固定履歴はそのままです。処理の成否が不明な間、追加の有料JRDB照会を連打しないでください。'
    :gatewayFailure
    ?'【Renderの状態確認】502/503/504はネットワークや実行環境の問題でも発生します。既存の固定履歴を確認し、Renderの稼働状況・非公開の処理ログを確認してください。原因が分かるまで追加の有料JRDB照会を連打しないでください。'
-   :'【取得失敗・新規予想なし】上の停止工程と401/403/429等の原因表示を確認。日付・接続設定・利用権限を見直し、既存の固定履歴を先に確認してください。JRA公式照合と正式100点予想は未完了です。';
+   :'【取得失敗・新規予想なし】上の停止工程と401/403/429等の原因表示を確認。登録済みの前日参考予想は上部の別画面ボタンから閲覧できます（別経路・公式未照合）。既存の固定履歴も維持され、正式100点予想は未完成です。';
   $('autoProgrammeCoverage').textContent='取得失敗：開催場別R数は確認できません。';
   $('autoReadProof').textContent='【照会失敗】番組・出走馬・調教・近走の取得完了は未確認。新規予想・署名を確認できません。';
   $('autoRecordSafety').textContent=storageFailure
