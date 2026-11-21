@@ -110,7 +110,7 @@ JRA-VAN契約、JV-Link、64bit Python、pywin32 が別途必要です。
 
 画面に出る CHECK=... / ARCRACE_WEEKLY_READ=... /
 ARC_RACE_RCVN_CHECK=... / ARC_RACE_DAY_HISTORY=... /
-ARC_RACE_OFFLINE_EVIDENCE=... の状態名だけ
+ARC_RACE_OFFLINE_EVIDENCE=... /\nARC_RACE_LOCAL_TRIFECTA=... の状態名だけ
 教えてください。利用キーやパスワードは見せたり送ったりしないでください。
 
 重要：
