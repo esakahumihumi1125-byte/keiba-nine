@@ -166,8 +166,7 @@ class WindowsHistoryDayTests(unittest.TestCase):
         # Race 1 has FOUR valid but unrelated horse IDs; race 2 has
         # the original four horses whose SE7 history is in one RCVN stream.
         first = [
-            replace(replace(replace(row, 697, 701, "1800"),
-                            705, 707, "17"), 30, 40,
+            replace(row, 30, 40,
                     f"{2000000000 + int(row[28:30]):010d}")
             if row[:3] == b"SE2"
             else replace(replace(row, 697, 701, "1800"), 705, 707, "17")
@@ -199,9 +198,8 @@ class WindowsHistoryDayTests(unittest.TestCase):
     def test_flat_mode_no_matching_se7_never_retries_rcvn(self):
         original = sources()["RACE"]
         first = [
-            replace(replace(row, 30, 40,
-                    f"{2000000000 + int(row[28:30]):010d}"),
-                    697, 701, "1800")
+            replace(row, 30, 40,
+                    f"{2000000000 + int(row[28:30]):010d}")
             if row[:3] == b"SE2"
             else replace(replace(row, 697, 701, "1800"),
                          705, 707, "17")
