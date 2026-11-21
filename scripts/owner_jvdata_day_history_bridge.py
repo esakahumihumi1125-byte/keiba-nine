@@ -131,6 +131,9 @@ def build_local_day_history(current_records, history_records, day, *,
     by_key = {}
     for identity in sorted(today_ra):
         se = [row for (key, _), row in today_se.items() if key == identity]
+        card = parse_jvdata_prestart_racecard(
+            today_ra[identity], se, day,
+        )
         preview = preview_jvdata_horse_history(
             today_ra[identity], se, related_history, day,
             historical_ra=prior_ra, captured_at=captured_at,
@@ -138,8 +141,13 @@ def build_local_day_history(current_records, history_records, day, *,
         coord = preview["track"], preview["race"]
         if coord in by_key:
             raise CoverageError("Duplicate current venue/race")
+        if card["track"] != coord[0] or card["race"] != coord[1]:
+            raise CoverageError("Local race candidate identity mismatch")
         by_key[coord] = {
             "track": coord[0], "race": coord[1],
+            "postTimeCandidate": card["postTimeCandidate"],
+            "surfaceCandidate": card["surfaceCandidate"],
+            "distanceMetersCandidate": card["distanceMetersCandidate"],
             "status": preview["status"],
             "byNumber": preview["byNumber"],
             "observedHorseHistory": sum(
@@ -152,6 +160,7 @@ def build_local_day_history(current_records, history_records, day, *,
 
     return {
         "version": VERSION, "date": day,
+        "capturedAtLocalJst": captured_at.astimezone(JST).isoformat(timespec="seconds"),
         "raceCount": len(by_key),
         "races": [by_key[k] for k in sorted(by_key)],
         "historySource": "private_jvlink_rcvn_partial_observations",
