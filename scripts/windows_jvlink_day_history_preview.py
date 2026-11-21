@@ -168,14 +168,12 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
 
 
 
-def select_one_complete_prestart_race(current, day, *, as_of, flat_only=False):
-    """Select ONE complete RA2/SE2 candidate before any RCVN request.
+def select_complete_prestart_races(current, day, *, as_of, flat_only=False):
+    """Validate all pre-off card candidates without any historical provider call.
 
-    This is a pure, in-memory preflight. First find exact race identities,
-    reject divergent replay rows and check the entire runner count. A single
-    partial race must not trigger a potentially billable historical download.
-    Prefer the earliest still-upcoming, fully numbered race, not just the
-    first RA file row. No race identifiers, paid rows or horse IDs are logged.
+    Rejects duplicate conflicting rows. An incomplete race is omitted rather
+    than contaminating a complete one. No past data or private horse IDs are
+    logged or stored; candidates remain process-local until one RCVN read.
     """
     if (type(flat_only) is not bool
             or not isinstance(current, (list, tuple))
@@ -212,8 +210,6 @@ def select_one_complete_prestart_race(current, day, *, as_of, flat_only=False):
         try:
             parsed = parse_jvdata_prestart_racecard(ra, horse_rows, day)
         except CoverageError:
-            # An incomplete pre-publication race is not a verified starter
-            # list and may not be used to justify an RCVN lookup.
             continue
         any_complete = True
         off_time = datetime.strptime(
@@ -222,22 +218,29 @@ def select_one_complete_prestart_race(current, day, *, as_of, flat_only=False):
         if as_of.astimezone(JST) >= off_time:
             continue
         any_upcoming = True
-        # An obstacle or unknown RA track/distance cannot be evaluated by
-        # the flat turf/dirt historical study. Skip before paid RCVN reading.
+        # Flat-only study never promotes jumps or an unknown RA course.
         if flat_only and (parsed.get("surfaceCandidate") not in ("芝", "ダート")
                           or type(parsed.get("distanceMetersCandidate")) is not int):
             continue
-        eligible.append((off_time, parsed["track"], parsed["race"], ra,
-                         tuple(horse_rows)))
+        eligible.append((off_time, parsed["track"], parsed["race"],
+                         [ra, *horse_rows]))
     if not any_complete:
         raise JvLocalCheckError("DAY_HISTORY_NO_COMPLETE_RACE")
     if not eligible:
         if flat_only and any_upcoming:
             raise JvLocalCheckError("DAY_HISTORY_NO_SUPPORTED_FLAT_PRESTART")
         raise JvLocalCheckError("DAY_HISTORY_ALL_RACES_STARTED")
+    if len(eligible) > 36:
+        raise JvLocalCheckError("DAY_HISTORY_TOO_MANY_RACE_CANDIDATES")
     eligible.sort(key=lambda row: (row[0], row[1], row[2]))
-    _off, _track, _number, ra, horses = eligible[0]
-    return [ra, *horses]
+    return eligible
+
+
+def select_one_complete_prestart_race(current, day, *, as_of, flat_only=False):
+    """Backward-compatible single-race prestart selection."""
+    return select_complete_prestart_races(
+        current, day, as_of=as_of, flat_only=flat_only,
+    )[0][3]
 
 
 def read_local_day_history(day, *, jv_factory=None, captured_at=None,
@@ -262,22 +265,33 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None,
         # Do not fetch RCVN before one actual prestart race's complete
         # roster is validated. Only selected horse IDs may enter RCVN.
         observed_at = captured_at or datetime.now(JST)
-        current = select_one_complete_prestart_race(
+        candidates = select_complete_prestart_races(
             current, day, as_of=observed_at, flat_only=flat_only)
-        # IDs remain process-local; JSON/HTML contains only race and numbers.
-        current_ids = {raw[30:40] for raw in current if raw[:3] == b"SE2"}
-        if not current_ids:
+        # In flat-only mode, match ALL eligible flat starters in a SINGLE
+        # RCVN scan. A sole first-race match failure should not force the
+        # owner into repeated paid JRA-VAN reads for later races.
+        selected = candidates if flat_only else candidates[:1]
+        ids = {row[30:40] for _off, _track, _race, card in selected
+               for row in card if row[:3] == b"SE2"}
+        if not ids:
             raise JvLocalCheckError("DAY_HISTORY_NO_CURRENT_HORSES")
-        history = read_source_once(jv, "RCVN", relevant_ids=current_ids)
-        if not any(row[:3] == b"SE7" for row in history):
-            raise JvLocalCheckError("DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS")
-        # Always recheck the local clock after the second provider read.
-        # It is unsafe to label a race "prestart" solely because it was
-        # prestart when the first request began.
+        history = read_source_once(jv, "RCVN", relevant_ids=ids)
+        matched_ids = {raw[30:40] for raw in history if raw[:3] == b"SE7"}
+        # Recheck the actual clock after the provider read. Never create
+        # retroactive candidate picks for races which have already started.
         completed_at = captured_at or datetime.now(JST)
-        return build_local_day_history(
-            current, history, day, captured_at=completed_at,
-        )
+        for off, _track, _race, card in selected:
+            if completed_at.astimezone(JST) >= off:
+                continue
+            card_ids = {raw[30:40] for raw in card if raw[:3] == b"SE2"}
+            if card_ids & matched_ids:
+                return build_local_day_history(
+                    card, history, day, captured_at=completed_at,
+                )
+        if any(completed_at.astimezone(JST) < off
+               for off, _track, _race, _card in selected):
+            raise JvLocalCheckError("DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS")
+        raise JvLocalCheckError("DAY_HISTORY_ALL_RACES_STARTED")
     except JvLocalCheckError:
         raise
     except CoverageError:
