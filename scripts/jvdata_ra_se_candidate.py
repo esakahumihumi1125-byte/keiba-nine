@@ -18,7 +18,10 @@ from jrdb_program_preview import TRACKS
 VERSION = "owner-jvdata-ra-se-racecard-candidate-1"
 RA_LENGTH = 1272
 SE_LENGTH = 555
+# 2009 track-code categories, flat turf/dirt only. Unknown/obstacle HOLD.
 JRA_VENUES = frozenset(TRACKS)
+TURF_TRACK_CODES = frozenset(f"{n:02d}" for n in range(10, 23))
+DIRT_TRACK_CODES = frozenset(f"{n:02d}" for n in (23, 24, 25, 26, 29))
 # 1-based JV-Data positions converted to 0-based Python byte slices.
 COMMON = {
     "created": (3, 11),
@@ -86,6 +89,14 @@ def parse_jvdata_prestart_racecard(ra_record, se_records, day):
             or len(se_records) != registered):
         raise CoverageError("Incomplete JV-Data prestart horse list")
 
+    # Same RA byte offsets in numbered racecards and historical RA results.
+    # This is a scheduled course CANDIDATE, not a final JRA confirmation.
+    distance_text = ra[697:701].decode("ascii", errors="replace")
+    track_code = ra[705:707].decode("ascii", errors="replace")
+    distance = (int(distance_text) if distance_text.isdigit()
+                and 400 <= int(distance_text) <= 10000 else None)
+    surface = ("芝" if track_code in TURF_TRACK_CODES else
+               "ダート" if track_code in DIRT_TRACK_CODES else None)
     numbers, pedigree_ids = set(), set()
     for raw in se_records:
         se = _fixed(raw, b"SE", SE_LENGTH)
@@ -108,6 +119,8 @@ def parse_jvdata_prestart_racecard(ra_record, se_records, day):
         "version": VERSION,
         "date": day, "track": TRACKS[key[2]], "race": int(key[5]),
         "postTimeCandidate": f"{hour:02d}:{minute:02d}",
+        "distanceMetersCandidate": distance,
+        "surfaceCandidate": surface,
         "registeredRunnerCount": registered,
         "horseNumbersCandidate": sorted(int(n) for n in numbers),
         "sourceRecordCategory": "numbered_racecard_not_final_changes",
