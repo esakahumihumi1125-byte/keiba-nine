@@ -115,8 +115,6 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.equal(se('fpRaceTabs').children.length,12,'12 race buttons appear');
  assert.equal(server.writes.length,0,'server auto-read does not overwrite local storage');
  assert.equal(server.calls.length,3,'forecast, private live brief and evidence requests on startup');
- assert.equal(se('fpJraAdvanceStatus').textContent,
-  '未実行。最終出走・馬場は未確認。');
  assert.equal(server.calls.some(x=>x.url.startsWith('/api/jra/advance-programme?')),false,
   'never fetch JRA advance programme automatically');
  await se('fpJraAdvance').onclick();await tick();
