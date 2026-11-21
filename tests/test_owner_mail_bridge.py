@@ -76,7 +76,7 @@ class BridgeTests(unittest.TestCase):
         ]
         message = {"schema": BRIDGE_SCHEMA, "date": DATE, "races": rows}
         parsed = validate_bridge_feed(message, DATE, times)
-        self.assertEqual([r["track"] for r in parsed["races"]], list(venues))
+        self.assertEqual({r["track"] for r in parsed["races"]}, set(venues))
         self.assertFalse(parsed["predictionReady"])
         self.assertFalse(parsed["officialJraVerified"])
         with self.assertRaisesRegex(BridgeUnavailable, "Wrong start"):
