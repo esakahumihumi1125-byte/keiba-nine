@@ -157,6 +157,8 @@ from owner_backup import HTML as BACKUP_HTML, JS as BACKUP_JS, CSS as BACKUP_CSS
 from owner_factor_scorecard import HTML as SCORE_HTML, JS as SCORE_JS, CSS as SCORE_CSS
 from owner_race_workbench import HTML as WORKBENCH_HTML, JS as WORKBENCH_JS, CSS as WORKBENCH_CSS
 from owner_preday_forecast_ui import HTML as FORECAST_HTML, JS as FORECAST_JS, CSS as FORECAST_CSS
+from owner_decision_receipt import (issue_decision_captures, verify_decision_captures,
+                                    DecisionReceiptError)
 from owner_decision_audit_ui import HTML as DECISION_HTML, JS as DECISION_JS, CSS as DECISION_CSS
 from owner_gmail_setup_ui import HTML as GMAIL_SETUP_HTML, JS as GMAIL_SETUP_JS, CSS as GMAIL_SETUP_CSS
 from owner_forecast_delivery import decode_forecast, decode_plain_owner_snapshot, OwnerForecastError, ENV_KEY as OWNER_FORECAST_ENV_KEY
@@ -1872,6 +1874,71 @@ def create_app(settings=None):
             if sync['configured']:
                 result['sync'] = sync
             return response('200 OK', result)
+        if method == 'POST' and path in (
+                '/api/owner-decision-freeze', '/api/owner-decision-verify'):
+            # Only the authenticated owner may initiate or verify an editorial
+            # prestart decision receipt. Neither operation fetches JRDB/JRA,
+            # stores server-side captures, revises picks or confirms results.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found',
+                                {'error': '本人専用サービスでのみ利用できます。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request',
+                                {'error': '入力形式が不正です。'})
+            try:
+                size = int(environ.get('CONTENT_LENGTH', '0'))
+                freeze = path == '/api/owner-decision-freeze'
+                if size <= 0 or size > (128 if freeze else 50000):
+                    raise ValueError()
+                raw = environ['wsgi.input'].read(size)
+                if len(raw) != size:
+                    raise ValueError()
+                args = json.loads(raw)
+                if (type(args) is not dict
+                        or set(args) != ({'date'} if freeze
+                                         else {'date', 'captures'})
+                        or type(args.get('date')) is not str
+                        or not re.fullmatch(r'20\d{2}-\d{2}-\d{2}',
+                                            args['date'])):
+                    raise ValueError()
+                selected = datetime.strptime(
+                    args['date'], '%Y-%m-%d').date().isoformat()
+                if selected != args['date']:
+                    raise ValueError()
+            except (ValueError, TypeError, UnicodeError, KeyError):
+                return response('400 Bad Request',
+                                {'error': '開催日または記録の形式が不正です。'})
+            try:
+                secret = (archive_signing_secret(settings)
+                          if archive_enabled(settings) else password)
+                if freeze:
+                    plain = settings.get('KEIBA_OWNER_FORECAST_JSON', '')
+                    packed = settings.get(OWNER_FORECAST_ENV_KEY, '')
+                    if not plain and not packed:
+                        return response('200 OK', {
+                            'available': False, 'captures': [],
+                            'reason': 'reference_not_registered'})
+                    forecast = (decode_plain_owner_snapshot(plain) if plain
+                                else decode_forecast(packed))
+                    if forecast['date'] != selected:
+                        return response('409 Conflict', {
+                            'error': 'この日の本人用参考予想は登録されていません。'})
+                    report = issue_decision_captures(
+                        forecast, secret, selected)
+                    return response('200 OK', {
+                        'available': bool(report['captures']), **report})
+                report = verify_decision_captures(
+                    args['captures'], secret, selected)
+                return response('200 OK', report)
+            except (OwnerForecastError, DecisionReceiptError,
+                    ArchiveUnavailable):
+                return response('400 Bad Request', {
+                    'error': '発走前の判断記録を安全に確認できません。'
+                             '古い記録は書き換えていません。'})
         if method == 'GET' and path == '/api/owner-preday-forecast':
             # Only owner-authenticated, same-origin requests reach this endpoint.
             # Render's private env holds a compressed editorial forecast, not
