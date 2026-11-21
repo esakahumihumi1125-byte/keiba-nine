@@ -22,6 +22,36 @@ function boot(serverReady=false){
   navigator:{clipboard:{writeText:async()=>{}}},
   fetch:async(url,options)=>{
    calls.push({url,options});
+   const signed=(track,race,decision,signature)=>({
+    snapshot:{date:'2026-11-07',track,race,decision,
+     lockedAt:'2026-11-07T09:00:00+09:00',
+     scheduledOffAt:'2026-11-07T12:00:00+09:00',
+     first:[1,2],second:[1,2,3,4],third:[1,2,3,4,5,6,7],
+     points:30,sourceKind:'owner-private-prestart-reference',
+     actualPurchase:false,officialScheduleVerified:false,
+     formalPredictionVerified:false},
+    signature:signature.repeat(64)});
+   if(url==='/api/owner-decision-freeze'){
+    return {ok:true,json:async()=>({
+     schema:'keiba-nine-owner-decision-receipt-v1',date:'2026-11-07',
+     captures:[signed('東京',1,'買い候補','a'),
+               signed('京都',2,'見送り','b')],
+     capturedRaces:2,skippedStartedRaces:34,
+     actualPurchase:false,officialScheduleVerified:false,
+     resultsVerified:false
+    })};
+   }
+   if(url==='/api/owner-decision-verify'){
+    const captured=JSON.parse(options.body).captures;
+    if(captured.some(x=>!['a'.repeat(64),'b'.repeat(64)].includes(x.signature)))
+     return {ok:false,json:async()=>({error:'tampered'})};
+    return {ok:true,json:async()=>({
+     schema:'keiba-nine-owner-decision-receipt-v1',
+     date:'2026-11-07',captures:captured,captureCount:captured.length,
+     verified:true,actualPurchase:false,officialScheduleVerified:false,
+     officialResultsVerified:false
+    })};
+   }
    return {ok:true,json:async()=>url==='/api/owner-race-evidence'?(serverReady?{
     available:true,evidence:{schema:'keiba-nine-private-evidence-v1',date:'2026-11-07',
      sourceKind:'owner-editorial-limited-evidence',finalVerified:false,predictionRevised:false,
@@ -120,5 +150,39 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  el('fpDelete').onclick();
  assert.equal(b.store.has(KEY),false);
  assert.equal(b.store.get('other'),'preserved');
+ const freeze=boot(true),fz=freeze.$;
+ await tick();
+ assert.equal(freeze.writes.length,0,'no implicit prestart decision storage');
+ assert.equal(freeze.calls.filter(x=>x.url.includes('decision-')).length,0,
+  'no automatic signature request on load');
+ await fz('fpFreezeAll').onclick();await tick();
+ const prefix='arc-race-owner-decision-capture-v1:2026-11-07';
+ const sealed=JSON.parse(freeze.store.get(prefix));
+ assert.equal(sealed.length,2,'only server-signed eligible 2 races are retained');
+ assert.equal(sealed[0].snapshot.decision,'買い候補');
+ assert.equal(sealed[1].snapshot.decision,'見送り');
+ assert.equal(sealed[1].snapshot.race,2);
+ assert.match(fz('fpFreezeAllStatus').textContent,/買い候補1R・見送り1R/);
+ assert.equal(freeze.store.get('other'),'preserved');
+ assert.equal(freeze.writes.length,1,'single date-scoped local write');
+ assert.ok(freeze.calls.some(x=>x.url==='/api/owner-decision-freeze'&&
+  x.options.method==='POST'&&
+  x.options.headers['X-Keiba-Request']==='private'));
+ assert.ok(freeze.calls.some(x=>x.url==='/api/owner-decision-verify'));
+ await fz('fpFreezeAll').onclick();await tick();
+ assert.equal(freeze.writes.length,2,'repeat does not add or overwrite decisions');
+ assert.equal(freeze.store.get(prefix),JSON.stringify(sealed),
+  'original signed records must be byte-for-byte unchanged');
+ const corrupted=JSON.parse(JSON.stringify(sealed));
+ corrupted[0].signature='c'.repeat(64);
+ freeze.store.set(prefix,JSON.stringify(corrupted));
+ const before=freeze.writes.length;
+ await fz('fpFreezeAll').onclick();await tick();
+ assert.equal(freeze.writes.length,before,
+  'unverified existing record cannot be overwritten');
+ assert.equal(freeze.store.get(prefix),JSON.stringify(corrupted),
+  'bad existing data preserved for recovery, not overwritten');
+ assert.match(fz('fpFreezeAllStatus').textContent,/失敗/);
+ assert.equal(fz('fpFreezeAll').disabled,false);
  console.log('Owner provisional 36R private forecast file import and safety PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
