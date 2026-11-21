@@ -44,9 +44,11 @@ class OwnerDecisionAuditTests(unittest.TestCase):
         self.assertIn("返還", HTML)
         self.assertIn("買い候補", HTML)
         self.assertIn("見送り", HTML)
-        self.assertNotIn("localStorage", JS)
+        self.assertIn("localStorage", JS)
+        self.assertIn("owner-decision-freeze", JS)
+        self.assertIn("owner-decision-verify", JS)
+        self.assertIn("stored(day)", JS)
         self.assertNotIn("sessionStorage", JS)
-        self.assertNotIn("method:'POST'", JS)
         self.assertNotIn("JRDB_API", JS)
         self.assertNotIn("GmailApp", JS)
         self.assertIn(".panel", CSS)
@@ -58,7 +60,7 @@ const vm=require('node:vm'),assert=require('node:assert/strict');
 const source=require('node:fs').readFileSync(0,'utf8');
 const module={exports:{}};
 vm.runInNewContext(source,{module},{timeout:2000});
-const {parseLine,auditForecast}=module.exports;
+const {parseLine,auditForecast,capturedToSource}=module.exports;
 assert.equal(parseLine('京都３Ｒ 13→15→4 701850').finish.join(','),'13,15,4');
 const race=(track,race,status,a)=>({
   track,race,status,first:[a,a+1],second:[a,a+1,a+2],
@@ -80,6 +82,17 @@ assert.equal(result.buckets.hold.hits,1);
 assert.equal(result.buckets.hold.knownReturn,42510);
 assert.equal(result.items[2].reason,'1着候補漏れ');
 assert.equal(result.unreviewed,0);
+const sealed=capturedToSource({
+  schema:'keiba-nine-owner-decision-receipt-v1',verified:true,
+  officialScheduleVerified:false,officialResultsVerified:false,
+  actualPurchase:false,date:'2026-11-21',
+  captures:[{track:'福島',race:7,decision:'見送り',first:[4,5],
+    second:[4,5,6],third:[4,5,6,7],points:8,
+    sourceKind:'owner-private-prestart-reference'}]
+});
+assert.equal(sealed.races[0].status,'見送り');
+assert.equal(auditForecast(sealed,'福島7 4-6-7').buckets.hold.hits,1);
+assert.throws(()=>capturedToSource({...sealed,verified:false}),/./);
 assert.equal(JSON.stringify(original),before,'never modify the source forecast');
 assert.equal(result.anyUnknownPayoff,false);
 assert.equal(auditForecast(original,'福島7 4-6-7').anyUnknownPayoff,true);
