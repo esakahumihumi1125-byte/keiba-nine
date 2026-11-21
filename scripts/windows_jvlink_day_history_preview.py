@@ -46,7 +46,8 @@ FIELDS = {
 def read_source_once(jv, dataspec, *, day=None, max_steps=None,
                      relevant_ids=None, sleep=None, monotonic=None,
                      max_download_wait=MAX_DOWNLOAD_WAIT_SECONDS,
-                     max_rcvn_seconds=MAX_RCVN_SCAN_SECONDS):
+                     max_rcvn_seconds=MAX_RCVN_SCAN_SECONDS,
+                     diagnostics=None):
     """Bounded single JVOpen+JVGets+JVClose stream, no retries or disk I/O.
 
     RACE retains only requested-day RA2/SE2 (up to 5,000 reads). If
@@ -59,6 +60,8 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
     RCVN scans at most 80,000 steps/60 seconds after JVOpen. Reaching
     either limit is a HOLD, not an assertion of historical completeness.
     """
+    if diagnostics is not None and (type(diagnostics) is not dict or diagnostics):
+        raise JvLocalCheckError("DAY_HISTORY_DIAGNOSTIC_INPUT_INVALID")
     cap = MAX_RACE_STREAM_STEPS if dataspec == "RACE" else MAX_RCVN_STREAM_STEPS
     if max_steps is None:
         max_steps = cap
@@ -85,6 +88,9 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
     # Real RCVN delivered >5,000 RA7 rows before any SE7 on the owner PC.
     # Keep a bounded trailing context window while selecting only relevant SE.
     context_ra = deque(maxlen=MAX_CONTEXT_RA)
+    if diagnostics is not None:
+        diagnostics.update({"ra7RowsObserved": 0, "se7RowsObserved": 0,
+                            "matchedSe7Rows": 0, "streamCompleted": False})
     try:
         response = jv.JVOpen(dataspec, "00000000000000", 2, 0, 0, "")
         if (not isinstance(response, (tuple, list))
@@ -107,6 +113,8 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
                 raise JvLocalCheckError("DAY_HISTORY_READ_SHAPE_INVALID")
             code, raw, _filename = result
             if code == 0:
+                if diagnostics is not None:
+                    diagnostics["streamCompleted"] = True
                 break
             if code == -1:
                 file_switches += 1
@@ -140,6 +148,11 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
                 if record[11:19].decode("ascii", errors="replace") != day:
                     continue
             elif relevant_ids is not None:
+                # Only aggregate counts. Never expose registration IDs or
+                # raw licensed provider records to terminal output / JSON.
+                if diagnostics is not None:
+                    diagnostics["ra7RowsObserved" if record[:3] == b"RA7"
+                                else "se7RowsObserved"] += 1
                 if record[:3] == b"RA7":
                     # Historical RA7 does not contain horse IDs. Retain only
                     # a bounded in-memory candidate set; match to selected
@@ -148,6 +161,8 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
                     continue
                 if record[:3] != b"SE7" or record[30:40] not in relevant_ids:
                     continue
+                if diagnostics is not None:
+                    diagnostics["matchedSe7Rows"] += 1
                 if len(observed) >= MAX_MATCHED_HISTORIES:
                     raise JvLocalCheckError("DAY_HISTORY_RCVN_MATCH_LIMIT")
             observed.append(record)
@@ -244,9 +259,11 @@ def select_one_complete_prestart_race(current, day, *, as_of, flat_only=False):
 
 
 def read_local_day_history(day, *, jv_factory=None, captured_at=None,
-                           flat_only=False):
+                           flat_only=False, diagnostics=None):
     """One RACE read and one RCVN read, no unattended resubmission."""
     validate_day(day)
+    if diagnostics is not None and (type(diagnostics) is not dict or diagnostics):
+        raise JvLocalCheckError("DAY_HISTORY_DIAGNOSTIC_INPUT_INVALID")
     if struct.calcsize("P") != 8:
         raise JvLocalCheckError("PYTHON_NOT_64_BIT")
     if jv_factory is None:
@@ -275,7 +292,12 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None,
                for row in card if row[:3] == b"SE2"}
         if not ids:
             raise JvLocalCheckError("DAY_HISTORY_NO_CURRENT_HORSES")
-        history = read_source_once(jv, "RCVN", relevant_ids=ids)
+        scan = {}
+        history = read_source_once(jv, "RCVN", relevant_ids=ids,
+                                   diagnostics=scan)
+        if diagnostics is not None:
+            diagnostics.update({"candidateFlatRaceCount": len(selected),
+                                "candidateHorseCount": len(ids), **scan})
         matched_ids = {raw[30:40] for raw in history if raw[:3] == b"SE7"}
         # Recheck the actual clock after the provider read. Never create
         # retroactive candidate picks for races which have already started.
@@ -435,13 +457,19 @@ def main(argv=None):
                         help="Skip jump/unknown course before history read")
     args = parser.parse_args(argv)
     day = args.date or next_saturday()
+    diagnostics = {}
     try:
-        report = read_local_day_history(day, flat_only=args.flat_only)
+        report = read_local_day_history(
+            day, flat_only=args.flat_only, diagnostics=diagnostics)
         target = save_private_local(report)
         print("ARC_RACE_DAY_HISTORY=SUCCESS_RESEARCH_ONLY")
         print("RACE_COUNT=" + str(report["raceCount"]))
         print("FORMAL_PREDICTION=NO")
         print("PRIVATE_LOCAL_VIEW=READY")
+        if diagnostics.get("streamCompleted"):
+            print("RCVN_RA7_ROWS_OBSERVED=" + str(diagnostics["ra7RowsObserved"]))
+            print("RCVN_SE7_ROWS_OBSERVED=" + str(diagnostics["se7RowsObserved"]))
+            print("RCVN_MATCHED_SE7_ROWS=" + str(diagnostics["matchedSe7Rows"]))
         if hasattr(os, "startfile"):
             try:
                 os.startfile(str(target))
@@ -450,6 +478,12 @@ def main(argv=None):
         return 0
     except JvLocalCheckError as error:
         print("ARC_RACE_DAY_HISTORY=" + str(error))
+        if diagnostics.get("streamCompleted"):
+            print("CANDIDATE_FLAT_RACES=" + str(diagnostics["candidateFlatRaceCount"]))
+            print("CANDIDATE_HORSES=" + str(diagnostics["candidateHorseCount"]))
+            print("RCVN_RA7_ROWS_OBSERVED=" + str(diagnostics["ra7RowsObserved"]))
+            print("RCVN_SE7_ROWS_OBSERVED=" + str(diagnostics["se7RowsObserved"]))
+            print("RCVN_MATCHED_SE7_ROWS=" + str(diagnostics["matchedSe7Rows"]))
         print("FORMAL_PREDICTION=NO")
         return 1
 
