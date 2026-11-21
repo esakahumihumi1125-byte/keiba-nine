@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from owner_decision_audit_ui import HTML, CSS, JS
+from owner_backup import HTML as GLOBAL_BACKUP_HTML
 from private_service import create_app
 from test_private_service import SETTINGS, call
 
@@ -36,6 +37,12 @@ class OwnerDecisionAuditTests(unittest.TestCase):
                       call(app, "/owner-preday-forecast")["body"].decode())
         self.assertIn('href="/owner-decision-audit"',
                       call(app, "/")["body"].decode())
+
+    def test_global_legacy_backup_discloses_new_decision_capture_scope(self):
+        self.assertIn('href="/owner-decision-audit"', GLOBAL_BACKUP_HTML)
+        self.assertIn('この16種類の一括バックアップには', GLOBAL_BACKUP_HTML)
+        self.assertIn('含まれません', GLOBAL_BACKUP_HTML)
+        self.assertIn('専用の検証画面から別ファイル', GLOBAL_BACKUP_HTML)
 
     def test_no_provider_results_or_forecast_mutation(self):
         self.assertIn("/api/owner-preday-forecast", JS)
