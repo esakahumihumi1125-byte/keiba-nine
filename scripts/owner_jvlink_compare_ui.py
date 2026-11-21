@@ -18,7 +18,13 @@ JRDB前日情報由来の参考予想と、本人PCで取得したJRA-VANの研�
 この段階ではJRDB全頭の馬名一致・JRA最終出走・取消・当日馬場・実過去走の網羅性は保証できません。
 一致しても馬券購入にはつながりません。</p>
 <section><h2>1．JRDB側の参考予想</h2>
-<p id="vanJrdb" role="status">本人用の参考予想を確認中…</p></section>
+<p id="vanJrdb" role="status">本人用の参考予想を確認中…</p>
+<p class="small">JRDB番組取得が失敗する場合に、認証・権限・応答形式を切り分けるための診断です。
+本人が押したときだけ、JRDB β版の番組API（/tra）へ1回接続診断します。
+使い方・契約内容によって通信回数の制限がある場合があります。
+取得した有料行、認証キー、馬名は保存・画面表示しません。</p>
+<button id="vanJrdbProbe" type="button" disabled>JRDBの実接続を1回診断</button>
+<p id="vanJrdbProbeStatus" role="status" class="small">接続診断は未実行。参考予想の存在はAPI接続成功を意味しません。</p></section>
 <section><h2>2．JRA-VANの研究用ファイル</h2>
 <p>PCの <code>ARC-RACE-private</code> に保存された
 <code>jvdata-candidate-YYYYMMDD.json</code>（RACEだけを1回読む）または <code>jvdata-one-race-YYYYMMDD-xx-xx.json</code> を選択してください。
@@ -245,8 +251,35 @@ function compareWeeklyJvCandidate(fileData,reference){
   note:'一括照合は馬番・頭数・予定時刻・距離・芝ダの研究用候補のみ。JRDB全頭馬名の独立照合、当日JRA最終情報、正式10項目は未確認。'
  };
 }
+function normalizeJrdbProbeResult(code,body,day){
+ if(!/^\d{8}$/.test(day)||!body||typeof body!=='object'||Array.isArray(body))
+  throw Error('接続診断の形式が不正です。');
+ if(code!==200){
+  // The server returns Japanese, credential-free hints. Never expose a raw
+  // paid source response or stack trace in the UI.
+  const known=[
+   'JRDBのAPIキーまたはユーザー認証キーが正しいか確認してください。',
+   'JRDB β版アカウントの利用権限・有効期限を確認してください。',
+   'JRDBの通信回数制限です。再試行の間隔を空けてください。',
+   'JRDBとの通信に失敗しました。接続先やβ版アカウントを確認してください。',
+   'JRDBからの番組形式または開催日が一致しません。β版の仕様を確認してください。',
+   'JRDB β版の専用APIキーと非公開接続設定が必要です。'
+  ];
+  return {connected:false,
+    label:known.includes(body.error)?body.error:
+      'JRDB接続診断に失敗。接続先・認証・応答形式を確認してください。'};
+ }
+ if(body.date!==day||body.connectionVerified!==true||
+    !Number.isInteger(body.programmeCount)||
+    body.programmeCount<0||body.programmeCount>100||
+    body.providerDataStored!==false||body.predictionReady!==false)
+  throw Error('JRDB実接続診断の安全状態を確認できません。');
+ return {connected:true,
+   label:'JRDB β版への接続は成功。番組の候補'+body.programmeCount+
+    '件。ただしJRA-VAN全頭照合・正式10項目予想・JRA公式取消確認は未完了。'};
+}
 if(typeof module!=='undefined'&&module.exports){
- module.exports={compareLocalJvWithJrdb,compareWeeklyJvCandidate};return;
+ module.exports={compareLocalJvWithJrdb,compareWeeklyJvCandidate,normalizeJrdbProbeResult};return;
 }
 async function load(){
  try{
@@ -266,11 +299,35 @@ async function load(){
   $('vanJrdb').textContent=f.date+'｜JRDB前日資料に基づく参考予想'+
    f.races.length+'Rは読み込み済み。JRA-VANとの全頭照合 0/'+f.races.length+'R。';
   $('vanCheck').disabled=false;
+  $('vanJrdbProbe').disabled=false;
  }catch(e){
   $('vanJrdb').textContent=e.message;
   $('vanCheck').disabled=true;
+  $('vanJrdbProbe').disabled=true;
  }
 }
+$('vanJrdbProbe').addEventListener('click',async()=>{
+ if(!forecast)return;
+ const button=$('vanJrdbProbe'),status=$('vanJrdbProbeStatus');
+ const day=forecast.date.replace(/-/g,'');
+ if(!/^20\d{6}$/.test(day)){
+  status.textContent='予想日付が不正です。診断しません。';
+  return;
+ }
+ button.disabled=true;
+ status.textContent='本人操作によりJRDBの番組APIを1回だけ照合しています…';
+ try{
+  const response=await fetch('/api/jrdb/connection-test?date='+encodeURIComponent(day),{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  const body=await response.json();
+  const normalized=normalizeJrdbProbeResult(response.status,body,day);
+  status.textContent=normalized.label;
+ }catch(_){
+  status.textContent='通信または応答形式を確認できません。再試行を繰り返さず、接続設定を確認してください。';
+ }finally{button.disabled=false;}
+});
 $('vanCheck').addEventListener('click',async()=>{
  if(!forecast)return;
  const status=$('vanResult'),file=$('vanFile').files?.[0],button=$('vanCheck');
