@@ -1,7 +1,7 @@
 """Private, read-only buy-vs-hold research audit from owner preday snapshot.
 
-A manually entered race finish is NOT JRA verification. Results stay ONLY in
-browser memory, never sent to the server or stored. No forecast modification,
+A manually entered race finish is NOT JRA verification. Reviewed user-entered results are stored ONLY in this device's localStorage;
+never sent to the server. The user may export a private JSON. No forecast modification,
 new provider requests, real betting, or official P/L claims.
 """
 
@@ -292,7 +292,10 @@ function mergeSignedCaptures(original,incoming,day){
  return out;
 }
 function portableBackup(day,captures,lines){
- if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||
+ const normalized=new Date(day+'T12:00:00Z');
+ if(typeof day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(day)||
+    !Number.isFinite(normalized.valueOf())||
+    normalized.toISOString().slice(0,10)!==day||
     !Array.isArray(captures)||captures.length>36||
     captures.some(x=>!x||x.snapshot?.date!==day))
   throw Error('バックアップ日付または署名形式が不正です。');
