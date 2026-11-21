@@ -15,10 +15,16 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="notice"><strong>研究用・結果は自己入力。</strong>保存済みの本人用前日参考予想と、入力した着順を比較します。
 結果をJRA公式と自動照合したものではありません。払戻、取消、返還は未検証。
 正式な回収率、実際の馬券購入、的中証明ではありません。
-<strong>発走前の予想や当初の買い／見送り判断は変更しません。</strong></p>
+<strong>発走前に固定した判断と、現在の参考予想は別扱いにし、結果を見て後から前日予想として固定することはできません。</strong></p>
 <section><h2>① 本人用の参考予想</h2>
 <p id="sourceStatus" class="muted" role="status">登録済み予想を読み込み中…</p>
-<p class="muted">同じ日の登録済み参考予想だけを比較。別開催日の結果は混ぜません。</p>
+<label for="auditDate">検証する開催日</label> <input id="auditDate" type="date">
+<button id="loadCaptured" type="button">この日の発走前記録を開く</button>
+<button id="freezeDecision" type="button" disabled>残りのレースを発走前に固定</button>
+<p id="captureStatus" class="muted" role="status">固定済み記録がない場合は、現在の参考予想との比較のみ可能です。</p>
+<p class="muted">固定操作は本人のタップ時のみ。サーバー時刻で発走前のRを署名し、ブラウザ内に最初の記録を保存します。
+すでに発走したRは固定しません。公式発走時刻・取消は未照合です。
+Safariとホーム画面アプリでは保存領域が別になる場合があります。</p>
 </section>
 <section><h2>② 着順を貼る（任意・端末内のみ）</h2>
 <p class="muted">1行につき「競馬場・レース番号・1〜3着・3連単100円払戻（任意）」。
@@ -45,6 +51,7 @@ a{color:#f1d48d;margin-right:10px}nav{margin-bottom:18px}
 section{background:#142d48;border:1px solid #547493;border-radius:14px;padding:15px;margin:14px 0}
 .notice{padding:14px;border:1px solid #ae9360;border-radius:12px;background:#362a1d}
 .muted{color:#c3d0e1;font-size:14px}
+input[type=date]{background:#0b2035;color:white;border:1px solid #8faccc;border-radius:8px;font:16px system-ui;padding:7px;max-width:100%}
 textarea{width:100%;min-height:130px;background:#0b2035;color:white;border:1px solid #8faccc;
 border-radius:9px;font:16px/1.5 ui-monospace,monospace;padding:12px}
 button{background:#23699d;border:1px solid #7ab2db;border-radius:9px;color:white;
@@ -59,7 +66,8 @@ table{border-collapse:collapse;width:100%}th,td{padding:7px;border-bottom:1px so
 JS = r"""(()=>{'use strict';
 const tracks=['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'];
 const $=id=>document.getElementById(id);
-let forecast=null;
+let forecast=null, activeSource=null, isSigned=false;
+const CAPTURE_PREFIX='arc-race-owner-decision-capture-v1:';
 function parseLine(line){
  const clean=line.normalize('NFKC').replace(/[→－–—−]/g,'-').replace(/[、,，]/g,' ').trim();
  const m=clean.match(/^(札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉)\s*(1[0-2]|[1-9])R?\s+(\d{1,2})[-\s]+(\d{1,2})[-\s]+(\d{1,2})(?:\s+(\d{1,9}))?$/);
@@ -116,6 +124,108 @@ function auditForecast(source,typed){
  return {date:source.date,items,buckets,unreviewed:source.races.length-items.length,
          anyUnknownPayoff:buckets.buy.missingPayout+buckets.hold.missingPayout>0};
 }
+function capturedToSource(payload){
+ if(!payload||payload.schema!=='keiba-nine-owner-decision-receipt-v1'||
+   payload.verified!==true||payload.officialScheduleVerified!==false||
+   payload.officialResultsVerified!==false||payload.actualPurchase!==false||
+   !Array.isArray(payload.captures)||payload.captures.length<1||payload.captures.length>36)
+  throw Error('署名済み記録の確認に失敗しました。');
+ const races=payload.captures.map(r=>{
+  if(r.sourceKind!=='owner-private-prestart-reference'||
+     !['買い候補','見送り'].includes(r.decision))
+   throw Error('発走前の判断形式が不正です。');
+  return {track:r.track,race:r.race,status:r.decision,
+          first:r.first,second:r.second,third:r.third,points:r.points};
+ });
+ return {date:payload.date,races};
+}
+async function requestDecision(path,body){
+ const res=await fetch(path,{
+  method:'POST',credentials:'same-origin',cache:'no-store',
+  headers:{'Content-Type':'application/json','Accept':'application/json',
+           'X-Keiba-Request':'private'},
+  body:JSON.stringify(body)
+ });
+ if(!res.ok)throw Error('サーバー署名・検証に失敗しました。');
+ return res.json();
+}
+function dateJst(){
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Tokyo',
+  year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const map=Object.fromEntries(parts.map(p=>[p.type,p.value]));
+ return map.year+'-'+map.month+'-'+map.day;
+}
+function stored(day){
+ try{
+  const raw=localStorage.getItem(CAPTURE_PREFIX+day);
+  if(!raw)return [];
+  const data=JSON.parse(raw);
+  if(!Array.isArray(data)||data.length>36)throw Error('保存済み記録が不正');
+  return data;
+ }catch(_){throw Error('端末の保存済み署名記録が確認できません。上書きせず、設定を確認してください。');}
+}
+async function restoreDay(){
+ const day=$('auditDate').value;
+ activeSource=null;isSigned=false;
+ $('auditButton').disabled=true;
+ $('results').value='';
+ $('summary').replaceChildren(tag('p','入力待ち。','muted'));
+ $('details').replaceChildren();
+ const saved=stored(day);
+ if(saved.length){
+  const check=await requestDecision('/api/owner-decision-verify',{
+    date:day,captures:saved});
+  activeSource=capturedToSource(check);
+  isSigned=true;
+  $('captureStatus').textContent=day+'｜発走前の署名が検証できた'+
+   activeSource.races.length+'Rだけを検証対象にします。未固定Rは含めません。';
+ }else if(forecast&&forecast.date===day){
+  activeSource=forecast;
+  $('captureStatus').textContent=day+'｜発走前の固定記録なし。現在の暫定参考予想との比較のみ。'+
+   '発走前に保存済みだった証明にはなりません。';
+ }else{
+  $('captureStatus').textContent=day+'｜この端末に署名済み記録がなく、'+
+    '現在のサーバー予想も対象日ではありません。後からの発走前固定はできません。';
+ }
+ $('auditButton').disabled=!activeSource;
+ $('freezeDecision').disabled=!(forecast&&forecast.date===day&&day>=dateJst());
+ $('status').textContent=activeSource?
+  (isSigned?'発走前固定済みの判断':'現在の参考予想')+'と自己入力結果を比較できます。':
+  '比較対象の予想がありません。';
+}
+async function freezeDay(){
+ const day=$('auditDate').value;
+ if(!forecast||forecast.date!==day||day<dateJst())
+  throw Error('開催日を確認してください。過去日の発走前固定はできません。');
+ const original=stored(day);
+ if(original.length){
+  // Verify originals BEFORE merging. An invalid/tampered record is never
+  // silently overwritten by a newly issued later capture.
+  capturedToSource(await requestDecision('/api/owner-decision-verify',{
+    date:day,captures:original}));
+ }
+ const issued=await requestDecision('/api/owner-decision-freeze',{date:day});
+ if(issued.schema!=='keiba-nine-owner-decision-receipt-v1'||
+    issued.actualPurchase!==false||!Array.isArray(issued.captures))
+  throw Error('署名済み発走前記録が不正です。');
+ if(!issued.captures.length&& !original.length)
+  throw Error('今から発走前に固定できるレースがありません。');
+ const seen=new Set(original.map(x=>x.snapshot.track+x.snapshot.race));
+ const combined=original.slice();
+ for(const entry of issued.captures){
+  if(!entry||!entry.snapshot)throw Error('署名されたレース形式が不正です。');
+  const key=entry.snapshot.track+entry.snapshot.race;
+  if(!seen.has(key)){combined.push(entry);seen.add(key);}
+ }
+ if(combined.length>36)throw Error('署名済みレース数が上限を超えています。');
+ // Verify before writing and preserve first capture per race.
+ capturedToSource(await requestDecision('/api/owner-decision-verify',{
+    date:day,captures:combined}));
+ localStorage.setItem(CAPTURE_PREFIX+day,JSON.stringify(combined));
+ await restoreDay();
+ $('captureStatus').textContent+=' 追加 '+(combined.length-original.length)+
+  'R、既存 '+original.length+'Rは変更なし。取消・公式時刻は未確認。';
+}
 function tag(name,content,cl){
  const e=document.createElement(name);
  if(content!==undefined)e.textContent=String(content);
@@ -162,7 +272,7 @@ function renderAudit(report){
  }
 }
 // Pure parser/accounting can be verified in Node without a browser or live source.
-if(typeof module!=='undefined'&&module.exports){module.exports={parseLine,auditForecast};return;}
+if(typeof module!=='undefined'&&module.exports){module.exports={parseLine,auditForecast,capturedToSource};return;}
 $('clearButton').addEventListener('click',()=>{
  $('results').value='';
  $('status').textContent='入力を消しました。予想と購入・記録は変更していません。';
@@ -170,9 +280,9 @@ $('clearButton').addEventListener('click',()=>{
  $('details').replaceChildren();
 });
 $('auditButton').addEventListener('click',()=>{
- if(!forecast)return;
+ if(!activeSource)return;
  try{
-  const report=auditForecast(forecast,$('results').value);
+  const report=auditForecast(activeSource,$('results').value);
   renderAudit(report);
   $('status').textContent='本人用参考予想と自己入力した着順の比較が完了。保存・送信なし。';
  }catch(e){$('status').textContent=e.message;}
@@ -191,14 +301,25 @@ async function load(){
    throw Error('安全な本人用参考予想を確認できません。');
   forecast=f;
   $('sourceStatus').textContent=f.date+'｜'+f.races.length+'Rの登録済み参考予想を読込。'
-    +' 当初の「買い候補・見送り」を変更せず検証します。';
-  $('auditButton').disabled=false;
-  $('status').textContent='着順を貼り付けて「比較」を押してください。';
+    +' 発走前固定とは別の、現在の参考予想です。';
+  if(!$('auditDate').value)$('auditDate').value=f.date;
+  await restoreDay();
  }catch(e){
   $('sourceStatus').textContent=e.message;
   $('status').textContent='参考予想が取得できないため集計しません。';
  }
 }
+$('auditDate').value=dateJst();
+$('loadCaptured').addEventListener('click',async()=>{
+ try{await restoreDay();}catch(e){$('captureStatus').textContent=e.message;
+  $('auditButton').disabled=true;activeSource=null;}
+});
+$('freezeDecision').addEventListener('click',async()=>{
+ const b=$('freezeDecision');b.disabled=true;
+ try{await freezeDay();}
+ catch(e){$('captureStatus').textContent=e.message;}
+ finally{b.disabled=false;}
+});
 load();
 })();"""
 
