@@ -11,7 +11,9 @@
 'use strict';
 const KEIBA_TZ = 'Asia/Tokyo';
 const KEIBA_SCHEMA = 'keiba-nine-mail-bridge-v1';
-const KEIBA_VENUES = ['東京', '京都', '福島'];
+// All 10 JRA tracks. Race/date/time still must match the private forecast.
+const KEIBA_VENUES = ['札幌', '函館', '福島', '新潟', '東京',
+                      '中山', '中京', '京都', '阪神', '小倉'];
 const KEIBA_ALLOWED = [
   'jrdb-minig2@mailman.jrdb.com',
   'jrdb-hotg3@mailman.jrdb.com'
@@ -28,7 +30,7 @@ function keibaMinutes_(hhmm) {
 }
 function keibaMatchEmail_(message) {
   const subject = String(message.getSubject() || '');
-  const match = subject.match(/^\[Jrdb-(minig2|hotg3)\s+\d+\]\s+(?:\d+回)?(東京|京都|福島)\d+日([1-9]|1[0-2])R$/i);
+  const match = subject.match(/^\[Jrdb-(minig2|hotg3)\s+\d+\]\s+(?:\d+回)?(札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉)\d+日([1-9]|1[0-2])R$/i);
   if (!match) return null;
   const expectedSender = 'jrdb-' + match[1].toLowerCase() + '@mailman.jrdb.com';
   const actualSender = String(message.getFrom() || '').toLowerCase();
