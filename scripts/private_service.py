@@ -1382,11 +1382,29 @@ def create_app(settings=None):
                 text = text.replace('__OWNER_RELEASE__', release_tag)
                 private_owner = (settings.get('KEIBA_RENDER_PRIVATE_ONLY') == '1'
                                  and settings.get('KEIBA_RENDER_PREVIEW_ONLY') != '1')
-                text = (text.replace('__OWNER_FORECAST_ROUTE__',
-                                     '/owner-auto-forecast' if private_owner else '/owner-auto-trial')
-                            .replace('__OWNER_FORECAST_TITLE__',
-                                     '予想を見る（本人用）' if private_owner
-                                     else '暫定予想の研究画面（プレビュー）')
+                # The JRDB direct API can be unavailable (e.g. provider 403).
+                # Prefer a TODAY-only validated owner-authored preday snapshot,
+                # avoiding a redundant paid API attempt from the home screen.
+                # This does NOT turn a draft into a formal 10-factor forecast.
+                preday_today = False
+                if private_owner:
+                    try:
+                        plain = settings.get('KEIBA_OWNER_FORECAST_JSON', '')
+                        packed = settings.get(OWNER_FORECAST_ENV_KEY, '')
+                        saved = (decode_plain_owner_snapshot(plain) if plain
+                                 else decode_forecast(packed) if packed else None)
+                        preday_today = bool(saved and saved['date'] == _now_in_jst()[:10]
+                                            and saved['races'])
+                    except (OwnerForecastError, ValueError, TypeError):
+                        preday_today = False
+                primary_route = ('/owner-preday-forecast' if preday_today else
+                                 '/owner-auto-forecast' if private_owner else
+                                 '/owner-auto-trial')
+                primary_label = ('今日の前日参考予想（研究用）' if preday_today else
+                                 '予想を見る（本人用）' if private_owner else
+                                 '暫定予想の研究画面（プレビュー）')
+                text = (text.replace('__OWNER_FORECAST_ROUTE__', primary_route)
+                            .replace('__OWNER_FORECAST_TITLE__', primary_label)
                             .replace('__OWNER_RESULTS_PRIMARY__',
                                      '<a class="owner-main-action" href="/owner-100yen-review">'
                                      '📊 結果・100円仮想収支</a>' if private_owner else
