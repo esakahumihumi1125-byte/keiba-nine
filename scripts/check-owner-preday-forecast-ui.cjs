@@ -31,6 +31,22 @@ function boot(serverReady=false){
      actualPurchase:false,officialScheduleVerified:false,
      formalPredictionVerified:false},
     signature:signature.repeat(64)});
+   if(url.startsWith('/api/jra/advance-programme?')){
+    const races=['東京','京都','福島'].flatMap(track=>
+     Array.from({length:12},(_,i)=>({
+      track,race:i+1,postTime:'12:00',distanceM:1400,surface:'芝'})));
+    return {ok:true,json:async()=>({
+     version:'owner-jra-advance-programme-reference-1',
+     date:'2026-11-07',
+     referenceKind:'advance_schedule_not_final_racecard',
+     raceCount:36,venueCount:3,races,
+     officialFinalCardVerified:false,officialStartersVerified:false,
+     officialScratchesVerified:false,officialGoingVerified:false,
+     officialPostTimeVerified:false,predictionReady:false,bettingReady:false,
+     newJrdbRequests:0,existingTicketsChanged:false,
+     existingReceiptsChanged:false
+    })};
+   }
    if(url==='/api/owner-decision-freeze'){
     return {ok:true,json:async()=>({
      schema:'keiba-nine-owner-decision-receipt-v1',date:'2026-11-07',
@@ -99,6 +115,17 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.equal(se('fpRaceTabs').children.length,12,'12 race buttons appear');
  assert.equal(server.writes.length,0,'server auto-read does not overwrite local storage');
  assert.equal(server.calls.length,3,'forecast, private live brief and evidence requests on startup');
+ assert.equal(se('fpJraAdvanceStatus').textContent,
+  '未実行。最終出走・馬場は未確認。');
+ assert.equal(server.calls.some(x=>x.url.startsWith('/api/jra/advance-programme?')),false,
+  'never fetch JRA advance programme automatically');
+ await se('fpJraAdvance').onclick();await tick();
+ assert.match(se('fpJraAdvanceStatus').textContent,/事前番組の候補一致36／36R/);
+ assert.match(se('fpJraAdvanceStatus').textContent,/最終出走・取消・馬場は未確認/);
+ assert.equal(se('fpJraAdvanceDetails').children.length,36);
+ assert.ok(server.calls.some(x=>x.url==='/api/jra/advance-programme?date=2026-11-07'));
+ assert.equal(server.writes.length,0,'one public reference read never mutates tickets or frozen records');
+
  assert.equal(server.calls[2].url,'/api/owner-race-evidence');
  assert.equal(server.calls[2].options.headers['X-Keiba-Request'],'private');
  assert.ok(se('fpRaces').children[0].children.some(x=>x.className==='race-evidence'));
