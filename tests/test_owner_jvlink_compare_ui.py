@@ -34,6 +34,7 @@ class OwnerJvlinkCompareTests(unittest.TestCase):
                          "404 Not Found")
         self.assertIn('href="/owner-jvlink-compare"', PREDAY_HTML)
         self.assertIn("JRA-VAN", HTML)
+        self.assertIn("jvdata-candidate-YYYYMMDD.json", HTML)
         self.assertIn("JRDB", HTML)
         self.assertIn("JRA", HTML)
         self.assertIn("2資料", HTML)
@@ -51,7 +52,7 @@ class OwnerJvlinkCompareTests(unittest.TestCase):
 const vm=require('node:vm'),assert=require('node:assert/strict');
 const source=require('node:fs').readFileSync(0,'utf8'),module={exports:{}};
 vm.runInNewContext(source,{module},{timeout:2000});
-const {compareLocalJvWithJrdb}=module.exports;
+const {compareLocalJvWithJrdb,compareWeeklyJvCandidate}=module.exports;
 const date='2026-11-22';
 const jrdb={schema:'keiba-nine-private-preday-review-v1',date,
  sourceKind:'owner-private-authored-preday',predictionReady:false,
@@ -100,6 +101,69 @@ const mismatch=compareLocalJvWithJrdb({
 assert.equal(mismatch.candidateFieldsConsistent,false);
 assert.equal(mismatch.formalTenFactorsReady,false);
 assert.equal(JSON.stringify(file).includes('rawProviderRecord'),false);
+const weeklyCard=(track,race,postTime,distance,surface,nums)=>({
+ track,race,postTimeCandidate:postTime,distanceMetersCandidate:distance,
+ surfaceCandidate:surface,
+ registeredRunnerCount:nums.length,horseNumbersCandidate:nums,
+ sourceRecordCategory:'numbered_racecard_not_final_changes',
+ privateInputOnly:true,finalStarterListVerified:false,
+ scratchStatusVerified:false,latestGoingVerified:false,
+ officialFinalPostTimeVerified:false,formalTenFactorReady:false,
+ bettingReady:false
+});
+const dayCard=weeklyCard('東京',1,'09:50',1300,'ダート',[1,2,3]);
+const extraCard=weeklyCard('京都',2,'10:35',1200,'ダート',[1,2,3,4]);
+const dailyReference={...jrdb,races:[...jrdb.races,
+ {track:'京都',race:2,time:'10:35',course:'ダ・右1200M',
+  field:4,rank:[1,4,2]}]};
+const weekly={version:'owner-jvlink-weekly-local-candidates-1',date,
+ source:'private_jvlink_weekly_ra_se_candidate',
+ raceCount:2,races:[dayCard,extraCard],
+ privateOwnerOnly:true,researchOnly:true,providerDataRawIncluded:false,
+ collectionTimeIndependentlyVerified:false,
+ allScheduledVenuesVerified:false,independentJraVerified:false,
+ officialScratchesVerified:false,officialGoingVerified:false,
+ officialFinalPostTimeVerified:false,productionPredictionReady:false,
+ bettingReady:false,autoPurchase:false};
+const report=compareWeeklyJvCandidate(weekly,dailyReference);
+assert.equal(report.consistentCandidateRaceCount,2);
+assert.equal(report.observedJvRaceCount,2);
+assert.equal(report.missingJvRaces,0);
+assert.equal(report.mismatchJvRaces,0);
+assert.equal(report.referenceCardAndJvCandidateFieldsAllConsistent,true);
+for(const field of ['allHorseIdentityMatched','officialStarterListVerified',
+ 'officialScratchesVerified','officialGoingVerified',
+ 'formalTenFactorReady','bettingReady']){
+ assert.equal(report[field],false,'do not upgrade '+field);
+}
+const incomplete=compareWeeklyJvCandidate(
+ {...weekly,raceCount:1,races:[dayCard]},dailyReference);
+assert.equal(incomplete.consistentCandidateRaceCount,1);
+assert.equal(incomplete.missingJvRaces,1);
+assert.equal(incomplete.referenceCardAndJvCandidateFieldsAllConsistent,false);
+const different=compareWeeklyJvCandidate(
+ {...weekly,races:[dayCard,{...extraCard,postTimeCandidate:'11:35'}]},
+ dailyReference);
+assert.equal(different.mismatchJvRaces,1);
+assert.equal(different.formalTenFactorReady,false);
+const unknown=compareWeeklyJvCandidate(
+ {...weekly,raceCount:3,races:[...weekly.races,weeklyCard(
+ '新潟',1,'10:00',1200,'芝',[1,2,3])]},dailyReference);
+assert.equal(unknown.unexpectedJvRaceCount,1);
+assert.equal(unknown.referenceCardAndJvCandidateFieldsAllConsistent,false);
+for(const malformed of [
+ {...weekly,date:'2026-11-21'},
+ {...weekly,providerDataRawIncluded:true},
+ {...weekly,officialGoingVerified:true},
+ {...weekly,source:'some-other-source'},
+ {...weekly,raceCount:3},
+ {...weekly,races:[dayCard,dayCard]},
+ {...weekly,races:[dayCard,{...extraCard,horseNumbersCandidate:[1,1,2,3]}]},
+ {...weekly,races:[dayCard,{...extraCard,finalStarterListVerified:true}]},
+]){
+ assert.throws(()=>compareWeeklyJvCandidate(malformed,dailyReference),/./);
+}
+
 console.log('private local dual-source observation tests PASS');
 """
         result = subprocess.run(["node", "-e", node], input=JS, text=True,
