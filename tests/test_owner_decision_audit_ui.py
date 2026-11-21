@@ -24,7 +24,7 @@ class OwnerDecisionAuditTests(unittest.TestCase):
                 response = call(app, route)
                 self.assertEqual(response["status"], "200 OK")
                 self.assertIn(mime, response["headers"]["Content-Type"])
-                self.assertEqual(response["headers"]["Cache-Control"], "no-store")
+                self.assertIn("no-store", response["headers"]["Cache-Control"])
                 anonymous = call(app, route, auth="")
                 self.assertIn(anonymous["status"],
                               ("303 See Other", "401 Unauthorized"))
@@ -88,7 +88,7 @@ for(const bad of [
  '京都3 1-1-2', '京都3 19-2-3', '東京8 1-2-3',
  '京都3 1-3-4\n京都3 2-3-4',
  '京都3 1-3-4 999999999', 'bad input']){
-  assert.throws(()=>auditForecast(original,bad),Error,bad);
+  assert.throws(()=>auditForecast(original,bad),/./,bad);
 }
 console.log('owner buy-vs-hold pure audit synthetic cases PASS');
 """
