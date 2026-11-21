@@ -5,7 +5,7 @@ It makes ZERO provider/network/file calls and must not be connected to Render
 or the production trifecta builder. Only already-sanitized owner-PC reports.
 No odds, popularity, names, registration IDs, or paid raw rows leave the PC.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from html import escape
 from itertools import product
 
@@ -74,8 +74,8 @@ def build_local_trifecta_study(report, *, as_of=None):
         snapshot = _clock(datetime.fromisoformat(captured))
     except (ValueError, TypeError):
         return _hold(evidence, "local_prestart_clock_missing")
-    if (snapshot.date().strftime("%Y%m%d") != evidence["date"]
-            or snapshot >= off or before < snapshot or before >= off):
+    if (snapshot < off - timedelta(days=7) or snapshot >= off
+            or before < snapshot or before >= off):
         return _hold(evidence, "not_before_scheduled_off")
 
     support = []
