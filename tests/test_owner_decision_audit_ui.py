@@ -47,6 +47,10 @@ class OwnerDecisionAuditTests(unittest.TestCase):
         self.assertIn("localStorage", JS)
         self.assertIn("owner-decision-freeze", JS)
         self.assertIn("owner-decision-verify", JS)
+        self.assertIn("/api/jra/result-candidate?", JS)
+        self.assertIn("jraAuditFetch", HTML)
+        self.assertIn("同着", HTML)
+        self.assertIn("公式", HTML)
         self.assertIn("stored(day)", JS)
         self.assertNotIn("sessionStorage", JS)
         self.assertNotIn("JRDB_API", JS)
@@ -60,7 +64,7 @@ const vm=require('node:vm'),assert=require('node:assert/strict');
 const source=require('node:fs').readFileSync(0,'utf8');
 const module={exports:{}};
 vm.runInNewContext(source,{module},{timeout:2000});
-const {parseLine,auditForecast,capturedToSource}=module.exports;
+const {parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow}=module.exports;
 assert.equal(parseLine('京都３Ｒ 13→15→4 701850').finish.join(','),'13,15,4');
 const race=(track,race,status,a)=>({
   track,race,status,first:[a,a+1],second:[a,a+1,a+2],
@@ -103,6 +107,53 @@ for(const bad of [
  '京都3 1-3-4 999999999', 'bad input']){
   assert.throws(()=>auditForecast(original,bad),/./,bad);
 }
+
+const candidate={
+ version:'owner-jra-public-result-probe-1',date:'2026-11-21',
+ track:'京都',race:3,sourceHostAllowlisted:true,
+ visibleRaceIdentityMatched:true,payoutLayoutParsed:true,
+ podiumChecked:true,payoutMatchesDisplayedPodium:true,
+ officialJraVerified:false,sourceAuthenticityAttested:false,
+ finalityVerified:false,refundsVerified:false,settlementReady:false,
+ officialRoiPercent:null,actualPurchase:false,researchOnly:true,
+ sourceReadCount:1,changesExistingReceipts:false,changesExistingRoi:false,
+ podiumShape:'single_third_place',matchingTrifectaCount:1,matchingTrioCount:1,
+ trifectaCandidates:[{ticket:[13,15,4],payoutYen:701850}],
+ trioCandidates:[{ticket:[4,13,15],payoutYen:15000}]
+};
+const c=candidateToInputLine(candidate,'2026-11-21','京都',3);
+assert.equal(c.line,'京都3 13-15-4 701850');
+const added=appendCandidateRow('福島7 7-3-1 42510',c.line);
+assert.equal(added.split('\n').length,2);
+assert.throws(()=>appendCandidateRow(added,c.line),/入力済み/);
+assert.throws(()=>appendCandidateRow('broken',c.line),/書式/);
+assert.deepEqual([...parseLine(c.line).finish],[13,15,4]);
+// A dead heat can yield two distinct trifecta payouts. Never choose one
+// or silently drop the second winner in a single-result input field.
+const tie={...candidate,podiumShape:'third_place_dead_heat',
+ matchingTrifectaCount:2,matchingTrioCount:2,
+ trifectaCandidates:[{ticket:[13,15,4],payoutYen:701850},
+                      {ticket:[13,15,2],payoutYen:905000}],
+ trioCandidates:[{ticket:[4,13,15],payoutYen:15000},
+                 {ticket:[2,13,15],payoutYen:10000}]};
+assert.equal(candidateToInputLine(tie,'2026-11-21','京都',3).line,null);
+for(const changed of [
+ {...candidate,officialJraVerified:true},
+ {...candidate,finalityVerified:true},
+ {...candidate,refundsVerified:true},
+ {...candidate,sourceReadCount:0},
+ {...candidate,payoutMatchesDisplayedPodium:false},
+ {...candidate,date:'2026-11-20'},
+ {...candidate,trifectaCandidates:[{ticket:[13,13,4],payoutYen:701850}]},
+ {...candidate,trifectaCandidates:[{ticket:[13,15,4],payoutYen:0}]},
+ ]){
+ assert.throws(()=>candidateToInputLine(changed,'2026-11-21','京都',3),/./);
+}
+assert.throws(()=>candidateToInputLine(candidate,'2026-11-21','福島',3),/./);
+assert.equal(candidateToInputLine(
+ {...candidate,trifectaCandidates:[{ticket:[13,15,4],payoutYen:100000000}]},
+ '2026-11-21','京都',3).line,null);
+
 console.log('owner buy-vs-hold pure audit synthetic cases PASS');
 """
         result = subprocess.run(["node", "-e", script], input=JS, text=True,
