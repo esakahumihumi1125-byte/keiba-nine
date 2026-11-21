@@ -11,8 +11,6 @@ import hmac
 import json
 import re
 
-from jrdb_coverage import CoverageError
-
 VERSION = "owner-prestart-buy-hold-capture-v1"
 SCHEMA = "keiba-nine-owner-decision-receipt-v1"
 JST = timezone(timedelta(hours=9))
@@ -102,12 +100,11 @@ def issue_decision_captures(forecast, secret, day, *, now=None):
     races = forecast.get("races")
     if type(races) is not list or not 1 <= len(races) <= MAX_RACES:
         raise DecisionReceiptError("Invalid race count")
-    if not now.date() <= date.fromisoformat(day) <= now.date() + timedelta(days=7):
-        # Normalize to Japanese civil day for before-race time comparison.
-        if not (now.astimezone(JST).date()
-                <= date.fromisoformat(day)
-                <= now.astimezone(JST).date() + timedelta(days=7)):
-            raise DecisionReceiptError("Day is not upcoming")
+    # Only capture the Japanese current day or a near-future racing day.
+    # A UTC midnight boundary must not accidentally accept yesterday's date.
+    japanese_day = now.astimezone(JST).date()
+    if not japanese_day <= date.fromisoformat(day) <= japanese_day + timedelta(days=7):
+        raise DecisionReceiptError("Day is not upcoming")
     seen, captures, started = set(), [], 0
     for race in races:
         if (not isinstance(race, dict) or race.get("track") not in TRACKS
