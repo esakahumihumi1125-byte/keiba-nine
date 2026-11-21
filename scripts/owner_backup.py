@@ -22,7 +22,11 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="backupPreview" class="hint" role="status">選択しただけでは復元しません。内容を検査し、16種類すべての現在の記録を置き換える前に確認します。</p>
 <button id="backupRestore" type="button" disabled>確認して16種類の記録を復元</button>
 <p class="warning">復元は現在の16種類の記録を全件上書きします。実購入記録も含まれます。必ず先に今のデータを書き出してください。復元後はページを開き直すと新しい記録が見えます。</p></section>
-<section><h2>知っておきたいこと</h2><p class="hint">ホーム画面版とSafariは別の保存領域になる場合があります。「ホーム画面に追加した同じアプリ」からバックアップ・復元してください。JSONはパスワードで暗号化されていません。JRDBの有料情報を含む場合は会員本人以外へ渡さないでください。</p>
+<section><h2>知っておきたいこと</h2>
+<p class="warning">この16種類の一括バックアップには、新しい「買い候補・見送りの発走前署名」と「自己入力した結果メモ」は含まれません。
+これらは専用の検証画面から別ファイルで保存・復元してください。
+<a href="/owner-decision-audit">買い候補・見送りの専用バックアップを開く</a></p>
+<p class="hint">ホーム画面版とSafariは別の保存領域になる場合があります。「ホーム画面に追加した同じアプリ」からバックアップ・復元してください。JSONはパスワードで暗号化されていません。JRDBの有料情報を含む場合は会員本人以外へ渡さないでください。</p>
 <a href="/my-tickets">3連単下書き・購入記録へ</a></section>
 </main><script defer src="/owner-backup.js"></script></body></html>"""
 
