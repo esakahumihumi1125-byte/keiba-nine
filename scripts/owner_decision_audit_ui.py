@@ -25,6 +25,16 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">固定操作は本人のタップ時のみ。サーバー時刻で発走前のRを署名し、ブラウザ内に最初の記録を保存します。
 すでに発走したRは固定しません。公式発走時刻・取消は未照合です。
 Safariとホーム画面アプリでは保存領域が別になる場合があります。</p>
+<details><summary>署名付き記録・入力した結果をバックアップ</summary>
+<p class="muted">この端末で固定した買い候補・見送りと、自己入力した着順だけを個人用JSONに保存します。
+有料データ、APIキー、実際の購入記録は含めません。保存後は本人が管理する「ファイル」に置いてください。
+結果の内容は自己申告で、JRA公式認証済みにはなりません。</p>
+<button id="auditBackupDownload" type="button">この開催日の記録をファイルへ保存</button>
+<label for="auditBackupFile">別のSafari・端末で保存したファイルを選ぶ</label>
+<input id="auditBackupFile" type="file" accept=".json,application/json">
+<button id="auditBackupRestore" type="button">署名を検証して、この端末へ復元</button>
+<p id="auditBackupStatus" role="status" class="muted">読み込み前です。既存の署名済み記録や結果は無断で上書きしません。</p>
+</details>
 </section>
 <section><h2>② JRA結果ページから1Rだけ読み取る（任意）</h2>
 <p class="muted">JRA公式サイトの<strong>レース結果ページ</strong>のURLをコピーし、対象Rを選択。
@@ -44,7 +54,8 @@ JRAサイトのページ構造が変わった場合も転記を止めます。</
 <section><h2>③ 着順を確認・入力（端末内のみ）</h2>
 <p class="muted">1行につき「競馬場・レース番号・1〜3着・3連単100円払戻（任意）」。
 例：<code>京都3 13-15-4 701850</code>、<code>福島7 7-3-1 42510</code>。
-払戻が不明なら最後の金額は省略してOK。未入力Rは未照合扱いです。</p>
+払戻が不明なら最後の金額は省略してOK。未入力Rは未照合扱いです。
+「比較」を押した入力結果は日付別にこの端末へ仮保存します。<strong>JRA公式結果とは扱いません。</strong></p>
 <textarea id="results" rows="7" maxlength="6000" spellcheck="false"
  placeholder="京都3 13-15-4 701850&#10;福島7 7-3-1 42510"></textarea>
 <button id="auditButton" type="button" disabled>買い候補と見送りを比較</button>
@@ -55,7 +66,8 @@ JRAサイトのページ構造が変わった場合も転記を止めます。</
 <div id="details"></div>
 <p class="muted">同着・取消・返還・組番変更の判定はこの画面ではできません。
 これらがあるレースはこの入力方式で集計せず、公式結果の確認後に別途照合してください。
-自己入力した着順・払戻は通信・保存せず、画面を閉じると消えます。</p></section>
+自己入力した着順・払戻は比較後に端末内だけに仮保存します。サーバーには送信しません。
+Safariとホーム画面版で保存領域が異なる場合は、上の個人用ファイルで移してください。</p></section>
 </main><script src="/owner-decision-audit.js" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
@@ -67,7 +79,7 @@ section{background:#142d48;border:1px solid #547493;border-radius:14px;padding:1
 .notice{padding:14px;border:1px solid #ae9360;border-radius:12px;background:#362a1d}
 .muted{color:#c3d0e1;font-size:14px}
 input[type=date]{background:#0b2035;color:white;border:1px solid #8faccc;border-radius:8px;font:16px system-ui;padding:7px;max-width:100%}
-select,input[type=url]{width:100%;max-width:100%;background:#0b2035;color:white;border:1px solid #8faccc;border-radius:9px;font:16px system-ui;padding:9px;margin:8px 0 12px}
+select,input[type=url],input[type=file]{width:100%;max-width:100%;background:#0b2035;color:white;border:1px solid #8faccc;border-radius:9px;font:16px system-ui;padding:9px;margin:8px 0 12px}
 textarea{width:100%;min-height:130px;background:#0b2035;color:white;border:1px solid #8faccc;
 border-radius:9px;font:16px/1.5 ui-monospace,monospace;padding:12px}
 button{background:#23699d;border:1px solid #7ab2db;border-radius:9px;color:white;
@@ -84,6 +96,9 @@ const tracks=['札幌','函館','福島','新潟','東京','中山','中京','�
 const $=id=>document.getElementById(id);
 let forecast=null, activeSource=null, isSigned=false, jraAuditRequest=0;
 const CAPTURE_PREFIX='arc-race-owner-decision-capture-v1:';
+const RESULT_PREFIX='arc-race-owner-audit-results-v1:';
+const BACKUP_SCHEMA='arc-race-private-decision-review-export-v1';
+const MAX_BACKUP=85000;
 function parseLine(line){
  const clean=line.normalize('NFKC').replace(/[→－–—−]/g,'-').replace(/[、,，]/g,' ').trim();
  const m=clean.match(/^(札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉)\s*(1[0-2]|[1-9])R?\s+(\d{1,2})[-\s]+(\d{1,2})[-\s]+(\d{1,2})(?:\s+(\d{1,9}))?$/);
@@ -208,6 +223,105 @@ function auditForecast(source,typed){
  return {date:source.date,items,buckets,unreviewed:source.races.length-items.length,
          anyUnknownPayoff:buckets.buy.missingPayout+buckets.hold.missingPayout>0};
 }
+function reviewLines(text){
+ if(typeof text!=='string'||text.length>6000)
+  throw Error('入力結果が長すぎるか形式が不正です。');
+ const lines=text.split(/\r?\n/).filter(x=>x.trim());
+ if(lines.length>36)throw Error('結果は36Rまでです。');
+ const seen=new Set();
+ for(const line of lines){
+  const parsed=parseLine(line);
+  const key=parsed.track+'|'+parsed.race;
+  if(seen.has(key))throw Error('同じレースの結果が重複しています。');
+  seen.add(key);
+ }
+ return lines;
+}
+function readReview(day){
+ const raw=localStorage.getItem(RESULT_PREFIX+day);
+ if(!raw)return '';
+ try{
+  const entry=JSON.parse(raw);
+  if(!entry||Object.keys(entry).sort().join(',')!=='date,lines,schema'||
+     entry.schema!=='arc-race-local-review-lines-v1'||entry.date!==day||
+     typeof entry.lines!=='string')
+   throw Error('bad result draft');
+  reviewLines(entry.lines);
+  return entry.lines;
+ }catch(_){throw Error('端末内の結果メモが不正です。上書きしないでください。');}
+}
+function mergeResults(original,incoming){
+ const oldLines=reviewLines(original),newLines=reviewLines(incoming);
+ const seen=new Map();
+ for(const line of oldLines){
+  const p=parseLine(line);seen.set(p.track+'|'+p.race,line);
+ }
+ const added=[];
+ for(const line of newLines){
+  const p=parseLine(line),key=p.track+'|'+p.race;
+  if(seen.has(key)){
+   const a=parseLine(seen.get(key));
+   if(a.finish.join(',')!==p.finish.join(',')||a.payout!==p.payout)
+    throw Error('既存の結果が異なります。入力済みのレースは上書きしません。');
+  }else{seen.set(key,line);added.push(line);}
+ }
+ return [...oldLines,...added].join('\n');
+}
+function mergeSignedCaptures(original,incoming,day){
+ if(!Array.isArray(original)||!Array.isArray(incoming)||
+    original.length+incoming.length>72)
+  throw Error('署名済み記録の数が不正です。');
+ const ids=new Map(),out=[];
+ for(const [list,owned] of [[original,true],[incoming,false]]){
+  for(const entry of list){
+   if(!entry||typeof entry!=='object'||!entry.snapshot||
+      entry.snapshot.date!==day||!tracks.includes(entry.snapshot.track)||
+      !Number.isInteger(entry.snapshot.race)||
+      entry.snapshot.race<1||entry.snapshot.race>12||
+      typeof entry.signature!=='string'||
+      !/^[a-f0-9]{64}$/.test(entry.signature))
+    throw Error('署名済みの記録形式が不正です。');
+   const key=entry.snapshot.track+'|'+entry.snapshot.race;
+   if(ids.has(key)){
+    if(owned||JSON.stringify(ids.get(key))!==JSON.stringify(entry))
+     throw Error('発走前固定の内容が違います。先に保存した記録を上書きしません。');
+   }else{ids.set(key,entry);out.push(entry);}
+  }
+ }
+ if(out.length>36)throw Error('保存できる固定レース数を超えました。');
+ return out;
+}
+function portableBackup(day,captures,lines){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||
+    !Array.isArray(captures)||captures.length>36||
+    captures.some(x=>!x||x.snapshot?.date!==day))
+  throw Error('バックアップ日付または署名形式が不正です。');
+ reviewLines(lines);
+ if(!captures.length&&!lines.trim())
+  throw Error('保存対象の固定記録・結果がありません。');
+ const value={schema:BACKUP_SCHEMA,date:day,captures,lines};
+ if(JSON.stringify(value).length>MAX_BACKUP)
+  throw Error('記録が大きすぎるため保存できません。');
+ return value;
+}
+async function verifyCaptured(day,captures){
+ if(!captures.length)return [];
+ const signed=await requestDecision('/api/owner-decision-verify',{
+  date:day,captures});
+ const verified=capturedToSource(signed);
+ if(verified.races.length!==captures.length)
+  throw Error('保存済み記録の件数が一致しません。');
+ return captures;
+}
+function ensureReviewFitsCaptures(text,captures){
+ if(!captures.length)return;
+ const keys=new Set(captures.map(x=>x.snapshot.track+'|'+x.snapshot.race));
+ for(const line of reviewLines(text)){
+  const p=parseLine(line);
+  if(!keys.has(p.track+'|'+p.race))
+   throw Error('結果メモに固定記録のないレースがあります。先に内容を整理してください。');
+ }
+}
 function capturedToSource(payload){
  if(!payload||payload.schema!=='keiba-nine-owner-decision-receipt-v1'||
    payload.verified!==true||payload.officialScheduleVerified!==false||
@@ -282,6 +396,13 @@ async function restoreDay(){
  }
  $('jraAuditFetch').disabled=!activeSource;
  $('auditButton').disabled=!activeSource;
+ // Previously explicitly reviewed outcomes are local-only. Even with a
+ // signed capture, do not silently treat these as verified JRA results.
+ const priorReview=readReview(day);
+ if(priorReview&&activeSource){
+  auditForecast(activeSource,priorReview);
+  $('results').value=priorReview;
+ }
  $('freezeDecision').disabled=!(forecast&&forecast.date===day&&day>=dateJst());
  $('status').textContent=activeSource?
   (isSigned?'発走前固定済みの判断':'現在の参考予想')+'と自己入力結果を比較できます。':
@@ -366,7 +487,7 @@ function renderAudit(report){
  }
 }
 // Pure parser/accounting can be verified in Node without a browser or live source.
-if(typeof module!=='undefined'&&module.exports){module.exports={parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow};return;}
+if(typeof module!=='undefined'&&module.exports){module.exports={parseLine,auditForecast,capturedToSource,candidateToInputLine,appendCandidateRow,reviewLines,mergeResults,mergeSignedCaptures,portableBackup,ensureReviewFitsCaptures};return;}
 $('jraAuditFetch').addEventListener('click',async()=>{
  if(!activeSource)return;
  const select=$('jraAuditRace').value,day=$('auditDate').value;
@@ -415,6 +536,8 @@ $('jraAuditFetch').addEventListener('click',async()=>{
  }finally{if(seq===jraAuditRequest)btn.disabled=!activeSource;}
 });
 $('clearButton').addEventListener('click',()=>{
+ try{localStorage.removeItem(RESULT_PREFIX+$('auditDate').value);}
+ catch(_){$('status').textContent='端末内の結果メモを消せませんでした。';return;}
  $('results').value='';
  $('status').textContent='入力を消しました。予想と購入・記録は変更していません。';
  $('summary').replaceChildren(tag('p','入力待ち。','muted'));
@@ -424,8 +547,12 @@ $('auditButton').addEventListener('click',()=>{
  if(!activeSource)return;
  try{
   const report=auditForecast(activeSource,$('results').value);
+  const lines=reviewLines($('results').value).join('\n');
+  const local={schema:'arc-race-local-review-lines-v1',
+    date:report.date,lines};
+  localStorage.setItem(RESULT_PREFIX+report.date,JSON.stringify(local));
   renderAudit(report);
-  $('status').textContent='本人用参考予想と自己入力した着順の比較が完了。保存・送信なし。';
+  $('status').textContent='比較完了。自己入力した結果をこの端末内に保存。公式JRA照合なし・サーバー送信なし。';
  }catch(e){$('status').textContent=e.message;}
 });
 async function load(){
@@ -450,6 +577,76 @@ async function load(){
   $('status').textContent='参考予想が取得できないため集計しません。';
  }
 }
+$('auditBackupDownload').addEventListener('click',async()=>{
+ const status=$('auditBackupStatus'),day=$('auditDate').value;
+ try{
+  const captures=stored(day),lines=readReview(day);
+  const packed=portableBackup(day,captures,lines);
+  await verifyCaptured(day,captures);
+  ensureReviewFitsCaptures(lines,captures);
+  const raw=JSON.stringify(packed);
+  const blob=new Blob([raw],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob),anchor=document.createElement('a');
+  try{
+   anchor.href=url;
+   anchor.download='arc-race-private-review-'+day+'.json';
+   anchor.click();
+  }finally{URL.revokeObjectURL(url);}
+  status.textContent=day+'の個人用記録をファイルに保存しました。'+
+    'JRA公式結果・実購入の証明ではありません。ファイルは本人だけで管理してください。';
+ }catch(e){status.textContent=e.message;}
+});
+$('auditBackupRestore').addEventListener('click',async()=>{
+ const el=$('auditBackupFile'),status=$('auditBackupStatus');
+ const btn=$('auditBackupRestore'),f=el.files&&el.files[0];
+ if(!f){status.textContent='まずバックアップJSONを選んでください。';return;}
+ btn.disabled=true;
+ try{
+  if(f.size>MAX_BACKUP||f.size<=0)
+   throw Error('ファイルが大きすぎるか空です。');
+  const raw=await f.text();
+  if(raw.length>MAX_BACKUP)throw Error('ファイルが大きすぎます。');
+  const p=JSON.parse(raw);
+  if(!p||Object.keys(p).sort().join(',')!=='captures,date,lines,schema'||
+     p.schema!==BACKUP_SCHEMA||typeof p.date!=='string'||
+     typeof p.lines!=='string'||!Array.isArray(p.captures))
+   throw Error('ARC RACEの個人用バックアップではありません。');
+  const packed=portableBackup(p.date,p.captures,p.lines);
+  await verifyCaptured(packed.date,packed.captures);
+  const original=stored(packed.date);
+  await verifyCaptured(packed.date,original);
+  const combined=mergeSignedCaptures(original,packed.captures,packed.date);
+  await verifyCaptured(packed.date,combined);
+  const existing=readReview(packed.date);
+  const merged=mergeResults(existing,packed.lines);
+  ensureReviewFitsCaptures(merged,combined);
+  // Write only after validating EVERYTHING, preserving the earliest
+  // server signature and every existing reviewed result. Roll back on
+  // a storage quota failure; never mark a partial import successful.
+  const key=CAPTURE_PREFIX+packed.date,rkey=RESULT_PREFIX+packed.date;
+  const beforeCapture=localStorage.getItem(key);
+  const beforeResults=localStorage.getItem(rkey);
+  try{
+   if(combined.length)localStorage.setItem(key,JSON.stringify(combined));
+   if(merged)localStorage.setItem(rkey,JSON.stringify({
+      schema:'arc-race-local-review-lines-v1',date:packed.date,lines:merged}));
+  }catch(_){
+   try{
+    if(beforeCapture===null)localStorage.removeItem(key);
+    else localStorage.setItem(key,beforeCapture);
+    if(beforeResults===null)localStorage.removeItem(rkey);
+    else localStorage.setItem(rkey,beforeResults);
+   }catch(_rollback){}
+   throw Error('端末の保存容量が不足しました。既存記録の確認が必要です。');
+  }
+  $('auditDate').value=packed.date;
+  await restoreDay();
+  status.textContent=packed.date+'の個人用記録を検証・復元しました。'+
+    '固定'+combined.length+'R、自己入力結果'+reviewLines(merged).length+
+    'R。元の署名・買い／見送り・既存結果は上書きしていません。';
+ }catch(e){status.textContent=e.message||'復元を安全に完了できませんでした。';}
+ finally{btn.disabled=false;}
+});
 $('auditDate').value=dateJst();
 $('loadCaptured').addEventListener('click',async()=>{
  try{await restoreDay();}catch(e){$('captureStatus').textContent=e.message;
