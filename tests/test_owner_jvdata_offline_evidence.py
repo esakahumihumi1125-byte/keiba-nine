@@ -169,6 +169,28 @@ class OfflineEvidenceTests(unittest.TestCase):
         with self.assertRaises(CoverageError):
             summarize_one_race(bad)
 
+    def test_same_day_future_and_duplicate_history_cannot_be_forecast_evidence(self):
+        # Even a manually edited local research report cannot smuggle a
+        # result from the target race or a later day into pre-off evidence.
+        report = self.report()
+        target = datetime.strptime(DAY, "%Y%m%d")
+        future = (target + timedelta(days=1)).strftime("%Y%m%d")
+        for illegal_day in (DAY, future):
+            bad = copy.deepcopy(report)
+            bad["races"][0]["byNumber"][0]["recentObservedRuns"][0]["date"] = illegal_day
+            with self.subTest(illegal_day=illegal_day):
+                with self.assertRaises(CoverageError):
+                    summarize_one_race(bad)
+        duplicate = copy.deepcopy(report)
+        runner = duplicate["races"][0]["byNumber"][0]
+        runner["recentObservedRuns"].append(copy.deepcopy(
+            runner["recentObservedRuns"][0]))
+        runner["observedRecordCount"] += 1
+        with self.assertRaises(CoverageError):
+            summarize_one_race(duplicate)
+        # The original older history must remain viewable as research.
+        self.assertFalse(summarize_one_race(report)["formalForecastReady"])
+
     def test_html_is_safe_static_and_doesnt_copy_extra_keys(self):
         report = self.report()
         report["horse_id"] = "SECRET_TOKEN"
