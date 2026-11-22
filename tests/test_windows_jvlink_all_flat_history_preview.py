@@ -16,12 +16,18 @@ from windows_jvlink_day_history_preview import (
 )
 
 
+def first_card():
+    return [replace(replace(row, 697, 701, "1800"), 705, 707, "17")
+            if row[:3] == b"RA2" else row for row in sources()["RACE"]]
+
+
 def second_card():
     result = []
     for row in sources()["RACE"]:
         if row[:3] == b"RA2":
-            result.append(replace(replace(row, 25, 27, "02"),
-                                  873, 877, "1040"))
+            result.append(replace(replace(replace(replace(
+                row, 25, 27, "02"), 873, 877, "1040"),
+                697, 701, "1800"), 705, 707, "17"))
         else:
             result.append(replace(row, 25, 27, "02"))
     return result
@@ -39,7 +45,7 @@ def read(jv, **kwargs):
 class AllFlatHistoryTests(unittest.TestCase):
     def test_all_flat_contains_two_races_from_two_provider_reads(self):
         jv = FakeJv({
-            "RACE": [*sources()["RACE"], *second_card()],
+            "RACE": [*first_card(), *second_card()],
             "RCVN": sources()["RCVN"],
         })
         diagnostic = {}
@@ -59,7 +65,7 @@ class AllFlatHistoryTests(unittest.TestCase):
 
     def test_one_unmatched_race_remains_unassessed_not_excluded(self):
         initial = []
-        for row in sources()["RACE"]:
+        for row in first_card():
             if row[:3] == b"SE2":
                 initial.append(replace(
                     row, 30, 40, f"{2000000000 + int(row[28:30]):010d}"))
@@ -78,7 +84,7 @@ class AllFlatHistoryTests(unittest.TestCase):
 
     def test_never_reintroduces_started_race_after_provider_scan(self):
         jv = FakeJv({
-            "RACE": [*sources()["RACE"], *second_card()],
+            "RACE": [*first_card(), *second_card()],
             "RCVN": sources()["RCVN"],
         })
         with patch("windows_jvlink_day_history_preview.validate_day",
@@ -99,7 +105,7 @@ class AllFlatHistoryTests(unittest.TestCase):
                 read_local_day_history(DAY, flat_only=False,
                                        all_flat_races=True)
         jv = FakeJv({
-            "RACE": [*sources()["RACE"], *second_card()],
+            "RACE": [*first_card(), *second_card()],
             "RCVN": sources()["RCVN"],
         })
         result = read(jv)
