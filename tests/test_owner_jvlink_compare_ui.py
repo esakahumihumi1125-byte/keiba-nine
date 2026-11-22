@@ -55,14 +55,14 @@ class OwnerJvlinkCompareTests(unittest.TestCase):
 const vm=require('node:vm'),assert=require('node:assert/strict');
 const source=require('node:fs').readFileSync(0,'utf8'),module={exports:{}};
 vm.runInNewContext(source,{module},{timeout:2000});
-const {compareLocalJvWithJrdb,compareWeeklyJvCandidate,normalizeJrdbProbeResult}=module.exports;
-const date='2026-11-22';
+const {compareLocalJvWithJrdb,compareWeeklyJvCandidate,normalizeJrdbProbeResult,sameRaceDay}=module.exports;
+const date='2026-11-22',pcDate='20261122';
 const jrdb={schema:'keiba-nine-private-preday-review-v1',date,
  sourceKind:'owner-private-authored-preday',predictionReady:false,
  officialJraVerified:false,purchased:false,races:[
   {track:'東京',race:1,time:'09:50',course:'ダ・左1300M',
    field:3,rank:[3,2,1],status:'買い候補'}]};
-const file={version:'owner-jvdata-local-day-history-bridge-1',date,
+const file={version:'owner-jvdata-local-day-history-bridge-1',date:pcDate,
  raceCount:1,privateOwnerOnly:true,researchOnly:true,
  historySource:'private_jvlink_rcvn_partial_observations',
  historyCompletenessVerified:false,captureTimeIndependentlyVerified:false,
@@ -76,6 +76,14 @@ const file={version:'owner-jvdata-local-day-history-bridge-1',date,
    number,observedRecordCount:number===2?0:1,
    missingHistoryUnproven:true,graded:false,recentObservedRuns:[]})),
   historyComplete:false,graded:false,bettingReady:false}]};
+assert.equal(sameRaceDay('20261122','2026-11-22'),true);
+assert.equal(sameRaceDay('20261121','2026-11-22'),false);
+assert.equal(sameRaceDay('2026-11-22','2026-11-22'),false);
+assert.equal(sameRaceDay('20261122','20261122'),false);
+assert.equal(sameRaceDay('20260230','2026-02-30'),false);
+assert.equal(sameRaceDay('20260228','2026-02-28'),true);
+assert.equal(sameRaceDay('20240229','2024-02-29'),true);
+assert.equal(sameRaceDay('20230229','2023-02-29'),false);
 const result=compareLocalJvWithJrdb(file,jrdb);
 assert.equal(result.candidateFieldsConsistent,true);
 assert.equal(result.checkedRaceCount,1);
@@ -86,7 +94,9 @@ for(const k of ['allHorseIdentityMatched','officialJraVerified',
  assert.equal(result[k],false,'must not upgrade '+k);
 }
 for(const edited of [
- {...file,date:'2026-11-21'},
+ {...file,date:'20261121'},
+ {...file,date:'2026-11-22'},
+ {...file,date:'2026112X'},
  {...file,privateOwnerOnly:false},
  {...file,officialStarterListVerified:true},
  {...file,races:[{...file.races[0],race:2}]},
@@ -119,7 +129,7 @@ const extraCard=weeklyCard('京都',2,'10:35',1200,'ダート',[1,2,3,4]);
 const dailyReference={...jrdb,races:[...jrdb.races,
  {track:'京都',race:2,time:'10:35',course:'ダ・右1200M',
   field:4,rank:[1,4,2],status:'見送り'}]};
-const weekly={version:'owner-jvlink-weekly-local-candidates-1',date,
+const weekly={version:'owner-jvlink-weekly-local-candidates-1',date:pcDate,
  source:'private_jvlink_weekly_ra_se_candidate',
  raceCount:2,races:[dayCard,extraCard],
  privateOwnerOnly:true,researchOnly:true,providerDataRawIncluded:false,
@@ -155,7 +165,9 @@ const unknown=compareWeeklyJvCandidate(
 assert.equal(unknown.unexpectedJvRaceCount,1);
 assert.equal(unknown.referenceCardAndJvCandidateFieldsAllConsistent,false);
 for(const malformed of [
- {...weekly,date:'2026-11-21'},
+ {...weekly,date:'20261121'},
+ {...weekly,date:'2026-11-22'},
+ {...weekly,date:'2026112X'},
  {...weekly,providerDataRawIncluded:true},
  {...weekly,officialGoingVerified:true},
  {...weekly,source:'some-other-source'},
