@@ -124,8 +124,8 @@ assert.equal(downloads,1);
 assert.equal(created,1);
 assert.equal(revoked,1);
 assert.equal(lastName,'arc-race-20261123-research-view.txt');
-assert.equal(lastFile,formatted.split('\n').slice(0,2).join('\n')+
- lastFile.slice(lastFile.indexOf('\n',lastFile.indexOf('\n')+1)));
+assert.equal(lastFile.split('\n')[0],formatted.split('\n')[0]);
+assert.equal(lastFile.split('\n')[1],formatted.split('\n')[1]);
 assert.match(lastFile,/研究下書き：4R/);
 assert.match(lastFile,/署名なし参考例：13R/);
 assert.match(nodes.get('autoCombinedResearchExportStatus').textContent,
