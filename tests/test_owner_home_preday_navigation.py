@@ -33,6 +33,10 @@ class OwnerHomePredayNavigationTests(unittest.TestCase):
             '🐎 今日の前日参考予想（研究用）</a>', html)
         self.assertNotIn(
             '<a class="owner-main-action" href="/owner-auto-forecast">', html)
+        self.assertIn(
+            '<a class="owner-sub-action" href="/owner-auto-forecast">'
+            '🐎 明日・月祝の全R暫定予想（JRDB2項目）を開く</a>',
+            html)
         self.assertIn("正式10項目", html)
         self.assertNotIn("NOT_TO_EXPOSE", html)
         self.assertNotIn("rawPrivateIndex", html)
@@ -50,6 +54,9 @@ class OwnerHomePredayNavigationTests(unittest.TestCase):
         self.assertIn("JRA-VAN", PRE_DAY_HTML)
         self.assertIn("JRDB", PRE_DAY_HTML)
         self.assertIn("正式10項目", PRE_DAY_HTML)
+        self.assertIn(
+            '<a class="owner-sub-action" href="/owner-auto-forecast">',
+            html)
 
     def test_old_or_untrusted_snapshot_cannot_override_primary(self):
         original = forecast()
@@ -79,6 +86,10 @@ class OwnerHomePredayNavigationTests(unittest.TestCase):
         self.assertNotIn(
             '<a class="owner-main-action" href="/owner-preday-forecast">',
             html)
+        self.assertNotIn(
+            '明日・月祝の全R暫定予想（JRDB2項目）を開く',
+            html)
+        self.assertNotIn("__OWNER_AUTO_QUICK_LINK__", html)
 
 
 if __name__ == "__main__":
