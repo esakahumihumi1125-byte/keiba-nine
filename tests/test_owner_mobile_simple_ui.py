@@ -77,6 +77,7 @@ class SimpleForecastScreenTest(unittest.TestCase):
         self.assertLess(HTML.index('id="autoRaces"'),
                         HTML.index('id="autoHoldPanel"'))
         self.assertIn("safeDraftCount+'R｜見送り '+data.holdCount+'R'", JS)
+        self.assertIn("JRDB2項目方式｜", JS)
         self.assertIn("highlightSelectedWeekend()", JS)
         # No new provider endpoint, polling, purchase control or access
         # to paid API keys is introduced by simplified navigation.

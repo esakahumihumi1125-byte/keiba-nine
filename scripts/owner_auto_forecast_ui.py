@@ -29,9 +29,10 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </nav>
 <p class="warning"><strong>現在は研究用の暫定予想です。</strong>調教・近走の2項目で3連単を試算しています。
 正式10項目の予想とJRA公式照合は未完成。自動購入はしません。</p>
-<section class="owner-preday-recovery" aria-label="別経路の前日参考予想">
-<p><strong>JRDB APIが403で停止するとき</strong>：自動取得とは別に、登録済みの前日参考予想を確認できます。JRA公式未照合の研究用であり、購入推奨ではありません。</p>
-<a class="owner-forecast-cta" id="autoPredayRecovery" href="/owner-preday-forecast">登録済みの前日参考予想を見る（別画面）</a>
+<section class="owner-preday-recovery" aria-label="別系統の全レース前日参考予想">
+<p><strong>全レースの前日参考予想はこちら</strong>：サーバーに登録済みの開催日・全Rについて、1着・2着・3着候補を別画面で表示します。下の「JRDB調教・近走2項目」の研究用下書き件数とは別です。4Rなどの表示は前日参考予想24Rが消えた意味ではありません。</p>
+<a class="owner-forecast-cta" id="autoPredayRecovery" href="/owner-preday-forecast">配信済みの前日参考予想をすぐ見る（別画面・追加の有料取得なし）</a>
+<p class="muted">参考予想もJRA公式未照合（最終出走・取消・馬場・発走時刻）で、正式10項目採点・購入推奨ではありません。JRDB APIが403で停止するときも、この別経路を利用できます。</p>
 </section>
 <section class="daily-start" id="autoDailyStart">
 <h2>1. 予想を見る</h2>
@@ -88,7 +89,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section id="forecastRacesSection">
 <h2>2. 予想を見る・競馬場を選ぶ</h2>
 <p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
-<p id="autoRaceQuickSummary" class="auto-race-quick" role="status">予想は未取得です。</p>
+<p id="autoRaceQuickSummary" class="auto-race-quick" role="status">JRDB2項目の研究用下書きは未取得です。前日参考予想は別画面にあります。</p>
+<a class="owner-forecast-cta" href="/owner-preday-forecast">全レースの前日参考予想を見る（追加の有料取得なし）</a>
 <details id="autoMultiQuickPanel" class="owner-reference-quick">
 <summary id="autoMultiQuickTitle">調教・距離・展開など複数項目の参考：未取得</summary>
 <p class="muted">全馬共通で採点できた調教・距離・展開などの暫定項目を使用した、別の1着・2着・3着研究候補です。上の2項目で発走前に固定した買い目は変更しません。ここは署名なし・未購入、正式100点・JRA公式確認・回収率にも反映しません。</p>
@@ -3740,11 +3742,11 @@ function render(input,day){
   safeDraftCount+'R｜見送り '+data.holdCount+'R'+
   (quickRows.length?'（うち発走前参考 '+quickRows.length+'R・未購入）':'');
  const hiddenCount=Math.max(0,data.draftCount-safeDraftCount);
- $('autoEasyPulse').textContent=easyCount+
+ $('autoEasyPulse').textContent='JRDB2項目方式｜'+easyCount+
   (hiddenCount?'｜新規非表示 '+hiddenCount+'R':'')+
   '（正式10項目・JRA公式照合は未完成）';
  $('autoRaceQuickSummary').textContent=easyCount+
-  '。予想があるレースは上の「買い目あり」からすぐ表示できます。';
+  '。これはJRDB調教・近走2項目方式だけの件数で、登録済みの全レース前日参考予想の件数ではありません。前日参考予想は直下のリンクから見られます。';
  const singleDraft=safeDraftCount===1?displayableDrafts[0]:null;
  const shortcut=$('autoDraftShortcut');
  shortcut.textContent=singleDraft
