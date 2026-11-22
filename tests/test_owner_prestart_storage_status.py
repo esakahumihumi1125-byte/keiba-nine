@@ -36,6 +36,8 @@ class OwnerPrestartStorageStatusTests(unittest.TestCase):
                 "persistentStorageReady": False,
                 "serverSavedRaceCount": 0,
                 "verifiedServerSignedRaceCount": 0,
+                "storedRaceCoordinates": [], "storedVenueCounts": [],
+                "completeJraDayVerified": False,
                 "providerRequests": 0, "officialJraVerified": False,
                 "finalResultsConnected": False, "actualPurchase": False,
             })
@@ -52,7 +54,10 @@ class OwnerPrestartStorageStatusTests(unittest.TestCase):
                   return_value="synthetic-archive-secret"),
             patch("private_service.read_archived_day", return_value=signed) as read,
             patch("private_service.verify_preview_receipts",
-                  return_value=[{"date": "2026-11-23"}]) as verify,
+                  return_value=[{
+                      "date": "2026-11-23", "track": "東京", "race": 1,
+                      "sourceKind": "prestart-locked", "actualPurchase": False
+                  }]) as verify,
         ):
             response = call(self.app, self.url, **self.query)
             payload = json.loads(response["body"])
@@ -61,6 +66,11 @@ class OwnerPrestartStorageStatusTests(unittest.TestCase):
             self.assertTrue(payload["archiveEnabled"])
             self.assertEqual(payload["serverSavedRaceCount"], 1)
             self.assertEqual(payload["verifiedServerSignedRaceCount"], 1)
+            self.assertEqual(payload["storedRaceCoordinates"],
+                             [{"track": "東京", "race": 1}])
+            self.assertEqual(payload["storedVenueCounts"],
+                             [{"track": "東京", "raceCount": 1}])
+            self.assertIs(payload["completeJraDayVerified"], False)
             self.assertEqual(payload["providerRequests"], 0)
             read.assert_called_once()
             self.assertEqual(read.call_args.args[1:],
@@ -137,6 +147,11 @@ const validBody=(n,enabled)=>({
  version:'owner-prestart-storage-status-1',date:'2026-11-23',
  archiveEnabled:enabled,persistentStorageReady:enabled,
  serverSavedRaceCount:n,verifiedServerSignedRaceCount:n,
+ storedRaceCoordinates:Array.from({length:n},(_,i)=>({
+  track:'東京',race:i+1
+ })),
+ storedVenueCounts:n?[{track:'東京',raceCount:n}]:[],
+ completeJraDayVerified:false,
  providerRequests:0,officialJraVerified:false,
  finalResultsConnected:false,actualPurchase:false
 });

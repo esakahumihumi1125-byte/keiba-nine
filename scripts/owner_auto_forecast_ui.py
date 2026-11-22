@@ -11263,6 +11263,7 @@ const dayInput=document.getElementById('autoDay');
 const output=document.getElementById('autoStoragePulse');
 const run=document.getElementById('autoRun');
 if(!dayInput||!output||!run)return;
+const venues=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
 let sequence=0;
 const valid=day=>typeof day==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(day)&&
  Number.isFinite(Date.parse(day+'T12:00:00Z'))&&
@@ -11291,9 +11292,56 @@ async function refresh(){
      result.verifiedServerSignedRaceCount!==result.serverSavedRaceCount||
      result.providerRequests!==0||result.officialJraVerified!==false||
      result.finalResultsConnected!==false||result.actualPurchase!==false||
+     result.completeJraDayVerified!==false||
      result.persistentStorageReady!==result.archiveEnabled||
+     !Array.isArray(result.storedRaceCoordinates)||
+     result.storedRaceCoordinates.length!==result.serverSavedRaceCount||
+     !Array.isArray(result.storedVenueCounts)||result.storedVenueCounts.length>10||
      (!result.archiveEnabled&&result.serverSavedRaceCount!==0))
    throw Error('invalid_server_storage_status');
+  const saved=new Set(),countByVenue=new Map();
+  for(const r of result.storedRaceCoordinates){
+   if(!r||!venues.has(r.track)||!Number.isInteger(r.race)||
+      r.race<1||r.race>12||Object.keys(r).length!==2)
+    throw Error('invalid_archive_coords');
+   const key=r.track+'|'+r.race;
+   if(saved.has(key))throw Error('duplicate_archive_coords');
+   saved.add(key);
+   countByVenue.set(r.track,(countByVenue.get(r.track)||0)+1);
+  }
+  const seenVenues=new Set();
+  for(const entry of result.storedVenueCounts){
+   if(!entry||!venues.has(entry.track)||
+      !Number.isInteger(entry.raceCount)||entry.raceCount<1||
+      entry.raceCount>12||Object.keys(entry).length!==2||
+      seenVenues.has(entry.track)||
+      countByVenue.get(entry.track)!==entry.raceCount)
+    throw Error('invalid_archive_venue_total');
+   seenVenues.add(entry.track);
+  }
+  if(seenVenues.size!==countByVenue.size)throw Error('archive_venue_missing');
+  const venueText=result.storedVenueCounts
+   .map(x=>x.track+x.raceCount+'R').join('・');
+  // The *already fetched* JRDB race list can reveal unsigned/held R without
+  // any extra provider call. Missing archive entries do not imply failure:
+  // held races may legitimately contain no research ticket at all.
+  let unsaved='';
+  if(typeof historyDay==='string'&&
+     historyDay===day.replaceAll('-','')&&
+     typeof historyCoordinates!=='undefined'&&
+     historyCoordinates instanceof Set&&historyCoordinates.size>0&&
+     historyCoordinates.size<=36){
+   const missing=[...historyCoordinates].filter(k=>!saved.has(k));
+   if(missing.length){
+    const preview=missing.slice(0,8).map(k=>k.replace('|','')).join('・');
+    unsaved='／JRDB取得済みのRのうちサーバー未固定'+
+     missing.length+'R（'+preview+(missing.length>8?'ほか':'')+
+     '）。見送りRも含むため予想失敗件数ではありません。';
+   }else{
+    unsaved='／JRDBで取得済みのRは全てサーバー固定済み。'+
+     'JRA公式照合・正式10項目予想が完成した意味ではありません。';
+   }
+  }
   if(!result.archiveEnabled){
    output.textContent=day+
     '｜サーバー永続保存は未設定。発走前の研究用買い目が端末にあっても、サーバー保存済みとは扱いません。端末の固定履歴を保護してください。追加のJRDB照会0回。';
@@ -11303,7 +11351,8 @@ async function refresh(){
   }else{
    output.textContent=day+'｜サーバー保存済み・署名検証済みの発走前研究用3連単 '+
     result.serverSavedRaceCount+
-    'R。JRA公式出走・発走時刻・結果・購入は未確認。保存していないRは補完していません。追加のJRDB照会0回。';
+    'R（'+venueText+'）'+unsaved+
+    '。JRA公式出走・発走時刻・結果・購入は未確認。保存していないRは補完していません。追加のJRDB照会0回。';
   }
  }catch(_){
   if(sequence===request&&dayInput.value===day)
