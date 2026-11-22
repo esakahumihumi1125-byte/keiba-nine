@@ -11,8 +11,9 @@ const data=()=>({schema:'keiba-nine-private-preday-review-v1',date:'2026-11-07',
   confidence:3,status:'買い候補',headNames:['架空A','架空B'],note:'仮',
   provisional:true,jraOfficialConfirmed:false,fullFactorVerified:false
  })))}); 
-function boot(serverReady=false){
+function boot(serverReady=false,cache=null){
  const nodes=new Map(),store=new Map([['other','preserved']]),writes=[],calls=[];
+ if(cache!==null)store.set(KEY,cache);
  const node=()=>({textContent:'',value:'',files:[],children:[],checked:false,
   onclick:null,onchange:null,setAttribute(k,v){this[k]=v},append(...a){this.children.push(...a)},
   replaceChildren(...a){this.children=[...a]}});
@@ -156,6 +157,21 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.equal(b.writes[0],KEY);
  assert.equal(JSON.parse(b.store.get(KEY)).races.length,36);
  assert.equal(b.store.get('other'),'preserved');
+ const cached=JSON.parse(b.store.get(KEY));
+ assert.equal(cached.races[0].field,9);
+ for(const legacy of [false,true]){
+  if(legacy)for(const race of cached.races){
+   for(const key of ['field','provisional','jraOfficialConfirmed','fullFactorVerified'])delete race[key];
+  }
+  const reopened=boot(false,JSON.stringify(cached));
+  await tick();
+  assert.equal(reopened.$('fpVenueTabs').children.length,3);
+  assert.equal(reopened.writes.length,0);
+ }
+ cached.races[0].points++;
+ const corrupt=boot(false,JSON.stringify(cached));
+ await tick();
+ assert.equal(corrupt.$('fpVenueTabs').children.length,0);
  const bad=data();bad.races[0].points=31;
  const reject=boot(),re=reject.$,raw=JSON.stringify(bad);
  re('fpFile').files=[{size:raw.length,text:async()=>raw}];
