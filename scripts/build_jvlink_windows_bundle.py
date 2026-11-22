@@ -19,6 +19,7 @@ FILES = (
     "scripts/windows_jvlink_horse_data_probe.cmd",
     "scripts/windows_jvlink_horse_data_probe.py",
     "scripts/windows_jvlink_day_history_preview.cmd",
+    "scripts/windows_jvlink_all_flat_history_preview.cmd",
     "scripts/windows_jvlink_day_history_preview.py",
     "scripts/windows_arc_race_saved_history_review.cmd",
     "scripts/windows_arc_race_saved_history_review.py",
@@ -87,7 +88,7 @@ JRA-VAN契約、JV-Link、64bit Python、pywin32 が別途必要です。
    過去走が0件でも「新馬」「全履歴なし」とは断定しません。
    直前の取消や最終出走確定、配信時刻の真正性は検証していません。
 
-8. 一度取得済みの1レースを追加のJRA-VAN接続なしで確認するには
+7a. 全開催場・発走前の平地レースを1回のRACE+RCVN読み込みで\n    PC内にまとめたい場合は（必要時のみ）、\n    scripts/windows_jvlink_all_flat_history_preview.cmd を開きます。\n    YESの明示入力でのみRACEを1回、RCVNを1回読み、\n    完全な馬番候補・発走前の芝ダートだけを最大36Rまでまとめます。\n    過去走が見つからない馬は未観測のままで、架空評価しません。\n    jvdata-all-flat-races-YYYYMMDD.json/.html に新規保存し、\n    既存の個別1Rファイルは上書きしません。すでに同名の\n    全Rファイルがある日は再保存せず、料金の再照会を促しません。\n    この研究用ファイルはJRA最終出走・取消・馬場・配信時刻を\n    独立検証せず、正式10項目採点・3連単購入には使えません。\n    GitHub・Render・インターネットへは送信しません。\n\n8. 一度取得済みの1レースを追加のJRA-VAN接続なしで確認するには
    scripts/windows_arc_race_saved_history_review.cmd をダブルクリック。
    当日（日本時間）の保存済みJSONから最新1レースを探して、
    「近走」「展開・脚質」の観測状況と、正式10項目の未採点状態を
