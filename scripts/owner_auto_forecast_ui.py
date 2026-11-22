@@ -66,7 +66,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="autoConnectionCheck" type="button">選択日のJRDB接続を確認</button>
 <p id="autoConnectionStatus" class="muted" role="status">診断は未実行。</p>
 </details>
-<p class="muted">通常の土日に画面を開いた場合だけ、本人用の当日分を一度自動取得。平日・変則開催は日付を選んで手動取得。
+<p class="muted">通常の土日とJRA公表済みの2026年開催月曜には、本人用画面を開いた時だけ当日分を一度取得。その他の平日・変則開催は日付を選んで手動取得。
 番組0Rを取得した後は、同じ端末で30分以内に画面を開き直しても自動照会を控えます（0Rは開催なしを意味しません）。配信更新後に取り直す場合は「全場・全Rを再分析する」を押してください。
 再分析ボタンを押した場合は番組・出走馬・調教・近走を各1回取得し、
 馬場情報の追加取得も最大1回だけ試みます。取得できなくても既存の発走前記録は維持します。
