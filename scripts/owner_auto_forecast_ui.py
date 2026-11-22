@@ -139,6 +139,13 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <pre id="autoEvidenceGapReport" class="acceptance-report" role="status">まだ未取得です。発走前の研究用データを取得すると、追加照会なしで表示します。</pre>
 <p class="muted">10項目・合計100点の配点ごとに、取得済みの同じ資料から観測件数と、不足している資料の確認優先順を表示します。資料ありでもS/A/B/Cの採点やJRA公式照合が済んだ意味ではありません。追加の有料照会や保存・購入操作は行いません。</p>
 <pre id="autoTenEvidenceMatrix" class="acceptance-report" role="status">10項目の資料確認はまだです。資料を再取得せず、すでに受信した内容のみ集計します。</pre>
+<details id="autoJvHistoryJoinPanel"><summary>JRA-VANの保存済み全R過去走とJRDB馬番資料を照合（PC内ファイル・無料）</summary>
+<p class="muted">同じ開催日のJRDB研究資料をこの画面で取得した後、本人のPCで保存済みの <code>jvdata-all-flat-races-YYYYMMDD.json</code> を選択して照合できます。ファイル本文・馬名・馬ID・過去走詳細は<strong>送信・保存しません</strong>。馬番の集合が一致しても、同じ馬の本人確認・JRA公式出走や正式10項目評価の証明にはなりません。3連単・固定記録・仮想収支は変更しません。</p>
+<input id="autoJvHistoryFile" type="file" accept=".json,application/json">
+<button id="autoJvHistoryCompare" type="button">取得済みJRDBとJRA-VANを馬番単位で照合（追加のAPI照会0回）</button>
+<p id="autoJvHistoryStatus" class="muted" role="status">未照合。JRDBを取得した後に保存済みJRA-VANファイルを選んでください。</p>
+<div id="autoJvHistoryRows" aria-label="開催場・レース別の資料照合結果"></div>
+</details>
 </details>
 
 <details id="autoMissingFactorPanel"><summary>調教・近走不足の内訳（追加照会なし）</summary>
@@ -11321,5 +11328,213 @@ if(typeof priorRun==='function'){
  };
 }
 void refresh();
+})();
+"""
+
+
+# Browser-only per-race evidence availability join. The owner can compare
+# already fetched JRDB research numbers with his private local JV-Link RACE+
+# RCVN JSON without uploading provider records, adding paid requests,
+# inferring horse identity or creating new ten-factor scores or tickets.
+JS += r"""
+;(()=>{'use strict';
+const dateInput=document.getElementById('autoDay');
+const fileInput=document.getElementById('autoJvHistoryFile');
+const compareButton=document.getElementById('autoJvHistoryCompare');
+const status=document.getElementById('autoJvHistoryStatus');
+const rows=document.getElementById('autoJvHistoryRows');
+const fetchButton=document.getElementById('autoRun');
+if(!dateInput||!fileInput||!compareButton||!status||!rows||!fetchButton)return;
+const tracks=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
+const gradeValues=new Set(['S','A','B','C','未評価']);
+const dateRe=/^20\d{6}$/;
+let seq=0;
+function viewNode(tag,text){
+ const el=document.createElement(tag);
+ el.textContent=String(text);
+ return el;
+}
+function clearState(why){
+ seq++;
+ rows.replaceChildren();
+ fileInput.value='';
+ status.textContent=why;
+}
+function joinForCoverage(source,day,rosters,grades){
+ // All PRIVATE data remains in the browser: only bounded counts and
+ // provisional horse number sets are evaluated in this function.
+ if(!dateRe.test(day)||!source||typeof source!=='object'||Array.isArray(source)||
+    source.version!=='owner-jvdata-local-day-history-bridge-1'||
+    source.date!==day||source.researchOnly!==true||
+    source.privateOwnerOnly!==true||
+    source.historySource!=='private_jvlink_rcvn_partial_observations'||
+    source.historyCompletenessVerified!==false||
+    source.captureTimeIndependentlyVerified!==false||
+    source.officialStarterListVerified!==false||
+    source.officialScratchStateVerified!==false||
+    source.officialGoingVerified!==false||
+    source.formalTenFactorReady!==false||
+    source.productionPredictionReady!==false||
+    source.bettingReady!==false||source.autoPurchase!==false||
+    source.newProviderRequests!==0||
+    !Array.isArray(source.races)||source.races.length<1||
+    source.races.length>36||source.raceCount!==source.races.length||
+    !(rosters instanceof Map)||!(grades instanceof Map))
+  throw Error('invalid_local_history');
+ const local=new Map();
+ for(const race of source.races){
+  if(!race||!tracks.has(race.track)||!Number.isInteger(race.race)||
+     race.race<1||race.race>12||race.historyComplete!==false||
+     race.graded!==false||race.bettingReady!==false||
+     !Array.isArray(race.byNumber)||race.byNumber.length<3||
+     race.byNumber.length>18||
+     !Number.isInteger(race.observedHorseHistory)||
+     race.observedHorseHistory<0||
+     race.observedHorseHistory>race.byNumber.length)
+   throw Error('invalid_local_race');
+  const coord=race.track+'|'+race.race;
+  if(local.has(coord))throw Error('duplicate_local_race');
+  const horses=new Map();
+  for(const item of race.byNumber){
+   if(!item||!Number.isInteger(item.number)||item.number<1||
+      item.number>18||horses.has(item.number)||
+      item.missingHistoryUnproven!==true||
+      item.graded!==false||!Number.isInteger(item.observedRecordCount)||
+      item.observedRecordCount<0||item.observedRecordCount>20000||
+      !Array.isArray(item.recentObservedRuns)||
+      item.recentObservedRuns.length>5||
+      item.recentObservedRuns.length>item.observedRecordCount)
+    throw Error('invalid_local_horse');
+   horses.set(item.number,{observed:item.observedRecordCount>0});
+  }
+  if([...horses.values()].filter(x=>x.observed).length!==race.observedHorseHistory)
+   throw Error('invalid_local_observations');
+  local.set(coord,horses);
+ }
+ if(rosters.size>36||grades.size>36||rosters.size!==grades.size)
+  throw Error('invalid_jrdb_coordinates');
+ for(const key of grades.keys())if(!rosters.has(key))throw Error('invalid_jrdb_mapping');
+ const cards=[];
+ for(const [coord,nums] of rosters){
+  const parts=coord.split('|'),horseGrades=grades.get(coord);
+  if(parts.length!==2||!tracks.has(parts[0])||
+     !/^(?:[1-9]|1[0-2])$/.test(parts[1])||
+     !(nums instanceof Set)||!(horseGrades instanceof Map)||
+     nums.size>18||horseGrades.size!==nums.size)
+   throw Error('invalid_jrdb_roster');
+  for(const number of nums){
+   const g=horseGrades.get(number);
+   if(!Number.isInteger(number)||number<1||number>18||
+      !g||!gradeValues.has(g.training)||!gradeValues.has(g.recent))
+    throw Error('invalid_jrdb_grade');
+  }
+  const jv=local.get(coord);
+  let statusCode='jv_race_not_observed',priorCount=0,dualCount=0;
+  if(jv){
+   if(nums.size<3){
+    statusCode='jrdb_roster_unavailable';
+   }else if(jv.size!==nums.size||
+      [...nums].some(number=>!jv.has(number))){
+    statusCode='number_sets_differ';
+   }else{
+    statusCode='same_number_set_unverified_identity';
+    for(const [number,sourceHorse] of jv){
+     if(sourceHorse.observed){
+      priorCount++;
+      const g=horseGrades.get(number);
+      if(g.training!=='未評価'&&g.recent!=='未評価')dualCount++;
+     }
+    }
+   }
+  }
+  cards.push({track:parts[0],race:Number(parts[1]),status:statusCode,
+   candidateCount:nums.size,observedPriorCount:priorCount,
+   alsoTwoFactorObservedCount:dualCount});
+ }
+ const paired=cards.filter(x=>x.status==='same_number_set_unverified_identity');
+ return {
+  version:'owner-local-jrdb-jv-history-coverage-1',
+  date:day,referenceRaceCount:cards.length,
+  localRaceCount:local.size,
+  numberSetMatchRaceCount:paired.length,
+  mismatchedRaceCount:cards.filter(x=>x.status==='number_sets_differ').length,
+  missingJvRaceCount:cards.filter(x=>x.status==='jv_race_not_observed').length,
+  missingJrdbRosterRaceCount:cards.filter(x=>x.status==='jrdb_roster_unavailable').length,
+  unpairedJvRaceCount:[...local.keys()].filter(k=>!rosters.has(k)).length,
+  observedPriorHorseNumberCount:paired.reduce((sum,x)=>sum+x.observedPriorCount,0),
+  bothSourcesObservedHorseNumberCount:paired.reduce((sum,x)=>sum+x.alsoTwoFactorObservedCount,0),
+  cards,officialHorseIdentityVerified:false,officialJraVerified:false,
+  formalTenFactorReady:false,bettingReady:false,
+  newProviderRequests:0,changesExistingReceipts:false,
+ };
+}
+compareButton.onclick=async()=>{
+ if(compareButton.disabled)return;
+ const day=dateInput.value.replaceAll('-',''),mySeq=++seq;
+ rows.replaceChildren();
+ const f=fileInput.files&&fileInput.files[0];
+ if(!dateRe.test(day)||historyDay!==day||!(historyRosters instanceof Map)||
+    historyRosters.size===0){
+  status.textContent='先に選択日のJRDB研究資料を取得してください。JRA-VANはまだ読み込みません。';
+  return;
+ }
+ if(!f||!/^jvdata-all-flat-races-20\d{6}\.json$/.test(f.name)||
+    f.name!=='jvdata-all-flat-races-'+day+'.json'||
+    !Number.isInteger(f.size)||f.size<1||f.size>8000000){
+  status.textContent='同じ開催日の8MB以内のJRA-VAN全R履歴JSONを選んでください。外部へは送信しません。';
+  return;
+ }
+ compareButton.disabled=true;
+ status.textContent='端末内でレース・馬番集合を照合中。外部へのファイル送信・追加API照会なし。';
+ try{
+  const plain=await f.text();
+  if(mySeq!==seq||historyDay!==day||dateInput.value.replaceAll('-','')!==day)return;
+  if(plain.length>8000000)throw Error('oversize');
+  const source=JSON.parse(plain);
+  const merged=joinForCoverage(source,day,historyRosters,historyGrades);
+  if(mySeq!==seq||historyDay!==day||dateInput.value.replaceAll('-','')!==day)return;
+  const display=document.createDocumentFragment();
+  const names={
+   same_number_set_unverified_identity:'馬番集合一致（同一馬IDは未確認）',
+   number_sets_differ:'馬番集合に不一致',
+   jv_race_not_observed:'JRA-VAN側のR未収録',
+   jrdb_roster_unavailable:'JRDB側の馬番資料不足'
+  };
+  for(const card of merged.cards){
+   const p=viewNode('p',card.track+card.race+'R｜'+names[card.status]+
+    '｜JRA-VAN過去走が観測できた馬番 '+card.observedPriorCount+
+    '／JRDB調教・近走の仮評価もある馬番 '+card.alsoTwoFactorObservedCount);
+   display.append(p);
+  }
+  rows.replaceChildren(display);
+  status.textContent='選択日 '+day+'｜JRDB '+merged.referenceRaceCount+
+   'R／JRA-VANファイル '+merged.localRaceCount+
+   'R。馬番集合一致 '+merged.numberSetMatchRaceCount+
+   'R、不一致 '+merged.mismatchedRaceCount+
+   'R、JV側Rなし '+merged.missingJvRaceCount+
+   'R、JRDB馬番不足 '+merged.missingJrdbRosterRaceCount+
+   'R、対応しないJV側R '+merged.unpairedJvRaceCount+
+   'R。同じ馬のID照合・正式10項目・JRA最終出走・馬場は未確認。3連単は作成・変更せず、ファイル送信0回。';
+ }catch(_){
+  if(mySeq===seq&&dateInput.value.replaceAll('-','')===day){
+   rows.replaceChildren();
+   status.textContent='JRA-VANファイルを安全に照合できません。日付・馬番・資料の形式を確認してください。JRDB再取得や買い目変更は行いません。';
+  }
+ }finally{if(mySeq===seq)compareButton.disabled=false;}
+};
+const previousDayChange=dateInput.onchange;
+if(typeof previousDayChange==='function'){
+ dateInput.onchange=function(...args){
+  clearState('開催日を変更しました。新しい日のファイルを選んでください。');
+  return previousDayChange.apply(this,args);
+ };
+}
+const previousRun=fetchButton.onclick;
+if(typeof previousRun==='function'){
+ fetchButton.onclick=async function(...args){
+  clearState('JRDBを再取得中。旧JRA-VANファイルの照合結果を破棄しました。');
+  return previousRun.apply(this,args);
+ };
+}
 })();
 """
