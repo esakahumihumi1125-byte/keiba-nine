@@ -62,8 +62,8 @@ function descendantText(el){
  assert(!shown.includes('馬名を勝手に生成'));
  // Same-day current race is historical after the provisional post time:
  // no new formation should appear.
- const expired=setup(async()=>({ok:true,json:async()=>forecast('2026-11-22')}));
- expired.input.value='2026-11-22';
+ const expired=setup(async()=>({ok:true,json:async()=>forecast('2026-11-21')}));
+ expired.input.value='2026-11-21';
  // The runtime current date might be beyond this fixture; past days
  // must be rejected before any API request or new betting display.
  await expired.get('autoPredayInlineLoad').onclick();
