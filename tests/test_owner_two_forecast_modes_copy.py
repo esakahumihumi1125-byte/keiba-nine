@@ -25,7 +25,7 @@ class SeparateOwnerForecastModesTests(unittest.TestCase):
 
     def test_no_extra_fetch_or_betting_side_effects_in_copy_change(self):
         self.assertIn('href="/owner-preday-forecast"', HTML)
-        self.assertIn("予想があるレース", JS)
+        self.assertIn("前日参考予想の件数ではありません", JS)
         self.assertNotIn("前日参考予想24Rが消えた意味ではありません。\n", HTML)
 
 
