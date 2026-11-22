@@ -7231,6 +7231,14 @@ function highlightSelectedWeekend(){
   $(id).hidden=!canMonday;
   $(id).disabled=!canMonday;
  }
+ // Sunday 2026-11-22 needs an obvious, explicit next-day one-tap.
+ // This label is NOT a forecast publication claim and is no provider read.
+ const tomorrow=new Date(jstToday()+'T12:00:00Z');
+ tomorrow.setUTCDate(tomorrow.getUTCDate()+1);
+ const tomorrowIso=tomorrow.toISOString().slice(0,10);
+ $('autoMondayQuick').textContent=(canMonday&&monday===tomorrowIso
+  ?'明日'+monday.slice(5).replace('-','/')+'（月祝）の全R研究予想を取得（1回）'
+  :'月祝の予想を取得・表示（1回）');
  $('autoMondayQuick').dataset.selected=String(
   canMonday&&weekday===1&&selected===monday);
 }
@@ -11030,7 +11038,13 @@ function autoFetchOnRegularRaceDay(){
  const dt=new Date(day+'T12:00:00Z');
  const normalWeekend=Number.isFinite(dt.valueOf())&&
   dt.toISOString().slice(0,10)===day&&[0,6].includes(dt.getUTCDay());
- if(normalWeekend){
+ // The JRA-confirmed 2026-11-23 Monday holiday is a genuine race day.
+ // Reuse the exact existing owner-authenticated, guarded weekend request
+ // on page open. No new provider endpoint, automatic polling or purchase.
+ const confirmedHoliday=CONFIRMED_MONDAY_RACEDAYS.has(day)&&
+  Number.isFinite(dt.valueOf())&&dt.toISOString().slice(0,10)===day&&
+  dt.getUTCDay()===1;
+ if(normalWeekend||confirmedHoliday){
   if(recentWeekendEmptyRead(day.replaceAll('-',''))){
    $('autoStatus').textContent='【前回の番組0Rを確認済み】同じ端末で30分以内に番組0件を取得したため、画面を開き直した際の自動JRDB照会は控えました。開催なしとは断定していません。配信更新後の再確認は「全場・全Rを再分析する」を押してください。';
    $('autoMorningStatus').textContent='この画面では新しい番組・買い目は未取得。前回の番組0Rにより再照会を控えています（予想生成成功ではありません）。';
@@ -11038,7 +11052,8 @@ function autoFetchOnRegularRaceDay(){
    $('autoOperationalNext').textContent='【追加照会0回】配信更新を確認したい場合は「全場・全Rを再分析する」。以前の固定買い目は下で確認できます。';
    return;
   }
-  if(showRecentlyFixedWithoutProvider(day.replaceAll('-',''),'土日当日')){
+  if(showRecentlyFixedWithoutProvider(day.replaceAll('-',''),
+      confirmedHoliday?'JRA開催の月祝当日':'土日当日')){
    return;
   }
   $('autoRun').onclick();
@@ -11059,8 +11074,8 @@ function autoFetchOnRegularRaceDay(){
    '本人操作前のJRDB有料照会0回。0Rの場合は配信状況を確認し、開催なしとは断定しません。';
   return;
  }
- $('autoStatus').textContent='平日はJRDBの自動照会を控えています。土曜日・日曜日は上のボタンで選択。祝日の変則開催は日付を選んで「全場・全Rを再分析する」を押してください。';
- $('autoMorningStatus').textContent='平日・変則開催の自動取得は停止中（有料照会0回）。取得するには手動で再分析してください。';
+ $('autoStatus').textContent='通常の平日はJRDBの自動照会を控えています。土日とJRA公表済みの2026年の月祝開催日は当日の本人画面で1回取得。それ以外の変則開催は日付を選んで「全場・全Rを再分析する」を押してください。';
+ $('autoMorningStatus').textContent='未確認の平日・変則開催は自動取得なし（有料照会0回）。正式10項目予想の完成を意味しません。';
  $('autoHoldBreakdown').textContent='平日の新規資料を取得していないため、見送り内訳は未確認。';
  $('autoOperationalNext').textContent='次の通常開催：土曜日・日曜日を選ぶ。平日の特別開催はJRA公式で確認後に手動取得。';
 }
@@ -11069,8 +11084,9 @@ if(typeof document.addEventListener==='function')
 if(typeof window!=='undefined'&&typeof window.addEventListener==='function')
  window.addEventListener('pageshow',event=>{if(event.persisted)resumeOwnerDay();});
 resetAdvanceProgramme(); // Safe default official calendar link on first load.
-// Opening an authenticated owner page auto-reads only on regular weekends.
-// Special weekday races are explicit manual reads. No polling or purchase.
+// Opening an authenticated owner page auto-reads on regular weekends AND
+// exactly the explicitly confirmed 2026 Monday JRA race days. Other
+// weekdays remain manual. No background polling or purchase.
 if(document.visibilityState!=='hidden')autoFetchOnRegularRaceDay();
 })();"""
 
