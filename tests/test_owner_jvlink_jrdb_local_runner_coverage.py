@@ -20,7 +20,10 @@ class LocalJvlinkJrdbCoverageTests(unittest.TestCase):
         self.assertIn("ファイル送信0回", JS)
         self.assertIn("officialHorseIdentityVerified:false", JS)
         self.assertIn("formalTenFactorReady:false", JS)
-        self.assertNotIn("URL.createObjectURL", JS)
+        # The separate 24R read-only export may create a local Blob URL;
+        # the JV-Link source-file importer itself must never do so.
+        local_join = JS.rsplit("const dateInput=document.getElementById('autoDay');", 1)[-1]
+        self.assertNotIn("URL.createObjectURL", local_join)
 
     @unittest.skipUnless(shutil.which("node"), "Node unavailable")
     def test_same_day_merge_and_stale_file_guards_without_network(self):

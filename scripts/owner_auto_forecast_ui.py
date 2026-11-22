@@ -97,6 +97,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <details id="autoCombinedResearchPanel" class="owner-reference-quick" open>
 <summary>全Rの暫定3連単・参考候補を発走順に見る（研究用・未購入）</summary>
 <p id="autoCombinedResearchStatus" class="auto-race-quick" role="status">まだ未取得。研究用下書きと署名なし参考例は、混同せず一画面にまとめます。</p>
+<button id="autoCombinedResearchExport" type="button" class="secondary-cta" disabled>この日の全R研究一覧をiPhoneに保存（追加照会なし）</button>
+<p id="autoCombinedResearchExportStatus" class="muted" role="status">未保存。閲覧用のテキストファイルであり、発走前署名やサーバー永続保存の代わりにはなりません。</p>
 <p class="muted">「下書き」はJRDB2項目の署名付き研究案、「参考」は見送りRの署名なし研究例です。どちらも正式10項目・JRA公式の最終出走/取消/馬場/時刻は未照合で、実購入ではありません。参考候補は既存の買い目・固定記録・回収率に追加しません。</p>
 <div id="autoCombinedResearchRows" aria-label="全R研究用1着2着3着候補一覧"></div>
 <details id="autoCombinedNoPickPanel"><summary id="autoCombinedNoPickTitle">買い目・参考候補を表示しないR：未取得</summary>
@@ -2410,6 +2412,9 @@ function clearDraftShortcut(){
  $('autoCombinedResearchRows').replaceChildren();
  $('autoCombinedNoPickRows').replaceChildren();
  $('autoCombinedResearchStatus').textContent='この開催日の研究用候補は未取得です。';
+ $('autoCombinedResearchExport').disabled=true;
+ $('autoCombinedResearchExport').onclick=null;
+ $('autoCombinedResearchExportStatus').textContent='この開催日の保存用研究一覧は未取得です。';
  $('autoCombinedNoPickTitle').textContent='買い目・参考候補を表示しないR：未取得';
  $('autoCombinedNoPickPanel').open=false;
  $('autoCombinedResearchPanel').open=false;
@@ -3343,6 +3348,60 @@ function combinedResearchIndex(data,day,draftNodes,referenceRows){
   throw Error('combined_study_accounting');
  return {picks,excluded,signed,unsigned,dayCount:data.raceCount};
 }
+function combinedResearchDownloadText(summary,day,createdAt){
+ // A portable list of already-visible *research* numbers, not receipts.
+ // Mobile user gesture is required to download; neither the device clock
+ // nor this text file independently proves capture before scheduled off.
+ if(!summary||!Array.isArray(summary.picks)||
+    !Array.isArray(summary.excluded)||
+    !Number.isInteger(summary.dayCount)||summary.dayCount<1||
+    summary.dayCount>36||
+    summary.picks.length+summary.excluded.length!==summary.dayCount||
+    summary.signed+summary.unsigned!==summary.picks.length||
+    typeof day!=='string'||!/^20\d{6}$/.test(day)||
+    typeof createdAt!=='string'||
+    !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3})?Z$/.test(createdAt))
+  throw Error('unsafe_research_download');
+ const clean=text=>String(text).replace(/[\u0000-\u001f\u007f]+/g,' ').slice(0,240);
+ const iso=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+ const lines=[
+  'ARC RACE｜全R研究参考・閲覧専用（未購入）',
+  '開催日：'+iso,
+  'ファイル作成時刻（端末申告・独立検証なし）：'+createdAt,
+  '対象：'+summary.dayCount+'R　JRDB2項目の研究下書き：'+
+   summary.signed+'R　署名なし参考例：'+summary.unsigned+
+   'R　新しい候補表示なし：'+summary.excluded.length+'R',
+  '注意：このファイル自体は発走前保存の署名を持たず、正式10項目採点・JRA公式照合・購入・仮想収支の証明ではありません。',
+  '固定済み研究用買い目を復元するためのバックアップではありません。別途、本人用バックアップ画面から署名付き端末記録を保存してください。',
+  '同じRの研究下書きと参考候補は重複計上しません。見送り20Rの参考例は未購入です。',
+  '',
+ ];
+ const all=[
+  ...summary.picks.map(r=>({...r,unshown:false})),
+  ...summary.excluded.map(r=>({...r,unshown:true}))
+ ].sort((a,b)=>a.postTime.localeCompare(b.postTime)||
+  a.track.localeCompare(b.track,'ja')||a.race-b.race);
+ for(const row of all){
+  if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(row.postTime)||
+     !Number.isInteger(row.race)||row.race<1||row.race>12||
+     typeof row.track!=='string'||row.track.length>4)
+   throw Error('unsafe_download_race');
+  lines.push(clean(row.postTime)+'予定（JRDB）｜'+clean(row.track)+
+   ' '+row.race+'R｜'+(row.unshown?'新しい候補なし':clean(row.title)));
+  if(row.unshown){
+   lines.push('  見送り・時刻経過・固定競合など。研究用候補を作り直していません。');
+  }else{
+   if(!Array.isArray(row.lines)||row.lines.length<1||
+      row.lines.length>3)throw Error('unsafe_download_lines');
+   for(const line of row.lines){
+    if(typeof line!=='string'||line.length<1||line.length>239)
+     throw Error('unsafe_download_line');
+    lines.push('  '+clean(line));
+   }
+  }
+ }
+ return lines.join('\n')+'\n';
+}
 function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
  const result=combinedResearchIndex(data,day,draftNodes,referenceRows);
  const host=$('autoCombinedResearchRows'),missing=$('autoCombinedNoPickRows');
@@ -3369,6 +3428,46 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
   result.excluded.length+'R（詳細）';
  $('autoCombinedResearchPanel').open=result.picks.length>0;
  $('autoCombinedNoPickPanel').open=false;
+ const exportButton=$('autoCombinedResearchExport');
+ const exportStatus=$('autoCombinedResearchExportStatus');
+ exportButton.disabled=result.dayCount===0;
+ exportStatus.textContent='この日の研究一覧を保存できます。別途、署名付き固定記録は本人用の16種類バックアップで保護してください。';
+ exportButton.onclick=()=>{
+  // No HTTP request, source-data download, localStorage mutation, receipt
+  // issuing, result inference or wager. Snapshot the currently time-safe
+  // browser-validated display ONLY in an explicit owner tap.
+  if(exportButton.disabled||latestDisplayedReport!==data||
+     latestDisplayedDay!==day||$('autoDay').value.replaceAll('-','')!==day){
+   exportStatus.textContent='取得日が変わりました。古い候補を保存せず、開催日と予想一覧を確認してください。';
+   return;
+  }
+  let url=null;
+  try{
+   const fresh=combinedResearchIndex(data,day,draftNodes,referenceRows);
+   const report=combinedResearchDownloadText(fresh,day,new Date().toISOString());
+   if(report.length>35000)throw Error('download_oversize');
+   const blob=new Blob([report],{type:'text/plain;charset=utf-8'});
+   url=URL.createObjectURL(blob);
+   const link=document.createElement('a');
+   link.href=url;
+   link.download='arc-race-'+day+'-research-view.txt';
+   link.hidden=true;
+   document.body.append(link);
+   link.click();
+   link.remove();
+   exportStatus.textContent='全'+fresh.dayCount+'Rの研究一覧のファイル保存を開始しました。iPhoneの「ファイル」で実際に保存できたか確認してください。参考案は署名なし。固定買い目のバックアップは別です。';
+  }catch(_){
+   exportStatus.textContent='研究一覧のファイルを安全に作成できません。予想・端末固定記録・有料JRDB照会には影響ありません。';
+  }finally{
+   if(url!==null){
+    // Safari downloads must first be handed to WebKit; revoking on the
+    // very same stack can cancel a valid iPhone file download.
+    if(typeof setTimeout==='function')
+     setTimeout(()=>URL.revokeObjectURL(url),5000);
+    else URL.revokeObjectURL(url);
+   }
+  }
+ };
  return result;
 }
 function render(input,day){
