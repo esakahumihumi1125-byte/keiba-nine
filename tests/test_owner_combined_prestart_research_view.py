@@ -18,7 +18,6 @@ class OwnerCombinedPrestartStudyTests(unittest.TestCase):
         self.assertIn("研究用下書きと署名なし参考例", HTML)
         self.assertIn("正式10項目", HTML)
         self.assertIn("renderCombinedResearchRows(data,day,displayableDrafts,quickRows)", JS)
-        self.assertIn("additional", JS) if False else None
 
     @unittest.skipUnless(shutil.which("node"), "Node unavailable")
     def test_24r_combined_never_promotes_bounded_unsigned_references(self):
