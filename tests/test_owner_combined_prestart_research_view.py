@@ -90,7 +90,14 @@ const rendered=sandbox.renderCombined(data,day,drafts,references);
 assert.equal(rendered.picks.length,17);
 assert.match(elements.get('autoCombinedResearchStatus').textContent,
  /全24R｜発走前研究用下書き 4R｜署名なし追加参考 13R｜新しい買い目・参考候補なし 7R/);
-assert.equal(elements.get('autoCombinedResearchRows').children.length,17);
+const [venues,cards]=elements.get('autoCombinedResearchRows').children;
+assert.deepEqual(venues.children.map(b=>b.textContent),['東京','福島']);
+assert.equal(cards.children.length,12);
+assert.equal(cards.children[0].children[0].textContent,'東京 1R');
+venues.children[1].onclick();
+assert.equal(cards.children.length,5);
+assert.equal(cards.children[0].children[0].textContent,'福島 1R');
+assert.equal(venues.children[1].ariaPressed,'true');
 assert.equal(elements.get('autoCombinedNoPickRows').children.length,7);
 assert.equal(elements.get('autoCombinedResearchPanel').open,true);
 assert.equal(elements.get('autoCombinedNoPickPanel').open,false);
