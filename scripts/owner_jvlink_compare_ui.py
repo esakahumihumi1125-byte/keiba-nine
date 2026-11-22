@@ -62,6 +62,15 @@ const $=id=>document.getElementById(id);
 const TRACKS=new Set(['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉']);
 const VERSION='owner-jvdata-local-day-history-bridge-1';
 let forecast=null;
+function sameRaceDay(compactDay,isoDay){
+ // PC-local JRA-VAN exports YYYYMMDD; owner editorial feed uses ISO.
+ // Never infer a day or silently accept an invalid calendar date.
+ return typeof compactDay==='string'&&/^20\d{6}$/.test(compactDay)&&
+  typeof isoDay==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(isoDay)&&
+  compactDay===isoDay.replace(/-/g,'')&&
+  !Number.isNaN(Date.parse(isoDay+'T12:00:00Z'))&&
+  new Date(isoDay+'T12:00:00Z').toISOString().slice(0,10)===isoDay;
+}
 function compareLocalJvWithJrdb(fileData,reference){
  if(!reference||reference.schema!=='keiba-nine-private-preday-review-v1'||
     !/^\d{4}-\d{2}-\d{2}$/.test(reference.date)||
@@ -72,7 +81,7 @@ function compareLocalJvWithJrdb(fileData,reference){
     reference.purchased!==false)
   throw Error('本人用のJRDB参考予想が確認できません。');
  if(!fileData||typeof fileData!=='object'||Array.isArray(fileData)||
-    fileData.version!==VERSION||fileData.date!==reference.date||
+    fileData.version!==VERSION||!sameRaceDay(fileData.date,reference.date)||
     fileData.raceCount!==1||fileData.privateOwnerOnly!==true||
     fileData.researchOnly!==true||
     fileData.historySource!=='private_jvlink_rcvn_partial_observations'||
@@ -128,7 +137,7 @@ function compareLocalJvWithJrdb(fileData,reference){
  const candidateFieldsConsistent=Boolean(distanceMatch&&surfaceMatch&&
   postTimeMatch&&runnerCountMatch&&pickedNumbersPresent);
  return {
-  date:fileData.date,track:card.track,race:card.race,
+  date:reference.date,track:card.track,race:card.race,
   candidateRunners:horseNumbers.size,
   editorialRunners:referenceCard.field,
   observedHorseHistories:observed,
@@ -158,7 +167,7 @@ function compareWeeklyJvCandidate(fileData,reference){
   throw Error('JRDB前日参考予想の形式が不正です。');
  if(!fileData||fileData.version!=='owner-jvlink-weekly-local-candidates-1'||
     fileData.source!=='private_jvlink_weekly_ra_se_candidate'||
-    fileData.date!==reference.date||
+    !sameRaceDay(fileData.date,reference.date)||
     fileData.privateOwnerOnly!==true||fileData.researchOnly!==true||
     fileData.providerDataRawIncluded!==false||
     fileData.collectionTimeIndependentlyVerified!==false||
@@ -279,7 +288,7 @@ function normalizeJrdbProbeResult(code,body,day){
     '件。ただしJRA-VAN全頭照合・正式10項目予想・JRA公式取消確認は未完了。'};
 }
 if(typeof module!=='undefined'&&module.exports){
- module.exports={compareLocalJvWithJrdb,compareWeeklyJvCandidate,normalizeJrdbProbeResult};return;
+ module.exports={compareLocalJvWithJrdb,compareWeeklyJvCandidate,normalizeJrdbProbeResult,sameRaceDay};return;
 }
 async function load(){
  try{
