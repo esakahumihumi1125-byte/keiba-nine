@@ -32,7 +32,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section class="owner-preday-recovery" aria-label="別系統の全レース前日参考予想">
 <p><strong>全レースの前日参考予想はこちら</strong>：サーバーに登録済みの開催日・全Rについて、1着・2着・3着候補を別画面で表示します。下の「JRDB調教・近走2項目」の研究用下書き件数とは別です。4Rなどの表示は前日参考予想24Rが消えた意味ではありません。</p>
 <a class="owner-forecast-cta" id="autoPredayRecovery" href="/owner-preday-forecast">配信済みの前日参考予想をすぐ見る（別画面・追加の有料取得なし）</a>
-<p class="muted">参考予想もJRA公式の最終出走・取消・馬場・発走時刻は未照合で、正式10項目採点・購入推奨ではありません。JRDB APIが403で停止した場合も、この別経路を利用できます。</p>
+<p class="muted">参考予想もJRA公式未照合（最終出走・取消・馬場・発走時刻）で、正式10項目採点・購入推奨ではありません。JRDB APIが403で停止した場合も、この別経路を利用できます。</p>
 </section>
 <section class="daily-start" id="autoDailyStart">
 <h2>1. 予想を見る</h2>
