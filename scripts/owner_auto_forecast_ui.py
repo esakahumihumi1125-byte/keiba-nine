@@ -3738,11 +3738,11 @@ function render(input,day){
  // never full-ten grades, JRA-verified entries or purchases.
  // Reference-only R are a SUBSET of held races, never extra betting
  // forecasts. Show the same deduplicated, browser-verified count at top.
- const easyCount='全'+data.raceCount+'R｜JRDB2項目の研究用下書き '+
-  safeDraftCount+'R｜JRDB2項目の見送り '+data.holdCount+'R'+
+ const easyCount='全'+data.raceCount+'R｜研究用下書き '+
+  safeDraftCount+'R｜見送り '+data.holdCount+'R'+
   (quickRows.length?'（うち発走前参考 '+quickRows.length+'R・未購入）':'');
  const hiddenCount=Math.max(0,data.draftCount-safeDraftCount);
- $('autoEasyPulse').textContent=easyCount+
+ $('autoEasyPulse').textContent='JRDB2項目方式｜'+easyCount+
   (hiddenCount?'｜新規非表示 '+hiddenCount+'R':'')+
   '（正式10項目・JRA公式照合は未完成）';
  $('autoRaceQuickSummary').textContent=easyCount+
