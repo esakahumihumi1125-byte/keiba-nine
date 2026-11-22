@@ -94,6 +94,15 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>2. 予想を見る・競馬場を選ぶ</h2>
 <p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
 <p id="autoRaceQuickSummary" class="auto-race-quick" role="status">JRDB2項目の研究用下書きは未取得です。前日参考予想は別画面にあります。</p>
+<details id="autoCombinedResearchPanel" class="owner-reference-quick" open>
+<summary>全Rの暫定3連単・参考候補を発走順に見る（研究用・未購入）</summary>
+<p id="autoCombinedResearchStatus" class="auto-race-quick" role="status">まだ未取得。研究用下書きと署名なし参考例は、混同せず一画面にまとめます。</p>
+<p class="muted">「下書き」はJRDB2項目の署名付き研究案、「参考」は見送りRの署名なし研究例です。どちらも正式10項目・JRA公式の最終出走/取消/馬場/時刻は未照合で、実購入ではありません。参考候補は既存の買い目・固定記録・回収率に追加しません。</p>
+<div id="autoCombinedResearchRows" aria-label="全R研究用1着2着3着候補一覧"></div>
+<details id="autoCombinedNoPickPanel"><summary id="autoCombinedNoPickTitle">買い目・参考候補を表示しないR：未取得</summary>
+<div id="autoCombinedNoPickRows" aria-label="見送りや発走済み等のR"></div>
+</details>
+</details>
 <a class="owner-forecast-cta" href="/owner-preday-forecast">全レースの前日参考予想を見る（追加の有料取得なし）</a>
 <details id="autoMultiQuickPanel" class="owner-reference-quick">
 <summary id="autoMultiQuickTitle">調教・距離・展開など複数項目の参考：未取得</summary>
@@ -2398,6 +2407,12 @@ function clearDraftShortcut(){
  shortcut.onclick=null;
  $('autoUncertainRecentRaces').replaceChildren();
  $('autoHeldTie48Races').replaceChildren();
+ $('autoCombinedResearchRows').replaceChildren();
+ $('autoCombinedNoPickRows').replaceChildren();
+ $('autoCombinedResearchStatus').textContent='この開催日の研究用候補は未取得です。';
+ $('autoCombinedNoPickTitle').textContent='買い目・参考候補を表示しないR：未取得';
+ $('autoCombinedNoPickPanel').open=false;
+ $('autoCombinedResearchPanel').open=false;
  $('autoComparableFactorRaces').replaceChildren();
  $('autoComparableFactorStatus').textContent='追加研究は未取得です。';
  $('autoTkyTrainingRows').replaceChildren();
@@ -3267,6 +3282,91 @@ function renderMultiFactorQuick(data,day){
   '調教・距離・展開など複数項目の参考 0R（未検証・未購入）';
  panel.open=rows.length>0&&rows.length<=8;
 }
+
+function combinedResearchIndex(data,day,draftNodes,referenceRows){
+ // The caller ran the strict full-day validator and each optional
+ // reference renderer (including grade bounds and race roster checks).
+ // Do NOT read optional raw server previews a second time.
+ if(!data||!Array.isArray(data.races)||data.raceCount!==data.races.length||
+    !Array.isArray(draftNodes)||!Array.isArray(referenceRows)||
+    typeof day!=='string'||!/^20\d{6}$/.test(day))
+  throw Error('combined_study_bad_input');
+ const dayRaces=new Map(data.races.map(r=>[r.track+'|'+r.race,r]));
+ if(dayRaces.size!==data.raceCount)throw Error('combined_study_duplicate_race');
+ const seen=new Set(),picks=[];
+ for(const item of draftNodes){
+  const race=dayRaces.get(item?.key);
+  if(!race||item.draft!==true||race.status!=='provisional_draft'||
+     draftExpiredOnDevice(day,race.postTime)||seen.has(item.key)||
+     !Number.isInteger(race.points)||race.points<1||race.points>48||
+     !Array.isArray(race.first)||!Array.isArray(race.second)||
+     !Array.isArray(race.third)||race.first.length<1||
+     race.second.length<2||race.third.length<3)
+   throw Error('combined_study_draft');
+  seen.add(item.key);
+  picks.push({key:item.key,track:race.track,race:race.race,
+   postTime:race.postTime,type:'prestart_draft',
+   title:'JRDB2項目の研究用下書き '+race.points+'点（未購入）',
+   lines:['1着 '+race.first.join('・'),'2着 '+race.second.join('・'),
+    '3着 '+race.third.join('・')]});
+ }
+ for(const item of referenceRows){
+  const race=item?.race;
+  const key=race?.track+'|'+race?.race;
+  if(!race||dayRaces.get(key)!==race||race.status!=='hold'||
+     draftExpiredOnDevice(day,race.postTime)||seen.has(key)||
+     !item.panel||typeof item.panel.label!=='string'||
+     !['共通評価','近走不足','同点見送り','調教矢印'].includes(item.panel.label)||
+     !Array.isArray(item.picks)||item.picks.length<1||
+     item.picks.length>3||item.picks.some(line=>
+      typeof line!=='string'||line.length<1||line.length>239))
+   throw Error('combined_study_reference');
+  seen.add(key);
+  picks.push({key,track:race.track,race:race.race,
+   postTime:race.postTime,type:'unsigned_reference',
+   title:item.panel.label+'による研究参考（署名なし・未購入）',
+   lines:[...item.picks]});
+ }
+ picks.sort((a,b)=>a.postTime.localeCompare(b.postTime)||
+  a.track.localeCompare(b.track,'ja')||a.race-b.race);
+ const excluded=data.races.filter(r=>!seen.has(r.track+'|'+r.race))
+  .map(r=>({track:r.track,race:r.race,postTime:r.postTime,
+   status:r.status}));
+ const signed=picks.filter(r=>r.type==='prestart_draft').length;
+ const unsigned=picks.length-signed;
+ if(picks.length+excluded.length!==data.raceCount||
+    unsigned>data.holdCount||signed>data.draftCount)
+  throw Error('combined_study_accounting');
+ return {picks,excluded,signed,unsigned,dayCount:data.raceCount};
+}
+function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
+ const result=combinedResearchIndex(data,day,draftNodes,referenceRows);
+ const host=$('autoCombinedResearchRows'),missing=$('autoCombinedNoPickRows');
+ host.replaceChildren();missing.replaceChildren();
+ for(const r of result.picks){
+  const card=dom('div',undefined,'owner-reference-quick-card');
+  card.append(dom('p',r.postTime+'予定（JRDB）｜'+r.track+' '+r.race+
+   'R｜'+r.title,'muted'));
+  for(const line of r.lines)card.append(dom('p',line,'picks'));
+  host.append(card);
+ }
+ for(const r of result.excluded){
+  const reason=r.status==='hold'?'見送り（参考候補なし・資料不足など）':
+   '新しい買い目は非表示（時刻経過・固定競合など）';
+  missing.append(dom('p',r.track+' '+r.race+'R｜'+
+   r.postTime+'予定（JRDB）｜'+reason,'muted'));
+ }
+ $('autoCombinedResearchStatus').textContent='全'+result.dayCount+
+  'R｜発走前研究用下書き '+result.signed+
+  'R｜署名なし追加参考 '+result.unsigned+
+  'R｜新しい買い目・参考候補なし '+result.excluded.length+
+  'R。参考例は見送りRに含まれ、正式10項目予想・購入・発走前固定には含まれません。追加JRDB照会0回。';
+ $('autoCombinedNoPickTitle').textContent='新しい買い目・参考候補なし '+
+  result.excluded.length+'R（詳細）';
+ $('autoCombinedResearchPanel').open=result.picks.length>0;
+ $('autoCombinedNoPickPanel').open=false;
+ return result;
+}
 function render(input,day){
  const data=validate(input,day),p=data.tenFactorPreview,ctx=data.raceContext;
  const workoutOrder=validateWorkoutIndexOrder(data,day);
@@ -3745,6 +3845,10 @@ function render(input,day){
   show(target.track,target.key); // Local clock rechecked by show(), no provider call.
  };
  const safeDraftCount=displayableDrafts.length;
+ // Reuse ONLY the already validated, time-safe, receipt-compatible primary
+ // formations and independently verified-on-screen, UNSIGNED reference
+ // previews. Never convert reference-only held R to paid/signed tickets.
+ renderCombinedResearchRows(data,day,displayableDrafts,quickRows);
  // Display validated counts only; these are provisional research drafts,
  // never full-ten grades, JRA-verified entries or purchases.
  // Reference-only R are a SUBSET of held races, never extra betting
