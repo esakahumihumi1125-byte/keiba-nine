@@ -76,7 +76,8 @@ class SimpleForecastScreenTest(unittest.TestCase):
                         HTML.index('id="autoUncertainRecentPanel"'))
         self.assertLess(HTML.index('id="autoRaces"'),
                         HTML.index('id="autoHoldPanel"'))
-        self.assertIn("safeDraftCount+'R｜見送り '+data.holdCount+'R'", JS)
+        self.assertIn("safeDraftCount+'R｜JRDB2項目の見送り '+data.holdCount+'R'", JS)
+        self.assertIn("JRDB2項目の研究用下書き", JS)
         self.assertIn("highlightSelectedWeekend()", JS)
         # No new provider endpoint, polling, purchase control or access
         # to paid API keys is introduced by simplified navigation.
