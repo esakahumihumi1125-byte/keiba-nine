@@ -62,9 +62,9 @@ class OwnerPrestartStorageStatusTests(unittest.TestCase):
             self.assertEqual(payload["serverSavedRaceCount"], 1)
             self.assertEqual(payload["verifiedServerSignedRaceCount"], 1)
             self.assertEqual(payload["providerRequests"], 0)
-            read.assert_called_once_with(
-                self.app.__closure__ and read.call_args.args[0],
-                "synthetic-archive-secret", "2026-11-23")
+            read.assert_called_once()
+            self.assertEqual(read.call_args.args[1:],
+                             ("synthetic-archive-secret", "2026-11-23"))
             verify.assert_called_once_with(
                 signed, "synthetic-archive-secret", "2026-11-23")
             raw = response["body"].decode()
