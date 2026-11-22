@@ -17,8 +17,8 @@ class SeparateOwnerForecastModesTests(unittest.TestCase):
         self.assertIn("正式10項目採点・購入推奨ではありません", HTML)
 
     def test_two_factor_count_never_claims_to_be_the_24r_preday_count(self):
-        self.assertIn("JRDB2項目の研究用下書き", JS)
-        self.assertIn("JRDB2項目の見送り", JS)
+        self.assertIn("JRDB2項目方式｜", JS)
+        self.assertIn("研究用下書き", JS)
         self.assertIn("前日参考予想の件数ではありません", JS)
         self.assertIn("直下のリンクから見られます", JS)
         self.assertNotIn("24Rすべて正式予想", HTML + JS)
