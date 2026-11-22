@@ -78,7 +78,7 @@ function highlight(today){
 const sun=highlight('2026-11-22');
 assert.equal(sun('autoMondayQuick').hidden,false);
 assert.equal(sun('autoMondayQuick').disabled,false);
-assert.match(sun('autoMondayQuick').textContent,/明日11\/23\(月祝\)/);
+assert(sun('autoMondayQuick').textContent.includes('明日11/23（月祝）'));
 const ordinary=highlight('2026-11-29');
 assert.equal(ordinary('autoMondayQuick').hidden,true);
 assert.equal(ordinary('autoMondayQuick').disabled,true);
