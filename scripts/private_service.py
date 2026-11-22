@@ -174,6 +174,7 @@ from owner_100yen_snapshot import decode_frozen_snapshots, FrozenSnapshotError
 from keiba_100yen_review import review_100yen, ReviewInputError
 from owner_prestart_receipt import (issue_preview_receipts, verify_preview_receipts,
                                     ReceiptError)
+from owner_archive_coordinate_summary import summarize_saved_races
 from owner_receipt_archive import (archive_enabled, archive_signing_secret,
                                    save_first_and_read,
                                    read_day as read_archived_day, ArchiveUnavailable)
@@ -1787,6 +1788,8 @@ def create_app(settings=None):
                     'persistentStorageReady': False,
                     'serverSavedRaceCount': 0,
                     'verifiedServerSignedRaceCount': 0,
+                    'storedRaceCoordinates': [], 'storedVenueCounts': [],
+                    'completeJraDayVerified': False,
                     'providerRequests': 0, 'officialJraVerified': False,
                     'finalResultsConnected': False,
                     'actualPurchase': False,
@@ -1797,6 +1800,9 @@ def create_app(settings=None):
                 verified = verify_preview_receipts(saved, signing_secret, selected)
                 if len(saved) != len(verified) or len(saved) > 36:
                     raise ReceiptError('Archive confirmation mismatch')
+                # Publicly safe metadata only. No source rows, signatures,
+                # horse IDs, original tickets or payout numbers in JSON.
+                saved_coordinates = summarize_saved_races(verified, selected)
             except (ArchiveUnavailable, ReceiptError, ReviewInputError):
                 return response('503 Service Unavailable', {
                     'error': 'サーバー固定記録の安全な確認ができません。保存完了とは扱えません。'
@@ -1807,6 +1813,9 @@ def create_app(settings=None):
                 'persistentStorageReady': True,
                 'serverSavedRaceCount': len(saved),
                 'verifiedServerSignedRaceCount': len(verified),
+                'storedRaceCoordinates': saved_coordinates['storedRaceCoordinates'],
+                'storedVenueCounts': saved_coordinates['storedVenueCounts'],
+                'completeJraDayVerified': False,
                 'providerRequests': 0, 'officialJraVerified': False,
                 'finalResultsConnected': False, 'actualPurchase': False,
             })
