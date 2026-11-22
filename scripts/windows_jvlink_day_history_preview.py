@@ -259,9 +259,17 @@ def select_one_complete_prestart_race(current, day, *, as_of, flat_only=False):
 
 
 def read_local_day_history(day, *, jv_factory=None, captured_at=None,
-                           flat_only=False, diagnostics=None):
-    """One RACE read and one RCVN read, no unattended resubmission."""
+                           flat_only=False, all_flat_races=False,
+                           diagnostics=None):
+    """One RACE read and one RCVN read, no unattended resubmission.
+
+    Opt-in all_flat_races exports ALL complete upcoming flat card candidates
+    from the same source reads. It never treats absent SE7 as a debut or
+    confirms an official JRA starter roster. The default remains one race.
+    """
     validate_day(day)
+    if type(all_flat_races) is not bool or (all_flat_races and flat_only is not True):
+        raise JvLocalCheckError("DAY_HISTORY_BATCH_MODE_INVALID")
     if diagnostics is not None and (type(diagnostics) is not dict or diagnostics):
         raise JvLocalCheckError("DAY_HISTORY_DIAGNOSTIC_INPUT_INVALID")
     if struct.calcsize("P") != 8:
@@ -302,9 +310,26 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None,
         # Recheck the actual clock after the provider read. Never create
         # retroactive candidate picks for races which have already started.
         completed_at = captured_at or datetime.now(JST)
-        for off, _track, _race, card in selected:
-            if completed_at.astimezone(JST) >= off:
-                continue
+        upcoming = [(off, card) for off, _track, _race, card in selected
+                    if completed_at.astimezone(JST) < off]
+        if all_flat_races:
+            # A single complete RACE+RCVN read can now produce 1-36 cards.
+            # Never reconstitute a race which has started during the scan.
+            if not upcoming:
+                raise JvLocalCheckError("DAY_HISTORY_ALL_RACES_STARTED")
+            matched = sum(bool({raw[30:40] for raw in card
+                                if raw[:3] == b"SE2"} & matched_ids)
+                          for _off, card in upcoming)
+            if not matched:
+                raise JvLocalCheckError("DAY_HISTORY_NO_MATCHED_RCVN_HORSE_ROWS")
+            if diagnostics is not None:
+                diagnostics["prestartFlatRaceCount"] = len(upcoming)
+                diagnostics["racesWithObservedPriorRows"] = matched
+            return build_local_day_history(
+                [raw for _off, card in upcoming for raw in card],
+                history, day, captured_at=completed_at,
+            )
+        for _off, card in upcoming:
             card_ids = {raw[30:40] for raw in card if raw[:3] == b"SE2"}
             if card_ids & matched_ids:
                 return build_local_day_history(
@@ -448,6 +473,86 @@ def save_private_local(report):
     return targets[1]
 
 
+
+def save_private_day_local(report):
+    """Create-only multi-race JSON + HTML, never alter saved one-race files.
+
+    The multiple racecards are already redacted by build_local_day_history.
+    This never writes provider records, horse registration IDs or a public
+    upload; 1-36 race coordinates are checked before a filesystem write.
+    """
+    if (not isinstance(report, dict)
+            or report.get("version") != "owner-jvdata-local-day-history-bridge-1"
+            or report.get("privateOwnerOnly") is not True
+            or report.get("researchOnly") is not True
+            or report.get("formalTenFactorReady") is not False
+            or report.get("productionPredictionReady") is not False
+            or report.get("officialStarterListVerified") is not False
+            or report.get("bettingReady") is not False
+            or report.get("autoPurchase") is not False
+            or type(report.get("date")) is not str
+            or not _valid_date(report["date"])
+            or type(report.get("raceCount")) is not int
+            or not 1 <= report["raceCount"] <= 36
+            or not isinstance(report.get("races"), list)
+            or len(report["races"]) != report["raceCount"]):
+        raise JvLocalCheckError("DAY_HISTORY_LOCAL_REPORT_INVALID")
+    seen = set()
+    for row in report["races"]:
+        if (not isinstance(row, dict)
+                or row.get("track") not in TRACKS.values()
+                or type(row.get("race")) is not int
+                or not 1 <= row["race"] <= 12
+                or (row["track"], row["race"]) in seen
+                or row.get("bettingReady") is not False
+                or row.get("graded") is not False):
+            raise JvLocalCheckError("DAY_HISTORY_LOCAL_REPORT_INVALID")
+        seen.add((row["track"], row["race"]))
+    folder_text = os.environ.get("LOCALAPPDATA")
+    if not folder_text or not Path(folder_text).is_absolute():
+        raise JvLocalCheckError("DAY_HISTORY_LOCALAPPDATA_UNAVAILABLE")
+    folder = Path(folder_text) / "ARC-RACE-private"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        bodies = (
+            json.dumps(report, ensure_ascii=False, indent=2),
+            local_html(report),
+        )
+    except (OSError, CoverageError, TypeError, ValueError):
+        raise JvLocalCheckError("DAY_HISTORY_LOCAL_REPORT_INVALID") from None
+    base = "jvdata-all-flat-races-" + report["date"]
+    targets = [folder / (base + ext) for ext in (".json", ".html")]
+    if any(target.exists() or target.is_symlink() for target in targets):
+        raise JvLocalCheckError("DAY_HISTORY_ALREADY_SAVED")
+    staged, linked = [], []
+    try:
+        for body in bodies:
+            with tempfile.NamedTemporaryFile(
+                "w", encoding="utf-8", dir=folder, prefix=".arc-race-all-",
+                suffix=".tmp", delete=False,
+            ) as output:
+                temp_path = Path(output.name)
+                staged.append(temp_path)
+                output.write(body)
+                output.flush()
+                os.fsync(output.fileno())
+        for source, target in zip(staged, targets):
+            os.link(source, target)
+            linked.append(target)
+    except FileExistsError:
+        for target in linked:
+            target.unlink(missing_ok=True)
+        raise JvLocalCheckError("DAY_HISTORY_ALREADY_SAVED") from None
+    except OSError:
+        for target in linked:
+            target.unlink(missing_ok=True)
+        raise JvLocalCheckError("DAY_HISTORY_LOCAL_SAVE_FAILED") from None
+    finally:
+        for stage in staged:
+            stage.unlink(missing_ok=True)
+    return targets[1]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="ARC RACE private this-week JRA-VAN RACE+RCVN preview"
@@ -455,15 +560,23 @@ def main(argv=None):
     parser.add_argument("--date", default=None, help="YYYYMMDD; today on Sat/Sun, next Saturday otherwise")
     parser.add_argument("--flat-only", action="store_true",
                         help="Skip jump/unknown course before history read")
+    parser.add_argument("--all-flat-races", action="store_true",
+                        help="One RACE+RCVN scan for all complete prestart flat racecards")
     args = parser.parse_args(argv)
     day = args.date or default_race_day()
     diagnostics = {}
     try:
         report = read_local_day_history(
-            day, flat_only=args.flat_only, diagnostics=diagnostics)
-        target = save_private_local(report)
+            day, flat_only=args.flat_only or args.all_flat_races,
+            all_flat_races=args.all_flat_races, diagnostics=diagnostics)
+        target = (save_private_day_local(report) if args.all_flat_races
+                  else save_private_local(report))
         print("ARC_RACE_DAY_HISTORY=SUCCESS_RESEARCH_ONLY")
         print("RACE_COUNT=" + str(report["raceCount"]))
+        if args.all_flat_races:
+            print("ALL_FLAT_PRESTART_RESEARCH=YES")
+            print("RACES_WITH_PRIOR_OBSERVATIONS=" + str(
+                diagnostics.get("racesWithObservedPriorRows", 0)))
         print("FORMAL_PREDICTION=NO")
         print("PRIVATE_LOCAL_VIEW=READY")
         if diagnostics.get("streamCompleted"):
