@@ -3297,12 +3297,15 @@ function combinedResearchIndex(data,day,draftNodes,referenceRows){
  for(const item of draftNodes){
   const race=dayRaces.get(item?.key);
   if(!race||item.draft!==true||race.status!=='provisional_draft'||
-     draftExpiredOnDevice(day,race.postTime)||seen.has(item.key)||
+     seen.has(item.key)||
      !Number.isInteger(race.points)||race.points<1||race.points>48||
      !Array.isArray(race.first)||!Array.isArray(race.second)||
      !Array.isArray(race.third)||race.first.length<1||
      race.second.length<2||race.third.length<3)
    throw Error('combined_study_draft');
+  // If the provisional off passes between validation and display,
+  // quietly omit the newly expired study instead of failing the full day.
+  if(draftExpiredOnDevice(day,race.postTime))continue;
   seen.add(item.key);
   picks.push({key:item.key,track:race.track,race:race.race,
    postTime:race.postTime,type:'prestart_draft',
@@ -3314,13 +3317,14 @@ function combinedResearchIndex(data,day,draftNodes,referenceRows){
   const race=item?.race;
   const key=race?.track+'|'+race?.race;
   if(!race||dayRaces.get(key)!==race||race.status!=='hold'||
-     draftExpiredOnDevice(day,race.postTime)||seen.has(key)||
+     seen.has(key)||
      !item.panel||typeof item.panel.label!=='string'||
      !['共通評価','近走不足','同点見送り','調教矢印'].includes(item.panel.label)||
      !Array.isArray(item.picks)||item.picks.length<1||
      item.picks.length>3||item.picks.some(line=>
       typeof line!=='string'||line.length<1||line.length>239))
    throw Error('combined_study_reference');
+  if(draftExpiredOnDevice(day,race.postTime))continue;
   seen.add(key);
   picks.push({key,track:race.track,race:race.race,
    postTime:race.postTime,type:'unsigned_reference',
