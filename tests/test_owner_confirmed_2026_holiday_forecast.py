@@ -12,7 +12,7 @@ from owner_auto_forecast_ui import JS, HTML
 class ConfirmedHolidayJraDayTests(unittest.TestCase):
     def test_page_discloses_billable_on_open_for_confirmed_holidays(self):
         self.assertIn("JRA公表済みの2026年開催月曜", HTML)
-        self.assertIn("11/23", JS)
+        self.assertIn("2026-11-23", JS)
         self.assertIn("confirmedHoliday", JS)
         self.assertIn("if(normalWeekend||confirmedHoliday)", JS)
         self.assertIn("JRA開催の月祝当日", JS)
@@ -78,7 +78,7 @@ function highlight(today){
 const sun=highlight('2026-11-22');
 assert.equal(sun('autoMondayQuick').hidden,false);
 assert.equal(sun('autoMondayQuick').disabled,false);
-assert.match(sun('autoMondayQuick').textContent,/明日11\/23（月祝）/);
+assert.match(sun('autoMondayQuick').textContent,/明日11\/23\(月祝\)/);
 const ordinary=highlight('2026-11-29');
 assert.equal(ordinary('autoMondayQuick').hidden,true);
 assert.equal(ordinary('autoMondayQuick').disabled,true);
