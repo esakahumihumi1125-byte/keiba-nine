@@ -1673,6 +1673,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     version:'owner-prestart-storage-status-1',date:selected,
     archiveEnabled:false,persistentStorageReady:false,
     serverSavedRaceCount:0,verifiedServerSignedRaceCount:0,
+    storedRaceCoordinates:[],storedVenueCounts:[],
+    completeJraDayVerified:false,
     providerRequests:0,officialJraVerified:false,
     finalResultsConnected:false,actualPurchase:false
    })};
