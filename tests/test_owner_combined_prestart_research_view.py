@@ -37,7 +37,8 @@ class Element{
 const elements=new Map([
  'autoCombinedResearchRows','autoCombinedResearchStatus',
  'autoCombinedNoPickTitle','autoCombinedNoPickRows',
- 'autoCombinedResearchPanel','autoCombinedNoPickPanel'
+ 'autoCombinedResearchPanel','autoCombinedNoPickPanel',
+ 'autoCombinedResearchExport','autoCombinedResearchExportStatus'
 ].map(key=>[key,new Element(key)]));
 const sandbox={
  Set,Map,Object,Array,String,Number,Error,
