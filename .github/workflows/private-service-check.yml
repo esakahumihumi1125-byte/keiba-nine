@@ -92,6 +92,7 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'scripts'); from owner_auto_forecast_ui import JS; from pathlib import Path; Path('/tmp/keiba-owner-auto-forecast.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-owner-auto-forecast.js
           node scripts/check-owner-auto-forecast-ui.cjs
+          node scripts/check-owner-inline-preday.cjs
           python -c "import sys; sys.path.insert(0, 'scripts'); from owner_100yen_review_ui import JS; from pathlib import Path; Path('/tmp/keiba-owner-100yen-review.js').write_text(JS, encoding='utf-8')"
           node --check /tmp/keiba-owner-100yen-review.js
           node scripts/check-owner-100yen-review-ui.cjs

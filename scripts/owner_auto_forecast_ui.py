@@ -32,6 +32,9 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section class="owner-preday-recovery" aria-label="別系統の全レース前日参考予想">
 <p><strong>全レースの前日参考予想はこちら</strong>：サーバーに登録済みの開催日・全Rについて、1着・2着・3着候補を別画面で表示します。下の「JRDB調教・近走2項目」の研究用下書き件数とは別です。4Rなどの表示は前日参考予想24Rが消えた意味ではありません。</p>
 <a class="owner-forecast-cta" id="autoPredayRecovery" href="/owner-preday-forecast">配信済みの前日参考予想をすぐ見る（別画面・追加の有料取得なし）</a>
+<button type="button" class="secondary-cta" id="autoPredayInlineLoad">全Rの前日参考予想をこの画面に表示（無料・1回）</button>
+<p id="autoPredayInlineStatus" class="muted" role="status">未表示。押した時だけ本人用サーバーの登録済み参考予想を確認（JRDB有料照会0回）。</p>
+<div id="autoPredayInlineRaces" aria-label="前日参考予想のレース一覧"></div>
 <p class="muted">参考予想もJRA公式未照合（最終出走・取消・馬場・発走時刻）で、正式10項目採点・購入推奨ではありません。JRDB APIが403で停止するときも、この別経路を利用できます。</p>
 </section>
 <section class="daily-start" id="autoDailyStart">
@@ -11070,3 +11073,158 @@ resetAdvanceProgramme(); // Safe default official calendar link on first load.
 // Special weekday races are explicit manual reads. No polling or purchase.
 if(document.visibilityState!=='hidden')autoFetchOnRegularRaceDay();
 })();"""
+
+
+# In-page VIEW of a separately stored, private editorial pre-day forecast.
+# It makes zero paid source requests and never promotes editorial 24R to
+# independently JRA-verified or formal-ten-factor selections.
+JS += r"""
+;(()=>{'use strict';
+const load=document.getElementById('autoPredayInlineLoad');
+const status=document.getElementById('autoPredayInlineStatus');
+const host=document.getElementById('autoPredayInlineRaces');
+const dayInput=document.getElementById('autoDay');
+if(!load||!status||!host||!dayInput)return;
+const allowed=new Set(['東京','京都','福島','札幌','函館','新潟','中山','中京','阪神','小倉']);
+const iso=/^20\d{2}-\d{2}-\d{2}$/;
+const hhmm=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
+let sequence=0;
+function checkedDay(day){
+ return typeof day==='string'&&iso.test(day)&&
+  Number.isFinite(Date.parse(day+'T12:00:00Z'))&&
+  new Date(day+'T12:00:00Z').toISOString().slice(0,10)===day;
+}
+function nowJst(){
+ const fields=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+  timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',
+  hour:'2-digit',minute:'2-digit',hour12:false
+ }).formatToParts(new Date()).map(p=>[p.type,p.value]));
+ return {date:fields.year+'-'+fields.month+'-'+fields.day,
+  time:fields.hour+':'+fields.minute};
+}
+function node(tag,text,className){
+ const n=document.createElement(tag);
+ if(text!==undefined)n.textContent=String(text);
+ if(className)n.className=className;
+ return n;
+}
+function verifiedRows(envelope,requested){
+ if(!envelope||envelope.available!==true||!envelope.forecast)
+  throw Error('unavailable');
+ const p=envelope.forecast;
+ if(p.schema!=='keiba-nine-private-preday-review-v1'||
+    p.sourceKind!=='owner-private-authored-preday'||
+    p.date!==requested||!checkedDay(p.date)||
+    p.predictionReady!==false||p.officialJraVerified!==false||
+    p.purchased!==false||!Array.isArray(p.races)||
+    p.races.length<1||p.races.length>36||p.raceCount!==p.races.length)
+  throw Error('invalid');
+ const seen=new Set(),rows=[];
+ for(const r of p.races){
+  if(!r||!allowed.has(r.track)||!Number.isInteger(r.race)||
+     r.race<1||r.race>12||!hhmm.test(r.time)||
+     !Number.isInteger(r.field)||r.field<3||r.field>18||
+     r.provisional!==true||r.jraOfficialConfirmed!==false||
+     r.fullFactorVerified!==false||
+     !['買い候補','見送り'].includes(r.status)||
+     !Array.isArray(r.rank)||r.rank.length<3||r.rank.length>Math.min(7,r.field)||
+     !Array.isArray(r.first)||!Array.isArray(r.second)||
+     !Array.isArray(r.third)||!Number.isInteger(r.points)||
+     r.points<1||r.points>48)
+   throw Error('invalid_row');
+  const key=r.track+'|'+r.race;
+  if(seen.has(key))throw Error('duplicate_race');
+  seen.add(key);
+  if(new Set(r.rank).size!==r.rank.length||
+     r.rank.some(n=>!Number.isInteger(n)||n<1||n>r.field))
+   throw Error('invalid_rank');
+  const f=r.first.length,s=r.second.length,t=r.third.length;
+  if(f<1||f>3||s<f||t<s||t>r.rank.length||
+     ![r.first,r.second,r.third].every(arr=>
+      arr.every((num,i)=>num===r.rank[i])))
+   throw Error('invalid_formation');
+  const tickets=new Set();
+  for(const a of r.first)for(const b of r.second)for(const d of r.third)
+   if(a!==b&&a!==d&&b!==d)tickets.add(a+'-'+b+'-'+d);
+  if(tickets.size!==r.points)throw Error('invalid_points');
+  rows.push({track:r.track,race:r.race,time:r.time,
+   status:r.status,points:r.points,first:[...r.first],
+   second:[...r.second],third:[...r.third]});
+ }
+ return rows.sort((a,b)=>a.track.localeCompare(b.track,'ja')||a.race-b.race);
+}
+function clear(){
+ sequence++;
+ host.replaceChildren();
+ load.disabled=false;
+ status.textContent='開催日が変わりました。前日参考予想は未表示です。';
+}
+// The main owner's date picker updates programmatically via onchange.
+// Wrap that handler without changing the existing calendar behavior.
+const previousChange=dayInput.onchange;
+if(typeof previousChange==='function'){
+ dayInput.onchange=function(...args){
+  clear();
+  return previousChange.apply(this,args);
+ };
+}else if(typeof dayInput.addEventListener==='function'){
+ dayInput.addEventListener('change',clear);
+}
+load.onclick=async()=>{
+ if(load.disabled)return;
+ const requested=dayInput.value,clock=nowJst(),request=++sequence;
+ host.replaceChildren();
+ if(!checkedDay(requested)||requested<clock.date){
+  status.textContent='開催日を確認してください。過去日の新規参考買い目は表示しません。';
+  return;
+ }
+ load.disabled=true;
+ status.textContent='登録済みの前日参考予想を確認中（JRDBへの追加照会なし）。';
+ try{
+  const response=await fetch('/api/owner-preday-forecast',{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  if(!response.ok)throw Error('unavailable');
+  const envelope=await response.json();
+  if(request!==sequence||dayInput.value!==requested)return;
+  const rows=verifiedRows(envelope,requested);
+  const venues=new Map();
+  for(const r of rows){
+   if(!venues.has(r.track))venues.set(r.track,[]);
+   venues.get(r.track).push(r);
+  }
+  const display=document.createDocumentFragment();
+  for(const [track,races] of venues){
+   const venue=node('details');
+   venue.append(node('summary',track+' '+races.length+'R｜前日参考（未購入）'));
+   for(const r of races){
+    const d=node('details');
+    d.append(node('summary',r.race+'R '+r.time+'｜'+r.status+'｜研究用'+r.points+'点'));
+    const expired=requested===clock.date&&r.time<=nowJst().time;
+    if(expired){
+     d.append(node('p','発走予定時刻を経過。新規の3連単表示はしません。過去の固定記録は結果・記録画面で確認。','muted'));
+    }else{
+     d.append(node('p','1着 '+r.first.join('・')+
+      ' ／ 2着 '+r.second.join('・')+
+      ' ／ 3着 '+r.third.join('・'),'picks'));
+     d.append(node('p','前日編集済みの参考候補。JRDBの2項目下書きと別方式。正式10項目・JRA最終出走・取消・馬場・発走時刻は未照合。実購入・署名・仮想収支には反映しません。','muted'));
+    }
+    venue.append(d);
+   }
+   display.append(venue);
+  }
+  host.replaceChildren(display);
+  status.textContent=requested+'｜前日参考 '+rows.length+
+   'Rをこの画面に表示（'+venues.size+'場）。JRDB2項目の下書き件数とは別。追加のJRDB照会0回。';
+ }catch(_){
+  if(request===sequence&&dayInput.value===requested){
+   host.replaceChildren();
+   status.textContent='この日の前日参考予想を安全に表示できません。別画面の登録状況を確認してください。既存のJRDB下書き・固定記録は無変更です。';
+  }
+ }finally{
+  if(request===sequence)load.disabled=false;
+ }
+};
+})();
+"""
