@@ -95,12 +95,12 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">競馬場を押して、レースと1着・2着・3着を確認（調教・近走の研究用）。</p>
 <p id="autoRaceQuickSummary" class="auto-race-quick" role="status">JRDB2項目の研究用下書きは未取得です。前日参考予想は別画面にあります。</p>
 <details id="autoCombinedResearchPanel" class="owner-reference-quick" open>
-<summary>全Rの暫定3連単・参考候補を発走順に見る（研究用・未購入）</summary>
+<summary>競馬場別の暫定3連単・参考候補（研究用・未購入）</summary>
+<div id="autoCombinedResearchRows" aria-label="全R研究用1着2着3着候補一覧"></div>
 <p id="autoCombinedResearchStatus" class="auto-race-quick" role="status">まだ未取得。研究用下書きと署名なし参考例は、混同せず一画面にまとめます。</p>
 <button id="autoCombinedResearchExport" type="button" class="secondary-cta" disabled>この日の全R研究一覧をiPhoneに保存（追加照会なし）</button>
 <p id="autoCombinedResearchExportStatus" class="muted" role="status">未保存。閲覧用のテキストファイルであり、発走前署名やサーバー永続保存の代わりにはなりません。</p>
 <p class="muted">「下書き」はJRDB2項目の署名付き研究案、「参考」は見送りRの署名なし研究例です。どちらも正式10項目・JRA公式の最終出走/取消/馬場/時刻は未照合で、実購入ではありません。参考候補は既存の買い目・固定記録・回収率に追加しません。</p>
-<div id="autoCombinedResearchRows" aria-label="全R研究用1着2着3着候補一覧"></div>
 <details id="autoCombinedNoPickPanel"><summary id="autoCombinedNoPickTitle">買い目・参考候補を表示しないR：未取得</summary>
 <div id="autoCombinedNoPickRows" aria-label="見送りや発走済み等のR"></div>
 </details>
@@ -3406,13 +3406,32 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
  const result=combinedResearchIndex(data,day,draftNodes,referenceRows);
  const host=$('autoCombinedResearchRows'),missing=$('autoCombinedNoPickRows');
  host.replaceChildren();missing.replaceChildren();
- for(const r of result.picks){
-  const card=dom('div',undefined,'owner-reference-quick-card');
-  card.append(dom('p',r.postTime+'予定（JRDB）｜'+r.track+' '+r.race+
-   'R｜'+r.title,'muted'));
-  for(const line of r.lines)card.append(dom('p',line,'picks'));
-  host.append(card);
+ const venues=[...new Set(data.races.map(r=>r.track))];
+ const venueButtons=dom('div',undefined,'venue-tabs');
+ const cards=dom('div');
+ host.append(venueButtons,cards);
+ function showVenue(track){
+  cards.replaceChildren();
+  for(const button of venueButtons.children)
+   button.ariaPressed=String(button.textContent===track);
+  const picks=result.picks.filter(r=>r.track===track&&
+   !draftExpiredOnDevice(day,r.postTime)).sort((a,b)=>a.race-b.race);
+  if(!picks.length)cards.append(dom('p',track+'で現在表示できる発走前候補はありません。','muted'));
+  for(const r of picks){
+   const card=dom('div',undefined,'owner-reference-quick-card');
+   card.append(dom('strong',r.track+' '+r.race+'R'),
+    dom('p',r.postTime+'予定（JRDB）｜'+r.title,'muted'));
+   for(const line of r.lines)card.append(dom('p',line,'picks'));
+   cards.append(card);
+  }
  }
+ for(const track of venues){
+  const button=dom('button',track);
+  button.type='button';
+  button.onclick=()=>showVenue(track);
+  venueButtons.append(button);
+ }
+ if(venues.length)showVenue(venues[0]);
  for(const r of result.excluded){
   const reason=r.status==='hold'?'見送り（参考候補なし・資料不足など）':
    '新しい買い目は非表示（時刻経過・固定競合など）';
@@ -3426,7 +3445,7 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
   'R。参考例は見送りRに含まれ、正式10項目予想・購入・発走前固定には含まれません。追加JRDB照会0回。';
  $('autoCombinedNoPickTitle').textContent='新しい買い目・参考候補なし '+
   result.excluded.length+'R（詳細）';
- $('autoCombinedResearchPanel').open=result.picks.length>0;
+ $('autoCombinedResearchPanel').open=venues.length>0;
  $('autoCombinedNoPickPanel').open=false;
  const exportButton=$('autoCombinedResearchExport');
  const exportStatus=$('autoCombinedResearchExportStatus');
