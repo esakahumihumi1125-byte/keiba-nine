@@ -1756,6 +1756,60 @@ def create_app(settings=None):
                 'captureAuditVerified': False,
                 'officialScheduleVerified': False,
                 'officialFeedConnected': False})
+        if method == 'GET' and path == '/api/owner-prestart-storage-status':
+            # A free/read-only readiness check before the owner relies on
+            # tomorrow's research picks. Never returns raw tickets, signatures,
+            # paid provider records, login tokens or database connection info.
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found',
+                                {'error': '本人専用サービスでのみ利用できます。'})
+            query = parse_qs(environ.get('QUERY_STRING', ''),
+                             keep_blank_values=True)
+            if set(query) != {'date'} or len(query['date']) != 1:
+                return response('400 Bad Request',
+                                {'error': '開催日を正しく選択してください。'})
+            selected = query['date'][0]
+            try:
+                if (not isinstance(selected, str)
+                        or not re.fullmatch(r'20\d{2}-\d{2}-\d{2}', selected)
+                        or datetime.strptime(selected, '%Y-%m-%d').date().isoformat()
+                        != selected):
+                    raise ValueError()
+            except ValueError:
+                return response('400 Bad Request',
+                                {'error': '開催日を正しく選択してください。'})
+            if not archive_enabled(settings):
+                return response('200 OK', {
+                    'version': 'owner-prestart-storage-status-1',
+                    'date': selected, 'archiveEnabled': False,
+                    'persistentStorageReady': False,
+                    'serverSavedRaceCount': 0,
+                    'verifiedServerSignedRaceCount': 0,
+                    'providerRequests': 0, 'officialJraVerified': False,
+                    'finalResultsConnected': False,
+                    'actualPurchase': False,
+                })
+            try:
+                signing_secret = archive_signing_secret(settings)
+                saved = read_archived_day(settings, signing_secret, selected)
+                verified = verify_preview_receipts(saved, signing_secret, selected)
+                if len(saved) != len(verified) or len(saved) > 36:
+                    raise ReceiptError('Archive confirmation mismatch')
+            except (ArchiveUnavailable, ReceiptError, ReviewInputError):
+                return response('503 Service Unavailable', {
+                    'error': 'サーバー固定記録の安全な確認ができません。保存完了とは扱えません。'
+                })
+            return response('200 OK', {
+                'version': 'owner-prestart-storage-status-1',
+                'date': selected, 'archiveEnabled': True,
+                'persistentStorageReady': True,
+                'serverSavedRaceCount': len(saved),
+                'verifiedServerSignedRaceCount': len(verified),
+                'providerRequests': 0, 'officialJraVerified': False,
+                'finalResultsConnected': False, 'actualPurchase': False,
+            })
         if method == 'GET' and path == '/api/owner-archive-read':
             # Opt-in Postgres retrieval: original, server-signed prestart
             # research receipts ONLY, never raw JRDB data, credentials,

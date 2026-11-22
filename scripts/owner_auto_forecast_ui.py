@@ -73,6 +73,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 バックグラウンド定期取得は未接続。発走済みレースの3連単は後付けで作成しません。</p>
 </details>
 <p id="autoStatus" class="muted" role="status">開催日を選んで自動作成を押してな。</p>
+<p id="autoStoragePulse" class="muted" role="status">サーバーの発走前固定件数：未確認（確認時のJRDB追加照会0回）。iPhoneの端末保存とは別です。</p>
 <p id="autoEasyPulse" class="auto-easy-pulse" role="status">開催日を取得すると、予想あり・見送りの件数を表示します。</p>
 <div class="owner-readiness-brief" aria-label="見送り内訳と次の操作（新規取得なし）">
 <p id="autoHoldBreakdown" class="muted" role="status">見送り理由の内訳はJRDB資料を取得すると表示します。</p>
@@ -11242,5 +11243,83 @@ load.onclick=async()=>{
   if(request===sequence)load.disabled=false;
  }
 };
+})();
+"""
+
+
+# No-cost, authenticated one-screen verification that a research receipt
+# truly exists in an enabled server archive. No licensed JRDB reads,
+# transmission of tickets, signature disclosure, or browser writes.
+JS += r"""
+;(()=>{'use strict';
+const dayInput=document.getElementById('autoDay');
+const output=document.getElementById('autoStoragePulse');
+const run=document.getElementById('autoRun');
+if(!dayInput||!output||!run)return;
+let sequence=0;
+const valid=day=>typeof day==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(day)&&
+ Number.isFinite(Date.parse(day+'T12:00:00Z'))&&
+ new Date(day+'T12:00:00Z').toISOString().slice(0,10)===day;
+async function refresh(){
+ const day=dayInput.value,request=++sequence;
+ if(!valid(day)){
+  output.textContent='開催日を正しく選択してください。サーバーへの保存は未確認です。';
+  return;
+ }
+ output.textContent=day+'｜サーバー固定を無料確認中（JRDB追加照会なし）…';
+ try{
+  const response=await fetch('/api/owner-prestart-storage-status?date='+
+   encodeURIComponent(day),{
+   credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Accept':'application/json'}
+  });
+  const result=await response.json();
+  if(sequence!==request||dayInput.value!==day)return;
+  if(!response.ok||!result||
+     result.version!=='owner-prestart-storage-status-1'||
+     result.date!==day||typeof result.archiveEnabled!=='boolean'||
+     typeof result.persistentStorageReady!=='boolean'||
+     !Number.isInteger(result.serverSavedRaceCount)||
+     result.serverSavedRaceCount<0||result.serverSavedRaceCount>36||
+     result.verifiedServerSignedRaceCount!==result.serverSavedRaceCount||
+     result.providerRequests!==0||result.officialJraVerified!==false||
+     result.finalResultsConnected!==false||result.actualPurchase!==false||
+     result.persistentStorageReady!==result.archiveEnabled||
+     (!result.archiveEnabled&&result.serverSavedRaceCount!==0))
+   throw Error('invalid_server_storage_status');
+  if(!result.archiveEnabled){
+   output.textContent=day+
+    '｜サーバー永続保存は未設定。発走前の研究用買い目が端末にあっても、サーバー保存済みとは扱いません。端末の固定履歴を保護してください。追加のJRDB照会0回。';
+  }else if(result.serverSavedRaceCount===0){
+   output.textContent=day+
+    '｜サーバー保存機能は利用可能ですが、署名を検証できた発走前の研究用3連単は0R。予想作成済みとは扱いません。追加のJRDB照会0回。';
+  }else{
+   output.textContent=day+'｜サーバー保存済み・署名検証済みの発走前研究用3連単 '+
+    result.serverSavedRaceCount+
+    'R。JRA公式出走・発走時刻・結果・購入は未確認。保存していないRは補完していません。追加のJRDB照会0回。';
+  }
+ }catch(_){
+  if(sequence===request&&dayInput.value===day)
+   output.textContent=day+
+    '｜サーバー保存を安全に確認できません。未確認を「保存済み」と表示しません。端末固定履歴は変更していません。';
+ }
+}
+const priorChange=dayInput.onchange;
+if(typeof priorChange==='function'){
+ dayInput.onchange=function(...args){
+  const result=priorChange.apply(this,args);
+  void refresh();
+  return result;
+ };
+}
+const priorRun=run.onclick;
+if(typeof priorRun==='function'){
+ run.onclick=async function(...args){
+  const selected=dayInput.value;
+  try{return await priorRun.apply(this,args);}
+  finally{if(selected===dayInput.value)await refresh();}
+ };
+}
+void refresh();
 })();
 """

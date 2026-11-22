@@ -1665,6 +1665,18 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   },
  };
  const fetch=async(url,options)=>{
+  // Free, signed-receipt storage diagnostic. It is not a provider request
+  // and must never increment the existing one-read paid JRDB invariant.
+  if(url.startsWith('/api/owner-prestart-storage-status?date=')){
+   const selected=new URL('http://localhost'+url).searchParams.get('date');
+   return {ok:true,json:async()=>({
+    version:'owner-prestart-storage-status-1',date:selected,
+    archiveEnabled:false,persistentStorageReady:false,
+    serverSavedRaceCount:0,verifiedServerSignedRaceCount:0,
+    providerRequests:0,officialJraVerified:false,
+    finalResultsConnected:false,actualPurchase:false
+   })};
+  }
   requests.push({url,options});
   const pause=holdFetch;holdFetch=null;
   if(pause)await pause;
