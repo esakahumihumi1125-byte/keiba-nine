@@ -24,6 +24,8 @@ FILES = (
     "scripts/windows_arc_race_saved_history_review.cmd",
     "scripts/windows_arc_race_saved_history_review.py",
     "scripts/windows_arc_race_saved_trifecta_trial.cmd",
+    "scripts/windows_arc_race_saved_all_flat_trifecta_trial.cmd",
+    "scripts/windows_arc_race_saved_all_flat_trifecta_trial.py",
     "scripts/windows_arc_race_saved_trifecta_trial.py",
     "scripts/owner_jvdata_offline_trifecta_trial.py",
     "scripts/owner_jvdata_offline_evidence.py",
@@ -113,7 +115,7 @@ JRA-VAN契約、JV-Link、64bit Python、pywin32 が別途必要です。
    出力先はPC内の "-trifecta-study.html/.json" だけ。
    アプリやGitHub・Renderへは自動送信しません。
 
-画面に出る CHECK=... / ARCRACE_WEEKLY_READ=... /
+10. すでに1回保存した全平地レースの研究用JSONから、\n    追加の有料アクセス0回で全Rの3連単研究をまとめて作るには\n    scripts/windows_arc_race_saved_all_flat_trifecta_trial.cmd を使用。\n    発走済み・芝ダ距離±200mの過去記録が全頭で揃わないRは\n    必ず見送り0点。推測で埋めず、研究できるRだけ最大48点。\n    新規JSON/HTMLをPC内に保存し、再実行で上書きしません。\n    追加のJRA-VAN/ JRDB通信、GitHub/Renderアップロード、\n    実購入、収支記録、正式10項目採点は一切ありません。\n\n画面に出る CHECK=... / ARCRACE_WEEKLY_READ=... /
 ARC_RACE_RCVN_CHECK=... / ARC_RACE_DAY_HISTORY=... /
 ARC_RACE_OFFLINE_EVIDENCE=... /\nARC_RACE_LOCAL_TRIFECTA=... の状態名だけ
 教えてください。利用キーやパスワードは見せたり送ったりしないでください。
