@@ -2641,10 +2641,26 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
   '/api/jrdb/owner-auto-draft?date=20261123');
  assert.equal(mondayFriday.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  assert.equal(mondayFriday.get('autoMondayQuick').disabled,false);
- // Tuesday after the special meeting: the next Monday is not published
- // as a racing date. Hide and guard both control paths, no JRDB read.
- const noMonday=boot({manualWeekday:false,
+ // Tuesday Nov 24 now sees the officially confirmed Nov 30 Tokyo
+ // reorganisation. A date-only shortcut stays free; the billed one-tap
+ // remains gated until the prescribed pre-meeting window.
+ const mondayReorg=boot({manualWeekday:false,
   initialClock:'2026-11-24T00:00:00Z'});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(mondayReorg.get('autoMondayQuick').hidden,false);
+ assert.equal(mondayReorg.get('autoMondayQuick').disabled,false);
+ assert.equal(mondayReorg.get('autoMonday').hidden,false);
+ const reorgReads=mondayReorg.requests.length;
+ await mondayReorg.get('autoMondayQuick').onclick();
+ assert.equal(mondayReorg.requests.length,reorgReads,
+  'Nov 30 cannot trigger paid read on Nov 24');
+ mondayReorg.get('autoMonday').onclick();
+ assert.equal(mondayReorg.get('autoDay').value,'2026-11-30');
+ assert.equal(mondayReorg.requests.length,reorgReads);
+ assert.equal(mondayReorg.storage.has('keiba-nine-owner-real-purchases-v1'),false);
+ // Once Nov 30 has passed, an ordinary Monday is NOT inferred.
+ const noMonday=boot({manualWeekday:false,
+  initialClock:'2026-12-01T00:00:00Z'});
  await new Promise(r=>setImmediate(r));
  assert.equal(noMonday.get('autoMondayQuick').hidden,true);
  assert.equal(noMonday.get('autoMondayQuick').disabled,true);
@@ -2654,7 +2670,6 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  noMonday.get('autoMonday').onclick();
  assert.equal(noMonday.requests.length,noMondayReads);
  assert.match(noMonday.get('autoStatus').textContent,/JRA開催は未確認/);
- assert.equal(noMonday.storage.has('keiba-nine-owner-real-purchases-v1'),false);
  // One-tap Saturday: NO fetch before Thursday, ONE guarded JRDB
  // request when eligible, and no mutation of previously signed tickets.
  const early=boot();
