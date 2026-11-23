@@ -18,7 +18,7 @@ class ConfirmedHolidayJraDayTests(unittest.TestCase):
         self.assertIn("JRA開催の月祝当日", JS)
         self.assertIn("2026-11-30", JS)
         self.assertIn("JRA開催の月曜再編当日", JS)
-        self.assertIn("if(day!==jstToday())return", JS)
+        self.assertIn("if(day!==jstToday()){", JS)
         self.assertNotIn("Special weekday races are explicit manual reads", JS)
 
     @unittest.skipUnless(shutil.which("node"), "Node unavailable")
