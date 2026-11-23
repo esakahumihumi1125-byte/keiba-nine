@@ -11306,7 +11306,7 @@ function autoFetchOnRegularRaceDay(){
   $('autoMorningStatus').textContent='選択日は未来。研究用予想は未取得で、正式10項目は未完成。';
   $('autoHoldBreakdown').textContent='選択日のJRDB資料は未取得。見送りR数は不明です。';
   $('autoOperationalNext').textContent='開催日の資料が公開された後、該当曜日の予想取得ボタンを押してください。'+
-   'この画面を開いただけでは未来日の有料照会なし。';
+   'この画面を開いただけでは未来日の有料照会0回。';
   return;
  }
  const dt=new Date(day+'T12:00:00Z');
