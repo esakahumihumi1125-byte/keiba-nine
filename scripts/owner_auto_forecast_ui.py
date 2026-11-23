@@ -520,6 +520,12 @@ main{padding-bottom:65px}
 .owner-research-draft{border-color:#69b8e9}
 .owner-research-reference{border-color:#6d8baf}
 .owner-research-hold{border-color:#455e78;background:#102337}
+.owner-workout-only{font-size:15px;font-weight:850;line-height:1.45;
+ margin:5px 0;overflow-wrap:anywhere}
+.owner-workout-S{color:#f3d475}
+.owner-workout-A{color:#ffa6b1}
+.owner-workout-B{color:#a4d8ff}
+.owner-workout-C{color:#dce2eb}
 .owner-reference-quick-card .picks{font-size:15px;font-weight:750;margin:5px 0;
  overflow-wrap:anywhere}
 .owner-reference-quick-card button{font-size:14px;min-height:45px;width:100%;
@@ -3481,6 +3487,34 @@ function combinedResearchDownloadText(summary,day,createdAt){
  }
  return lines.join('\n')+'\n';
 }
+// Show the evidence that *really exists* for a held race. Never turn a
+// missing recent grade into C/0, a complete two-factor score or a formation.
+// The source full-day validator already checked roster/grades. Revalidate the
+// redacted numbers here because this is the one-screen fallback path.
+function safeHeldWorkoutEvidence(race){
+ if(!race||race.status!=='hold'||
+    !['missing_factors','ambiguous_equal_grade_boundary'].includes(race.reason)||
+    !Array.isArray(race.runners)||race.runners.length<4||
+    race.runners.length>18||race.horseCount!==race.runners.length)
+  return null;
+ const groups={S:[],A:[],B:[],C:[]},seen=new Set();
+ let trainingMissing=0,recentMissing=0;
+ for(const h of race.runners){
+  if(!h||!Number.isInteger(h.number)||h.number<1||h.number>18||
+     seen.has(h.number)||
+     !['S','A','B','C','未評価'].includes(h.training)||
+     !['S','A','B','C','未評価'].includes(h.recent))
+   return null;
+  seen.add(h.number);
+  recentMissing+=Number(h.recent==='未評価');
+  if(h.training==='未評価')trainingMissing++;
+  else groups[h.training].push(h.number);
+ }
+ if(trainingMissing===race.runners.length)return null;
+ for(const band of Object.keys(groups))
+  groups[band].sort((a,b)=>a-b);
+ return {groups,trainingMissing,recentMissing};
+}
 function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
  const result=combinedResearchIndex(data,day,draftNodes,referenceRows);
  const host=$('autoCombinedResearchRows'),missing=$('autoCombinedNoPickRows');
@@ -3517,6 +3551,27 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
        (Object.hasOwn(REASONS,race.reason)?REASONS[race.reason]:'資料確認待ち')+'）'
       :'新しい買い目は非表示（端末固定などを確認）';
     card.append(dom('p',race.postTime+'予定（JRDB）｜'+reason,'muted'));
+    // A held race may have genuine workout bands even when two-factor
+    // tickets are impossible. Display ONLY those redacted bands, pre-off.
+    // It remains a non-betting row, does not join combinedResearchIndex
+    // picks, and never receives a receipt or ROI calculation.
+    if(!expired&&race.status==='hold'){
+     const evidence=safeHeldWorkoutEvidence(race);
+     if(evidence){
+      for(const grade of ['S','A','B','C']){
+       const nums=evidence.groups[grade];
+       if(nums.length)
+        card.append(dom('p','調教'+grade+'：'+nums.join('・')+
+         '番（馬番順・仮評価）','owner-workout-only owner-workout-'+grade));
+      }
+      const missing=[];
+      if(evidence.recentMissing)missing.push('近走未評価'+evidence.recentMissing+'頭');
+      if(evidence.trainingMissing)missing.push('調教未評価'+evidence.trainingMissing+'頭');
+      card.append(dom('p','調教資料のみ参考表示'+
+       (missing.length?'｜'+missing.join('・'):'')+
+       '｜3連単の買い目なし・正式10項目未評価','muted'));
+     }
+    }
    }
    cards.append(card);
   }
