@@ -32,8 +32,8 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <section class="owner-preday-recovery" aria-label="別系統の全レース前日参考予想">
 <p><strong>全レースの前日参考予想はこちら</strong>：サーバーに登録済みの開催日・全Rについて、1着・2着・3着候補を別画面で表示します。下の「JRDB調教・近走2項目」の研究用下書き件数とは別です。4Rなどの表示は前日参考予想24Rが消えた意味ではありません。</p>
 <a class="owner-forecast-cta" id="autoPredayRecovery" href="/owner-preday-forecast">配信済みの前日参考予想をすぐ見る（別画面・追加の有料取得なし）</a>
-<button type="button" class="secondary-cta" id="autoPredayInlineLoad">全Rの前日参考予想をこの画面に表示（無料・1回）</button>
-<p id="autoPredayInlineStatus" class="muted" role="status">未表示。押した時だけ本人用サーバーの登録済み参考予想を確認（JRDB有料照会0回）。</p>
+<button type="button" class="secondary-cta" id="autoPredayInlineLoad">前日参考予想を再確認（無料・追加JRDB照会なし）</button>
+<p id="autoPredayInlineStatus" class="muted" role="status">選択開催日の前日参考予想を自動確認中（JRDB有料照会0回）。</p>
 <div id="autoPredayInlineRaces" aria-label="前日参考予想のレース一覧"></div>
 <p class="muted">参考予想もJRA公式未照合（最終出走・取消・馬場・発走時刻）で、正式10項目採点・購入推奨ではありません。JRDB APIが403で停止するときも、この別経路を利用できます。</p>
 </section>
@@ -11446,10 +11446,13 @@ const previousChange=dayInput.onchange;
 if(typeof previousChange==='function'){
  dayInput.onchange=function(...args){
   clear();
-  return previousChange.apply(this,args);
+  const result=previousChange.apply(this,args);
+  // Recheck the newly selected day from the FREE owner snapshot only.
+  if(checkedDay(dayInput.value))void load.onclick();
+  return result;
  };
 }else if(typeof dayInput.addEventListener==='function'){
- dayInput.addEventListener('change',clear);
+ dayInput.addEventListener('change',()=>{clear();if(checkedDay(dayInput.value))void load.onclick();});
 }
 load.onclick=async()=>{
  if(load.disabled)return;
@@ -11475,38 +11478,55 @@ load.onclick=async()=>{
    if(!venues.has(r.track))venues.set(r.track,[]);
    venues.get(r.track).push(r);
   }
-  const display=document.createDocumentFragment();
-  for(const [track,races] of venues){
-   const venue=node('details');
-   venue.append(node('summary',track+' '+races.length+'R｜前日参考（未購入）'));
+  const tabs=node('div',undefined,'venue-tabs');
+  const cards=node('div',undefined,'owner-inline-preday-cards');
+  function showVenue(track){
+   cards.replaceChildren();
+   for(const tab of tabs.children)
+    tab.setAttribute('aria-pressed',String(tab.textContent===track));
+   const races=venues.get(track)||[];
    for(const r of races){
-    const d=node('details');
-    d.append(node('summary',r.race+'R '+r.time+'｜'+r.status+'｜研究用'+r.points+'点'));
-    const expired=requested===clock.date&&r.time<=nowJst().time;
+    const card=node('article',undefined,'owner-reference-quick-card');
+    card.append(node('strong',track+' '+r.race+'R'));
+    card.append(node('p',r.time+'予定（前日資料）｜'+r.status+
+     '｜研究用'+r.points+'点','muted'));
+    const clockNow=nowJst();
+    const expired=requested===clockNow.date&&r.time<=clockNow.time;
     if(expired){
-     d.append(node('p','発走予定時刻を経過。新規の3連単表示はしません。過去の固定記録は結果・記録画面で確認。','muted'));
+     card.append(node('p','発走予定時刻を経過。新規の3連単表示はしません。過去の固定記録は結果・記録画面で確認。','muted'));
     }else{
-     d.append(node('p','1着 '+r.first.join('・')+
-      ' ／ 2着 '+r.second.join('・')+
-      ' ／ 3着 '+r.third.join('・'),'picks'));
-     d.append(node('p','前日編集済みの参考候補。JRDBの2項目下書きと別方式。正式10項目・JRA最終出走・取消・馬場・発走時刻は未照合。実購入・署名・仮想収支には反映しません。','muted'));
+     card.append(node('p','1着 '+r.first.join('・'),'picks'));
+     card.append(node('p','2着 '+r.second.join('・'),'picks'));
+     card.append(node('p','3着 '+r.third.join('・'),'picks'));
+     card.append(node('p','編集済みの前日参考案。JRDB2項目とは別方式。正式10項目・JRA最終出走・取消・馬場・発走時刻は未照合。購入・署名・仮想収支には反映しません。','muted'));
     }
-    venue.append(d);
+    cards.append(card);
    }
-   display.append(venue);
   }
-  host.replaceChildren(display);
+  for(const track of venues.keys()){
+   const button=node('button',track);
+   button.type='button';
+   button.onclick=()=>showVenue(track);
+   tabs.append(button);
+  }
+  host.replaceChildren(tabs,cards);
+  if(venues.size)showVenue(venues.keys().next().value);
   status.textContent=requested+'｜前日参考 '+rows.length+
    'Rをこの画面に表示（'+venues.size+'場）。JRDB2項目の下書き件数とは別。追加のJRDB照会0回。';
- }catch(_){
+ }catch(error){
   if(request===sequence&&dayInput.value===requested){
    host.replaceChildren();
-   status.textContent='この日の前日参考予想を安全に表示できません。別画面の登録状況を確認してください。既存のJRDB下書き・固定記録は無変更です。';
+   status.textContent=error?.message==='unavailable'
+    ?'この開催日の前日参考予想は未登録です。配信後に再確認できます。JRDB有料照会0回。'
+    :'この日の前日参考予想を安全に表示できません。資料の形式と開催日を確認してください。既存のJRDB下書き・固定記録は無変更です。';
   }
  }finally{
   if(request===sequence)load.disabled=false;
  }
 };
+// One free authenticated read after the date picker is initialized.
+// Never a JRDB paid read, timer, storage write or automatic purchase.
+if(checkedDay(dayInput.value))void load.onclick();
 })();
 """
 
