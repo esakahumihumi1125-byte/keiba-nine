@@ -2250,10 +2250,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const friday=boot({manualWeekday:false,
   initialClock:'2099-01-02T08:15:00Z'}); // Fri 17:15 JST
  await new Promise(r=>setImmediate(r));
- assert.equal(friday.get('autoDay').value,'2099-01-02');
+ assert.equal(friday.get('autoDay').value,'2099-01-03','weekday defaults to next Saturday');
  assert.equal(friday.requests.length,0);
  assert.match(friday.get('autoStatus').textContent,
-  /明日 2099-01-03.*まだ取得していません/);
+  /次の開催予定 2099-01-03.*まだ取得していません/);
  assert.match(friday.get('autoOperationalNext').textContent,/有料照会0回/);
  // The DOM fixture stubs static HTML button labels; check the live
  // Friday guidance and actual button click/HTTP behavior instead.
