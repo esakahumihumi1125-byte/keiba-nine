@@ -2425,8 +2425,9 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const weekday=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  assert.equal(weekday.requests.length,0);
- assert.match(weekday.get('autoStatus').textContent,/平日はJRDBの自動照会を控えています/);
- assert.match(weekday.get('autoMorningStatus').textContent,/有料照会0回/);
+ assert.match(weekday.get('autoStatus').textContent,/次の開催予定 .*まだ取得していません/);
+ assert.match(weekday.get('autoMorningStatus').textContent,/選択日は未来.*未取得/);
+ assert.match(weekday.get('autoOperationalNext').textContent,/有料照会0回/);
  await weekday.get('autoRun').onclick();
  assert.equal(weekday.requests.length,1);
  assert.match(weekday.get('autoStatus').textContent,/発走前の研究用暫定案 1Rを確認/);
