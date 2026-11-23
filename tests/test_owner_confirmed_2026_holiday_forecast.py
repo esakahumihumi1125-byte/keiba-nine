@@ -32,7 +32,7 @@ assert(decl,'explicit list is required');
 const autoStart=source.indexOf('function autoFetchOnRegularRaceDay(){');
 const autoEnd=source.indexOf("\nif(typeof document.addEventListener",autoStart);
 const hiliteStart=source.indexOf('function highlightSelectedWeekend(){');
-const hiliteEnd=source.indexOf("\n$('autoDay').value=jstToday();",hiliteStart);
+const hiliteEnd=source.indexOf('\n// On non-racing weekdays',hiliteStart);
 assert(autoStart>=0&&autoEnd>autoStart);
 assert(hiliteStart>=0&&hiliteEnd>hiliteStart);
 const autoCode=decl[0]+'\n'+source.slice(autoStart,autoEnd);
