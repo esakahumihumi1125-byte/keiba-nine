@@ -11299,7 +11299,16 @@ function showRecentlyFixedWithoutProvider(day,label){
 function autoFetchOnRegularRaceDay(){
  const day=$('autoDay').value;
  // Paid auto reads are same-day ONLY; selected future days never trigger them.
- if(day!==jstToday())return;
+ if(day!==jstToday()){
+  $('autoStatus').textContent='【次の開催予定 '+day+'】JRDBの新しい予想はまだ取得していません。'+
+   '土曜の予想を取得・表示（1回）などの本人操作で配信資料を確認できます。'+
+   '未来日の自動JRDB有料照会0回。';
+  $('autoMorningStatus').textContent='選択日は未来。研究用予想は未取得で、正式10項目は未完成。';
+  $('autoHoldBreakdown').textContent='選択日のJRDB資料は未取得。見送りR数は不明です。';
+  $('autoOperationalNext').textContent='開催日の資料が公開された後、該当曜日の予想取得ボタンを押してください。'+
+   'この画面を開いただけでは未来日の有料照会なし。';
+  return;
+ }
  const dt=new Date(day+'T12:00:00Z');
  const normalWeekend=Number.isFinite(dt.valueOf())&&
   dt.toISOString().slice(0,10)===day&&[0,6].includes(dt.getUTCDay());
