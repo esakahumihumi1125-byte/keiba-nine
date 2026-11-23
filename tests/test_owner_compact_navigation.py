@@ -40,11 +40,14 @@ const marker=";(()=>{'use strict';\nconst preday=document.getElementById('ownerP
 const start=code.lastIndexOf(marker);
 assert(start>=0,'isolated compact navigation script');
 const names=['ownerPredayMode','ownerJrdbMode','ownerDetailToggle',
- 'forecastRacesSection','autoPredayInlineRaces'];
-const attrs=new Map();
+ 'forecastRacesSection','autoPredayInlineRaces',
+ 'autoSaturdayQuick','autoSundayQuick','autoMondayQuick','autoRun',
+ 'autoPredayInlineLoad'];
+const attrs=new Map(),controlListeners=new Map();
 const els=new Map(names.map(n=>[n,{
  textContent:'',onclick:null,scrolls:0,
  setAttribute(k,v){attrs.set(n+':'+k,v)},
+ addEventListener(type,fn){controlListeners.set(n+':'+type,fn)},
  scrollIntoView(){this.scrolls++}
 }]));
 const classes=new Set(['owner-simple','owner-preday-view']);
@@ -83,12 +86,34 @@ listeners.get('.arc-main-tabs a[href="#fixedHistorySection"]:click')();
 assert(classes.has('owner-detailed'),'record navigation reveals history');
 listeners.get('.arc-main-tabs a[href="#forecastRacesSection"]:click')();
 assert(classes.has('owner-jrdb-view'),'race navigation reveals JRDB');
-console.log('Compact owner view switch: no API, storage, or prediction mutation PASS');
+// The existing authenticated paid fetch handler runs exactly once per tap;
+// the additive navigation listener must not replace it or call it again.
+let paidCalls=0;
+for(const id of ['autoSaturdayQuick','autoSundayQuick','autoMondayQuick','autoRun'])
+ els.get(id).onclick=()=>{paidCalls++};
+function browserTap(id){
+ const element=els.get(id);
+ if(typeof element.onclick==='function')element.onclick();
+ const listener=controlListeners.get(id+':click');
+ assert.equal(typeof listener,'function',id+' must have a view listener');
+ listener();
+}
+for(const id of ['autoSaturdayQuick','autoSundayQuick','autoMondayQuick','autoRun']){
+ els.get('ownerPredayMode').onclick();
+ assert(classes.has('owner-preday-view'));
+ browserTap(id);
+ assert(classes.has('owner-jrdb-view'),'one tap must reveal the fetched predictions');
+}
+assert.equal(paidCalls,4,'all existing source gestures remain exactly once');
+browserTap('autoPredayInlineLoad');
+assert(classes.has('owner-preday-view'),'free reference refresh reveals preday');
+assert.equal(paidCalls,4,'view changes must not add a paid source request');
+console.log('Compact owner view switch: one-tap JRDB reveal, no duplicate API/storage PASS');
 """
         result = subprocess.run(["node", "-e", node], input=JS, text=True,
                                 capture_output=True, timeout=15, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("no API, storage", result.stdout)
+        self.assertIn("no duplicate API/storage", result.stdout)
 
 
 if __name__ == "__main__":
