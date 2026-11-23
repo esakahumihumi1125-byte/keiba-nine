@@ -12031,6 +12031,20 @@ function detailed(enabled){
 preday.onclick=()=>choose('preday',true);
 jrdb.onclick=()=>choose('jrdb',true);
 detail.onclick=()=>detailed(!body.classList.contains('owner-detailed'));
+// When the owner explicitly requests new JRDB analysis, reveal that source.
+// Use additive DOM listeners rather than replacing existing authenticated
+// onclick handlers: this neither duplicates nor changes a provider request.
+for(const id of ['autoSaturdayQuick','autoSundayQuick',
+                 'autoMondayQuick','autoRun']){
+ const control=document.getElementById(id);
+ if(control&&typeof control.addEventListener==='function')
+  control.addEventListener('click',()=>choose('jrdb',false));
+}
+// Explicitly rechecking the *separate* free preday page should display it,
+// rather than leaving the owner staring at the other source's race list.
+const predayReload=document.getElementById('autoPredayInlineLoad');
+if(predayReload&&typeof predayReload.addEventListener==='function')
+ predayReload.addEventListener('click',()=>choose('preday',false));
 if(typeof document.querySelector==='function'){
  const raceLink=document.querySelector('.arc-main-tabs a[href="#forecastRacesSection"]');
  const resultLink=document.querySelector('.arc-main-tabs a[href="#fixedHistorySection"]');
