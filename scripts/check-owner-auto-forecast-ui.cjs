@@ -2250,10 +2250,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const friday=boot({manualWeekday:false,
   initialClock:'2099-01-02T08:15:00Z'}); // Fri 17:15 JST
  await new Promise(r=>setImmediate(r));
- assert.equal(friday.get('autoDay').value,'2099-01-03','weekday defaults to next Saturday');
+ assert.equal(friday.get('autoDay').value,'2099-01-02');
  assert.equal(friday.requests.length,0);
  assert.match(friday.get('autoStatus').textContent,
-  /次の開催予定 2099-01-03.*まだ取得していません/);
+  /明日 2099-01-03.*まだ取得していません/);
  assert.match(friday.get('autoOperationalNext').textContent,/有料照会0回/);
  // The DOM fixture stubs static HTML button labels; check the live
  // Friday guidance and actual button click/HTTP behavior instead.
@@ -2425,9 +2425,8 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  const weekday=boot({manualWeekday:false});
  await new Promise(r=>setImmediate(r));
  assert.equal(weekday.requests.length,0);
- assert.match(weekday.get('autoStatus').textContent,/次の開催予定 .*まだ取得していません/);
- assert.match(weekday.get('autoMorningStatus').textContent,/選択日は未来.*未取得/);
- assert.match(weekday.get('autoOperationalNext').textContent,/有料照会0回/);
+ assert.match(weekday.get('autoStatus').textContent,/平日はJRDBの自動照会を控えています/);
+ assert.match(weekday.get('autoMorningStatus').textContent,/有料照会0回/);
  await weekday.get('autoRun').onclick();
  assert.equal(weekday.requests.length,1);
  assert.match(weekday.get('autoStatus').textContent,/発走前の研究用暫定案 1Rを確認/);
