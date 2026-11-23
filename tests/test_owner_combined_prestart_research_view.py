@@ -57,7 +57,8 @@ const sandbox={
 vm.createContext(sandbox);
 vm.runInContext(js.slice(from,end)+
  '\nglobalThis.study=combinedResearchIndex;'+
- 'globalThis.renderCombined=renderCombinedResearchRows;',sandbox);
+ 'globalThis.renderCombined=renderCombinedResearchRows;'+
+ '\nglobalThis.heldWorkout=safeHeldWorkoutEvidence;',sandbox);
 const R=[];
 for(const track of ['東京','福島'])
  for(let race=1;race<=12;race++){
@@ -68,6 +69,16 @@ for(const track of ['東京','福島'])
    points:n<4?36:0,first:n<4?[1,2]:[],second:n<4?[1,2,3,4]:[],
    third:n<4?[1,2,3,4,5]:[]});
  }
+// A real held race with partial JRDB workout evidence, but no known recent
+// grade; its appearance must never increase the signed/unsigned pick count.
+R[18].reason='missing_factors';
+R[18].horseCount=4;
+R[18].runners=[
+ {number:3,training:'S',recent:'未評価'},
+ {number:1,training:'A',recent:'未評価'},
+ {number:6,training:'B',recent:'未評価'},
+ {number:9,training:'未評価',recent:'未評価'},
+];
 const day='20261123';
 const data={raceCount:24,draftCount:4,holdCount:20,races:R};
 const drafts=R.slice(0,4).map(r=>({
@@ -101,6 +112,15 @@ assert.equal(cards.children[0].children[0].textContent,'福島 1R');
 assert.equal(cards.children[5].children[0].textContent,'福島 6R');
 assert.match(cards.children[5].children[1].textContent,/見送り・参考候補なし/);
 assert.match(cards.children[5].className,/owner-research-hold/);
+const partial=cards.children[6]; // 福島7R: workout present, recent missing
+assert.equal(partial.children[0].textContent,'福島 7R');
+assert.match(partial.children[1].textContent,/見送り・参考候補なし/);
+assert.match(partial.children[2].textContent,/調教S：3番/);
+assert.match(partial.children[3].textContent,/調教A：1番/);
+assert.match(partial.children[4].textContent,/調教B：6番/);
+assert.match(partial.children[5].textContent,/近走未評価4頭/);
+assert.match(partial.children[5].textContent,/3連単の買い目なし/);
+assert(!partial.children.some(node=>/^[123]着 /.test(node.textContent)));
 assert.equal(venues.children[1].ariaPressed,'true');
 assert.equal(elements.get('autoCombinedNoPickRows').children.length,7);
 assert.equal(elements.get('autoCombinedResearchPanel').open,true);
@@ -108,6 +128,24 @@ assert.equal(elements.get('autoCombinedNoPickPanel').open,false);
 assert.equal(networkCalls,0);
 assert.equal(receiptWrites,0);
 assert(documentWrites>10);
+// Malformed source numbers or all-missing workout must not produce bands.
+const duplicate={...R[18],runners:[
+ {...R[18].runners[0]}, {...R[18].runners[0]},
+ ...R[18].runners.slice(2)
+]};
+assert.equal(sandbox.heldWorkout(duplicate),null);
+const zero={...R[18],runners:R[18].runners.map(h=>({...h,training:'未評価'}))};
+assert.equal(sandbox.heldWorkout(zero),null);
+assert.equal(sandbox.heldWorkout({...R[18],status:'provisional_draft'}),null);
+const past={raceCount:1,draftCount:0,holdCount:1,races:[
+ {...R[18],postTime:'23:55'}
+]};
+sandbox.renderCombined(past,day,[],[]);
+const expiredCard=elements.get('autoCombinedResearchRows').children[1].children[0];
+assert(!expiredCard.children.some(n=>/調教[SA]/.test(n.textContent)),
+ 'past-off races must not show a fresh workout ranking');
+assert.equal(networkCalls,0);
+assert.equal(receiptWrites,0);
 const counterfeit=references.slice();
 counterfeit[0]={...counterfeit[0],race:R[0]};
 assert.throws(()=>sandbox.study(data,day,drafts,counterfeit));
