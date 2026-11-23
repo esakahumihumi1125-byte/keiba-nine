@@ -1411,7 +1411,7 @@ def create_app(settings=None):
                                  '/owner-auto-trial')
                 primary_label = (preday_day_label + 'の前日参考予想（研究用）'
                                  if preday_day_label else
-                                 '予想を見る（本人用）' if private_owner else
+                                 'JRDB2項目の暫定研究予想を見る' if private_owner else
                                  '暫定予想の研究画面（プレビュー）')
                 text = (text.replace('__OWNER_FORECAST_ROUTE__', primary_route)
                             .replace('__OWNER_FORECAST_TITLE__', primary_label)
@@ -1423,7 +1423,7 @@ def create_app(settings=None):
                             .replace('__OWNER_AUTO_QUICK_LINK__',
                                      '<p class="owner-auto-quick-access">'
                                      '<a class="owner-sub-action" href="/owner-auto-forecast">'
-                                     '🐎 明日・月祝の全R暫定予想（JRDB2項目）を開く'
+                                     '🐎 JRDB2項目の全R研究予想を開く'
                                      '</a></p>'
                                      if private_owner else ''))
                 if private_owner:
