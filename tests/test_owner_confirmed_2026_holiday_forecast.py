@@ -1,4 +1,4 @@
-"""Confirmed Monday JRA holidays reuse the guarded weekend auto-read only."""
+"""Confirmed JRA Monday holidays and Nov 30 reorganisation stay same-day safe."""
 import shutil
 import subprocess
 import sys
@@ -13,9 +13,12 @@ class ConfirmedHolidayJraDayTests(unittest.TestCase):
     def test_page_discloses_billable_on_open_for_confirmed_holidays(self):
         self.assertIn("JRA公表済みの2026年開催月曜", HTML)
         self.assertIn("2026-11-23", JS)
-        self.assertIn("confirmedHoliday", JS)
-        self.assertIn("if(normalWeekend||confirmedHoliday)", JS)
+        self.assertIn("confirmedMonday", JS)
+        self.assertIn("if(normalWeekend||confirmedMonday)", JS)
         self.assertIn("JRA開催の月祝当日", JS)
+        self.assertIn("2026-11-30", JS)
+        self.assertIn("JRA開催の月曜再編当日", JS)
+        self.assertIn("if(day!==jstToday()){", JS)
         self.assertNotIn("Special weekday races are explicit manual reads", JS)
 
     @unittest.skipUnless(shutil.which("node"), "Node unavailable")
@@ -34,7 +37,7 @@ assert(autoStart>=0&&autoEnd>autoStart);
 assert(hiliteStart>=0&&hiliteEnd>hiliteStart);
 const autoCode=decl[0]+'\n'+source.slice(autoStart,autoEnd);
 const highlightCode=decl[0]+'\n'+source.slice(hiliteStart,hiliteEnd);
-function dayTest(day,expectCall){
+function dayTest(day,expectCall,current=day){
  let calls=0,seen=[];
  const el=new Map([['autoDay',{value:day}]]);
  const $=id=>{
@@ -45,14 +48,16 @@ function dayTest(day,expectCall){
   $,Date,Set,Number,Array,
   recentWeekendEmptyRead:()=>false,
   showRecentlyFixedWithoutProvider:(day,label)=>{seen.push(label);return false;},
-  jstToday:()=>day,nearestJstWeekday:()=> '2026-11-28'
+  jstToday:()=>current,nearestJstWeekday:()=> '2026-11-28'
  },{timeout:800});
  assert.equal(calls,expectCall,day+' unexpected provider request');
  if(day==='2026-11-23')assert.equal(seen[0],'JRA開催の月祝当日');
+ if(day==='2026-11-30')assert.equal(seen[0],'JRA開催の月曜再編当日');
 }
 dayTest('2026-11-22',1);
 dayTest('2026-11-23',1);
-dayTest('2026-11-30',0);
+dayTest('2026-11-30',1);
+dayTest('2026-11-28',0,'2026-11-24'); // Future Saturday: never paid auto-read
 dayTest('2026-11-24',0);
 dayTest('2026-11-21',1);
 // Older published 2026 holiday is explicit but the actual scheduled racing
@@ -79,15 +84,19 @@ const sun=highlight('2026-11-22');
 assert.equal(sun('autoMondayQuick').hidden,false);
 assert.equal(sun('autoMondayQuick').disabled,false);
 assert(sun('autoMondayQuick').textContent.includes('明日11/23（月祝）'));
-const ordinary=highlight('2026-11-29');
+const reorganisation=highlight('2026-11-29');
+assert.equal(reorganisation('autoMondayQuick').hidden,false);
+assert.equal(reorganisation('autoMondayQuick').disabled,false);
+assert(reorganisation('autoMondayQuick').textContent.includes('明日11/30（月・再編）'));
+const ordinary=highlight('2026-12-06');
 assert.equal(ordinary('autoMondayQuick').hidden,true);
 assert.equal(ordinary('autoMondayQuick').disabled,true);
-console.log('2026 holiday auto-read: ONLY confirmed Monday or weekends; Sunday next-day shortcut PASS');
+console.log('2026 Monday exceptions: Nov 30, future-day paid read guard, Sunday shortcut PASS');
 """
         run = subprocess.run(["node", "-e", node], input=JS, text=True,
                              capture_output=True, timeout=15, check=False)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertIn("ONLY confirmed Monday", run.stdout)
+        self.assertIn("Nov 30, future-day paid read guard", run.stdout)
 
 
 if __name__ == "__main__":

@@ -7,9 +7,10 @@ const offset=whole.lastIndexOf(marker);
 assert(offset>=0,'isolated script found');
 const code=whole.slice(offset);
 class El{
- constructor(tag){this.tag=tag;this.children=[];this.textContent='';this.disabled=false;this.value='';}
+ constructor(tag){this.tag=tag;this.children=[];this.textContent='';this.disabled=false;this.value='';this.onclick=null;this.ariaPressed='';}
  append(...children){this.children.push(...children);}
  replaceChildren(...children){this.children=children;}
+ setAttribute(key,value){this[key]=value;}
 }
 function forecast(day='2099-01-01'){
  const races=[];
@@ -25,10 +26,10 @@ function forecast(day='2099-01-01'){
   officialJraVerified:false,purchased:false,races
  }};
 }
-function setup(fetchImpl){
+function setup(fetchImpl,initialDay='2099-01-01'){
  const elements=new Map(['autoPredayInlineLoad','autoPredayInlineStatus','autoPredayInlineRaces','autoDay'].map(id=>[id,new El(id)]));
  const input=elements.get('autoDay');
- input.value='2099-01-01';
+ input.value=initialDay;
  let existingChanges=0;
  input.onchange=()=>{existingChanges++;};
  const calls=[];
@@ -45,48 +46,61 @@ function setup(fetchImpl){
 function descendantText(el){
  return (el.textContent||'')+(el.children||[]).map(descendantText).join('\n');
 }
+async function tick(){await new Promise(resolve=>setImmediate(resolve));}
 (async()=>{
  const ok=setup(async()=>({ok:true,json:async()=>forecast()}));
- await ok.get('autoPredayInlineLoad').onclick();
+ await tick(); // The free private snapshot loads without pressing a button.
  assert.match(ok.get('autoPredayInlineStatus').textContent,/前日参考 24R/);
  assert.match(ok.get('autoPredayInlineStatus').textContent,/追加のJRDB照会0回/);
  assert.equal(ok.get('autoPredayInlineLoad').disabled,false);
- assert.equal(ok.calls.length,1);
+ assert.equal(ok.calls.length,1,'one free snapshot request on page open');
  assert.equal(ok.calls[0][0],'/api/owner-preday-forecast');
  assert.equal(ok.calls[0][1].credentials,'same-origin');
  const shown=descendantText(ok.get('autoPredayInlineRaces'));
- assert.match(shown,/京都 12R/);
- assert.match(shown,/東京 12R/);
- assert.match(shown,/1着 1 ／ 2着 1・2 ／ 3着 1・2・3/);
+ assert.match(shown,/(京都|東京) 12R/,'one venue presents all 12R');
+ assert.match(shown,/1着 1/);
+ assert.match(shown,/2着 1・2/);
+ assert.match(shown,/3着 1・2・3/);
+ const [tabs,cards]=ok.get('autoPredayInlineRaces').children;
+ assert.equal(tabs.children.length,2,'separate venue tabs');
+ assert(new Set(tabs.children.map(x=>x.textContent)).has('東京'));
+ assert(new Set(tabs.children.map(x=>x.textContent)).has('京都'));
+ assert.equal(cards.children.length,12,'all 12R in selected venue by default');
+ tabs.children[1].onclick();
+ assert.equal(cards.children.length,12,'all 12R after venue switch');
+ assert.match(descendantText(cards),/(京都|東京) 12R/);
  assert.match(shown,/正式10項目・JRA最終出走/);
  assert(!shown.includes('馬名を勝手に生成'));
  // Same-day current race is historical after the provisional post time:
  // no new formation should appear.
- const expired=setup(async()=>({ok:true,json:async()=>forecast('2026-11-21')}));
- expired.input.value='2026-11-21';
+ const expired=setup(async()=>({ok:true,json:async()=>forecast('2026-11-21')}),'2026-11-21');
  // The runtime current date might be beyond this fixture; past days
  // must be rejected before any API request or new betting display.
- await expired.get('autoPredayInlineLoad').onclick();
+ await tick();
  assert.equal(expired.calls.length,0);
  assert.match(expired.get('autoPredayInlineStatus').textContent,/過去日の新規参考買い目/);
  const bad=forecast();bad.forecast.races[0].points=48;
  const fail=setup(async()=>({ok:true,json:async()=>bad}));
- await fail.get('autoPredayInlineLoad').onclick();
+ await tick();
  assert.match(fail.get('autoPredayInlineStatus').textContent,/安全に表示できません/);
  assert.equal(fail.get('autoPredayInlineRaces').children.length,0);
  const mismatch=setup(async()=>({ok:true,json:async()=>forecast('2099-01-02')}));
- await mismatch.get('autoPredayInlineLoad').onclick();
+ await tick();
  assert.equal(mismatch.get('autoPredayInlineRaces').children.length,0);
- let release;
- const delayed=setup(()=>new Promise(resolve=>{release=resolve;}));
- const pending=delayed.get('autoPredayInlineLoad').onclick();
+ const replies=[];
+ const delayed=setup(()=>new Promise(resolve=>{replies.push(resolve);}));
+ assert.equal(delayed.calls.length,1,'initial request is in flight');
  delayed.input.value='2099-01-02';delayed.input.onchange();
  assert.equal(delayed.existingChanges,1,'preserve original day change');
- release({ok:true,json:async()=>forecast()});
- await pending;
+ assert.equal(delayed.calls.length,2,'new day causes one free read');
+ replies[0]({ok:true,json:async()=>forecast()});
+ await tick();
  assert.equal(delayed.get('autoPredayInlineRaces').children.length,0,
   'stale response must not populate changed date');
- assert.match(delayed.get('autoPredayInlineStatus').textContent,/開催日が変わりました/);
- assert.equal(delayed.get('autoPredayInlineLoad').disabled,false);
- console.log('Owner in-page preday 24R: validated, stale-safe, no paid JRDB/receipt writes PASS');
+ replies[1]({ok:true,json:async()=>forecast('2099-01-02')});
+ await tick();
+ assert.match(delayed.get('autoPredayInlineStatus').textContent,/前日参考 24R/,
+  'new selected day renders only its own reference');
+ assert.equal(delayed.get('autoPredayInlineRaces').children[1].children.length,12);
+ console.log('Owner in-page preday 24R: automatic free load, 12R venue tabs, stale-safe PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
