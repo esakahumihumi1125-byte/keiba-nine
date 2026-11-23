@@ -7498,13 +7498,7 @@ function highlightSelectedWeekend(){
  $('autoMondayQuick').dataset.selected=String(
   canMonday&&weekday===1&&selected===monday);
 }
-// On non-racing weekdays open the upcoming Saturday's *date* for a
-// zero-cost readiness view; no automatic paid future-day source request.
-const initialJstDay=jstToday();
-const initialWeekday=new Date(initialJstDay+'T12:00:00Z').getUTCDay();
-$('autoDay').value=(initialWeekday>=1&&initialWeekday<=5&&
- !CONFIRMED_MONDAY_RACEDAYS.has(initialJstDay))
- ?nearestJstWeekday(6):initialJstDay;
+$('autoDay').value=jstToday();
 updateSavedResultRaceOptions($('autoDay').value.replaceAll('-',''));
 highlightSelectedWeekend();
 showSavedWorkoutLocks($('autoDay').value.replaceAll('-',''));
