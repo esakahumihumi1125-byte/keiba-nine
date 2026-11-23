@@ -97,7 +97,8 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
 (async()=>{
  const server=boot(true),se=server.$;
  await tick();
- assert.equal(se('fpRaces').children.length,1,'show only one R by default');
+ assert.equal(se('fpRaces').children.length,12,'open with all 12R for the selected venue');
+ assert.match(se('fpSummary').textContent,/全36R/,'show date-wide coverage');
  const firstCard=se('fpRaces').children[0];
  const alternative=firstCard.children.find(x=>x.className==='selective');
  assert.ok(alternative,'an alternative selective individual-ticket view appears');
@@ -138,7 +139,7 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.match(se('fpCloudStatus').textContent,/自動表示/);
  se('fpVenueTabs').children[2].onclick();
  assert.match(se('fpSummary').textContent,/福島/);
- assert.equal(se('fpRaces').children.length,1,'tab switches venue');
+ assert.equal(se('fpRaces').children.length,12,'switching venue keeps all 12R visible');
  se('fpRaceTabs').children[5].onclick();
  assert.match(se('fpSummary').textContent,/6R/);
  assert.equal(se('fpRaces').children.length,1,'single 6R selected');
@@ -151,7 +152,7 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  const source=JSON.stringify(data());
  el('fpFile').files=[{size:source.length,text:async()=>source}];
  await el('fpImport').onclick();
- assert.equal(el('fpRaces').children.length,1);
+ assert.equal(el('fpRaces').children.length,12,'local forecast also opens all 12R');
  assert.equal(el('fpVenueTabs').children.length,3);
  assert.equal(b.writes.length,1);
  assert.equal(b.writes[0],KEY);
@@ -185,9 +186,9 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.equal(unsafe.writes.length,0);
  el('fpVenueTabs').children[1].onclick();
  assert.match(el('fpSummary').textContent,/京都/);
- assert.equal(el('fpRaces').children.length,1);
- el('fpShowAll').onclick();
  assert.equal(el('fpRaces').children.length,12);
+ el('fpShowAll').onclick();
+ assert.equal(el('fpRaces').children.length,1,'one-R mode remains available');
  el('fpDelete').onclick();
  assert.equal(b.store.has(KEY),false);
  assert.equal(b.store.get('other'),'preserved');
