@@ -57,16 +57,18 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.equal(ok.calls[0][0],'/api/owner-preday-forecast');
  assert.equal(ok.calls[0][1].credentials,'same-origin');
  const shown=descendantText(ok.get('autoPredayInlineRaces'));
- assert.match(shown,/京都 12R/);
- assert.match(shown,/東京 12R/);
+ assert.match(shown,/(京都|東京) 12R/,'one venue presents all 12R');
  assert.match(shown,/1着 1/);
  assert.match(shown,/2着 1・2/);
  assert.match(shown,/3着 1・2・3/);
  const [tabs,cards]=ok.get('autoPredayInlineRaces').children;
  assert.equal(tabs.children.length,2,'separate venue tabs');
+ assert(new Set(tabs.children.map(x=>x.textContent)).has('東京'));
+ assert(new Set(tabs.children.map(x=>x.textContent)).has('京都'));
  assert.equal(cards.children.length,12,'all 12R in selected venue by default');
  tabs.children[1].onclick();
  assert.equal(cards.children.length,12,'all 12R after venue switch');
+ assert.match(descendantText(cards),/(京都|東京) 12R/);
  assert.match(shown,/正式10項目・JRA最終出走/);
  assert(!shown.includes('馬名を勝手に生成'));
  // Same-day current race is historical after the provisional post time:
