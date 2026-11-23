@@ -3,7 +3,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#09172b">
 <title>ARC RACE｜本人用・研究予想</title>
-<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261112"></head><body><main>
+<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261112"></head><body class="owner-simple owner-preday-view"><main>
 <details class="owner-menu"><summary>関連ページ・WIN5</summary><nav class="owner-nav">
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
 <a href="/">本人用ホーム</a>
@@ -27,16 +27,13 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="#forecastRacesSection">レース一覧</a>
 <a href="#fixedHistorySection">結果・記録</a>
 </nav>
+<nav class="owner-view-switch" aria-label="予想の表示を切り替える">
+<button id="ownerPredayMode" type="button" aria-pressed="true">前日参考予想</button>
+<button id="ownerJrdbMode" type="button" aria-pressed="false">JRDB研究予想</button>
+<button id="ownerDetailToggle" type="button" aria-pressed="false">詳しい設定</button>
+</nav>
 <p class="warning"><strong>現在は研究用の暫定予想です。</strong>調教・近走の2項目で3連単を試算しています。
 正式10項目の予想とJRA公式照合は未完成。自動購入はしません。</p>
-<section class="owner-preday-recovery" aria-label="別系統の全レース前日参考予想">
-<p><strong>全レースの前日参考予想はこちら</strong>：サーバーに登録済みの開催日・全Rについて、1着・2着・3着候補を別画面で表示します。下の「JRDB調教・近走2項目」の研究用下書き件数とは別です。4Rなどの表示は前日参考予想24Rが消えた意味ではありません。</p>
-<a class="owner-forecast-cta" id="autoPredayRecovery" href="/owner-preday-forecast">配信済みの前日参考予想をすぐ見る（別画面・追加の有料取得なし）</a>
-<button type="button" class="secondary-cta" id="autoPredayInlineLoad">前日参考予想を再確認（無料・追加JRDB照会なし）</button>
-<p id="autoPredayInlineStatus" class="muted" role="status">選択開催日の前日参考予想を自動確認中（JRDB有料照会0回）。</p>
-<div id="autoPredayInlineRaces" aria-label="前日参考予想のレース一覧"></div>
-<p class="muted">参考予想もJRA公式未照合（最終出走・取消・馬場・発走時刻）で、正式10項目採点・購入推奨ではありません。JRDB APIが403で停止するときも、この別経路を利用できます。</p>
-</section>
 <section class="daily-start" id="autoDailyStart">
 <h2>1. 予想を見る</h2>
 <label for="autoDay">開催日</label><input id="autoDay" type="date">
@@ -89,6 +86,15 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <button id="autoWorkoutQuickOpen" type="button" class="secondary-cta" disabled>全場の調教S/Aを確認（未取得）</button>
 <p class="muted">「買い目あり」は研究用3連単。「参考候補」は見送りRの署名なし研究例。「調教S/A」は馬番の仮評価だけ。いずれも正式10項目・JRA公式照合・購入ではありません。</p>
 </div>
+</section>
+<section class="owner-preday-recovery" aria-label="別系統の全レース前日参考予想">
+<h2>前日参考予想｜競馬場を選ぶ</h2>
+<p><strong>全レースの前日参考予想はこちら</strong>：サーバーに登録済みの開催日・全Rについて、1着・2着・3着候補を別画面で表示します。下の「JRDB調教・近走2項目」の研究用下書き件数とは別です。4Rなどの表示は前日参考予想24Rが消えた意味ではありません。</p>
+<a class="owner-forecast-cta" id="autoPredayRecovery" href="/owner-preday-forecast">配信済みの前日参考予想をすぐ見る（別画面・追加の有料取得なし）</a>
+<button type="button" class="secondary-cta" id="autoPredayInlineLoad">前日参考予想を再確認（無料・追加JRDB照会なし）</button>
+<p id="autoPredayInlineStatus" class="muted" role="status">選択開催日の前日参考予想を自動確認中（JRDB有料照会0回）。</p>
+<div id="autoPredayInlineRaces" aria-label="前日参考予想のレース一覧"></div>
+<p class="muted">参考予想もJRA公式未照合（最終出走・取消・馬場・発走時刻）で、正式10項目採点・購入推奨ではありません。JRDB APIが403で停止するときも、この別経路を利用できます。</p>
 </section>
 <section id="forecastRacesSection">
 <h2>2. 予想を見る・競馬場を選ぶ</h2>
@@ -606,6 +612,76 @@ summary{font-weight:800;color:#f2d596;cursor:pointer;min-height:35px}
 .history-coverage{border:1px solid #45617e;background:#182f48;border-radius:10px;margin:7px 0;padding:10px}
 .history-coverage strong{color:#f3d475}.history-coverage p{font-size:12px;margin:4px 0}
 @media(max-width:380px){.number{min-width:34px}.rank{min-width:35px}}
+
+/* Compact owner mode: date -> source -> venue -> 12R. All existing
+   evidence, results, and settings remain accessible in detailed mode. */
+.owner-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:8px 0 12px}
+.owner-view-switch button{margin:0;min-height:48px;background:#203c59;
+ color:#dce9f7;border:1px solid #6285a7;font-size:14px;padding:8px 6px}
+.owner-view-switch button[aria-pressed="true"]{background:#e8c774;color:#132a41;border-color:#f3d991}
+#ownerDetailToggle{grid-column:1/-1;min-height:40px;background:#1a3550;
+ color:#c5d7e9;font-size:13px}
+#ownerDetailToggle[aria-pressed="true"]{background:#365a77;color:white}
+.owner-view-switch button:focus-visible{outline:3px solid #f4d68c;outline-offset:2px}
+body.owner-simple .daily-start{padding:12px;margin:8px 0;border:1px solid #7f99b2}
+body.owner-simple .daily-start input[type="date"]{font-size:18px;font-weight:800;min-height:48px}
+body.owner-simple .owner-weekend-actions button{min-height:50px;margin:2px 0;font-size:14px}
+body.owner-simple #autoMondayQuick:not([hidden]){grid-column:1/-1}
+body.owner-simple .owner-preday-recovery h2{font-size:18px;color:#f3d78b}
+body.owner-simple .owner-preday-recovery{margin:8px 0;padding:11px}
+body.owner-simple .owner-preday-recovery .owner-reference-quick-card .picks,
+body.owner-simple #autoCombinedResearchRows .picks{font-size:19px;line-height:1.7}
+body.owner-simple .owner-preday-recovery .venue-tabs button,
+body.owner-simple #autoCombinedResearchRows .venue-tabs button{font-size:16px;font-weight:850;min-height:47px}
+body.owner-simple .owner-reference-quick-card{padding:12px;margin:8px 0}
+body.owner-simple .owner-reference-quick-card strong{font-size:17px}
+body.owner-simple .owner-reference-quick-card .muted{font-size:12px;line-height:1.45}
+body.owner-simple:not(.owner-detailed).owner-preday-view #forecastRacesSection,
+body.owner-simple:not(.owner-detailed).owner-jrdb-view .owner-preday-recovery{display:none}
+body.owner-simple:not(.owner-detailed) .owner-instructions,
+body.owner-simple:not(.owner-detailed) #autoStoragePulse,
+body.owner-simple:not(.owner-detailed) #autoHoldBreakdown,
+body.owner-simple:not(.owner-detailed) .quick-links,
+body.owner-simple:not(.owner-detailed) .owner-quick-research,
+body.owner-simple:not(.owner-detailed) #autoForecastJump,
+body.owner-simple:not(.owner-detailed) #autoDayDetailSection,
+body.owner-simple:not(.owner-detailed) #fixedHistorySection,
+body.owner-simple:not(.owner-detailed) .advanced-panel,
+body.owner-simple:not(.owner-detailed) #autoMultiQuickPanel,
+body.owner-simple:not(.owner-detailed) #autoReferenceQuickPanel,
+body.owner-simple:not(.owner-detailed) #autoFixedQuickPanel,
+body.owner-simple:not(.owner-detailed) #autoCombinedResearchExport,
+body.owner-simple:not(.owner-detailed) #autoCombinedResearchExportStatus,
+body.owner-simple:not(.owner-detailed) #autoCombinedNoPickPanel,
+body.owner-simple:not(.owner-detailed) #autoVenues,
+body.owner-simple:not(.owner-detailed) #autoRacePick,
+body.owner-simple:not(.owner-detailed) #autoNextDraft,
+body.owner-simple:not(.owner-detailed) #autoViewingStatus,
+body.owner-simple:not(.owner-detailed) #autoRaces,
+body.owner-simple:not(.owner-detailed) #autoHoldPanel,
+body.owner-simple:not(.owner-detailed) #autoResearchTools,
+body.owner-simple:not(.owner-detailed) #forecastRacesSection>.owner-race-diagnostics,
+body.owner-simple:not(.owner-detailed) #forecastRacesSection>label,
+body.owner-simple:not(.owner-detailed) #forecastRacesSection>p.muted,
+body.owner-simple:not(.owner-detailed) .owner-preday-recovery>p:first-of-type,
+body.owner-simple:not(.owner-detailed) .owner-preday-recovery>p:last-child{display:none}
+body.owner-simple:not(.owner-detailed) .owner-readiness-brief{background:transparent;border:0;padding:0;margin:4px 0}
+body.owner-simple:not(.owner-detailed) #autoOperationalNext{font-size:12px;line-height:1.45;margin:5px 0}
+body.owner-simple:not(.owner-detailed) #autoStatus{font-size:12px;line-height:1.45}
+body.owner-simple:not(.owner-detailed) .owner-preday-recovery .owner-forecast-cta{font-size:13px;padding:9px;min-height:40px}
+body.owner-simple:not(.owner-detailed) #autoPredayInlineLoad{min-height:39px;font-size:12px;padding:6px;margin:4px 0}
+body.owner-simple:not(.owner-detailed) .auto-easy-pulse{font-size:15px;padding:9px}
+body.owner-simple:not(.owner-detailed) #autoCombinedResearchPanel{padding:9px}
+body.owner-simple:not(.owner-detailed) #autoCombinedResearchPanel>p.muted{display:none}
+body.owner-simple:not(.owner-detailed) #autoCombinedResearchStatus{font-size:13px;padding:8px}
+body.owner-simple:not(.owner-detailed) #autoPredayInlineStatus{font-size:13px;margin:5px 0}
+@media(max-width:440px){
+ .owner-view-switch{gap:5px}
+ .owner-view-switch button{font-size:13px;min-height:44px}
+ body.owner-simple .arc-legacy-context{display:none}
+ body.owner-simple .arc-main-tabs{margin:5px 0}
+ body.owner-simple .arc-main-tabs a{min-height:40px}
+}
 """
 
 JS = r"""(()=>{'use strict';
@@ -11865,5 +11941,49 @@ if(typeof previousRun==='function'){
   return previousRun.apply(this,args);
  };
 }
+})();
+"""
+
+
+# Presentation-only switch. No new source reads, bet calculation, paid API
+# calls, draft storage, receipt changes, or automatic purchase.
+JS += r"""
+;(()=>{'use strict';
+const preday=document.getElementById('ownerPredayMode');
+const jrdb=document.getElementById('ownerJrdbMode');
+const detail=document.getElementById('ownerDetailToggle');
+const body=document.body;
+if(!preday||!jrdb||!detail||!body||
+   !body.classList||typeof body.classList.toggle!=='function')return;
+function choose(view,jump){
+ const isJrdb=view==='jrdb';
+ body.classList.toggle('owner-jrdb-view',isJrdb);
+ body.classList.toggle('owner-preday-view',!isJrdb);
+ preday.setAttribute('aria-pressed',String(!isJrdb));
+ jrdb.setAttribute('aria-pressed',String(isJrdb));
+ if(jump){
+  const section=document.getElementById(isJrdb?'forecastRacesSection':
+   'autoPredayInlineRaces');
+  if(section&&typeof section.scrollIntoView==='function')
+   section.scrollIntoView({behavior:'smooth',block:'start'});
+ }
+}
+function detailed(enabled){
+ body.classList.toggle('owner-detailed',enabled);
+ detail.setAttribute('aria-pressed',String(enabled));
+ detail.textContent=enabled?'簡単表示に戻す':'詳しい設定';
+}
+preday.onclick=()=>choose('preday',true);
+jrdb.onclick=()=>choose('jrdb',true);
+detail.onclick=()=>detailed(!body.classList.contains('owner-detailed'));
+if(typeof document.querySelector==='function'){
+ const raceLink=document.querySelector('.arc-main-tabs a[href="#forecastRacesSection"]');
+ const resultLink=document.querySelector('.arc-main-tabs a[href="#fixedHistorySection"]');
+ if(raceLink&&typeof raceLink.addEventListener==='function')
+  raceLink.addEventListener('click',()=>choose('jrdb',false));
+ if(resultLink&&typeof resultLink.addEventListener==='function')
+  resultLink.addEventListener('click',()=>detailed(true));
+}
+choose('preday',false);
 })();
 """
