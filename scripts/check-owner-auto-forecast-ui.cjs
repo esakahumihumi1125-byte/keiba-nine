@@ -1652,7 +1652,10 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  function get(id){if(!elements.has(id))elements.set(id,node('div'));return elements.get(id)}
  const document={
   visibilityState:'visible',
-  getElementById:get,createElement:node,createDocumentFragment:()=>node('fragment'),
+  // The separate inline-preday DOM test covers the optional FREE snapshot.
+  // Here isolate the JRDB pipeline request-count invariants.
+  getElementById:id=>id==='autoPredayInlineLoad'?null:get(id),
+  createElement:node,createDocumentFragment:()=>node('fragment'),
   addEventListener:(name,fn)=>{if(name==='visibilitychange')onVisibility=fn}
  };
  const localStorage={
