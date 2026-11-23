@@ -35,7 +35,7 @@ class OwnerHomePredayNavigationTests(unittest.TestCase):
             '<a class="owner-main-action" href="/owner-auto-forecast">', html)
         self.assertIn(
             '<a class="owner-sub-action" href="/owner-auto-forecast">'
-            '🐎 明日・月祝の全R暫定予想（JRDB2項目）を開く</a>',
+            '🐎 JRDB2項目の全R研究予想を開く</a>',
             html)
         self.assertIn("正式10項目", html)
         self.assertNotIn("NOT_TO_EXPOSE", html)
@@ -72,7 +72,7 @@ class OwnerHomePredayNavigationTests(unittest.TestCase):
                 }, day="2026-11-21")
                 self.assertIn(
                     '<a class="owner-main-action" href="/owner-auto-forecast">'
-                    '🐎 予想を見る（本人用）</a>', html)
+                    '🐎 JRDB2項目の暫定研究予想を見る</a>', html)
 
     def test_preview_never_mistaken_for_owner_server(self):
         data = forecast()

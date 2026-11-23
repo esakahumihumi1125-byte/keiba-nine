@@ -511,6 +511,9 @@ main{padding-bottom:65px}
 .owner-reference-quick>summary{font-weight:850;color:#f1d28e;font-size:16px}
 .owner-reference-quick-card{border:1px solid #537c9f;padding:10px;
  border-radius:10px;margin:9px 0;background:#132c45}
+.owner-research-draft{border-color:#69b8e9}
+.owner-research-reference{border-color:#6d8baf}
+.owner-research-hold{border-color:#455e78;background:#102337}
 .owner-reference-quick-card .picks{font-size:15px;font-weight:750;margin:5px 0;
  overflow-wrap:anywhere}
 .owner-reference-quick-card button{font-size:14px;min-height:45px;width:100%;
@@ -3409,19 +3412,36 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
  const venues=[...new Set(data.races.map(r=>r.track))];
  const venueButtons=dom('div',undefined,'venue-tabs');
  const cards=dom('div');
+ const picksByKey=new Map(result.picks.map(r=>[r.key,r]));
  host.append(venueButtons,cards);
  function showVenue(track){
   cards.replaceChildren();
   for(const button of venueButtons.children)
    button.ariaPressed=String(button.textContent===track);
-  const picks=result.picks.filter(r=>r.track===track&&
-   !draftExpiredOnDevice(day,r.postTime)).sort((a,b)=>a.race-b.race);
-  if(!picks.length)cards.append(dom('p',track+'で現在表示できる発走前候補はありません。','muted'));
-  for(const r of picks){
-   const card=dom('div',undefined,'owner-reference-quick-card');
-   card.append(dom('strong',r.track+' '+r.race+'R'),
-    dom('p',r.postTime+'予定（JRDB）｜'+r.title,'muted'));
-   for(const line of r.lines)card.append(dom('p',line,'picks'));
+  // Display all scheduled races in this venue, including those on hold.
+  // Never infer missing horse numbers or turn references into signed picks.
+  const entries=data.races.filter(r=>r.track===track)
+   .sort((a,b)=>a.race-b.race);
+  for(const race of entries){
+   const key=race.track+'|'+race.race;
+   const pick=picksByKey.get(key);
+   const expired=draftExpiredOnDevice(day,race.postTime);
+   const kind=pick&&!expired
+    ?pick.type==='prestart_draft'?'owner-research-draft':'owner-research-reference'
+    :'owner-research-hold';
+   const card=dom('div',undefined,'owner-reference-quick-card '+kind);
+   card.append(dom('strong',race.track+' '+race.race+'R'));
+   if(pick&&!expired){
+    card.append(dom('p',race.postTime+'予定（JRDB）｜'+pick.title,'muted'));
+    for(const line of pick.lines)card.append(dom('p',line,'picks'));
+   }else{
+    const reason=expired?'発走予定時刻経過・新しい買い目は非表示':
+     race.status==='hold'
+      ?'見送り・参考候補なし（'+
+       (Object.hasOwn(REASONS,race.reason)?REASONS[race.reason]:'資料確認待ち')+'）'
+      :'新しい買い目は非表示（端末固定などを確認）';
+    card.append(dom('p',race.postTime+'予定（JRDB）｜'+reason,'muted'));
+   }
    cards.append(card);
   }
  }
