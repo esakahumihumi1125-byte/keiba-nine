@@ -42,6 +42,7 @@ const elements=new Map([
 ].map(key=>[key,new Element(key)]));
 const sandbox={
  Set,Map,Object,Array,String,Number,Error,
+ REASONS:{missing_factors:'資料不足',ambiguous_equal_grade_boundary:'同点判定保留'},
  $:key=>elements.get(key),
  dom:(tag,value,className)=>{
   const out=new Element(tag);
@@ -95,8 +96,11 @@ assert.deepEqual(venues.children.map(b=>b.textContent),['東京','福島']);
 assert.equal(cards.children.length,12);
 assert.equal(cards.children[0].children[0].textContent,'東京 1R');
 venues.children[1].onclick();
-assert.equal(cards.children.length,5);
+assert.equal(cards.children.length,12,'all 12 Fukushima races remain discoverable');
 assert.equal(cards.children[0].children[0].textContent,'福島 1R');
+assert.equal(cards.children[5].children[0].textContent,'福島 6R');
+assert.match(cards.children[5].children[1].textContent,/見送り・参考候補なし/);
+assert.match(cards.children[5].className,/owner-research-hold/);
 assert.equal(venues.children[1].ariaPressed,'true');
 assert.equal(elements.get('autoCombinedNoPickRows').children.length,7);
 assert.equal(elements.get('autoCombinedResearchPanel').open,true);
