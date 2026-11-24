@@ -145,7 +145,8 @@ def compare_jvdata_candidate_to_jrdb(jv, jrdb_programme, jrdb_entries):
 
     `jrdb_programme` must be an ALREADY normalized one-race /tra dict.
     `jrdb_entries` are validated per-horse /tky dicts for that same race.
-    A mismatch means HOLD, not a weaker horse or permission to pick runners.
+    A mismatch or absent JRDB entry rows means HOLD, not a weaker horse or
+    permission to pick runners. A partial entry response is isolated to its R.
     """
     if (not isinstance(jv, dict) or jv.get("version") != VERSION
             or jv.get("privateInputOnly") is not True
@@ -164,7 +165,7 @@ def compare_jvdata_candidate_to_jrdb(jv, jrdb_programme, jrdb_entries):
             or jrdb_programme.get("track") != jv.get("track")
             or jrdb_programme.get("race") != jv.get("race")
             or not isinstance(jrdb_entries, list)
-            or not 4 <= len(jrdb_entries) <= 18):
+            or not 0 <= len(jrdb_entries) <= 18):
         raise CoverageError("Invalid two-provider race comparison")
     expected_key = jrdb_programme.get("racekey")
     if type(expected_key) is not str:
@@ -194,7 +195,8 @@ def compare_jvdata_candidate_to_jrdb(jv, jrdb_programme, jrdb_entries):
     matching_post = (type(jrdb_programme.get("post_time")) is str
                      and jrdb_programme["post_time"] == jv.get("postTimeCandidate"))
     matching_count = jrdb_programme.get("headcount") == len(candidate)
-    matched = matching_numbers and matching_post and matching_count
+    entry_count_match = len(jrdb_entries) == len(candidate)
+    matched = matching_numbers and matching_post and matching_count and entry_count_match
     return {
         "version": "owner-jvdata-jrdb-crosscheck-1",
         "track": jv["track"], "race": jv["race"],
@@ -202,6 +204,8 @@ def compare_jvdata_candidate_to_jrdb(jv, jrdb_programme, jrdb_entries):
         "raceAndNumbersCandidateMatch": bool(matching_numbers),
         "scheduledPostCandidateMatch": bool(matching_post),
         "registeredCountCandidateMatch": bool(matching_count),
+        "entryCountCandidateMatch": entry_count_match,
+        "jrdbEntryRowsMissingCandidate": max(0, len(candidate) - len(jrdb_entries)),
         "withdrawalStatusUnresolved": True,
         "possibleWithdrawnInJrdb": len(withdrawn) > 0,
         "independentOfficialJraVerified": False,

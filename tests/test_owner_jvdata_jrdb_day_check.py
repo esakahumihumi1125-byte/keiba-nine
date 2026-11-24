@@ -66,6 +66,36 @@ class JvDayCrosscheckTests(unittest.TestCase):
         self.assertEqual(statuses[("東京", 1)], "candidate_matched_not_final")
         self.assertEqual(statuses[("京都", 2)], "missing_jvdata_candidate")
 
+    def test_partial_or_absent_jrdb_entries_hold_the_race_not_the_day(self):
+        for received in (0, 1, 2, 3):
+            week, programme, entries = data()
+            second = {**programme[0], "race": 2, "racekey": "05265502"}
+            programme.append(second)
+            week["races"].append({**week["races"][0], "race": 2})
+            week["raceCount"] = 2
+            second_entries = [{**row, "racekey": second["racekey"]}
+                              for row in entries]
+            with self.subTest(received=received):
+                report = audit_day_candidate_matches(
+                    week, programme, entries[:received] + second_entries, DAY)
+                self.assertEqual(report["candidateMatchedRaces"], 1)
+                self.assertEqual(report["heldMismatchRaces"], 1)
+                self.assertEqual(report["missingJrdbEntryRaces"], 1)
+                self.assertFalse(report["allCandidatesMatched"])
+                self.assertEqual(report["races"][0]["status"], "hold_source_mismatch")
+                self.assertFalse(report["races"][0]["entryCountCandidateMatch"])
+                self.assertEqual(report["races"][0]["jrdbEntryRowsMissingCandidate"], 4-received)
+                self.assertTrue(report["races"][1]["candidateMatched"])
+                self.assertFalse(report["productionPredictionReady"])
+
+    def test_withdrawal_warning_is_preserved_in_day_report(self):
+        week, programme, entries = data()
+        entries[-1]["withdrawn_flag"] = "1"
+        report = audit_day_candidate_matches(week, programme, entries, DAY)
+        self.assertTrue(report["races"][0]["possibleWithdrawnInJrdb"])
+        self.assertEqual(report["possibleJrdbWithdrawalRaces"], 1)
+        self.assertFalse(report["officialScratchesVerified"])
+
     def test_wrong_post_and_horse_set_hold_without_raising_race_grade(self):
         for field in ("post_time", "horse_number", "headcount"):
             week, programme, entries = data()
