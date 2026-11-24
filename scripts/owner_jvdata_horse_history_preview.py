@@ -91,6 +91,8 @@ def parse_historical_se7_observation(raw, target_day):
         "distanceMeters": None,  # Requires separately joined historical RA
         "surface": None,
         "going": None,
+        "historicalStarterCount": None,  # actual starters from matched RA7
+        "historicalFinishersCount": None,
         "source": "private_historical_SE7_unverified_availability",
     }
     return result
@@ -139,6 +141,15 @@ def _historical_ra_context(raw, target_day, capture_day):
     else:
         # Obstacles may cross surfaces; avoid importing the wrong going.
         surface, going = None, None
+    # JV-Data RA fields 46-48, positions 882/884/886 (1-based).
+    # Actual starters exclude scratches; finishers exclude nonfinishers.
+    registered = _optional_number(raw, 881, 883, maximum=18)
+    starters = _optional_number(raw, 883, 885, maximum=18)
+    finishers = _optional_number(raw, 885, 887, maximum=18)
+    if (registered is not None and starters is not None and starters > registered):
+        starters = finishers = None
+    if starters is None or (finishers is not None and finishers > starters):
+        finishers = None
     return (racedate, venue, meeting, meeting_day, race), {
         "distanceMeters": distance,
         "surface": surface,
@@ -147,6 +158,8 @@ def _historical_ra_context(raw, target_day, capture_day):
             1: "良", 2: "稍重", 3: "重", 4: "不良",
         }.get(going),
         "historicalTrackCode": code if code != "00" else None,
+        "historicalStarterCount": starters,
+        "historicalFinishersCount": finishers,
         "historicalRaceContextMatched": True,
     }
 
@@ -222,6 +235,18 @@ def preview_jvdata_horse_history(current_ra, current_se, historical_se, day,
                     "goingCode": None, "historicalTrackCode": None,
                     "historicalRaceContextMatched": False,
                 })
+                # Context must be consistent with the observed runner.
+                # Leave the denominator unknown rather than count a rank
+                # outside the reported field or finishers.
+                starters = observation["historicalStarterCount"]
+                finishers = observation["historicalFinishersCount"]
+                finish = observation["finishPosition"]
+                positions = [x for x in observation["cornerPositions"] if x is not None]
+                if starters is not None and any(x > starters for x in positions + ([finish] if finish is not None else [])):
+                    observation["historicalStarterCount"] = None
+                    observation["historicalFinishersCount"] = None
+                elif finishers is not None and finish is not None and finish > finishers:
+                    observation["historicalFinishersCount"] = None
                 observations.append(observation)
         by_number.append({
             "number": number,

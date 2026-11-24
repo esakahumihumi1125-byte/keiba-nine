@@ -58,6 +58,7 @@ def summarize_runner(horse, *, target_day=None):
 
     finishes, corners, styles, last3f, dates = [], [], [], [], []
     historical_course_rows = historical_going_rows = 0
+    field_relative_runs = []
     for run in recent:
         if not isinstance(run, dict) or not isinstance(run.get("date"), str):
             raise CoverageError("Invalid private prior run")
@@ -94,6 +95,29 @@ def summarize_runner(horse, *, target_day=None):
             historical_course_rows += 1
             if past_going in ("良", "稍重", "重", "不良"):
                 historical_going_rows += 1
+        starters = run.get("historicalStarterCount")
+        finishers = run.get("historicalFinishersCount")
+        # Old files lack these optional fields. Do not invent denominators.
+        # The proportion beaten is descriptive, not an ability score.
+        relative = None
+        if (ra_joined and _int_in(starters, 2, 18)
+                and _int_in(finishers, 1, starters)
+                and _int_in(finish, 1, finishers)
+                and run.get("hasAbnormalCode") is False
+                and all(x is None or x <= starters for x in raw_corners)):
+            relative = {
+                "starters": starters, "finishers": finishers,
+                "finishPosition": finish,
+                "finisherPositionPercentile": (
+                    round(100 * (finishers - finish) / (finishers - 1), 2)
+                    if finishers >= 2 else None
+                ),
+                "finalCornerToFinishGainPerFieldPercent": (
+                    round(100 * (raw_corners[-1] - finish) / (starters - 1), 2)
+                    if raw_corners[-1] is not None and finishers == starters else None
+                ),
+            }
+        field_relative_runs.append(relative)
         finishes.append(finish)
         corners.append(raw_corners)
         styles.append(style)
@@ -125,6 +149,7 @@ def summarize_runner(horse, *, target_day=None):
         "historicalRowsObserved": count,
         "visiblePriorRuns": len(recent),
         "observedFinishes": finishes,
+        "fieldRelativeHistoricalObservations": field_relative_runs,
         "observedLast3fTenths": last3f,
         "observedCornerPositions": corners,
         "observedStyleCodes": styles,
@@ -197,6 +222,9 @@ def summarize_one_race(report):
             "pace" in x["factorsWithObservations"] for x in horses),
         "runnersWithPastCourseContext": sum(
             x["historicalCourseContextRowsObserved"] > 0 for x in horses),
+        "runnersWithFieldRelativeObservations": sum(
+            any(item is not None for item in h["fieldRelativeHistoricalObservations"])
+            for h in horses),
         "runnersWithPastGoingContext": sum(
             x["historicalGoingContextRowsObserved"] > 0 for x in horses),
         "byNumber": horses,
@@ -275,6 +303,11 @@ def render_evidence_html(result):
             "不明" if x is None else f"{x / 10:.1f}秒"
             for x in horse["observedLast3fTenths"]
         ) or "観測なし"
+        relative = "、".join(
+            "不明" if item is None else
+            f'{item["finishPosition"]}着/{item["starters"]}頭出走・{item["finishers"]}頭入線'
+            for item in horse.get("fieldRelativeHistoricalObservations", [])
+        ) or "観測なし"
         lines.append(
             "<section><details><summary>" + e(horse["number"])
             + "番｜過去走 " + e(horse["historicalRowsObserved"])
@@ -287,7 +320,8 @@ def render_evidence_html(result):
             + "走（いずれも今回の適性評価ではない）</p>"
             + "<p>観測した着順：" + e(finishes)
             + "</p><p>上がり3F候補：" + e(three_f)
-            + "</p><table><tr><th>10項目</th><th>状態</th></tr>"
+            + "</p><p>過去走の出走・入線頭数：" + e(relative)
+            + "（着順の比較資料・能力点ではない）</p><table><tr><th>10項目</th><th>状態</th></tr>"
         )
         for item in horse["factorEvidence"].values():
             lines.append(
