@@ -437,7 +437,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261124-calendar" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261124-local-history" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -12021,6 +12021,7 @@ function viewNode(tag,text){
 }
 function clearState(why){
  seq++;
+ compareButton.disabled=false;
  rows.replaceChildren();
  fileInput.value='';
  status.textContent=why;
@@ -12046,11 +12047,22 @@ function joinForCoverage(source,day,rosters,grades){
     source.races.length>36||source.raceCount!==source.races.length||
     !(rosters instanceof Map)||!(grades instanceof Map))
   throw Error('invalid_local_history');
+ const stamp=source.capturedAtLocalJst;
+ if(typeof stamp!=='string'||!/^20\d{2}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?\+09:00$/.test(stamp)||
+    !Number.isFinite(Date.parse(stamp))||
+    new Date(stamp.slice(0,10)+'T12:00:00Z').toISOString().slice(0,10)!==stamp.slice(0,10))
+  throw Error('invalid_local_capture');
+ const captured=Date.parse(stamp),isoDay=day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6,8);
+ if(!Number.isFinite(Date.parse(isoDay+'T12:00:00Z'))||
+    new Date(isoDay+'T12:00:00Z').toISOString().slice(0,10)!==isoDay)
+  throw Error('invalid_local_day');
  const local=new Map();
  for(const race of source.races){
   if(!race||!tracks.has(race.track)||!Number.isInteger(race.race)||
      race.race<1||race.race>12||race.historyComplete!==false||
      race.graded!==false||race.bettingReady!==false||
+     typeof race.postTimeCandidate!=='string'||
+     !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(race.postTimeCandidate)||
      !Array.isArray(race.byNumber)||race.byNumber.length<3||
      race.byNumber.length>18||
      !Number.isInteger(race.observedHorseHistory)||
@@ -12074,7 +12086,7 @@ function joinForCoverage(source,day,rosters,grades){
   }
   if([...horses.values()].filter(x=>x.observed).length!==race.observedHorseHistory)
    throw Error('invalid_local_observations');
-  local.set(coord,horses);
+  local.set(coord,{horses,beforeOff:captured<Date.parse(isoDay+'T'+race.postTimeCandidate+':00+09:00')});
  }
  if(rosters.size>36||grades.size>36||rosters.size!==grades.size)
   throw Error('invalid_jrdb_coordinates');
@@ -12093,10 +12105,12 @@ function joinForCoverage(source,day,rosters,grades){
       !g||!gradeValues.has(g.training)||!gradeValues.has(g.recent))
     throw Error('invalid_jrdb_grade');
   }
-  const jv=local.get(coord);
+  const localCard=local.get(coord),jv=localCard?.horses;
   let statusCode='jv_race_not_observed',priorCount=0,dualCount=0;
   if(jv){
-   if(nums.size<3){
+   if(!localCard.beforeOff){
+    statusCode='post_off_local_capture';
+   }else if(nums.size<3){
     statusCode='jrdb_roster_unavailable';
    }else if(jv.size!==nums.size||
       [...nums].some(number=>!jv.has(number))){
@@ -12125,6 +12139,7 @@ function joinForCoverage(source,day,rosters,grades){
   mismatchedRaceCount:cards.filter(x=>x.status==='number_sets_differ').length,
   missingJvRaceCount:cards.filter(x=>x.status==='jv_race_not_observed').length,
   missingJrdbRosterRaceCount:cards.filter(x=>x.status==='jrdb_roster_unavailable').length,
+  postOffJvRaceCount:cards.filter(x=>x.status==='post_off_local_capture').length,
   unpairedJvRaceCount:[...local.keys()].filter(k=>!rosters.has(k)).length,
   observedPriorHorseNumberCount:paired.reduce((sum,x)=>sum+x.observedPriorCount,0),
   bothSourcesObservedHorseNumberCount:paired.reduce((sum,x)=>sum+x.alsoTwoFactorObservedCount,0),
@@ -12163,7 +12178,8 @@ compareButton.onclick=async()=>{
    same_number_set_unverified_identity:'馬番集合一致（同一馬IDは未確認）',
    number_sets_differ:'馬番集合に不一致',
    jv_race_not_observed:'JRA-VAN側のR未収録',
-   jrdb_roster_unavailable:'JRDB側の馬番資料不足'
+   jrdb_roster_unavailable:'JRDB側の馬番資料不足',
+   post_off_local_capture:'発走予定後のPC取得（発走前照合の対象外）'
   };
   for(const card of merged.cards){
    const p=viewNode('p',card.track+card.race+'R｜'+names[card.status]+
@@ -12178,6 +12194,7 @@ compareButton.onclick=async()=>{
    'R、不一致 '+merged.mismatchedRaceCount+
    'R、JV側Rなし '+merged.missingJvRaceCount+
    'R、JRDB馬番不足 '+merged.missingJrdbRosterRaceCount+
+   'R、発走予定後のPC取得 '+merged.postOffJvRaceCount+
    'R、対応しないJV側R '+merged.unpairedJvRaceCount+
    'R。同じ馬のID照合・正式10項目・JRA最終出走・馬場は未確認。3連単は作成・変更せず、ファイル送信0回。';
  }catch(_){
