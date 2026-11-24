@@ -127,6 +127,7 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
     results = []
     for coord in sorted(programme):
         row, card = programme[coord], cards.get(coord)
+        cross = None
         if card is None:
             status = "missing_jvdata_candidate"
             matched = False
@@ -145,6 +146,9 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
             "track": coord[0], "race": coord[1],
             "status": status,
             "candidateMatched": matched,
+            "entryCountCandidateMatch": cross["entryCountCandidateMatch"] if cross is not None else None,
+            "jrdbEntryRowsMissingCandidate": cross["jrdbEntryRowsMissingCandidate"] if cross is not None else None,
+            "possibleWithdrawnInJrdb": cross["possibleWithdrawnInJrdb"] if cross is not None else None,
             "officialJraVerified": False,
             "finalScratchesVerified": False,
             "productionPredictionReady": False,
@@ -158,6 +162,8 @@ def audit_day_candidate_matches(jv_week, jrdb_programme, jrdb_entries, day):
         "candidateMatchedRaces": counts["candidate_matched_not_final"],
         "missingJvdataRaces": counts["missing_jvdata_candidate"],
         "heldMismatchRaces": counts["hold_source_mismatch"],
+        "missingJrdbEntryRaces": sum((r["jrdbEntryRowsMissingCandidate"] or 0) > 0 for r in results),
+        "possibleJrdbWithdrawalRaces": sum(r["possibleWithdrawnInJrdb"] is True for r in results),
         "postOffCandidateRaces": counts["post_off_local_capture"],
         "allCandidatesMatched": len(programme) > 0 and (
             counts["candidate_matched_not_final"] == len(programme)
