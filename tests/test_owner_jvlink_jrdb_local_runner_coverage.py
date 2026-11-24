@@ -115,6 +115,24 @@ const flush=async()=>{for(let j=0;j<8;j++)await Promise.resolve()};
  assert.match(x.get('autoJvHistoryRows').children[0].children[0].textContent,/仮評価もある馬番 1/);
  assert.equal(x.counters().networkCount,0);
  assert.equal(x.counters().clickCount,0);
+ assert.match(x.get('autoJvHistoryRows').children[0].children[0].textContent,/今回条件の比較資料：未確認/);
+ const course=makeRace('東京',1);
+ course.surfaceCandidate='芝';course.distanceMetersCandidate=1800;
+ const run={date:'20261025',historicalRaceContextMatched:true,hasAbnormalCode:false,
+  trackCode:'05',surface:'芝',distanceMeters:1800,finishPosition:5};
+ course.byNumber[0].recentObservedRuns=[run,{...run,date:'20261123'}];
+ course.byNumber[1].recentObservedRuns=[{...run,date:'20261101',trackCode:'08',distanceMeters:1600},
+  {...run,date:'20261102',hasAbnormalCode:true}];
+ load(x,sourceFile([course]));
+ await x.get('autoJvHistoryCompare').onclick();
+ assert.match(x.get('autoJvHistoryRows').children[0].children[0].textContent,/同場・芝ダ・同距離 1頭／同じ芝ダ・距離差200m以内 2頭/);
+ assert.match(x.get('autoJvHistoryRows').children[0].children[0].textContent,/適性点ではありません/);
+ course.byNumber[0].recentObservedRuns=[run,{...run}];
+ course.byNumber[1].recentObservedRuns=[{...run,date:'20260230'}, {...run,date:'20261124'}];
+ load(x,sourceFile([course]));
+ await x.get('autoJvHistoryCompare').onclick();
+ assert.match(x.get('autoJvHistoryRows').children[0].children[0].textContent,/同場・芝ダ・同距離 0頭／同じ芝ダ・距離差200m以内 0頭/);
+ assert.equal(x.counters().networkCount,0);
  load(x,sourceFile([makeRace('東京',1,[1,2,4])]));
  await x.get('autoJvHistoryCompare').onclick();
  assert.match(x.get('autoJvHistoryStatus').textContent,/不一致 1R/);

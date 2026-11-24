@@ -437,7 +437,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261124-formal-coverage" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261124-course-history" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -12047,6 +12047,36 @@ function clearState(why){
  fileInput.value='';
  status.textContent=why;
 }
+// Compare only observed pre-target results with joined historical RA7 context.
+// Same venue/surface/distance is NOT proof of an identical course layout.
+const jvVenueCode={'札幌':'01','函館':'02','福島':'03','新潟':'04','東京':'05',
+ '中山':'06','中京':'07','京都':'08','阪神':'09','小倉':'10'};
+function comparableCourseHistory(race,runs,day){
+ const distance=race.distanceMetersCandidate,surface=race.surfaceCandidate;
+ if(!Number.isInteger(distance)||distance<400||distance>10000||
+    !['芝','ダート'].includes(surface))return null;
+ let exact=0,near=0;
+ const dates=new Map();
+ for(const run of runs){
+  if(run&&typeof run.date==='string')dates.set(run.date,(dates.get(run.date)||0)+1);
+ }
+ for(const run of runs){
+  if(!run||typeof run.date!=='string'||!dateRe.test(run.date)||
+     run.date>=day||dates.get(run.date)!==1)continue;
+  const iso=run.date.slice(0,4)+'-'+run.date.slice(4,6)+'-'+run.date.slice(6,8);
+  const timestamp=Date.parse(iso+'T12:00:00Z');
+  if(!Number.isFinite(timestamp)||new Date(timestamp).toISOString().slice(0,10)!==iso)continue;
+  if(run.historicalRaceContextMatched!==true||run.hasAbnormalCode!==false||
+     run.surface!==surface||!Number.isInteger(run.distanceMeters)||
+     run.distanceMeters<400||run.distanceMeters>10000||
+     !Number.isInteger(run.finishPosition)||run.finishPosition<1||run.finishPosition>18)continue;
+  if(Math.abs(run.distanceMeters-distance)<=200){
+   near++;
+   if(run.distanceMeters===distance&&run.trackCode===jvVenueCode[race.track])exact++;
+  }
+ }
+ return {exact,near};
+}
 function joinForCoverage(source,day,rosters,grades){
  // All PRIVATE data remains in the browser: only bounded counts and
  // provisional horse number sets are evaluated in this function.
@@ -12103,7 +12133,8 @@ function joinForCoverage(source,day,rosters,grades){
       item.recentObservedRuns.length>5||
       item.recentObservedRuns.length>item.observedRecordCount)
     throw Error('invalid_local_horse');
-   horses.set(item.number,{observed:item.observedRecordCount>0});
+   horses.set(item.number,{observed:item.observedRecordCount>0,
+    course:comparableCourseHistory(race,item.recentObservedRuns,day)});
   }
   if([...horses.values()].filter(x=>x.observed).length!==race.observedHorseHistory)
    throw Error('invalid_local_observations');
@@ -12128,6 +12159,7 @@ function joinForCoverage(source,day,rosters,grades){
   }
   const localCard=local.get(coord),jv=localCard?.horses;
   let statusCode='jv_race_not_observed',priorCount=0,dualCount=0;
+  let exactCourseCount=null,nearCourseCount=null;
   if(jv){
    if(!localCard.beforeOff){
     statusCode='post_off_local_capture';
@@ -12138,7 +12170,12 @@ function joinForCoverage(source,day,rosters,grades){
     statusCode='number_sets_differ';
    }else{
     statusCode='same_number_set_unverified_identity';
+    if([...jv.values()].every(h=>h.course!==null)){
+     exactCourseCount=0;nearCourseCount=0;
+    }
     for(const [number,sourceHorse] of jv){
+     if(exactCourseCount!==null&&sourceHorse.course.exact>0)exactCourseCount++;
+     if(nearCourseCount!==null&&sourceHorse.course.near>0)nearCourseCount++;
      if(sourceHorse.observed){
       priorCount++;
       const g=horseGrades.get(number);
@@ -12149,7 +12186,9 @@ function joinForCoverage(source,day,rosters,grades){
   }
   cards.push({track:parts[0],race:Number(parts[1]),status:statusCode,
    candidateCount:nums.size,observedPriorCount:priorCount,
-   alsoTwoFactorObservedCount:dualCount});
+   alsoTwoFactorObservedCount:dualCount,
+   sameVenueSurfaceDistanceObservedCount:exactCourseCount,
+   sameSurfaceNearDistanceObservedCount:nearCourseCount});
  }
  const paired=cards.filter(x=>x.status==='same_number_set_unverified_identity');
  return {
@@ -12205,7 +12244,12 @@ compareButton.onclick=async()=>{
   for(const card of merged.cards){
    const p=viewNode('p',card.track+card.race+'R｜'+names[card.status]+
     '｜JRA-VAN過去走が観測できた馬番 '+card.observedPriorCount+
-    '／JRDB調教・近走の仮評価もある馬番 '+card.alsoTwoFactorObservedCount);
+    '／JRDB調教・近走の仮評価もある馬番 '+card.alsoTwoFactorObservedCount+
+    (card.status!=='same_number_set_unverified_identity'?'':
+     card.sameVenueSurfaceDistanceObservedCount===null?'｜今回条件の比較資料：未確認':
+     '｜JV過去5走候補：同場・芝ダ・同距離 '+card.sameVenueSurfaceDistanceObservedCount+
+     '頭／同じ芝ダ・距離差200m以内 '+card.sameSurfaceNearDistanceObservedCount+
+     '頭（適性点ではありません）'));
    display.append(p);
   }
   rows.replaceChildren(display);
