@@ -530,6 +530,17 @@ main{padding-bottom:65px}
 .owner-workout-C{color:#dce2eb}
 .owner-factor-agreement{color:#f1dbad;font-size:12px;
  line-height:1.5;font-weight:700;margin:8px 0 4px}
+.owner-kind-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:5px;margin:10px 0 6px}
+.owner-kind-filters.preday{grid-template-columns:repeat(3,minmax(0,1fr))}
+.owner-kind-filters button{margin:0;min-height:46px;width:100%;
+ border:1px solid #6288a5;border-radius:9px;background:#1c3b55;color:#e8f1fa;
+ font-size:12px;line-height:1.35;font-weight:800;padding:6px 2px;
+ overflow-wrap:anywhere}
+.owner-kind-filters button[aria-pressed="true"]{
+ background:#e8c774;border-color:#f1d38b;color:#172b40}
+.owner-kind-filters button:disabled{opacity:.52}
+.owner-kind-filters button:focus-visible{outline:3px solid #e8c774;outline-offset:2px}
 .owner-race-jump{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));
  gap:5px;margin:9px 0 13px}
 .owner-race-jump button{margin:0;min-height:42px;width:100%;
@@ -3571,12 +3582,14 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows,agreement=
  host.replaceChildren();missing.replaceChildren();
  const venues=[...new Set(data.races.map(r=>r.track))];
  const venueButtons=dom('div',undefined,'venue-tabs');
+ const kindButtons=dom('div',undefined,'owner-kind-filters');
  const raceButtons=dom('div',undefined,'owner-race-jump');
  const cards=dom('div');
  const picksByKey=new Map(result.picks.map(r=>[r.key,r]));
- host.append(venueButtons,raceButtons,cards);
+ host.append(venueButtons,kindButtons,raceButtons,cards);
  function showVenue(track){
   cards.replaceChildren();
+  kindButtons.replaceChildren();
   raceButtons.replaceChildren();
   for(const button of venueButtons.children)
    button.ariaPressed=String(button.textContent===track);
@@ -3633,21 +3646,73 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows,agreement=
   // edit receipts or switch the source's saved date.
   const selectors=[{race:0,label:'全R'},
    ...entries.map(r=>({race:r.race,label:r.race+'R'}))];
-  const controls=[];
-  function selectRace(number){
+  const controls=[],groups=[];
+  let chosenRace=0,chosenKind='all';
+  const kinds=[
+   {id:'all',label:'全R'},
+   {id:'draft',label:'買い目あり'},
+   {id:'reference',label:'参考'},
+   {id:'hold',label:'見送り'}
+  ];
+  // Category buttons ONLY filter already validated and rendered rows.
+  // If the device advances past an off time while this tab remains open,
+  // remove any old 1/2/3-place display before refreshing the filter.
+  function refresh(){
+   const count={draft:0,reference:0,hold:0};
+   const current=entries.map((r,i)=>{
+    const key=r.track+'|'+r.race,pick=picksByKey.get(key),
+      expired=draftExpiredOnDevice(day,r.postTime);
+    if(pick&&expired){
+     const card=cards.children[i];
+     if(!card.className.includes('owner-research-hold')){
+      card.replaceChildren(
+       dom('strong',r.track+' '+r.race+'R'),
+       dom('p',r.postTime+'予定（JRDB）｜発走予定時刻経過・新しい買い目は非表示','muted'));
+      card.className='owner-reference-quick-card owner-research-hold';
+     }
+    }
+    const type=pick&&!expired?
+     (pick.type==='prestart_draft'?'draft':'reference'):'hold';
+    count[type]++;
+    return type;
+   });
    for(let i=0;i<entries.length;i++)
-    cards.children[i].hidden=number!==0&&entries[i].race!==number;
+    cards.children[i].hidden=!
+     ((chosenRace===0||entries[i].race===chosenRace)&&
+      (chosenKind==='all'||chosenKind===current[i]));
    for(const item of controls)
-    item.button.ariaPressed=String(item.race===number);
+    item.button.ariaPressed=String(item.race===chosenRace);
+   for(const item of groups){
+    const n=item.id==='all'?entries.length:count[item.id];
+    item.button.textContent=item.label+' '+n+'R';
+    item.button.disabled=n===0;
+    item.button.ariaPressed=String(item.id===chosenKind);
+   }
+  }
+  for(const item of kinds){
+   const button=dom('button',item.label);
+   button.type='button';
+   button.onclick=()=>{
+    if(button.disabled)return;
+    chosenKind=item.id;
+    chosenRace=0;
+    refresh();
+   };
+   groups.push({...item,button});
+   kindButtons.append(button);
   }
   for(const item of selectors){
    const button=dom('button',item.label);
    button.type='button';
-   button.onclick=()=>selectRace(item.race);
+   button.onclick=()=>{
+    chosenRace=item.race;
+    chosenKind='all'; // A direct R tap always shows that R.
+    refresh();
+   };
    controls.push({...item,button});
    raceButtons.append(button);
   }
-  selectRace(0);
+  refresh();
  }
  for(const track of venues){
   const button=dom('button',track);
