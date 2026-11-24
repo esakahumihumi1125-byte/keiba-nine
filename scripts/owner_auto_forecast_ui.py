@@ -3,7 +3,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#09172b">
 <title>ARC RACE｜本人用・研究予想</title>
-<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261124-compact"></head><body class="owner-simple owner-preday-view"><main>
+<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261124-race-nav"></head><body class="owner-simple owner-preday-view"><main>
 <details class="owner-menu"><summary>関連ページ・WIN5</summary><nav class="owner-nav">
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
 <a href="/">本人用ホーム</a>
@@ -436,7 +436,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261124-one-tap" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261124-race-nav" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -526,6 +526,17 @@ main{padding-bottom:65px}
 .owner-workout-A{color:#ffa6b1}
 .owner-workout-B{color:#a4d8ff}
 .owner-workout-C{color:#dce2eb}
+.owner-factor-agreement{color:#f1dbad;font-size:12px;
+ line-height:1.5;font-weight:700;margin:8px 0 4px}
+.owner-race-jump{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));
+ gap:5px;margin:9px 0 13px}
+.owner-race-jump button{margin:0;min-height:42px;width:100%;
+ background:#244762;border:1px solid #6f97b7;color:#e7effb;
+ border-radius:8px;font-size:14px;font-weight:850;padding:5px 1px}
+.owner-race-jump button[aria-pressed="true"]{background:#e8c774;
+ color:#172b40;border-color:#f1d38b}
+.owner-race-jump button:focus-visible{outline:3px solid #e8c774;outline-offset:2px}
+@media(max-width:355px){.owner-race-jump{grid-template-columns:repeat(5,minmax(0,1fr))}}
 .owner-reference-quick-card .picks{font-size:15px;font-weight:750;margin:5px 0;
  overflow-wrap:anywhere}
 .owner-reference-quick-card button{font-size:14px;min-height:45px;width:100%;
@@ -3515,17 +3526,56 @@ function safeHeldWorkoutEvidence(race){
   groups[band].sort((a,b)=>a-b);
  return {groups,trainingMissing,recentMissing};
 }
-function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
+// Compare 1st-place candidate *membership* only after the existing
+// multi-factor renderer has validated the same-day/roster/points/grades and
+// produced visible reference cards. No raw optional server payload is trusted
+// or converted into signed picks, scores, win probabilities or wagers.
+function validatedDraftFirstAgreement(data,day,rendered){
+ const result=new Map(),raceByKey=new Map(data.races.map(r=>[
+  r.track+'|'+r.race,r
+ ]));
+ if(!rendered||!rendered.children)return result;
+ for(const card of rendered.children){
+  const heading=card?.children?.[0]?.textContent;
+  const picks=card?.children?.[1]?.textContent;
+  const match=typeof heading==='string'?
+   /^([^｜\s]{2,4})\s+(1[0-2]|[1-9])R｜研究用 ([1-9]\d?)点（共通配点(\d{2})点分）$/.exec(heading):null;
+  const pick=typeof picks==='string'?
+   /^1着 ((?:1[0-8]|[1-9])(?:・(?:1[0-8]|[1-9])){0,2})番／2着 /.exec(picks):null;
+  if(!match||!pick)continue;
+  const key=match[1]+'|'+Number(match[2]),race=raceByKey.get(key);
+  const weight=Number(match[4]),nums=pick[1].split('・').map(Number);
+  if(!race||race.status!=='provisional_draft'||
+     draftExpiredOnDevice(day,race.postTime)||
+     !Number.isInteger(weight)||weight<64||weight>90||
+     new Set(nums).size!==nums.length||
+     !nums.every(n=>Number.isInteger(n)&&n>=1&&n<=18)||
+     !Array.isArray(race.first)||race.first.length<1||
+     race.first.length>3||new Set(race.first).size!==race.first.length)
+   continue;
+  const old=new Set(race.first),next=new Set(nums);
+  const common=nums.filter(n=>old.has(n)).length;
+  const kind=common===old.size&&old.size===next.size?'一致':
+   common>0?'一部一致':'相違';
+  result.set(key,'追加項目との1着候補比較：'+kind+
+   '（共通評価'+weight+'点分・研究用）'+
+   '｜2項目の固定下書きは変更なし。的中率検証やJRA公式照合は未実施。');
+ }
+ return result;
+}
+function renderCombinedResearchRows(data,day,draftNodes,referenceRows,agreement=new Map()){
  const result=combinedResearchIndex(data,day,draftNodes,referenceRows);
  const host=$('autoCombinedResearchRows'),missing=$('autoCombinedNoPickRows');
  host.replaceChildren();missing.replaceChildren();
  const venues=[...new Set(data.races.map(r=>r.track))];
  const venueButtons=dom('div',undefined,'venue-tabs');
+ const raceButtons=dom('div',undefined,'owner-race-jump');
  const cards=dom('div');
  const picksByKey=new Map(result.picks.map(r=>[r.key,r]));
- host.append(venueButtons,cards);
+ host.append(venueButtons,raceButtons,cards);
  function showVenue(track){
   cards.replaceChildren();
+  raceButtons.replaceChildren();
   for(const button of venueButtons.children)
    button.ariaPressed=String(button.textContent===track);
   // Display all scheduled races in this venue, including those on hold.
@@ -3544,6 +3594,8 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
    if(pick&&!expired){
     card.append(dom('p',race.postTime+'予定（JRDB）｜'+pick.title,'muted'));
     for(const line of pick.lines)card.append(dom('p',line,'picks'));
+    if(pick.type==='prestart_draft'&&agreement.has(key))
+     card.append(dom('p',agreement.get(key),'owner-factor-agreement'));
    }else{
     const reason=expired?'発走予定時刻経過・新しい買い目は非表示':
      race.status==='hold'
@@ -3575,6 +3627,25 @@ function renderCombinedResearchRows(data,day,draftNodes,referenceRows){
    }
    cards.append(card);
   }
+  // 1〜12R are jump/filter controls only. Never fetch, regenerate,
+  // edit receipts or switch the source's saved date.
+  const selectors=[{race:0,label:'全R'},
+   ...entries.map(r=>({race:r.race,label:r.race+'R'}))];
+  const controls=[];
+  function selectRace(number){
+   for(let i=0;i<entries.length;i++)
+    cards.children[i].hidden=number!==0&&entries[i].race!==number;
+   for(const item of controls)
+    item.button.ariaPressed=String(item.race===number);
+  }
+  for(const item of selectors){
+   const button=dom('button',item.label);
+   button.type='button';
+   button.onclick=()=>selectRace(item.race);
+   controls.push({...item,button});
+   raceButtons.append(button);
+  }
+  selectRace(0);
  }
  for(const track of venues){
   const button=dom('button',track);
@@ -4121,7 +4192,9 @@ function render(input,day){
  // Reuse ONLY the already validated, time-safe, receipt-compatible primary
  // formations and independently verified-on-screen, UNSIGNED reference
  // previews. Never convert reference-only held R to paid/signed tickets.
- renderCombinedResearchRows(data,day,displayableDrafts,quickRows);
+ const agreement=validatedDraftFirstAgreement(
+  data,day,$('autoProvisionalFactorRaces'));
+ renderCombinedResearchRows(data,day,displayableDrafts,quickRows,agreement);
  // Display validated counts only; these are provisional research drafts,
  // never full-ten grades, JRA-verified entries or purchases.
  // Reference-only R are a SUBSET of held races, never extra betting
@@ -11613,9 +11686,11 @@ load.onclick=async()=>{
    venues.get(r.track).push(r);
   }
   const tabs=node('div',undefined,'venue-tabs');
+  const chooser=node('div',undefined,'owner-race-jump');
   const cards=node('div',undefined,'owner-inline-preday-cards');
   function showVenue(track){
    cards.replaceChildren();
+   chooser.replaceChildren();
    for(const tab of tabs.children)
     tab.setAttribute('aria-pressed',String(tab.textContent===track));
    const races=venues.get(track)||[];
@@ -11636,6 +11711,23 @@ load.onclick=async()=>{
     }
     cards.append(card);
    }
+   const choices=[{race:0,label:'全R'},
+    ...races.map(r=>({race:r.race,label:r.race+'R'}))];
+   const buttons=[];
+   function focusRace(number){
+    for(let i=0;i<races.length;i++)
+     cards.children[i].hidden=number!==0&&races[i].race!==number;
+    for(const item of buttons)
+     item.button.setAttribute('aria-pressed',String(item.race===number));
+   }
+   for(const item of choices){
+    const button=node('button',item.label);
+    button.type='button';
+    button.onclick=()=>focusRace(item.race);
+    buttons.push({...item,button});
+    chooser.append(button);
+   }
+   focusRace(0);
   }
   for(const track of venues.keys()){
    const button=node('button',track);
@@ -11643,7 +11735,7 @@ load.onclick=async()=>{
    button.onclick=()=>showVenue(track);
    tabs.append(button);
   }
-  host.replaceChildren(tabs,cards);
+  host.replaceChildren(tabs,chooser,cards);
   if(venues.size)showVenue(venues.keys().next().value);
   status.textContent=requested+'｜前日参考 '+rows.length+
    'Rをこの画面に表示（'+venues.size+'場）。JRDB2項目の下書き件数とは別。追加のJRDB照会0回。';

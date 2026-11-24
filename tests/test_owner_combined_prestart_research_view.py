@@ -17,7 +17,8 @@ class OwnerCombinedPrestartStudyTests(unittest.TestCase):
             self.assertIn('id="' + id_ + '"', HTML)
         self.assertIn("研究用下書きと署名なし参考例", HTML)
         self.assertIn("正式10項目", HTML)
-        self.assertIn("renderCombinedResearchRows(data,day,displayableDrafts,quickRows)", JS)
+        self.assertIn("renderCombinedResearchRows(data,day,displayableDrafts,quickRows,agreement)", JS)
+        self.assertIn("validatedDraftFirstAgreement(", JS)
 
     @unittest.skipUnless(shutil.which("node"), "Node unavailable")
     def test_24r_combined_never_promotes_bounded_unsigned_references(self):
@@ -58,7 +59,8 @@ vm.createContext(sandbox);
 vm.runInContext(js.slice(from,end)+
  '\nglobalThis.study=combinedResearchIndex;'+
  'globalThis.renderCombined=renderCombinedResearchRows;'+
- '\nglobalThis.heldWorkout=safeHeldWorkoutEvidence;',sandbox);
+ '\nglobalThis.heldWorkout=safeHeldWorkoutEvidence;'+
+ '\nglobalThis.draftAgreement=validatedDraftFirstAgreement;',sandbox);
 const R=[];
 for(const track of ['東京','福島'])
  for(let race=1;race<=12;race++){
@@ -98,16 +100,36 @@ assert.equal(result.picks.filter(x=>x.type==='unsigned_reference').length,13);
 assert(result.picks.every(x=>x.lines.length>=1));
 assert(result.picks.slice(0,4).every(x=>x.title.includes('36点')));
 assert(!JSON.stringify(result).includes('"actualPurchase":true'));
-const rendered=sandbox.renderCombined(data,day,drafts,references);
+// Only an independently validated and already rendered multi-factor card
+// may annotate an existing 2-factor draft. No new prediction is created.
+const source={children:[{children:[
+ {textContent:'東京 1R｜研究用 36点（共通配点64点分）'},
+ {textContent:'1着 1・2番／2着 1・2・3番／3着 1・2・3・4番'}
+]}]};
+const agreement=sandbox.draftAgreement(data,day,source);
+assert.match(agreement.get('東京|1'),/1着候補比較：一致/);
+const rendered=sandbox.renderCombined(data,day,drafts,references,agreement);
 assert.equal(rendered.picks.length,17);
 assert.match(elements.get('autoCombinedResearchStatus').textContent,
  /全24R｜発走前研究用下書き 4R｜署名なし追加参考 13R｜新しい買い目・参考候補なし 7R/);
-const [venues,cards]=elements.get('autoCombinedResearchRows').children;
+const [venues,jumps,cards]=elements.get('autoCombinedResearchRows').children;
 assert.deepEqual(venues.children.map(b=>b.textContent),['東京','福島']);
+assert.equal(jumps.children.length,13,'all 12R and all-races selector');
+assert.equal(jumps.children[0].textContent,'全R');
 assert.equal(cards.children.length,12);
 assert.equal(cards.children[0].children[0].textContent,'東京 1R');
+assert.match(cards.children[0].children[5].textContent,/1着候補比較：一致/);
+jumps.children[5].onclick(); // 東京5R only
+assert.equal(cards.children.filter(c=>!c.hidden).length,1);
+assert.equal(cards.children[4].hidden,false);
+assert.equal(jumps.children[5].ariaPressed,'true');
+jumps.children[0].onclick();
+assert.equal(cards.children.filter(c=>!c.hidden).length,12);
+assert.equal(jumps.children[0].ariaPressed,'true');
 venues.children[1].onclick();
+assert.equal(jumps.children.length,13,'venue switch resets 12R picker');
 assert.equal(cards.children.length,12,'all 12 Fukushima races remain discoverable');
+assert.equal(cards.children.filter(c=>!c.hidden).length,12);
 assert.equal(cards.children[0].children[0].textContent,'福島 1R');
 assert.equal(cards.children[5].children[0].textContent,'福島 6R');
 assert.match(cards.children[5].children[1].textContent,/見送り・参考候補なし/);
@@ -141,7 +163,7 @@ const past={raceCount:1,draftCount:0,holdCount:1,races:[
  {...R[18],postTime:'23:55'}
 ]};
 sandbox.renderCombined(past,day,[],[]);
-const expiredCard=elements.get('autoCombinedResearchRows').children[1].children[0];
+const expiredCard=elements.get('autoCombinedResearchRows').children[2].children[0];
 assert(!expiredCard.children.some(n=>/調教[SA]/.test(n.textContent)),
  'past-off races must not show a fresh workout ranking');
 assert.equal(networkCalls,0);

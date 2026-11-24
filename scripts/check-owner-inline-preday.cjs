@@ -61,13 +61,21 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  assert.match(shown,/1着 1/);
  assert.match(shown,/2着 1・2/);
  assert.match(shown,/3着 1・2・3/);
- const [tabs,cards]=ok.get('autoPredayInlineRaces').children;
+ const [tabs,chooser,cards]=ok.get('autoPredayInlineRaces').children;
  assert.equal(tabs.children.length,2,'separate venue tabs');
  assert(new Set(tabs.children.map(x=>x.textContent)).has('東京'));
  assert(new Set(tabs.children.map(x=>x.textContent)).has('京都'));
  assert.equal(cards.children.length,12,'all 12R in selected venue by default');
+ assert.equal(chooser.children.length,13,'all 12R + all-races control');
+ chooser.children[7].onclick();
+ assert.equal(cards.children.filter(el=>!el.hidden).length,1);
+ assert.equal(cards.children[6].hidden,false,'7R one-tap filter');
+ assert.equal(chooser.children[7]['aria-pressed'],'true');
+ chooser.children[0].onclick();
+ assert.equal(cards.children.filter(el=>!el.hidden).length,12);
  tabs.children[1].onclick();
  assert.equal(cards.children.length,12,'all 12R after venue switch');
+ assert.equal(cards.children.filter(el=>!el.hidden).length,12,'venue resets to allR');
  assert.match(descendantText(cards),/(京都|東京) 12R/);
  assert.match(shown,/正式10項目・JRA最終出走/);
  assert(!shown.includes('馬名を勝手に生成'));
@@ -101,6 +109,6 @@ async function tick(){await new Promise(resolve=>setImmediate(resolve));}
  await tick();
  assert.match(delayed.get('autoPredayInlineStatus').textContent,/前日参考 24R/,
   'new selected day renders only its own reference');
- assert.equal(delayed.get('autoPredayInlineRaces').children[1].children.length,12);
+ assert.equal(delayed.get('autoPredayInlineRaces').children[2].children.length,12);
  console.log('Owner in-page preday 24R: automatic free load, 12R venue tabs, stale-safe PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
