@@ -437,7 +437,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261124-course-history" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261124-paired-factors" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -9662,6 +9662,46 @@ $('autoFiveProviderCheck').onclick=async()=>{
    overview.append(dom('p','参考母数であり正式な的中率や勝率を意味しません。'+
     'JRA公式結果と時系列未使用期間での校正は未完成。','muted'));
    cards.push(overview);
+  }
+  // Optional new server summary; never compare unequal or incomplete fields.
+  const paired=result.pairedFactorResearch;
+  if(paired!==undefined){
+   const models=['training_only','current_five','without_training','without_recent',
+    'without_course_distance','without_pace','without_ground'];
+   const expectedWeights={training:30,recent:3,course_distance:17,pace:17,ground:12};
+   const n=paired?.raceCount,pairs=paired?.pairCount,runners=paired?.runnerCount;
+   if(!paired||paired.version!=='owner-fixed-factor-pair-comparison-1'||
+      !Number.isInteger(n)||n<0||n>result.observedRaceCount||
+      !Number.isInteger(pairs)||pairs<0||pairs>153*n||
+      !Number.isInteger(runners)||runners<3*n||runners>18*n||
+      runners>result.observedStudiedRunnerCount||pairs<3*n||
+      paired.sameFullRaceSample!==true||paired.tiesKeptSeparate!==true||
+      paired.officialJraVerified!==false||paired.modelCalibrated!==false||
+      paired.changesExistingReceipts!==false||paired.newProviderRequests!==0||
+      !paired.weights||Object.keys(paired.weights).length!==5||
+      Object.entries(expectedWeights).some(([k,v])=>paired.weights[k]!==v)||
+      !paired.models||Object.keys(paired.models).length!==models.length||
+      models.some(k=>{
+       const m=paired.models[k];
+       return !m||['concordant','discordant','tied'].some(x=>!Number.isInteger(m[x])||m[x]<0)||
+        m.concordant+m.discordant+m.tied!==pairs;
+      }))throw Error('同一全頭比較の集計不一致');
+   const detail=dom('details');
+   detail.append(dom('summary','調教単独と新配点5項目の比較（研究用）'));
+   detail.append(dom('p','全頭の発走前評価と暫定全着順が揃った '+n+'R／'+runners+'頭／'+pairs+'組のみ。','muted'));
+   const modelLabels={training_only:'調教だけ',current_five:'現行配点5項目（79点分）',
+    without_training:'調教を除く',without_recent:'近走を除く',
+    without_course_distance:'コース距離を除く',without_pace:'展開を除く',without_ground:'馬場を除く'};
+   if(pairs){
+    for(const key of models){
+     const m=paired.models[key];
+     detail.append(dom('p',modelLabels[key]+'｜着順との一致 '+m.concordant+
+      '組／逆順 '+m.discordant+'組／同点 '+m.tied+'組','muted'));
+    }
+   }else detail.append(dom('p','全頭照合済みの比較資料はまだありません。','muted'));
+   detail.append(dom('p','旧85点の固定記録は変更せず、同じ評価帯で現行の重みを比較した研究値。'
+    +'JRDB暫定結果のみで、正式予想精度・回収率の証明ではありません。','muted'));
+   cards.push(detail);
   }
   $('autoFiveProviderRaces').replaceChildren(...cards);
   $('autoFiveProviderStatus').textContent=
