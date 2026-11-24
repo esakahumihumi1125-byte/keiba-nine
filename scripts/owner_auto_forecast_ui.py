@@ -437,7 +437,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261124-filter" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261124-calendar" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -8919,7 +8919,7 @@ $('autoRun').onclick=async()=>{
    // read and receipt validation. Never repeat a paid provider read or
    // block research forecasts when JRA's public site is unavailable.
    // Advance programme differences are NOT final JRA racecard verification.
-   // The public JRA calendar adapter only supports official 2020-2035\n   // pages. Do not auto-probe synthetic/far-future test dates.\n   const jraCalendarYear=Number(day.slice(0,4));\n   if(body.raceCount>0&&jraCalendarYear>=2020&&jraCalendarYear<=2035)\n    void $('autoAdvanceCompare').onclick();
+   // The public JRA calendar adapter only supports official 2020-2035\n   // pages. Do not auto-probe synthetic/far-future test dates.\n   const jraCalendarYear=Number(day.slice(0,4));\n   // Even zero received races may mean the provider omitted a scheduled day.\n   // The public reference can expose that gap; an unavailable calendar\n   // is still unknown, never a confirmed non-racing day.\n   if(jraCalendarYear>=2020&&jraCalendarYear<=2035)\n    void $('autoAdvanceCompare').onclick();
   }
  }catch(error){if(seq===request){
   latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
