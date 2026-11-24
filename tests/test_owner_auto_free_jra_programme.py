@@ -1,8 +1,8 @@
 """Regression contract: free JRA advance comparison after a successful owner day read.
 
 This deliberately does not contact JRA or JRDB. It checks that the automatic
-request is gated behind validated report + signed-receipt handling, cannot run
-for a zero-race day or a stale iPhone date, and keeps JRA *advance* information
+request is gated behind validated report + signed-receipt handling, can diagnose a zero-race response and cannot run
+for a stale iPhone date, and keeps JRA *advance* information
 separate from final official verification.
 """
 from pathlib import Path
@@ -24,12 +24,24 @@ class AutoFreeJraProgrammeContractTests(unittest.TestCase):
             "latestDisplayedReport=body;latestDisplayedDay=day;",
             "if(seq===request&&day===$('autoDay').value.replaceAll('-','')){",
             "const jraCalendarYear=Number(day.slice(0,4));",
-            "if(body.raceCount>0&&jraCalendarYear>=2020&&jraCalendarYear<=2035)",
+            "if(jraCalendarYear>=2020&&jraCalendarYear<=2035)",
             "void $('autoAdvanceCompare').onclick();",
         )
         positions = [block.index(value) for value in checks]
         self.assertEqual(positions, sorted(positions))
         self.assertEqual(block.count("void $('autoAdvanceCompare').onclick();"), 1)
+
+    def test_zero_received_races_are_not_a_verified_empty_schedule(self):
+        start = SOURCE.index("const jraCalendarYear=Number(day.slice(0,4));")
+        end = SOURCE.index("void $('autoAdvanceCompare').onclick();", start)
+        self.assertNotIn("body.raceCount", SOURCE[start:end])
+        start = SOURCE.index("$('autoAdvanceCompare').onclick=async()=>{")
+        end = SOURCE.index("// Optional, JRA-only HTML index lookup.", start)
+        block = SOURCE[start:end]
+        self.assertIn("if(!original){", block)
+        self.assertIn("unknown+=3;missingSlots++;", block)
+        self.assertIn("JRA事前番組 '+p.raceCount+'R／JRDB受信 '+source.raceCount", block)
+        self.assertIn("取得できず未確認", block)
 
     def test_only_public_schedule_no_paid_refresh(self):
         start = SOURCE.index("$('autoAdvanceCompare').onclick=async()=>{")
