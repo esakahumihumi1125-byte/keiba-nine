@@ -3,7 +3,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#09172b">
 <title>ARC RACE｜本人用・研究予想</title>
-<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261124-compact"></head><body class="owner-simple owner-preday-view"><main>
+<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261124-race-nav"></head><body class="owner-simple owner-preday-view"><main>
 <details class="owner-menu"><summary>関連ページ・WIN5</summary><nav class="owner-nav">
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
 <a href="/">本人用ホーム</a>
@@ -436,7 +436,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261124-one-tap" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261124-race-nav" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
