@@ -76,6 +76,33 @@ class CancellationCueTests(unittest.TestCase):
         self.assertIsNone(racecard_cancellation_cue(HEAD+without_rows))
 
 
+    def test_shared_frame_rowspan_keeps_horse_numbers_in_correct_column(self):
+        shared = """<table><tr><th>枠</th><th>馬番</th><th>馬名</th><th>性齢</th></tr>
+        <tr><td rowspan="3"><img alt="枠8桃"></td><td>16</td><td>架空A</td><td>牡2</td></tr>
+        <tr><td>17</td><td>架空B</td><td>牝2</td></tr>
+        <tr><td>18</td><td>架空C</td><td>牡2</td></tr></table>"""
+        self.assertEqual(racecard_number_candidates(HEAD + shared), [16, 17, 18])
+        self.assertIsNone(racecard_cancellation_cue(HEAD + shared))
+        for marker in ("取消", "除外"):
+            html = HEAD + shared.replace("<td>17</td>", "<td>" + marker + "</td>")
+            self.assertIs(racecard_cancellation_cue(html), True)
+            self.assertIsNone(racecard_number_candidates(html))
+            snapshot = parse_prestart_card_candidate(html, MOBILE, DAY, "京都", 1)
+            self.assertTrue(snapshot["cancellationCueCandidate"])
+            self.assertFalse(snapshot["officialScratchesVerified"])
+            self.assertFalse(snapshot["officialStartersVerified"])
+
+    def test_bad_rowspan_never_invents_a_horse_number(self):
+        clean = HEAD + TABLE.replace("<td>取消</td>", "<td>2</td>")
+        for html in (
+            clean.replace('<td><img alt="枠3赤">', '<td rowspan="2"><img alt="枠3赤">'),
+            clean.replace('<td>2</td>', '<td colspan="2">2</td>'),
+            clean.replace('<td>2</td>', '<td rowspan="2">2</td>'),
+            clean.replace('<td><img alt="枠1白">', '<td rowspan="0"><img alt="枠1白">'),
+        ):
+            self.assertIsNone(racecard_number_candidates(html))
+            self.assertIsNone(racecard_cancellation_cue(html))
+
     def test_number_candidates_are_strict_not_completeness_or_official_status(self):
         clean = HEAD + TABLE.replace("<td>取消</td>", "<td>2</td>")
         self.assertEqual(racecard_number_candidates(clean), [1, 2, 3])
