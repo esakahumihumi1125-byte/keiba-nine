@@ -41,7 +41,7 @@ class Elem{
  append(...c){this.children.push(...c);}
 }
 const makeRace=(track,race,values=[1,2,3])=>({
- track,race,historyComplete:false,graded:false,bettingReady:false,
+ track,race,postTimeCandidate:'10:00',historyComplete:false,graded:false,bettingReady:false,
  observedHorseHistory:2,
  byNumber:values.map((number,i)=>({
   number,observedRecordCount:i<2?2:0,
@@ -52,6 +52,7 @@ const makeRace=(track,race,values=[1,2,3])=>({
 const day='20261123';
 const sourceFile=(races)=>({
  version:'owner-jvdata-local-day-history-bridge-1',date:day,
+ capturedAtLocalJst:'2026-11-23T08:00:00+09:00',
  researchOnly:true,privateOwnerOnly:true,
  historySource:'private_jvlink_rcvn_partial_observations',
  historyCompletenessVerified:false,captureTimeIndependentlyVerified:false,
@@ -118,6 +119,19 @@ const flush=async()=>{for(let j=0;j<8;j++)await Promise.resolve()};
  await x.get('autoJvHistoryCompare').onclick();
  assert.match(x.get('autoJvHistoryStatus').textContent,/不一致 1R/);
  assert.match(x.get('autoJvHistoryStatus').textContent,/JV側Rなし 1R/);
+ const late=sourceFile([makeRace('東京',1),{...makeRace('福島',2),postTimeCandidate:'11:00'}]);
+ late.capturedAtLocalJst='2026-11-23T10:00:00+09:00';
+ load(x,late);
+ await x.get('autoJvHistoryCompare').onclick();
+ assert.match(x.get('autoJvHistoryStatus').textContent,/馬番集合一致 1R/);
+ assert.match(x.get('autoJvHistoryStatus').textContent,/発走予定後のPC取得 1R/);
+ assert.match(x.get('autoJvHistoryRows').children[0].children[0].textContent,/発走予定後のPC取得/);
+ assert.match(x.get('autoJvHistoryRows').children[0].children[0].textContent,/観測できた馬番 0/);
+ for(const stamp of ['2026-02-30T08:00:00+09:00','2026-11-23T08:00:00','bad']){
+  load(x,{...sourceFile([makeRace('東京',1)]),capturedAtLocalJst:stamp});
+  await x.get('autoJvHistoryCompare').onclick();
+  assert.match(x.get('autoJvHistoryStatus').textContent,/安全に照合できません/);
+ }
  const fraud=sourceFile([makeRace('東京',1),makeRace('福島',2)]);
  fraud.officialStarterListVerified=true;
  load(x,fraud);
@@ -146,6 +160,7 @@ const flush=async()=>{for(let j=0;j<8;j++)await Promise.resolve()};
  assert.equal(y.get('autoJvHistoryRows').children.length,0);
  assert.match(y.get('autoJvHistoryStatus').textContent,/開催日を変更しました/);
  assert.equal(y.counters().dateCount,1);
+ assert.equal(y.get('autoJvHistoryCompare').disabled,false);
  await y.get('autoRun').onclick();
  assert.equal(y.counters().clickCount,1);
  assert.equal(y.counters().networkCount,0);
