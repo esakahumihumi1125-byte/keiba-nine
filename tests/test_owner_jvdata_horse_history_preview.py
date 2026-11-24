@@ -173,6 +173,27 @@ class HorseHistoryPreviewTests(unittest.TestCase):
         self.assertFalse(report["formalTenFactorReady"])
         self.assertFalse(report["predictionReady"])
 
+    def test_actual_starters_and_finishers_are_not_registered_count(self):
+        ra = old_ra()
+        for start, end, value in ((881, 883, "18"), (883, 885, "16"),
+                                  (885, 887, "14")):
+            ra = replace(ra, start, end, value)
+        row = sample(1, finish="08")
+        run = preview([row], historical_ra=[ra])["byNumber"][0]["recentObservedRuns"][0]
+        self.assertEqual(run["historicalStarterCount"], 16)
+        self.assertEqual(run["historicalFinishersCount"], 14)
+        missing = preview([row])["byNumber"][0]["recentObservedRuns"][0]
+        self.assertIsNone(missing["historicalStarterCount"])
+        self.assertIsNone(missing["historicalFinishersCount"])
+        contradictory = replace(ra, 883, 885, "04")
+        run = preview([row], historical_ra=[contradictory])["byNumber"][0]["recentObservedRuns"][0]
+        self.assertIsNone(run["historicalStarterCount"])
+        self.assertIsNone(run["historicalFinishersCount"])
+        contradictory = replace(ra, 885, 887, "05")
+        run = preview([row], historical_ra=[contradictory])["byNumber"][0]["recentObservedRuns"][0]
+        self.assertEqual(run["historicalStarterCount"], 16)
+        self.assertIsNone(run["historicalFinishersCount"])
+
     def test_dirt_going_and_foreign_historical_ra_are_not_crossed(self):
         row = sample(1)
         foreign = old_ra(race="02", distance="2400")
