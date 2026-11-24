@@ -437,7 +437,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261124-local-history" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261124-formal-coverage" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -1908,12 +1908,33 @@ function formalGateShadowStatus(data,day){
  if(totals[0]!==p.blockedMissingEvidenceRaces||
     totals[1]!==p.pastOffRaces||
     totals[2]!==p.rosterOrTimeUnavailableRaces)return unavailable;
+ let coverageText='';
+ const coverage=p.formalEvidenceCoverage;
+ if(coverage!==undefined){
+  const weights={training:30,recent:3,course_distance:17,pace:17,ground:12,
+   pedigree:6,draw_weight:3,jockey_stable:10,rotation:1,body_condition:1};
+  const n=coverage?.checkedRunnerCount;
+  if(!coverage||!Number.isInteger(n)||n<0||n>18*p.prestartFormalGateRuns||
+     n<4*p.prestartFormalGateRuns||
+     coverage.checkedRaceCount!==p.prestartFormalGateRuns||
+     coverage.uncheckedRaceCount!==p.raceCount-p.prestartFormalGateRuns||
+     coverage.factorSlotCount!==10*n||coverage.unassessedFactorSlotCount!==10*n||
+     coverage.coverageIsNotAbilityScore!==true||!coverage.byFactor||
+     Object.keys(coverage.byFactor).length!==10)return unavailable;
+  for(const [key,weight] of Object.entries(weights)){
+   const item=coverage.byFactor[key];
+   if(!item||item.weight!==weight||item.traceableRunnerCount!==0||
+      item.unassessedRunnerCount!==n||
+      item.affectedRaceCount!==p.prestartFormalGateRuns)return unavailable;
+  }
+  coverageText=' 発走前の対象 '+n+'頭／正式評価資料 未確認 '+10*n+'項目枠。対象外のRは頭数集計に含めません。';
+ }
  return '正式10項目ゲートへの当日資料接続：発走前の照合試験 '+
   p.prestartFormalGateRuns+'/'+p.raceCount+'R／'+
   '検証済み10項目 0／正式採点 0R／正式3連単 0点。'+
   '発走済み '+p.pastOffRaces+'R・馬番/時刻不足 '+
   p.rosterOrTimeUnavailableRaces+'R。'+
-  'JRDBの研究用S/A/B/Cは正式点に流用せず、JRA公式最終照合も未完了です。';
+  'JRDBの研究用S/A/B/Cは正式点に流用せず、JRA公式最終照合も未完了です。'+coverageText;
 }
 function renderTenHeader(p){
  const host=$('autoTenWeights');host.replaceChildren();
