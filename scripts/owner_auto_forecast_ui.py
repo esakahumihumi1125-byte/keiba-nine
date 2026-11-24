@@ -26,6 +26,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <a href="#autoDailyStart">予想を取得</a>
 <a href="#forecastRacesSection">レース一覧</a>
 <a href="#fixedHistorySection">結果・記録</a>
+<a id="autoQualityLink" href="/owner-100yen-review">精度検証</a>
 </nav>
 <nav class="owner-view-switch" aria-label="予想の表示を切り替える">
 <button id="ownerPredayMode" type="button" aria-pressed="true">前日参考予想</button>
@@ -466,7 +467,7 @@ h1 small{display:block;color:#c7d7e7;font-size:13px}
 html{scroll-behavior:smooth}
 main{padding-bottom:65px}
 .arc-main-tabs{position:sticky;top:0;z-index:15;display:grid;
- grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;
+ grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;
  margin:9px 0 12px;padding:7px;border:1px solid #6787a3;
  border-radius:12px;background:#0b2138f5;box-shadow:0 3px 13px #06142783}
 .arc-main-tabs a{display:flex;align-items:center;justify-content:center;
@@ -474,6 +475,7 @@ main{padding-bottom:65px}
  color:#f3db9c;background:#24415d;font-size:13px;font-weight:800;
  text-decoration:none;text-align:center}
 .arc-main-tabs a:focus-visible,.quick-links a:focus-visible{outline:3px solid #e8c774}
+.arc-main-tabs #autoQualityLink{background:#215980;color:#f5e4b8}
 #autoDailyStart,#forecastRacesSection,#fixedHistorySection{scroll-margin-top:74px}
 .owner-menu{background:transparent;border:0;margin:0;padding:0}
 .owner-menu>summary{display:inline-flex;align-items:center;
@@ -697,7 +699,7 @@ body.owner-simple:not(.owner-detailed) #autoPredayInlineStatus{font-size:13px;ma
  .owner-view-switch button{font-size:13px;min-height:44px}
  body.owner-simple .arc-legacy-context{display:none}
  body.owner-simple .arc-main-tabs{margin:5px 0}
- body.owner-simple .arc-main-tabs a{min-height:40px}
+ body.owner-simple .arc-main-tabs a{min-height:40px;padding:5px 1px;font-size:12px}
 }
 """
 
@@ -7714,8 +7716,10 @@ function updateReviewLink(){
  const valid=/^20\d{2}-\d{2}-\d{2}$/.test(day)&&
   !Number.isNaN(new Date(day+'T12:00:00Z').valueOf())&&
   new Date(day+'T12:00:00Z').toISOString().slice(0,10)===day;
- $('autoReviewLink').href='/owner-100yen-review'+
+ const target='/owner-100yen-review'+
   (valid?'?date='+encodeURIComponent(day):'');
+ $('autoReviewLink').href=target;
+ $('autoQualityLink').href=target;
 }
 $('autoDay').onchange=()=>{
  highlightSelectedWeekend();
