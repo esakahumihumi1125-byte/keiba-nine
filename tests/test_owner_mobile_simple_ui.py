@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from owner_auto_forecast_ui import HTML, JS
+from owner_auto_forecast_ui import HTML, JS, CSS
 
 class SimpleForecastScreenTest(unittest.TestCase):
     def test_primary_flow(self):
@@ -78,6 +78,15 @@ class SimpleForecastScreenTest(unittest.TestCase):
                         HTML.index('id="autoHoldPanel"'))
         self.assertIn("safeDraftCount+'R｜見送り '+data.holdCount+'R'", JS)
         self.assertIn("JRDB2項目方式｜", JS)
+        self.assertIn('id="autoQualityLink" href="/owner-100yen-review"', HTML)
+        self.assertIn(" $('autoQualityLink').href=target;", JS)
+        self.assertIn("grid-template-columns:repeat(4,minmax(0,1fr))", CSS)
+        # Tapping the link opens the existing read-only review page.
+        # No new JRDB result request, local storage mutation or signed
+        # forecast update is made by the navigation itself.
+        nav=HTML.split('<nav class="arc-main-tabs"',1)[1].split('</nav>',1)[0]
+        self.assertEqual(nav.count('id="autoQualityLink"'),1)
+        self.assertNotIn('onclick=',nav)
         self.assertIn("highlightSelectedWeekend()", JS)
         # No new provider endpoint, polling, purchase control or access
         # to paid API keys is introduced by simplified navigation.
