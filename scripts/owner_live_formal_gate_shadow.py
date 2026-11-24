@@ -187,6 +187,17 @@ def live_formal_gate_shadow(report, day, *, now):
                    or r["preview"]["trifecta"]["tickets"]
                    for r in checked["races"])):
         raise CoverageError("Formal shadow unexpectedly generated predictions")
+    coverage = checked["factorEvidenceCoverage"]
+    runner_count = sum(len(row["snapshot"]["horses"]) for row in candidates)
+    if (coverage["checkedRaceCount"] != len(candidates)
+            or coverage["checkedRunnerCount"] != runner_count
+            or coverage["coverageIsNotAbilityScore"] is not True
+            or set(coverage["byFactor"]) != set(FACTORS)
+            or any(item["traceableRunnerCount"] != 0
+                   or item["unassessedRunnerCount"] != runner_count
+                   or item["weight"] != FACTORS[key]
+                   for key, item in coverage["byFactor"].items())):
+        raise CoverageError("Formal shadow evidence totals inconsistent")
     # Return only aggregate race statuses, not a 10-factor assessment or
     # the internal source/provisional grades. No horse identities or keys.
     statuses = {key: "blocked_missing_verified_evidence"
@@ -201,6 +212,16 @@ def live_formal_gate_shadow(report, day, *, now):
         "blockedMissingEvidenceRaces": len(candidates),
         "pastOffRaces": len(outside),
         "rosterOrTimeUnavailableRaces": len(unavailable),
+        "formalEvidenceCoverage": {
+            "checkedRunnerCount": runner_count,
+            "checkedRaceCount": len(candidates),
+            "uncheckedRaceCount": len(original) - len(candidates),
+            "factorSlotCount": runner_count * len(FACTORS),
+            "unassessedFactorSlotCount": runner_count * len(FACTORS),
+            "coverageIsNotAbilityScore": True,
+            "byFactor": coverage["byFactor"],
+            "missingEvidencePriority": coverage["missingEvidencePriority"],
+        },
         "verifiedFormalFactorCount": 0, "verifiedTotalScoreCount": 0,
         "formalTrifectaCount": 0, "officialJraVerified": False,
         "overallPredictionReady": False, "bettingReady": False,
