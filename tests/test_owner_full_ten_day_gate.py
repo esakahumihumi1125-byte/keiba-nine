@@ -54,6 +54,50 @@ class FullTenDayGateTests(unittest.TestCase):
         self.assertEqual(report["newProviderRequests"], 0)
         self.assertFalse(report["paidSourceRowsIncluded"])
 
+    def test_expected_schedule_keeps_missing_races_visible(self):
+        rows = batch()
+        expected = [{"track": r["track"], "race": r["race"]} for r in rows]
+        report = full_ten_day_research(DATE, rows[:-2], now=NOW,
+                                       expected_coordinates=expected)
+        self.assertEqual(report["expectedRaceCount"], 36)
+        self.assertEqual(report["receivedSnapshotRaceCount"], 34)
+        self.assertEqual(report["missingSnapshotRaceCount"], 2)
+        self.assertEqual(report["raceCount"], 36)
+        self.assertEqual(report["heldOrIncompleteRaces"], 2)
+        self.assertEqual(report["researchFormationRaces"], 34)
+        self.assertFalse(report["scheduleSnapshotCoverageComplete"])
+        missing = [r for r in report["races"]
+                   if r["status"] == "missing_internal_snapshot"]
+        self.assertEqual({(r["track"], r["race"]) for r in missing},
+                         {("福島", 11), ("福島", 12)})
+        self.assertTrue(all(r["reviewOnlyTicketCount"] == 0
+                            and r["preview"]["ranking"] == []
+                            and r["preview"]["trifecta"]["tickets"] == []
+                            for r in missing))
+        full = full_ten_day_research(DATE, rows, now=NOW,
+                                     expected_coordinates=expected)
+        self.assertTrue(full["scheduleSnapshotCoverageComplete"])
+        self.assertFalse(full["officialJraVerified"])
+
+    def test_expected_schedule_rejects_duplicate_foreign_and_bad_coordinates(self):
+        rows = batch()[:1]
+        coord = {"track": "東京", "race": 1}
+        for expected in ([], [coord, coord],
+                         [{"track": "京都", "race": 1}],
+                         [{"track": "東京", "race": True}],
+                         [{"track": "東京", "race": 13}],
+                         [{"track": "東京", "race": 1, "raw": "secret"}]):
+            with self.subTest(expected=expected), self.assertRaises(CoverageError):
+                full_ten_day_research(DATE, rows, now=NOW,
+                                      expected_coordinates=expected)
+        empty = full_ten_day_research(DATE, [], now=NOW,
+                                      expected_coordinates=[coord])
+        self.assertEqual(empty["missingSnapshotRaceCount"], 1)
+        self.assertFalse(empty["scheduleSnapshotCoverageComplete"])
+        unchecked = full_ten_day_research(DATE, rows, now=NOW)
+        self.assertIsNone(unchecked["scheduleSnapshotCoverageComplete"])
+        self.assertIsNone(unchecked["missingSnapshotRaceCount"])
+
     def test_one_full_eighteen_runner_tie_can_coexist_with_35_unchanged_races(self):
         rows = batch()
         single = rows[0]["snapshot"]

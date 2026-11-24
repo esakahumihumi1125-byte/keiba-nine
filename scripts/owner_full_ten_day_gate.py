@@ -31,13 +31,15 @@ def _day(value):
     return value
 
 
-def full_ten_day_research(day, race_snapshots, *, now):
+def full_ten_day_research(day, race_snapshots, *, now, expected_coordinates=None):
     """Fail closed per race, with a strict unambiguous venue/R index.
 
     The result is PRIVATE RESEARCH. Flags inside a passed snapshot do not
     independently authenticate JRA and never authorize any real purchases.
     This helper must not be exposed as an HTTP endpoint that accepts client
     supplied assessments or official-verification flags.
+    An optional independently supplied schedule coordinate list keeps absent
+    snapshots visible. It is an inventory check, NOT proof of official origin.
     """
     _day(day)
     _clock(now)
@@ -57,6 +59,25 @@ def full_ten_day_research(day, race_snapshots, *, now):
             raise CoverageError("Duplicate full-ten day coordinate")
         seen.add(coord)
 
+    expected = None
+    if expected_coordinates is not None:
+        if (not isinstance(expected_coordinates, list)
+                or len(expected_coordinates) > MAX_RACES):
+            raise CoverageError("Invalid expected schedule")
+        expected = set()
+        for item in expected_coordinates:
+            if (not isinstance(item, dict) or set(item) != {"track", "race"}
+                    or type(item.get("track")) is not str
+                    or item["track"] not in TRACK_NAMES
+                    or type(item.get("race")) is not int
+                    or not 1 <= item["race"] <= 12):
+                raise CoverageError("Invalid expected schedule coordinate")
+            coord = item["track"], item["race"]
+            if coord in expected:
+                raise CoverageError("Duplicate expected schedule coordinate")
+            expected.add(coord)
+        if not seen <= expected:
+            raise CoverageError("Snapshot outside expected schedule")
     output = []
     for row in race_snapshots:
         assessment = row["snapshot"]
@@ -85,11 +106,28 @@ def full_ten_day_research(day, race_snapshots, *, now):
             "researchOnly": True, "bettingReady": False,
             "purchaseReady": False, "autoPurchase": False,
         })
+    missing = expected - seen if expected is not None else set()
+    for track, race in sorted(missing):
+        output.append({
+            "track": track, "race": race,
+            "status": "missing_internal_snapshot",
+            "fullTenResearchRankReady": False,
+            "reviewOnlyTicketCount": 0,
+            "unassessedHorseCount": 0,
+            "preview": _empty("missing_internal_snapshot"),
+            "researchOnly": True, "bettingReady": False,
+            "purchaseReady": False, "autoPurchase": False,
+        })
     ready = sum(r["fullTenResearchRankReady"] for r in output)
     tickets = sum(r["reviewOnlyTicketCount"] > 0 for r in output)
     return {
         "version": VERSION, "date": day, "raceCount": len(output),
         "races": output, "fullTenResearchRankRaces": ready,
+        "expectedScheduleProvided": expected is not None,
+        "expectedRaceCount": len(expected) if expected is not None else None,
+        "receivedSnapshotRaceCount": len(seen),
+        "missingSnapshotRaceCount": len(missing) if expected is not None else None,
+        "scheduleSnapshotCoverageComplete": seen == expected if expected is not None else None,
         "researchFormationRaces": tickets,
         "heldOrIncompleteRaces": len(output) - tickets,
         "invalidInternalSnapshotRaces": sum(
