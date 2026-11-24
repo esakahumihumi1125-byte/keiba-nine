@@ -1,5 +1,8 @@
 """Synthetic production-day formal-gate shadow, zero licensed requests."""
 import copy
+import json
+import shutil
+import subprocess
 import sys
 import unittest
 from datetime import datetime
@@ -128,6 +131,31 @@ class LiveFormalShadowTests(unittest.TestCase):
         self.assertEqual(len({(x["track"], x["race"]) for x in out["races"]}), 36)
         self.assertEqual(sum(not x["formalScoreReady"]
                              for x in out["races"]), 36)
+
+    @unittest.skipUnless(shutil.which("node"), "Node unavailable")
+    def test_browser_displays_only_consistent_coverage(self):
+        from owner_auto_forecast_ui import JS
+        start = JS.index("function formalGateShadowStatus(")
+        end = JS.index("function renderTenHeader(", start)
+        report = production_shaped()
+        report["formalGateShadow"] = live_formal_gate_shadow(report, DAY, now=NOW)
+        source = JS[start:end] + "\nconst report = " + json.dumps(report) + ";\n"
+        source += """
+const assert=require('node:assert/strict');
+const day=report.date;
+const text=formalGateShadowStatus(report,day);
+assert.match(text,/正式評価資料 未確認/);
+assert.ok(text.includes('発走前の対象 '+report.races[0].runners.length+'頭'));
+report.formalGateShadow.formalEvidenceCoverage.unassessedFactorSlotCount=0;
+assert.match(formalGateShadowStatus(report,day),/この取得では未確認/);
+delete report.formalGateShadow.formalEvidenceCoverage;
+assert.match(formalGateShadowStatus(report,day),/発走前の照合試験/);
+console.log('PASS');
+"""
+        run = subprocess.run(["node", "-"], input=source, text=True,
+                             capture_output=True, timeout=5)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("PASS", run.stdout)
 
     def test_wrong_date_or_promoted_input_fails_closed(self):
         for mutation in (
