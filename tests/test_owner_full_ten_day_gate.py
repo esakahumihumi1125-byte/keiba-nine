@@ -54,6 +54,43 @@ class FullTenDayGateTests(unittest.TestCase):
         self.assertEqual(report["newProviderRequests"], 0)
         self.assertFalse(report["paidSourceRowsIncluded"])
 
+    def test_factor_coverage_counts_missing_evidence_without_fake_runner_denominator(self):
+        rows = batch()[:3]
+        rows[0]["snapshot"]["horses"][0]["assessments"]["training"]["grade"] = "C"
+        del rows[0]["snapshot"]["horses"][1]["assessments"]["training"]
+        del rows[0]["snapshot"]["horses"][2]["assessments"]["training"]
+        rows[1]["snapshot"]["horses"][0]["assessments"]["pace"]["evidence"][0][
+            "availableAt"] = "2099-01-01T09:01:00+09:00"
+        rows[2]["snapshot"]["offAt"] = "2099-01-02T10:00:00+09:00"
+        expected = [{"track": row["track"], "race": row["race"]} for row in rows]
+        expected.append({"track": "東京", "race": 4})
+        report = full_ten_day_research(DATE, rows, now=NOW,
+                                       expected_coordinates=expected)
+        coverage = report["factorEvidenceCoverage"]
+        self.assertEqual(coverage["checkedRaceCount"], 2)
+        self.assertEqual(coverage["uncheckedRaceCount"], 2)
+        self.assertEqual(coverage["checkedRunnerCount"], 16)
+        self.assertTrue(coverage["coverageIsNotAbilityScore"])
+        self.assertEqual(coverage["byFactor"]["training"], {
+            "weight": 30, "traceableRunnerCount": 14,
+            "unassessedRunnerCount": 2, "affectedRaceCount": 1,
+            "missingReasonCounts": {"factor_unassessed": 2},
+        })
+        self.assertEqual(coverage["byFactor"]["pace"], {
+            "weight": 17, "traceableRunnerCount": 15,
+            "unassessedRunnerCount": 1, "affectedRaceCount": 1,
+            "missingReasonCounts": {"evidence_after_prediction_cutoff": 1},
+        })
+        self.assertEqual(coverage["byFactor"]["recent"]["traceableRunnerCount"], 16)
+        self.assertEqual(coverage["missingEvidencePriority"], ["training", "pace"])
+        expired = full_ten_day_research(DATE, rows, now=OFF)["factorEvidenceCoverage"]
+        self.assertEqual(expired["checkedRunnerCount"], 0)
+        self.assertEqual(expired["uncheckedRaceCount"], 3)
+        self.assertEqual(expired["missingEvidencePriority"], [])
+        self.assertTrue(all(item["traceableRunnerCount"] == 0 and
+                            item["unassessedRunnerCount"] == 0
+                            for item in expired["byFactor"].values()))
+
     def test_expected_schedule_keeps_missing_races_visible(self):
         rows = batch()
         expected = [{"track": r["track"], "race": r["race"]} for r in rows]
