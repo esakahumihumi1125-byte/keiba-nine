@@ -8919,7 +8919,7 @@ $('autoRun').onclick=async()=>{
    // read and receipt validation. Never repeat a paid provider read or
    // block research forecasts when JRA's public site is unavailable.
    // Advance programme differences are NOT final JRA racecard verification.
-   // The public JRA calendar adapter only supports official 2020-2035\n   // pages. Do not auto-probe synthetic/far-future test dates.\n   const jraCalendarYear=Number(day.slice(0,4));\n   if(body.raceCount>0&&jraCalendarYear>=2020&&jraCalendarYear<=2035)\n    void $('autoAdvanceCompare').onclick();
+   // The public JRA calendar adapter only supports official 2020-2035\n   // pages. Do not auto-probe synthetic/far-future test dates.\n   const jraCalendarYear=Number(day.slice(0,4));\n   // Even zero received races may mean the provider omitted a scheduled day.\n   // The public reference can expose that gap; an unavailable calendar\n   // is still unknown, never a confirmed non-racing day.\n   if(jraCalendarYear>=2020&&jraCalendarYear<=2035)\n    void $('autoAdvanceCompare').onclick();
   }
  }catch(error){if(seq===request){
   latestDisplayedReport=null;latestDisplayedDay='';latestExpiredDraftCount=0;clearAutomaticOffTimer();
