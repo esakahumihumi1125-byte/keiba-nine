@@ -41,6 +41,18 @@ class LiveFormalShadowTests(unittest.TestCase):
             "formalScoreReady": False, "officialJraVerified": False,
             "bettingReady": False,
         }])
+        n = len(report["races"][0]["runners"])
+        coverage = out["formalEvidenceCoverage"]
+        self.assertEqual(coverage["checkedRunnerCount"], n)
+        self.assertEqual(coverage["factorSlotCount"], 10*n)
+        self.assertEqual(coverage["unassessedFactorSlotCount"], 10*n)
+        self.assertEqual(coverage["checkedRaceCount"], 1)
+        self.assertEqual(coverage["uncheckedRaceCount"], 0)
+        self.assertEqual(len(coverage["byFactor"]), 10)
+        self.assertEqual(coverage["missingEvidencePriority"][0], "training")
+        self.assertTrue(all(x["unassessedRunnerCount"] == n
+                            and x["traceableRunnerCount"] == 0
+                            for x in coverage["byFactor"].values()))
         self.assertEqual(out["verifiedFormalFactorCount"], 0)
         self.assertEqual(out["verifiedTotalScoreCount"], 0)
         self.assertEqual(out["formalTrifectaCount"], 0)
@@ -74,6 +86,9 @@ class LiveFormalShadowTests(unittest.TestCase):
         self.assertEqual(report, before)
         self.assertEqual(out["prestartFormalGateRuns"], 0)
         self.assertEqual(out["pastOffRaces"], 1)
+        self.assertEqual(out["formalEvidenceCoverage"]["checkedRunnerCount"], 0)
+        self.assertEqual(out["formalEvidenceCoverage"]["uncheckedRaceCount"], 1)
+        self.assertEqual(out["formalEvidenceCoverage"]["missingEvidencePriority"], [])
         self.assertEqual(out["races"][0]["status"], "past_off_no_retroactive_gate")
         self.assertEqual(out["formalTrifectaCount"], 0)
 
