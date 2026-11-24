@@ -119,7 +119,8 @@ const weeklyCard=(track,race,postTime,distance,surface,nums)=>({
  surfaceCandidate:surface,
  registeredRunnerCount:nums.length,horseNumbersCandidate:nums,
  sourceRecordCategory:'numbered_racecard_not_final_changes',
- privateInputOnly:true,finalStarterListVerified:false,
+ privateInputOnly:true,collectionTimeIndependentlyVerified:false,
+ beforeScheduledOffAtLocalCapture:true,finalStarterListVerified:false,
  scratchStatusVerified:false,latestGoingVerified:false,
  officialFinalPostTimeVerified:false,formalTenFactorReady:false,
  bettingReady:false
@@ -134,6 +135,7 @@ const weekly={version:'owner-jvlink-weekly-local-candidates-1',date:pcDate,
  raceCount:2,races:[dayCard,extraCard],
  privateOwnerOnly:true,researchOnly:true,providerDataRawIncluded:false,
  collectionTimeIndependentlyVerified:false,
+ capturedAtLocalJst:'2026-11-22T08:00:00+09:00',allCandidatesBeforeScheduledOff:true,
  allScheduledVenuesVerified:false,independentJraVerified:false,
  officialScratchesVerified:false,officialGoingVerified:false,
  officialFinalPostTimeVerified:false,productionPredictionReady:false,
@@ -149,6 +151,17 @@ for(const field of ['allHorseIdentityMatched','officialStarterListVerified',
  'formalTenFactorReady','bettingReady']){
  assert.equal(report[field],false,'do not upgrade '+field);
 }
+const postOff=compareWeeklyJvCandidate({
+ ...weekly,capturedAtLocalJst:'2026-11-22T09:50:00+09:00',
+ allCandidatesBeforeScheduledOff:false,
+ races:[{...dayCard,beforeScheduledOffAtLocalCapture:false},extraCard]
+},dailyReference);
+assert.equal(postOff.postOffJvRaces,1);
+assert.equal(postOff.consistentCandidateRaceCount,1);
+assert.equal(postOff.races[0].status,'post_off_local_capture');
+assert.equal(postOff.referenceCardAndJvCandidateFieldsAllConsistent,false);
+assert.equal(postOff.officialStarterListVerified,false);
+assert.equal(report.postOffJvRaces,0);
 const incomplete=compareWeeklyJvCandidate(
  {...weekly,raceCount:1,races:[dayCard]},dailyReference);
 assert.equal(incomplete.consistentCandidateRaceCount,1);
@@ -172,6 +185,11 @@ for(const malformed of [
  {...weekly,officialGoingVerified:true},
  {...weekly,source:'some-other-source'},
  {...weekly,raceCount:3},
+ {...weekly,capturedAtLocalJst:'2026-11-22T08:00:00'},
+ {...weekly,capturedAtLocalJst:'2026-02-30T08:00:00+09:00'},
+ {...weekly,capturedAtLocalJst:'2026-11-22T09:50:00+09:00'},
+ {...weekly,allCandidatesBeforeScheduledOff:false},
+ {...weekly,races:[{...dayCard,beforeScheduledOffAtLocalCapture:false},extraCard]},
  {...weekly,races:[dayCard,dayCard]},
  {...weekly,races:[dayCard,{...extraCard,horseNumbersCandidate:[1,1,2,3]}]},
  {...weekly,races:[dayCard,{...extraCard,finalStarterListVerified:true}]},
