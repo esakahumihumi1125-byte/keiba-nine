@@ -281,6 +281,7 @@ function compareWeeklyJvCandidate(fileData,reference){
     fileData.privateOwnerOnly!==true||fileData.researchOnly!==true||
     fileData.providerDataRawIncluded!==false||
     fileData.collectionTimeIndependentlyVerified!==false||
+    typeof fileData.allCandidatesBeforeScheduledOff!=='boolean'||
     fileData.allScheduledVenuesVerified!==false||
     fileData.independentJraVerified!==false||
     fileData.officialScratchesVerified!==false||
@@ -291,12 +292,21 @@ function compareWeeklyJvCandidate(fileData,reference){
     !Array.isArray(fileData.races)||fileData.races.length<1||
     fileData.races.length>36||fileData.raceCount!==fileData.races.length)
   throw Error('開催日が違うか、本人PCのJRA-VAN一括研究用ファイルではありません。');
+ const stamp=fileData.capturedAtLocalJst;
+ // The PC timestamp is only a local claim, never independent proof.
+ if(typeof stamp!=='string'||!/^20\d{2}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?\+09:00$/.test(stamp)||
+    !sameRaceDay(stamp.slice(0,10).replace(/-/g,''),stamp.slice(0,10))||
+    !Number.isFinite(Date.parse(stamp)))
+  throw Error('JRA-VANファイルのPC取得時刻が未確認です。');
+ const captured=Date.parse(stamp);
  const seen=new Map();
  for(const card of fileData.races){
   if(!card||!TRACKS.has(card.track)||!Number.isInteger(card.race)||
      card.race<1||card.race>12||
      card.sourceRecordCategory!=='numbered_racecard_not_final_changes'||
      card.privateInputOnly!==true||
+     card.collectionTimeIndependentlyVerified!==false||
+     typeof card.beforeScheduledOffAtLocalCapture!=='boolean'||
      card.finalStarterListVerified!==false||
      card.scratchStatusVerified!==false||
      card.latestGoingVerified!==false||
@@ -315,10 +325,15 @@ function compareWeeklyJvCandidate(fileData,reference){
      card.horseNumbersCandidate.some(n=>!Number.isInteger(n)||n<1||n>18)||
      new Set(card.horseNumbersCandidate).size!==card.registeredRunnerCount)
    throw Error('JRA-VANの出走馬番候補に不正な形式があります。');
+  const off=Date.parse(reference.date+'T'+card.postTimeCandidate+':00+09:00');
+  if(card.beforeScheduledOffAtLocalCapture!==(captured<off))
+   throw Error('JRA-VANの発走前・後の取得時刻が矛盾しています。');
   const key=card.track+'|'+card.race;
   if(seen.has(key))throw Error('JRA-VAN候補のレースが重複しています。');
   seen.set(key,card);
  }
+ if(fileData.allCandidatesBeforeScheduledOff!==[...seen.values()].every(card=>card.beforeScheduledOffAtLocalCapture))
+  throw Error('JRA-VANの全R取得時刻の集計が矛盾しています。');
  const examined=[],refSeen=new Set();
  for(const row of reference.races){
   if(!row||!TRACKS.has(row.track)||!Number.isInteger(row.race)||
@@ -332,6 +347,11 @@ function compareWeeklyJvCandidate(fileData,reference){
   if(!source){
    examined.push({track:row.track,race:row.race,
      status:'jvlink_not_observed',candidateFieldsConsistent:false});
+   continue;
+  }
+  if(!source.beforeScheduledOffAtLocalCapture){
+   examined.push({track:row.track,race:row.race,
+    status:'post_off_local_capture',candidateFieldsConsistent:false});
    continue;
   }
   const numbers=new Set(source.horseNumbersCandidate);
@@ -360,6 +380,7 @@ function compareWeeklyJvCandidate(fileData,reference){
   consistentCandidateRaceCount:consistent,
   missingJvRaces:examined.filter(x=>x.status==='jvlink_not_observed').length,
   mismatchJvRaces:examined.filter(x=>x.status==='hold_source_mismatch').length,
+  postOffJvRaces:examined.filter(x=>x.status==='post_off_local_capture').length,
   unexpectedJvRaceCount:unexpected.length,
   races:examined,
   allHorseIdentityMatched:false,
@@ -465,7 +486,7 @@ $('vanCheck').addEventListener('click',async()=>{
     'R／JRDB参考'+weekly.editorialRaceCount+'R。研究用候補の矛盾なし'+
     weekly.consistentCandidateRaceCount+'R、未観測'+weekly.missingJvRaces+
     'R、候補不一致'+weekly.mismatchJvRaces+'R、予想外の候補'+
-    weekly.unexpectedJvRaceCount+'R。正式予想ではありません。';
+    weekly.unexpectedJvRaceCount+'R、発走予定後の取得'+weekly.postOffJvRaces+'R。正式予想ではありません。';
    const desc=document.createElement('p');desc.className='small';
    desc.textContent=weekly.note;$('vanDetails').append(desc);
    for(const item of weekly.races){
@@ -474,6 +495,7 @@ $('vanCheck').addEventListener('click',async()=>{
     p.textContent=item.track+item.race+'R：'+(
      item.status==='candidate_fields_consistent'?'候補の項目に矛盾なし':
      item.status==='jvlink_not_observed'?'JRA-VAN候補未観測':
+     item.status==='post_off_local_capture'?'発走予定後の取得（予想照合対象外）':
      'JRDB参考との不一致（保留）');
     $('vanDetails').append(p);
    }
