@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from owner_auto_forecast_ui import HTML, JS
+from owner_auto_forecast_ui import HTML, JS, CSS
 
 class SimpleForecastScreenTest(unittest.TestCase):
     def test_primary_flow(self):
