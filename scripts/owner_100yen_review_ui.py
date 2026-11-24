@@ -197,9 +197,20 @@ function checkedPreliminary(input,day,expected){
     !Number.isInteger(input.observedRaceCount)||
     !Number.isInteger(input.pendingRaceCount)||
     !Number.isInteger(input.provisionalExactCombinationCount)||
-    !Number.isInteger(input.provisionalFirstCandidateCount))
+    !Number.isInteger(input.provisionalFirstCandidateCount)||
+    !Number.isInteger(input.provisionalSecondCandidateCount)||
+    !Number.isInteger(input.provisionalThirdCandidateCount)||
+    !Number.isInteger(input.provisionalAllThreeSlotsCount)||
+    !Number.isInteger(input.provisionalCombinationGapCount)||
+    [input.provisionalFirstCandidateCount,
+     input.provisionalSecondCandidateCount,
+     input.provisionalThirdCandidateCount,
+     input.provisionalAllThreeSlotsCount,
+     input.provisionalCombinationGapCount,
+     input.provisionalExactCombinationCount].some(n=>n<0||n>input.observedRaceCount))
   throw Error('暫定比較の検証不可');
- const seen=new Set();let observed=0,exact=0,first=0;
+ const seen=new Set();let observed=0,exact=0,first=0,second=0,third=0,
+  allSlots=0;
  for(const race of input.races){
   const id=race?.track+'|'+race?.race;
   if(seen.has(id)||!Number.isInteger(race?.race)||race.race<1||
@@ -225,6 +236,10 @@ function checkedPreliminary(input,day,expected){
    observed++;
    exact+=Number(race.exactCombinationObserved);
    first+=Number(race.firstCandidateObserved);
+   second+=Number(race.secondCandidateObserved);
+   third+=Number(race.thirdCandidateObserved);
+   allSlots+=Number(race.firstCandidateObserved&&
+     race.secondCandidateObserved&&race.thirdCandidateObserved);
   }else if(race.firstMissType!==null)throw Error('判定保留に矛盾');
  }
  if(seen.size!==expected.size)throw Error('固定Rの比較対象が欠落');
@@ -232,6 +247,10 @@ function checkedPreliminary(input,day,expected){
     input.pendingRaceCount!==input.raceCount-observed||
     input.provisionalExactCombinationCount!==exact||
     input.provisionalFirstCandidateCount!==first||
+    input.provisionalSecondCandidateCount!==second||
+    input.provisionalThirdCandidateCount!==third||
+    input.provisionalAllThreeSlotsCount!==allSlots||
+    input.provisionalCombinationGapCount!==allSlots-exact||
     (input.providerReadCount===0&&observed!==0))
   throw Error('暫定着順の件数不一致');
  return input;
@@ -268,16 +287,24 @@ async function signedForPreliminary(day){
 }
 function showPreliminary(data){
  const p=$('provisionalRaces');p.replaceChildren();
- p.append(el('p','暫定1〜3着を検出 '+data.observedRaceCount+
-  'R／保留 '+data.pendingRaceCount+'R。固定3連単との参考一致 '+
-  data.provisionalExactCombinationCount+'R／1着候補にいた '+
-  data.provisionalFirstCandidateCount+'R（いずれも未確定・公式的中率ではありません）。','muted'));
+ p.append(el('p','JRDB暫定着順で比較できた '+data.observedRaceCount+
+  'R／保留 '+data.pendingRaceCount+'R。'+
+  '1着候補 '+data.provisionalFirstCandidateCount+'R／'+
+  '2着候補 '+data.provisionalSecondCandidateCount+'R／'+
+  '3着候補 '+data.provisionalThirdCandidateCount+'R。'+
+  '全着順が候補枠内 '+data.provisionalAllThreeSlotsCount+'R／'+
+  'そのうち組合せ漏れ '+data.provisionalCombinationGapCount+'R／'+
+  '3連単の参考一致 '+data.provisionalExactCombinationCount+'R。'+
+  'これはJRDB暫定比較で、公式的中率・払戻ではありません。','muted'));
  const reason={first_candidate:'1着候補内',wrong_slot:'勝ち馬を2・3着候補に配置',
   not_selected:'勝ち馬を候補から除外'};
  for(const race of data.races){
   const status=race.providerStatus==='pending'?'暫定着順未成立・保留':
-    '参考一致 '+(race.exactCombinationObserved?'あり':'なし')+'／'+
-    reason[race.firstMissType];
+    '1着'+(race.firstCandidateObserved?'○':'×')+
+    ' 2着'+(race.secondCandidateObserved?'○':'×')+
+    ' 3着'+(race.thirdCandidateObserved?'○':'×')+
+    '｜3連単の参考一致 '+(race.exactCombinationObserved?'あり':'なし')+
+    '｜'+reason[race.firstMissType];
   p.append(el('p',race.track+race.race+'R｜'+status+
    '（JRA公式・払戻は未照合）','muted'));
  }
