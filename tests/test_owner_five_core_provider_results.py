@@ -64,6 +64,54 @@ class FiveCoreProviderReviewTests(unittest.TestCase):
         self.assertNotIn("racekey", repr(result))
         self.assertNotIn("horse_id", repr(result))
 
+    def test_same_full_field_paired_factor_comparison_is_tie_aware(self):
+        originals, _ = signed()
+        snap = copy.deepcopy(originals[0])
+        snap["raceRunnerCount"] = 4
+        snap["observedRunnerCount"] = 4
+        from owner_five_core_receipts import WEIGHTS, POINTS
+        keys = tuple(WEIGHTS)
+        bands = [
+            dict.fromkeys(keys, "S"),
+            {**dict.fromkeys(keys, "S"), "training": "A"},
+            {**dict.fromkeys(keys, "S"), "training": "A", "pace": "C"},
+            dict.fromkeys(keys, "C"),
+        ]
+        snap["horses"] = [
+            {"number": i+1, "bands": b,
+             "rawThirdPoints": sum(WEIGHTS[k]*POINTS[b[k]] for k in keys)}
+            for i, b in enumerate(bands)
+        ]
+        rows = [row(horse=f"{n:02d}", finish=f"{n:02d}") for n in range(1,5)]
+        before = copy.deepcopy(snap)
+        result = compare_five_core_provider_results([snap], rows, DAY, now=AFTER)
+        paired = result["pairedFactorResearch"]
+        self.assertEqual(snap, before)
+        self.assertEqual(paired["raceCount"], 1)
+        self.assertEqual(paired["runnerCount"], 4)
+        self.assertEqual(paired["pairCount"], 6)
+        self.assertEqual(sum(paired["weights"].values()), 79)
+        self.assertEqual(paired["models"]["current_five"],
+                         {"concordant": 6, "discordant": 0, "tied": 0})
+        self.assertEqual(paired["models"]["training_only"],
+                         {"concordant": 5, "discordant": 0, "tied": 1})
+        self.assertEqual(paired["models"]["without_pace"],
+                         {"concordant": 5, "discordant": 0, "tied": 1})
+        self.assertFalse(paired["modelCalibrated"])
+        self.assertFalse(paired["officialJraVerified"])
+        self.assertTrue(all(sum(c.values()) == 6 for c in paired["models"].values()))
+        for bad in (rows[:3],
+                    rows[:3] + [row(horse="04", finish="03")],
+                    rows[:3] + [row(horse="05", finish="04")]):
+            check = compare_five_core_provider_results([snap], bad, DAY, now=AFTER)
+            self.assertEqual(check["pairedFactorResearch"]["pairCount"], 0)
+            self.assertEqual(check["pairedFactorResearch"]["raceCount"], 0)
+        partial = copy.deepcopy(snap)
+        partial["horses"].pop()
+        partial["observedRunnerCount"] = 3
+        check = compare_five_core_provider_results([partial], rows, DAY, now=AFTER)
+        self.assertEqual(check["pairedFactorResearch"]["pairCount"], 0)
+
     def test_unstudied_winner_is_unknown_not_a_loss_or_zero(self):
         originals, _ = signed()
         observed = [row(horse="03", finish="01"),

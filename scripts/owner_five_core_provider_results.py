@@ -8,12 +8,43 @@ import re
 from datetime import datetime, timezone
 
 from jrdb_program_preview import TRACKS
+from evaluation_policy import OWNER_FORMAL_FACTORS, POINTS
 from owner_five_core_receipts import _validate, KEYS, FiveCoreReceiptError
 from owner_rebound_receipts import _day, _timestamp
 
 VERSION = "owner-five-core-provider-observation-1"
 MAX_ROWS = 2160
 BANDS = ("S", "A", "B", "C")
+# Compare fixed current weights on identical frozen hypotheses, not a new
+# score assigned to a horse. Legacy signed 85-point records remain intact.
+CURRENT_WEIGHTS = {k: OWNER_FORMAL_FACTORS[k] for k in KEYS}
+COMPARISON_MODELS = {
+    "training_only": ("training",),
+    "current_five": KEYS,
+    **{"without_" + k: tuple(x for x in KEYS if x != k) for k in KEYS},
+}
+assert sum(CURRENT_WEIGHTS.values()) == 79
+
+
+def _pair_counts(horses, finish_by_number):
+    result = {}
+    for label, factors in COMPARISON_MODELS.items():
+        scores = {n: sum(CURRENT_WEIGHTS[k] * POINTS[h["bands"][k]]
+                         for k in factors) for n, h in horses.items()}
+        counts = {"concordant": 0, "discordant": 0, "tied": 0}
+        numbers = sorted(horses)
+        for i, left in enumerate(numbers):
+            for right in numbers[i+1:]:
+                diff = scores[left] - scores[right]
+                finish_diff = finish_by_number[left] - finish_by_number[right]
+                if not diff:
+                    counts["tied"] += 1
+                elif diff * finish_diff < 0:
+                    counts["concordant"] += 1
+                else:
+                    counts["discordant"] += 1
+        result[label] = counts
+    return result
 
 
 def compare_five_core_provider_results(snapshots, rows, day, *,
@@ -57,7 +88,7 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
         coord = (TRACKS[racekey[:2]], int(racekey[6:]))
         group = by_race.setdefault(coord, {
             "racekeys": set(), "numbers": set(), "places": {},
-            "rowCount": 0, "invalid": False,
+            "rowCount": 0, "invalid": False, "fullPlaces": {},
         })
         group["racekeys"].add(racekey)
         group["rowCount"] += 1
@@ -71,12 +102,16 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
                 group["invalid"] = True
             else:
                 place = int(finish)
+                group["fullPlaces"][n] = place
                 if place in (1, 2, 3):
                     if place in group["places"]:
                         group["invalid"] = True
                     group["places"][place] = n
 
     out, winner_count, eligible_count = [], 0, 0
+    paired_races, paired_runners, pair_total = 0, 0, 0
+    paired_counts = {k: dict.fromkeys(("concordant", "discordant", "tied"), 0)
+                     for k in COMPARISON_MODELS}
     band_counts = {k: {b: 0 for b in BANDS} for k in KEYS}
     exposure_counts = {k: {b: 0 for b in BANDS} for k in KEYS}
     for key in order:
@@ -100,6 +135,20 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
             for horse in frozen_horses.values():
                 for factor in KEYS:
                     exposure_counts[factor][horse["bands"][factor]] += 1
+        # An incomplete signed roster or provisional result never enters a
+        # paired comparison. All models use exactly the same full race.
+        n = original["raceRunnerCount"]
+        paired = (good and len(frozen_horses) == n
+                  and group["rowCount"] == n
+                  and set(group["fullPlaces"]) == set(frozen_horses)
+                  and set(group["fullPlaces"].values()) == set(range(1, n+1)))
+        if paired:
+            paired_races += 1
+            paired_runners += n
+            pair_total += n * (n-1) // 2
+            for model, counts in _pair_counts(frozen_horses, group["fullPlaces"]).items():
+                for label, count in counts.items():
+                    paired_counts[model][label] += count
         winner = frozen_horses.get(podium[0]) if good else None
         if winner is not None:
             winner_count += 1
@@ -131,6 +180,19 @@ def compare_five_core_provider_results(snapshots, rows, day, *,
         "observedStudiedRunnerCount": eligible_count,
         "winnerBandCounts": band_counts,
         "observedResearchBandExposureCounts": exposure_counts,
+        "pairedFactorResearch": {
+            "version": "owner-fixed-factor-pair-comparison-1",
+            "raceCount": paired_races, "runnerCount": paired_runners,
+            "pairCount": pair_total,
+            "weights": dict(CURRENT_WEIGHTS),
+            "models": paired_counts,
+            "sameFullRaceSample": True,
+            "tiesKeptSeparate": True,
+            "officialJraVerified": False,
+            "modelCalibrated": False,
+            "changesExistingReceipts": False,
+            "newProviderRequests": 0,
+        },
         "verifiedRaceCount": 0, "confirmedHitCount": None,
         "officialJraVerified": False,
         "jraIndependentConfirmation": False,
