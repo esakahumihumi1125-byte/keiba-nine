@@ -409,6 +409,8 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
   bettingReady:false,changesExistingReceipts:false,providerReadCount:1,
   raceCount:2,observedRaceCount:1,pendingRaceCount:1,
   provisionalExactCombinationCount:0,provisionalFirstCandidateCount:0,
+  provisionalSecondCandidateCount:1,provisionalThirdCandidateCount:1,
+  provisionalAllThreeSlotsCount:0,provisionalCombinationGapCount:0,
   races:[
    {track:'東京',race:1,providerStatus:'provider_podium_observed',
     trifectaPoints:40,firstCandidateObserved:false,secondCandidateObserved:true,
@@ -452,6 +454,9 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.match(e.get('provisionalStatus').textContent,/この端末の固定記録 2Rをすべて対象/);
  assert.match(e.get('provisionalStatus').textContent,/公式の結果・的中・払戻・回収率に加算していません/);
  assert.equal(e.get('provisionalRaces').children.length,3);
+ assert.match(e.get('provisionalRaces').children[0].textContent,/1着候補 0R／2着候補 1R／3着候補 1R/);
+ assert.match(e.get('provisionalRaces').children[0].textContent,/組合せ漏れ 0R/);
+ assert.match(e.get('provisionalRaces').children[1].textContent,/1着× 2着○ 3着○/);
  assert.match(e.get('provisionalRaces').children[1].textContent,/勝ち馬を2・3着候補に配置/);
  assert.match(e.get('provisionalRaces').children[2].textContent,/保留/);
  assert.equal(e.storage.size,1);
@@ -474,6 +479,9 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
   obj=>obj.races[0].trifectaPoints=39,
   obj=>obj.races[1].race=1,
   obj=>obj.races[0].track='京都',
+  obj=>obj.provisionalSecondCandidateCount=2,
+  obj=>obj.provisionalAllThreeSlotsCount=1,
+  obj=>obj.provisionalCombinationGapCount=1,
  ]){
   const altered=JSON.parse(JSON.stringify(sample));mutate(altered);
   const bad=boot('?date=2099-01-02',fake,altered);
