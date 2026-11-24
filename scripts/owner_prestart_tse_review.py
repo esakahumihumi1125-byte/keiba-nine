@@ -147,14 +147,29 @@ def compare_prestart_tickets(predictions, rows, day, *, now=None,
             "officialVerified": False,
         })
     observed = [x for x in report if x["providerStatus"] == OBSERVED]
+    # Track the *actual failure location* of immutable 3連単 selections.
+    # The results are only JRDB provisional placing observations, NEVER
+    # official JRA hit rates. Unknown / ambiguous / pre-off races are excluded.
+    first_count = sum(x["firstCandidateObserved"] is True for x in observed)
+    second_count = sum(x["secondCandidateObserved"] is True for x in observed)
+    third_count = sum(x["thirdCandidateObserved"] is True for x in observed)
+    all_slots_count = sum(
+        all(x[field] is True for field in (
+            "firstCandidateObserved", "secondCandidateObserved",
+            "thirdCandidateObserved")) for x in observed)
+    exact_count = sum(x["exactCombinationObserved"] is True for x in observed)
+    if exact_count > all_slots_count:
+        raise ProvisionalResultError("Contradictory provisional combination counts")
     return {
         "version": VERSION, "date": day, "raceCount": len(report),
         "observedRaceCount": len(observed),
         "pendingRaceCount": len(report) - len(observed),
-        "provisionalExactCombinationCount": sum(
-            x["exactCombinationObserved"] is True for x in observed),
-        "provisionalFirstCandidateCount": sum(
-            x["firstCandidateObserved"] is True for x in observed),
+        "provisionalExactCombinationCount": exact_count,
+        "provisionalFirstCandidateCount": first_count,
+        "provisionalSecondCandidateCount": second_count,
+        "provisionalThirdCandidateCount": third_count,
+        "provisionalAllThreeSlotsCount": all_slots_count,
+        "provisionalCombinationGapCount": all_slots_count - exact_count,
         "providerReadCount": source_read_count, "races": report,
         "researchOnly": True, "privateOwnerOnly": True,
         "sourceKind": "jrdb-tse-provisional-podium",
@@ -164,7 +179,8 @@ def compare_prestart_tickets(predictions, rows, day, *, now=None,
         "actualPurchase": False, "bettingReady": False,
         "changesExistingReceipts": False,
         "note": ("JRDB /tseで3着までの暫定着順がそろう場合のみ、"
-                 "固定済み3連単との参考比較を表示。"
+                 "固定済み3連単との1〜3着枠別の参考比較を表示。"
+                 "全着順が候補枠に入っても組合せ外なら別に分類。"
                  "独立したJRA公式結果・返還・同着・確定払戻は未照合。"
                  "公式的中率、100円仮想収支、実購入収支には一切算入しない。"),
     }
