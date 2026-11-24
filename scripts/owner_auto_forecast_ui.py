@@ -11755,10 +11755,12 @@ load.onclick=async()=>{
    venues.get(r.track).push(r);
   }
   const tabs=node('div',undefined,'venue-tabs');
+  const filters=node('div',undefined,'owner-kind-filters preday');
   const chooser=node('div',undefined,'owner-race-jump');
   const cards=node('div',undefined,'owner-inline-preday-cards');
   function showVenue(track){
    cards.replaceChildren();
+   filters.replaceChildren();
    chooser.replaceChildren();
    for(const tab of tabs.children)
     tab.setAttribute('aria-pressed',String(tab.textContent===track));
@@ -11782,21 +11784,63 @@ load.onclick=async()=>{
    }
    const choices=[{race:0,label:'全R'},
     ...races.map(r=>({race:r.race,label:r.race+'R'}))];
-   const buttons=[];
-   function focusRace(number){
+   const kinds=[
+    {id:'all',label:'全R'},
+    {id:'candidate',label:'買い候補'},
+    {id:'other',label:'見送り等'}
+   ];
+   const buttons=[],groups=[];
+   let selectedRace=0,selectedKind='all';
+   function refresh(){
+    const clock=nowJst(),counts={candidate:0,other:0};
+    const types=races.map((r,i)=>{
+     const expired=requested===clock.date&&r.time<=clock.time;
+     if(expired&&cards.children[i].children.length>2){
+      cards.children[i].replaceChildren(
+       node('strong',track+' '+r.race+'R'),
+       node('p','発走予定時刻を経過。新しい3連単は非表示。発走前固定記録は別で確認。','muted'));
+     }
+     const type=!expired&&r.status==='買い候補'?'candidate':'other';
+     counts[type]++;
+     return type;
+    });
     for(let i=0;i<races.length;i++)
-     cards.children[i].hidden=number!==0&&races[i].race!==number;
+     cards.children[i].hidden=!
+      ((selectedRace===0||races[i].race===selectedRace)&&
+       (selectedKind==='all'||types[i]===selectedKind));
     for(const item of buttons)
-     item.button.setAttribute('aria-pressed',String(item.race===number));
+     item.button.setAttribute('aria-pressed',String(item.race===selectedRace));
+    for(const item of groups){
+     const n=item.id==='all'?races.length:counts[item.id];
+     item.button.textContent=item.label+' '+n+'R';
+     item.button.disabled=n===0;
+     item.button.setAttribute('aria-pressed',String(selectedKind===item.id));
+    }
+   }
+   for(const item of kinds){
+    const button=node('button',item.label);
+    button.type='button';
+    button.onclick=()=>{
+     if(button.disabled)return;
+     selectedKind=item.id;
+     selectedRace=0;
+     refresh();
+    };
+    groups.push({...item,button});
+    filters.append(button);
    }
    for(const item of choices){
     const button=node('button',item.label);
     button.type='button';
-    button.onclick=()=>focusRace(item.race);
+    button.onclick=()=>{
+     selectedRace=item.race;
+     selectedKind='all';
+     refresh();
+    };
     buttons.push({...item,button});
     chooser.append(button);
    }
-   focusRace(0);
+   refresh();
   }
   for(const track of venues.keys()){
    const button=node('button',track);
@@ -11804,7 +11848,7 @@ load.onclick=async()=>{
    button.onclick=()=>showVenue(track);
    tabs.append(button);
   }
-  host.replaceChildren(tabs,chooser,cards);
+  host.replaceChildren(tabs,filters,chooser,cards);
   if(venues.size)showVenue(venues.keys().next().value);
   status.textContent=requested+'｜前日参考 '+rows.length+
    'Rをこの画面に表示（'+venues.size+'場）。JRDB2項目の下書き件数とは別。追加のJRDB照会0回。';
