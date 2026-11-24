@@ -34,11 +34,14 @@ class _HorseTableCells(HTMLParser):
             self.table_id += 1
             self.tables.append(self.table_id)
         elif tag == "tr" and self.tables:
-            self.row_stack.append({"table": self.tables[-1], "cells": []})
+            self.row_stack.append({"table": self.tables[-1], "cells": [], "spans": []})
         elif (tag in ("th", "td") and self.tables and self.row_stack
               and self.row_stack[-1]["table"] == self.tables[-1]):
+            attributes = dict(attrs)
             self.cell_stack.append({"row": self.row_stack[-1],
-                                    "tag": tag, "parts": [], "length": 0})
+                                    "tag": tag, "parts": [], "length": 0,
+                                    "rowspan": attributes.get("rowspan", "1"),
+                                    "colspan": attributes.get("colspan", "1")})
 
     def handle_data(self, data):
         if self.skips or not self.cell_stack:
@@ -59,6 +62,7 @@ class _HorseTableCells(HTMLParser):
             cell = self.cell_stack.pop()
             cell["row"]["cells"].append(
                 (tag, " ".join("".join(cell["parts"]).split())))
+            cell["row"]["spans"].append((cell["rowspan"], cell["colspan"]))
         elif tag == "tr" and self.row_stack:
             row = self.row_stack.pop()
             if len(self.rows) < MAX_ROWS:
@@ -67,58 +71,13 @@ class _HorseTableCells(HTMLParser):
             self.tables.pop()
 
 
-def racecard_cancellation_cue(html):
-    """Return True when a supported horse table shows an explicit cancellation.
+def _effective_horse_rows(html):
+    """Resolve only explicit frame-column rowspans in one current horse table.
 
-    None means missing/unsupported/ambiguous, NEVER a negative official status.
-    Ignore any '取消' in navigation, past starts, history or unrelated tables.
-    """
-    if type(html) is not str or not html or len(html) > 480000:
-        return None
-    reader = _HorseTableCells()
-    try:
-        reader.feed(html)
-        reader.close()
-    except Exception:
-        return None
-    # Recognize only a narrow racecard table header, not results/history
-    # tables that may independently contain 取消 for past performances.
-    horse_tables = set()
-    for row in reader.rows:
-        cells = row["cells"]
-        if (not cells or len(cells) > 12
-                or not any(tag == "th" for tag, _ in cells)):
-            continue
-        header = " ".join(text for _, text in cells)
-        if (len(header) < 450 and "枠" in header
-                and "馬番" in header and "馬名" in header):
-            horse_tables.add(row["table"])
-    if len(horse_tables) != 1:
-        return None
-    target = next(iter(horse_tables))
-    for row in reader.rows:
-        if row["table"] != target:
-            continue
-        cells = row["cells"]
-        if (len(cells) < 3 or len(cells) > 10
-                or cells[0][0] != "td" or cells[1][0] != "td"
-                or cells[2][0] != "td"):
-            continue
-        # JRA places 取消 in the 馬番 cell rather than its original number.
-        # We MUST NOT infer a scratched horse number from surrounding rows.
-        number_cell = re.sub(r"\s+", "", cells[1][1])
-        if (number_cell in SCRATCH_MARKERS
-                and cells[2][1] and len(cells[2][1]) <= MAX_CELL_CHARS):
-            return True
-    return None
-
-
-def racecard_number_candidates(html):
-    """Read only visible horse-number *candidates* from one narrow racecard table.
-
-    Do not claim a complete field or absence of withdrawals: page contents may
-    be cached or partial. Invalid, ambiguous or scratched rows return None.
-    Names, raw HTML and other JRA table data never leave this function.
+    JRA may display a frame cell once for two or three horses. Restore the
+    column position, never a horse number or a missing/cancelled identity.
+    Other spans in the identity columns, incomplete carries and ambiguous
+    headers fail closed instead of shifting a name into the number column.
     """
     if type(html) is not str or not html or len(html) > 480000:
         return None
@@ -131,7 +90,7 @@ def racecard_number_candidates(html):
     targets = set()
     for row in reader.rows:
         cells = row["cells"]
-        if (len(cells) >= 3 and len(cells) <= 12
+        if (3 <= len(cells) <= 12
                 and all(tag == "th" for tag, _ in cells[:3])
                 and cells[0][1].replace(" ", "") in ("枠", "枠番")
                 and cells[1][1].replace(" ", "") == "馬番"
@@ -139,18 +98,60 @@ def racecard_number_candidates(html):
             targets.add(row["table"])
     if len(targets) != 1:
         return None
-    table = next(iter(targets))
-    numbers = set()
+    target = next(iter(targets))
+    carry, rows = 0, []
     for row in reader.rows:
-        if row["table"] != table:
+        if row["table"] != target:
             continue
-        cells = row["cells"]
+        cells, spans = row["cells"], row["spans"]
         if cells and cells[0][0] == "th":
+            if carry:
+                return None
             continue
+        if len(cells) != len(spans):
+            return None
+        if carry:
+            # The frame column is occupied by the previous explicit rowspan.
+            # We need two actual identity cells: horse number and name.
+            if len(cells) < 2 or spans[:2] != [("1", "1"), ("1", "1")]:
+                return None
+            cells = [("td", "")] + cells
+            carry -= 1
+        else:
+            if len(cells) < 3 or spans[0] not in (
+                    ("1", "1"), ("2", "1"), ("3", "1")):
+                return None
+            if spans[1:3] != [("1", "1"), ("1", "1")]:
+                return None
+            carry = int(spans[0][0]) - 1
         if (not 3 <= len(cells) <= 12
                 or any(tag != "td" for tag, _ in cells[:3])
                 or not cells[2][1] or len(cells[2][1]) > MAX_CELL_CHARS):
             return None
+        rows.append(cells)
+        if len(rows) > 18:
+            return None
+    return rows if not carry else None
+
+
+def racecard_cancellation_cue(html):
+    """True only for an explicit supported cancellation, otherwise unknown."""
+    rows = _effective_horse_rows(html)
+    if rows is None:
+        return None
+    for cells in rows:
+        if re.sub(r"\s+", "", cells[1][1]) in SCRATCH_MARKERS:
+            return True
+    return None
+
+
+def racecard_number_candidates(html):
+    """Read visible candidates only, never certify completeness or scratches."""
+    rows = _effective_horse_rows(html)
+    if rows is None:
+        return None
+    numbers = set()
+    for cells in rows:
         value = re.sub(r"\s+", "", cells[1][1])
         if not re.fullmatch(r"(?:0?[1-9]|1[0-8])", value, re.ASCII):
             # Includes 取消/除外: the original number cannot be recovered.
