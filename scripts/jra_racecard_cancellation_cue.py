@@ -99,7 +99,7 @@ def _effective_horse_rows(html):
     if len(targets) != 1:
         return None
     target = next(iter(targets))
-    carry, rows = 0, []
+    carry, carry_width, rows = 0, 0, []
     for row in reader.rows:
         if row["table"] != target:
             continue
@@ -113,7 +113,8 @@ def _effective_horse_rows(html):
         if carry:
             # The frame column is occupied by the previous explicit rowspan.
             # We need two actual identity cells: horse number and name.
-            if len(cells) < 2 or spans[:2] != [("1", "1"), ("1", "1")]:
+            if (len(cells) != carry_width or len(cells) < 2
+                    or spans[:2] != [("1", "1"), ("1", "1")]):
                 return None
             cells = [("td", "")] + cells
             carry -= 1
@@ -124,6 +125,7 @@ def _effective_horse_rows(html):
             if spans[1:3] != [("1", "1"), ("1", "1")]:
                 return None
             carry = int(spans[0][0]) - 1
+            carry_width = len(cells) - 1
         if (not 3 <= len(cells) <= 12
                 or any(tag != "td" for tag, _ in cells[:3])
                 or not cells[2][1] or len(cells[2][1]) > MAX_CELL_CHARS):
