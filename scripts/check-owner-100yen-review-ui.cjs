@@ -111,6 +111,44 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
   sourceReadCount:1,changesExistingReceipts:false,
   changesExistingRoi:false,
  };
+ // The server can read a published same-day result. Do not block it
+ // until midnight, and never issue a request for a future race date.
+ const sameDay=boot('?date=2026-11-08',null,null,null,candidate,null,null,
+  '2026-11-08T08:00:00Z');
+ await new Promise(r=>setImmediate(r));
+ sameDay.get('jraResultTrack').value='京都';
+ sameDay.get('jraResultRace').value='8';
+ sameDay.get('jraResultUrl').value=officialURL;
+ await sameDay.get('jraResultCheck').onclick();
+ assert.equal(sameDay.requests.filter(x=>x.url.startsWith('/api/jra/result-candidate?')).length,1);
+ assert.match(sameDay.get('jraResultStatus').textContent,/正式的中・実購入・仮想収支には反映していません/);
+ assert.equal(sameDay.storage.size,0);
+ const future=boot('?date=2026-11-08',null,null,null,candidate,null,null,
+  '2026-11-07T08:00:00Z');
+ await new Promise(r=>setImmediate(r));
+ future.get('jraResultTrack').value='京都';
+ future.get('jraResultRace').value='8';
+ future.get('jraResultUrl').value=officialURL;
+ await future.get('jraResultCheck').onclick();
+ assert.equal(future.requests.length,2);
+ const staleRace=boot('?date=2026-11-08',null,null,null,candidate,null,null,
+  '2026-11-08T08:00:00Z');
+ await new Promise(r=>setImmediate(r));
+ staleRace.get('jraResultTrack').value='京都';
+ staleRace.get('jraResultRace').value='8';
+ staleRace.get('jraResultUrl').value=officialURL;
+ let releaseRace;
+ staleRace.delay(new Promise(resolve=>{releaseRace=resolve}));
+ const racePending=staleRace.get('jraResultCheck').onclick();
+ await staleRace.get('jraResultCheck').onclick(); // double tap, no extra request
+ assert.equal(staleRace.requests.length,3);
+ staleRace.get('jraResultRace').value='9';
+ staleRace.get('jraResultRace').oninput();
+ releaseRace();await racePending;
+ assert.equal(staleRace.requests.length,3);
+ assert.equal(staleRace.get('jraResultCandidates').children.length,0);
+ assert.equal(staleRace.get('jraResultCheck').disabled,false);
+ assert.match(staleRace.get('jraResultStatus').textContent,/未実行/);
  const observed=boot('?date=2026-11-08',null,null,null,candidate);
  await new Promise(r=>setImmediate(r));
  assert.equal(observed.requests.length,2,

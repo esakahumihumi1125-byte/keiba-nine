@@ -627,7 +627,14 @@ async function matchJraCandidateToLockedDraft(report,day,track,race,seq){
   candidateCount:report.trifectaCandidates.length,
   stakeYen,candidateReturnedYen,candidateDifferenceYen};
 }
-$('jraResultCheck').onclick=async()=>{
+// In-flight response belongs to the old selection. Reset on every change,
+ // including typing a replacement URL before the first request completes.
+ for(const id of ['jraResultTrack','jraResultRace','jraResultUrl']){
+  $(id).onchange=clearJraCandidate;
+  $(id).oninput=clearJraCandidate;
+ }
+ $('jraResultCheck').onclick=async()=>{
+ if($('jraResultCheck').disabled)return;
  const seq=++jraCandidateRequest,day=$('day').value,
   track=$('jraResultTrack').value,
   race=Number($('jraResultRace').value),
@@ -635,12 +642,12 @@ $('jraResultCheck').onclick=async()=>{
   button=$('jraResultCheck');
  $('jraResultCandidates').replaceChildren();
  const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
- if(!validDay(day)||day>=today||!JRA_TRACKS.has(track)||
+ if(!validDay(day)||day>today||!JRA_TRACKS.has(track)||
     !Number.isInteger(race)||race<1||race>12||
     url.length>500||!/^https:\/\/(?:www\.jra\.go\.jp|jra\.jp|app\.jra\.jp|sp\.jra\.jp)\/JRADB\/accessS\.html\?CNAME=/.test(url)||
     url.includes('#')){
   $('jraResultStatus').textContent=
-   '前日以前の開催日・競馬場・1〜12Rと、JRA公式結果ページのURLを確認してください。';
+   '当日または過去の開催日・競馬場・1〜12Rと、公開済みのJRA公式結果ページのURLを確認してください。';
   return;
  }
  button.disabled=true;
