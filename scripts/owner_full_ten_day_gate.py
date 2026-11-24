@@ -9,6 +9,7 @@ import re
 from datetime import date, timedelta, timezone
 
 from jrdb_coverage import CoverageError
+from evaluation_policy import OWNER_FORMAL_FACTORS as FACTORS
 from jrdb_program_preview import TRACKS
 from owner_full_ten_factor import full_ten_factor_preview, _clock, _empty
 from owner_formal_assessment_input import validate_formal_assessment_snapshot
@@ -118,6 +119,44 @@ def full_ten_day_research(day, race_snapshots, *, now, expected_coordinates=None
             "researchOnly": True, "bettingReady": False,
             "purchaseReady": False, "autoPurchase": False,
         })
+    # Count only runners that actually reached the scorer in its prestart
+    # window. A missing/invalid/expired snapshot has no reliable denominator,
+    # and must not be counted as either an assessed horse or a poor score.
+    factor_coverage = {
+        key: {"weight": weight, "traceableRunnerCount": 0,
+              "unassessedRunnerCount": 0, "affectedRaceCount": 0,
+              "missingReasonCounts": {}}
+        for key, weight in FACTORS.items()
+    }
+    checked_runners, checked_races = 0, 0
+    for row in output:
+        preview = row["preview"]
+        readiness = preview["factorReadinessByNumber"]
+        missing_by_number = preview["missingReasonCodesByNumber"]
+        if not readiness:
+            continue
+        checked_races += 1
+        checked_runners += len(readiness)
+        affected = set()
+        for number in readiness:
+            reasons = missing_by_number.get(number, {})
+            for key, coverage in factor_coverage.items():
+                if key not in reasons:
+                    coverage["traceableRunnerCount"] += 1
+                    continue
+                coverage["unassessedRunnerCount"] += 1
+                code = reasons[key]
+                totals = coverage["missingReasonCounts"]
+                totals[code] = totals.get(code, 0) + 1
+                affected.add(key)
+        for key in affected:
+            factor_coverage[key]["affectedRaceCount"] += 1
+    priority = sorted(
+        (key for key, item in factor_coverage.items()
+         if item["unassessedRunnerCount"]),
+        key=lambda key: (-FACTORS[key] * factor_coverage[key]["unassessedRunnerCount"],
+                         -FACTORS[key], key),
+    )
     ready = sum(r["fullTenResearchRankReady"] for r in output)
     tickets = sum(r["reviewOnlyTicketCount"] > 0 for r in output)
     return {
@@ -128,6 +167,14 @@ def full_ten_day_research(day, race_snapshots, *, now, expected_coordinates=None
         "receivedSnapshotRaceCount": len(seen),
         "missingSnapshotRaceCount": len(missing) if expected is not None else None,
         "scheduleSnapshotCoverageComplete": seen == expected if expected is not None else None,
+        "factorEvidenceCoverage": {
+            "checkedRaceCount": checked_races,
+            "uncheckedRaceCount": len(output) - checked_races,
+            "checkedRunnerCount": checked_runners,
+            "byFactor": factor_coverage,
+            "missingEvidencePriority": priority,
+            "coverageIsNotAbilityScore": True,
+        },
         "researchFormationRaces": tickets,
         "heldOrIncompleteRaces": len(output) - tickets,
         "invalidInternalSnapshotRaces": sum(
