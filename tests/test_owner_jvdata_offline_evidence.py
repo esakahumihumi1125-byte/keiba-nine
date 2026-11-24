@@ -113,6 +113,39 @@ class OfflineEvidenceTests(unittest.TestCase):
         self.assertEqual(partial["byNumber"][0][
             "factorEvidence"]["ground"]["status"], "unverified")
 
+    def test_field_relative_history_never_imputes_old_or_abnormal_rows(self):
+        horse = self.report()["races"][0]["byNumber"][0]
+        run = horse["recentObservedRuns"][0]
+        run.update(finishPosition=5, cornerPositions=[4, 5, 6, 6],
+                   historicalStarterCount=6, historicalFinishersCount=6,
+                   historicalRaceContextMatched=True, hasAbnormalCode=False)
+        first = summarize_runner(horse)
+        obs = first["fieldRelativeHistoricalObservations"][0]
+        self.assertEqual(obs["finisherPositionPercentile"], 20.0)
+        self.assertEqual(obs["finalCornerToFinishGainPerFieldPercent"], 20.0)
+        run.update(historicalStarterCount=18, historicalFinishersCount=18)
+        obs = summarize_runner(horse)["fieldRelativeHistoricalObservations"][0]
+        self.assertEqual(obs["finisherPositionPercentile"], 76.47)
+        self.assertEqual(obs["finalCornerToFinishGainPerFieldPercent"], 5.88)
+        run["historicalFinishersCount"] = 17
+        obs = summarize_runner(horse)["fieldRelativeHistoricalObservations"][0]
+        self.assertIsNone(obs["finalCornerToFinishGainPerFieldPercent"])
+        for changes in ({"historicalStarterCount": None},
+                        {"historicalFinishersCount": 19},
+                        {"historicalFinishersCount": 4},
+                        {"hasAbnormalCode": True},
+                        {"historicalRaceContextMatched": False}):
+            bad = copy.deepcopy(horse)
+            bad["recentObservedRuns"][0].update(changes)
+            summary = summarize_runner(bad)
+            self.assertEqual(summary["fieldRelativeHistoricalObservations"], [None])
+            self.assertIsNone(summary["totalScore"])
+            self.assertFalse(summary["eligibleForPrediction"])
+        old = copy.deepcopy(horse)
+        for key in ("historicalStarterCount", "historicalFinishersCount"):
+            old["recentObservedRuns"][0].pop(key)
+        self.assertEqual(summarize_runner(old)["fieldRelativeHistoricalObservations"], [None])
+
     def test_only_weak_observations_dont_become_strength_or_a_debut(self):
         report = self.report()
         one = report["races"][0]["byNumber"][0]
