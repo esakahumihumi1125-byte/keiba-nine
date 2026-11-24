@@ -3539,7 +3539,7 @@ function validatedDraftFirstAgreement(data,day,rendered){
   const heading=card?.children?.[0]?.textContent;
   const picks=card?.children?.[1]?.textContent;
   const match=typeof heading==='string'?
-   /^([^｜\\s]{2,4})\\s+(1[0-2]|[1-9])R｜研究用 ([1-9]\\d?)点（共通配点(\\d{2})点分）$/.exec(heading):null;
+   /^([^｜\s]{2,4})\s+(1[0-2]|[1-9])R｜研究用 ([1-9]\d?)点（共通配点(\d{2})点分）$/.exec(heading):null;
   const pick=typeof picks==='string'?
    /^1着 ((?:1[0-8]|[1-9])(?:・(?:1[0-8]|[1-9])){0,2})番／2着 /.exec(picks):null;
   if(!match||!pick)continue;
