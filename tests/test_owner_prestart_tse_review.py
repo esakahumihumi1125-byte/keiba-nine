@@ -56,6 +56,10 @@ class ProvisionalTicketTests(unittest.TestCase):
         self.assertEqual(view["pendingRaceCount"], 1)
         self.assertEqual(view["provisionalExactCombinationCount"], 1)
         self.assertEqual(view["provisionalFirstCandidateCount"], 1)
+        self.assertEqual(view["provisionalSecondCandidateCount"], 1)
+        self.assertEqual(view["provisionalThirdCandidateCount"], 1)
+        self.assertEqual(view["provisionalAllThreeSlotsCount"], 1)
+        self.assertEqual(view["provisionalCombinationGapCount"], 0)
         first, second = view["races"]
         self.assertEqual(first["providerStatus"], "provider_podium_observed")
         self.assertTrue(first["exactCombinationObserved"])
@@ -89,6 +93,44 @@ class ProvisionalTicketTests(unittest.TestCase):
         self.assertEqual(absent["races"][0]["firstMissType"], "not_selected")
         self.assertEqual(absent["provisionalFirstCandidateCount"], 0)
         self.assertEqual(absent["provisionalExactCombinationCount"], 0)
+
+    def test_slot_coverage_separates_first_second_third_and_combo_gaps(self):
+        # The pure comparer is passed verified snapshots by the caller.
+        # Synthetic snapshots here prove that covering each finishing slot
+        # does not imply that the exact ordered 3連単 was selected.
+        originals = receipts()[1]
+        frozen = copy.deepcopy(originals)
+        frozen[0]["trifectaTickets"] = [[1, 2, 3], [2, 3, 4]]
+        mismatch = compare_prestart_tickets(
+            frozen, podium("01", "03", "04"), DAY, now=AFTER)
+        self.assertEqual(mismatch["observedRaceCount"], 1)
+        self.assertEqual(mismatch["provisionalFirstCandidateCount"], 1)
+        self.assertEqual(mismatch["provisionalSecondCandidateCount"], 1)
+        self.assertEqual(mismatch["provisionalThirdCandidateCount"], 1)
+        self.assertEqual(mismatch["provisionalAllThreeSlotsCount"], 1)
+        self.assertEqual(mismatch["provisionalExactCombinationCount"], 0)
+        self.assertEqual(mismatch["provisionalCombinationGapCount"], 1)
+        self.assertFalse(mismatch["races"][0]["exactCombinationObserved"])
+        self.assertFalse(mismatch["officialJraVerified"])
+        self.assertIsNone(mismatch["roiPercent"])
+        second_miss = compare_prestart_tickets(
+            originals, podium("01", "05", "03"), DAY, now=AFTER)
+        self.assertEqual(second_miss["provisionalFirstCandidateCount"], 1)
+        self.assertEqual(second_miss["provisionalSecondCandidateCount"], 0)
+        self.assertEqual(second_miss["provisionalThirdCandidateCount"], 1)
+        self.assertEqual(second_miss["provisionalAllThreeSlotsCount"], 0)
+        self.assertEqual(second_miss["provisionalCombinationGapCount"], 0)
+        no_results = compare_prestart_tickets(originals, [], DAY, now=AFTER)
+        for name in ("provisionalFirstCandidateCount",
+                     "provisionalSecondCandidateCount",
+                     "provisionalThirdCandidateCount",
+                     "provisionalAllThreeSlotsCount",
+                     "provisionalCombinationGapCount"):
+            self.assertEqual(no_results[name], 0)
+        self.assertEqual(no_results["pendingRaceCount"], 2)
+        self.assertFalse(no_results["officialJraVerified"])
+        self.assertEqual(originals, receipts()[1],
+                         "new metrics must not edit HMAC-verified snapshots")
 
     def test_partial_ambiguous_and_preoff_are_pending(self):
         frozen = receipts()[1]
