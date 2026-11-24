@@ -112,23 +112,51 @@ const rendered=sandbox.renderCombined(data,day,drafts,references,agreement);
 assert.equal(rendered.picks.length,17);
 assert.match(elements.get('autoCombinedResearchStatus').textContent,
  /全24R｜発走前研究用下書き 4R｜署名なし追加参考 13R｜新しい買い目・参考候補なし 7R/);
-const [venues,jumps,cards]=elements.get('autoCombinedResearchRows').children;
+const [venues,kinds,jumps,cards]=elements.get('autoCombinedResearchRows').children;
 assert.deepEqual(venues.children.map(b=>b.textContent),['東京','福島']);
+assert.equal(kinds.children.length,4,'safe research type filters');
+assert.deepEqual(kinds.children.map(x=>x.textContent),[
+ '全R 12R','買い目あり 4R','参考 8R','見送り 0R']);
+assert.equal(kinds.children[3].disabled,true,'0 holds disabled in Tokyo');
 assert.equal(jumps.children.length,13,'all 12R and all-races selector');
 assert.equal(jumps.children[0].textContent,'全R');
 assert.equal(cards.children.length,12);
 assert.equal(cards.children[0].children[0].textContent,'東京 1R');
 assert.match(cards.children[0].children[5].textContent,/1着候補比較：一致/);
+kinds.children[1].onclick(); // Tokyo signed/unsigned never mix.
+assert.equal(cards.children.filter(c=>!c.hidden).length,4);
+assert.equal(kinds.children[1].ariaPressed,'true');
+assert.equal(cards.children[3].hidden,false);
+assert.equal(cards.children[4].hidden,true,'unsigned reference not in signed tab');
+kinds.children[2].onclick(); // unsigned references only
+assert.equal(cards.children.filter(c=>!c.hidden).length,8);
+assert.equal(kinds.children[2].ariaPressed,'true');
+assert.equal(cards.children[0].hidden,true,'signed draft not in reference tab');
 jumps.children[5].onclick(); // 東京5R only
 assert.equal(cards.children.filter(c=>!c.hidden).length,1);
 assert.equal(cards.children[4].hidden,false);
 assert.equal(jumps.children[5].ariaPressed,'true');
+assert.equal(kinds.children[0].ariaPressed,'true','race number resets category');
 jumps.children[0].onclick();
 assert.equal(cards.children.filter(c=>!c.hidden).length,12);
 assert.equal(jumps.children[0].ariaPressed,'true');
 venues.children[1].onclick();
 assert.equal(jumps.children.length,13,'venue switch resets 12R picker');
+assert.equal(kinds.children.length,4,'venue switch resets research categories');
+assert.deepEqual(kinds.children.map(x=>x.textContent),[
+ '全R 12R','買い目あり 0R','参考 5R','見送り 7R']);
+assert.equal(kinds.children[1].disabled,true);
 assert.equal(cards.children.length,12,'all 12 Fukushima races remain discoverable');
+assert.equal(cards.children.filter(c=>!c.hidden).length,12);
+kinds.children[3].onclick();
+assert.equal(cards.children.filter(c=>!c.hidden).length,7,
+ 'Fukushima held races have no new tickets');
+assert.equal(cards.children[5].hidden,false,'held no-pick visible');
+assert.equal(cards.children[0].hidden,true,'reference not a held no-pick');
+kinds.children[2].onclick();
+assert.equal(cards.children.filter(c=>!c.hidden).length,5,
+ 'Fukushima unsigned references are separate');
+kinds.children[0].onclick();
 assert.equal(cards.children.filter(c=>!c.hidden).length,12);
 assert.equal(cards.children[0].children[0].textContent,'福島 1R');
 assert.equal(cards.children[5].children[0].textContent,'福島 6R');
@@ -163,7 +191,7 @@ const past={raceCount:1,draftCount:0,holdCount:1,races:[
  {...R[18],postTime:'23:55'}
 ]};
 sandbox.renderCombined(past,day,[],[]);
-const expiredCard=elements.get('autoCombinedResearchRows').children[2].children[0];
+const expiredCard=elements.get('autoCombinedResearchRows').children[3].children[0];
 assert(!expiredCard.children.some(n=>/調教[SA]/.test(n.textContent)),
  'past-off races must not show a fresh workout ranking');
 assert.equal(networkCalls,0);
