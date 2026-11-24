@@ -11686,9 +11686,11 @@ load.onclick=async()=>{
    venues.get(r.track).push(r);
   }
   const tabs=node('div',undefined,'venue-tabs');
+  const chooser=node('div',undefined,'owner-race-jump');
   const cards=node('div',undefined,'owner-inline-preday-cards');
   function showVenue(track){
    cards.replaceChildren();
+   chooser.replaceChildren();
    for(const tab of tabs.children)
     tab.setAttribute('aria-pressed',String(tab.textContent===track));
    const races=venues.get(track)||[];
@@ -11709,6 +11711,23 @@ load.onclick=async()=>{
     }
     cards.append(card);
    }
+   const choices=[{race:0,label:'全R'},
+    ...races.map(r=>({race:r.race,label:r.race+'R'}))];
+   const buttons=[];
+   function focusRace(number){
+    for(let i=0;i<races.length;i++)
+     cards.children[i].hidden=number!==0&&races[i].race!==number;
+    for(const item of buttons)
+     item.button.setAttribute('aria-pressed',String(item.race===number));
+   }
+   for(const item of choices){
+    const button=node('button',item.label);
+    button.type='button';
+    button.onclick=()=>focusRace(item.race);
+    buttons.push({...item,button});
+    chooser.append(button);
+   }
+   focusRace(0);
   }
   for(const track of venues.keys()){
    const button=node('button',track);
@@ -11716,7 +11735,7 @@ load.onclick=async()=>{
    button.onclick=()=>showVenue(track);
    tabs.append(button);
   }
-  host.replaceChildren(tabs,cards);
+  host.replaceChildren(tabs,chooser,cards);
   if(venues.size)showVenue(venues.keys().next().value);
   status.textContent=requested+'｜前日参考 '+rows.length+
    'Rをこの画面に表示（'+venues.size+'場）。JRDB2項目の下書き件数とは別。追加のJRDB照会0回。';
