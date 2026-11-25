@@ -200,6 +200,43 @@ class AutomaticFactorTests(unittest.TestCase):
             data[1][0]['foottype_cd'] = style
             self.assertIsNotNone(self.score(data)['races'][0]['horses'][0]['factors']['pace']['points'])
 
+    def test_course_specific_pace_restrictions_leave_other_observations_intact(self):
+        for context in ({"surface": "障害", "turn": "右"},
+                        {"surface": "芝", "turn": "直線"}):
+            data = fixture()
+            data[0][0].update(context)
+            report = self.score(data)
+            self.assertEqual(report["races"][0]["status"], "scored")
+            for horse in report["races"][0]["horses"]:
+                self.assertIsNone(horse["factors"]["pace"]["points"])
+                self.assertEqual(horse["factors"]["pace"]["reason"],
+                                 "pace_course_unsupported")
+                self.assertIsNotNone(horse["factors"]["jockey_stable"]["points"])
+                self.assertEqual(horse["factors"]["rotation"]["points"], .8)
+        data = fixture()
+        data[0][0].update(surface="芝", turn="右")
+        self.assertTrue(all(h["factors"]["pace"]["points"] is not None
+                            for h in self.score(data)["races"][0]["horses"]))
+
+    def test_rotation_does_not_score_contradictory_previous_run_order(self):
+        for second in ("20261114", "20261031"):
+            data = fixture()
+            data[2][0]["race_back_2_racedate"] = second
+            before = copy.deepcopy(data)
+            horses = self.score(data)["races"][0]["horses"]
+            self.assertIsNone(horses[0]["factors"]["rotation"]["points"])
+            self.assertEqual(horses[0]["factors"]["rotation"]["reason"],
+                             "previous_date_order_conflict")
+            self.assertEqual(horses[1]["factors"]["rotation"]["points"], .8)
+            self.assertIsNotNone(horses[0]["factors"]["pace"]["points"])
+            self.assertEqual(data, before)
+        data = fixture()
+        data[2][0].update(race_back_2_racedate="20261001",
+                          race_back_3_racedate="00000000",
+                          race_back_4_racedate="20260901")
+        self.assertEqual(self.score(data)["races"][0]["horses"][0]
+                         ["factors"]["rotation"]["points"], .8)
+
     def test_start_roster_and_withdrawal_gates(self):
         for change in ('late', 'roster', 'unknown', 'withdrawn'):
             data = fixture()
