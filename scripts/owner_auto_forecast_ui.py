@@ -396,6 +396,9 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoResearch6DraftSaveStatus" class="muted" role="status">新79点研究下書きの初回固定は未確認です。</p>
 <button id="autoResearch6DraftVerify" type="button">この日の79点下書きの署名を確認</button>
 <p id="autoResearch6DraftVerifyStatus" class="muted" role="status">署名確認は未実行です。結果や回収率は集計しません。</p>
+<button id="autoResearch6ResultCheck" type="button" disabled>固定79点の暫定着順を参考照合（1回）</button>
+<p id="autoResearch6ResultStatus" class="muted" role="status">未照合。押した時だけJRDB暫定成績を取得します。</p>
+<div id="autoResearch6ResultRows"></div>
 <div id="autoResearch6DraftSaved"></div>
 </details>
 <button id="autoWatchResultCheck" type="button" disabled>固定した巻き返し候補とJRDB成績を参考照合</button>
@@ -437,7 +440,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261124-paired-factors" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261126-r6-results" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -5074,7 +5077,7 @@ let request=0,followingToday=true,preflightSeq=0,
  latestDisplayedDay='',latestDisplayedReport=null,latestReadAtMs=0,
  latestExpiredDraftCount=0,historySeq=0,watchResultSeq=0,
  prestartSeq=0,connectionSeq=0,receiptVerifySeq=0,archiveReadSeq=0,
- r6VerifySeq=0,staffArchiveVerifySeq=0,
+ r6VerifySeq=0,r6ResultSeq=0,staffArchiveVerifySeq=0,
  officialPdfSeq=0,coreVerifySeq=0,coreProviderSeq=0,fiveProviderSeq=0,
  jraDraftTracks=new Set(),jraPdfTracks=new Set(),jraPdfChecked=false,
  historyDay='',historyCoordinates=new Set(),
@@ -5130,6 +5133,9 @@ function clearHistory(){
  staffArchiveVerifySeq++;
  $('autoHistoryStaffArchiveVerifyStatus').textContent='研究記録の署名はこの選択では未検証。';
  r6VerifySeq++;
+ r6ResultSeq++;
+ $('autoResearch6ResultRows').replaceChildren();
+ $('autoResearch6ResultStatus').textContent='未照合。';
  $('autoResearch6DraftVerifyStatus').textContent='固定79点下書きの署名は未確認です。';
  officialPdfSeq++;
  $('autoOfficialPdf').disabled=false;
@@ -5867,6 +5873,7 @@ function showSavedResearch6Drafts(day){
  try{
   const {picked}=savedResearch6DraftDay(day);
   $('autoResearch6DraftVerify').disabled=!picked.length;
+  $('autoResearch6ResultCheck').disabled=!picked.length;
   $('autoResearch6DraftSaveStatus').textContent=picked.length?
    'このiPhoneに初回固定した新79点3連単下書き '+picked.length+
    'R（署名未検証）。公式結果・実購入・回収率とは別です。':
@@ -5881,6 +5888,7 @@ function showSavedResearch6Drafts(day){
   }
  }catch(_){
   $('autoResearch6DraftVerify').disabled=true;
+  $('autoResearch6ResultCheck').disabled=true;
   $('autoResearch6DraftSaveStatus').textContent=
    '保存済み79点下書きを確認できません。元データを消さずバックアップしてください。';
  }
@@ -9757,6 +9765,74 @@ $('autoHistoryStaffArchiveVerify').onclick=async()=>{
   if(seq===staffArchiveVerifySeq)
    btn.disabled=false;
  }
+};
+$('autoResearch6ResultCheck').onclick=async()=>{
+ const btn=$('autoResearch6ResultCheck'),day=$('autoDay').value.replaceAll('-','');
+ if(btn.disabled)return;
+ const seq=++r6ResultSeq;btn.disabled=true;
+ const host=$('autoResearch6ResultRows'),status=$('autoResearch6ResultStatus');
+ host.replaceChildren();status.textContent='署名付き79点下書きを参考照合中…';
+ try{
+  const {picked}=savedResearch6DraftDay(day);
+  if(!picked.length)throw Error('no receipts');
+  const payload=JSON.stringify({date:day,receipts:picked});
+  if(payload.length>250000)throw Error('too large');
+  const res=await fetch('/api/owner-research6-result-review',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'X-Keiba-Request':'private','Content-Type':'application/json',
+    'Accept':'application/json'},body:payload});
+  const report=await res.json();
+  if(seq!==r6ResultSeq||day!==$('autoDay').value.replaceAll('-',''))return;
+  if(!res.ok||report.version!=='owner-research6-result-review-1'||
+     report.date!==$('autoDay').value||report.researchWeight!==79||
+     report.fullFinishOrderRequired!==true||report.serverSigned!==true||
+     report.sourceKind!=='research6-79-signed-jrdb-provisional'||
+     report.researchOnly!==true||report.privateOwnerOnly!==true||
+     report.officialJraVerified!==false||report.independentJraVerified!==false||
+     report.payoutVerified!==false||report.roiPercent!==null||
+     report.officialHitCount!==null||report.realPredictionReady!==false||
+     report.actualPurchase!==false||report.bettingReady!==false||
+     report.changesExistingReceipts!==false||report.changesExistingRoi!==false||
+     ![0,1].includes(report.providerReadCount)||
+     !Array.isArray(report.races)||report.races.length!==picked.length||
+     report.raceCount!==picked.length)throw Error('report');
+  const expected=new Map(picked.map(x=>[x.snapshot.track+'|'+x.snapshot.race,x.snapshot.points]));
+  let done=0,exact=0,first=0,second=0,third=0,all=0;
+  const cards=[],seen=new Set();
+  for(const row of report.races){
+   const key=row.track+'|'+row.race;
+   const yes=row.providerStatus==='provider_podium_observed';
+   const flags=['firstCandidateObserved','secondCandidateObserved','thirdCandidateObserved','exactCombinationObserved'];
+   if(seen.has(key)||expected.get(key)!==row.trifectaPoints||
+      row.officialVerified!==false||
+      !['pending','provider_podium_observed'].includes(row.providerStatus)||
+      flags.some(k=>yes?typeof row[k]!=='boolean':row[k]!==null))
+    throw Error('race mismatch');
+   seen.add(key);
+   if(yes){
+    if(!['first_candidate','wrong_slot','not_selected'].includes(row.firstMissType)||
+       row.firstCandidateObserved!==(row.firstMissType==='first_candidate')||
+       (row.exactCombinationObserved&&!flags.slice(0,3).every(k=>row[k])))
+     throw Error('race flag mismatch');
+    done++;exact+=Number(row.exactCombinationObserved);
+    first+=Number(row.firstCandidateObserved);second+=Number(row.secondCandidateObserved);
+    third+=Number(row.thirdCandidateObserved);all+=Number(flags.slice(0,3).every(k=>row[k]));
+   }else if(row.firstMissType!==null)throw Error('pending mismatch');
+   cards.push(dom('p',row.track+' '+row.race+'R｜'+(yes?
+    '1着 '+(row.firstCandidateObserved?'○':'×')+'／2着 '+(row.secondCandidateObserved?'○':'×')+
+    '／3着 '+(row.thirdCandidateObserved?'○':'×')+'／参考一致 '+(row.exactCombinationObserved?'あり':'なし'):
+    '全着順未確認・保留')+'（公式結果未確認）','muted'));
+  }
+  if(report.observedRaceCount!==done||report.pendingRaceCount!==picked.length-done||
+     report.provisionalExactCombinationCount!==exact||report.provisionalFirstCandidateCount!==first||
+     report.provisionalSecondCandidateCount!==second||report.provisionalThirdCandidateCount!==third||
+     report.provisionalAllThreeSlotsCount!==all||report.provisionalCombinationGapCount!==all-exact||
+     (report.providerReadCount===0&&done))throw Error('summary');
+  host.replaceChildren(...cards);
+  status.textContent='参考照合 '+done+'R／保留 '+(picked.length-done)+'R／3連単候補一致 '+exact+
+   'R。JRDB暫定着順のみ。JRA公式的中・払戻・回収率には算入しません。';
+ }catch(_){if(seq===r6ResultSeq){host.replaceChildren();status.textContent='79点参考照合ができません。固定記録は変更していません。';}}
+ finally{if(seq===r6ResultSeq)btn.disabled=false;}
 };
 $('autoResearch6DraftVerify').onclick=async()=>{
  const button=$('autoResearch6DraftVerify'),day=$('autoDay').value.replaceAll('-','');
