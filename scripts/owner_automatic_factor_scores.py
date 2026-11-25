@@ -96,6 +96,23 @@ def _ground_condition_research(race, entry, context):
     return table[going][mudder], 'ground_soft_mudder_' + mudder
 
 
+def _rotation_research(past, target):
+    # The feed's race_back_1 is supposed to be the most recent run.
+    # Do not quietly choose a different date when the order is inconsistent.
+    dates = [past.get(f'race_back_{i}_racedate') for i in range(1, 6)]
+    if _missing_previous_date(dates[0]):
+        return None, 'previous_date_missing'
+    present = [d for d in dates if not _missing_previous_date(d)]
+    if any(a <= b for a, b in zip(present, present[1:])):
+        return None, 'previous_date_order_conflict'
+    gap = (target - datetime.strptime(dates[0], '%Y%m%d').date()).days
+    if 14 <= gap <= 56:
+        return 80, 'rotation_14_56'
+    if 7 <= gap <= 90:
+        return 65, 'rotation_7_90'
+    return 50, 'rotation_outside'
+
+
 def automatic_factor_scores(programme, entries, recent, day, *, now, race_context=None):
     if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
         raise CoverageError('Server clock must include timezone')
@@ -166,6 +183,9 @@ def automatic_factor_scores(programme, entries, recent, day, *, now, race_contex
             continue
         styles = [e.get('foottype_cd') for e in active]
         known_styles = all(type(s) is str and s in ('1', '2', '3', '4', '5', '6') for s in styles)
+        # The current front-pressure hypothesis was not designed for
+        # obstacles or straight courses. Do not borrow the flat-turn model.
+        unsupported_pace = race.get('surface') == '障害' or race.get('turn') == '直線'
         front_fraction = sum(s in ('1', '2') for s in styles) / len(active)
         scenario = 'fast' if front_fraction >= .5 else 'slow' if front_fraction <= .25 else 'balanced'
         # Transparent model assumption: more early runners increase pressure.
@@ -177,15 +197,7 @@ def automatic_factor_scores(programme, entries, recent, day, *, now, race_contex
         staff_complete = None not in jockeys and None not in stables
         for i, entry in enumerate(active):
             past = history.get((key, entry['horse_number']), {})
-            prior = past.get('race_back_1_racedate')
-            # The optional /tze beta feed can contain a zero-dated,
-            # entirely blank historical slot. Missing history cannot
-            # imply that the runner had a previous race or deserves C/0.
-            # Nonempty malformed dates are rejected in the shared audit.
-            gap = (None if _missing_previous_date(prior)
-                   else (target - datetime.strptime(prior, '%Y%m%d').date()).days)
-            rotation = None if gap is None else (80 if 14 <= gap <= 56 else
-                        65 if 7 <= gap <= 90 else 50)
+            rotation, rotation_reason = _rotation_research(past, target)
             staff = ((_percentile(jockeys[i], jockeys) + _percentile(stables[i], stables)) / 2
                      if staff_complete else None)
             distance_score, distance_reason = _distance_aptitude_only(race, entry)
@@ -194,14 +206,13 @@ def automatic_factor_scores(programme, entries, recent, day, *, now, race_contex
             slots = {
                 'course_distance': _slot('course_distance', distance_score, distance_reason),
                 'ground': _slot('ground', ground_score, ground_reason),
-                'pace': _slot('pace', pace_values[scenario][styles[i]] if known_styles else None,
+                'pace': _slot('pace', pace_values[scenario][styles[i]]
+                              if known_styles and not unsupported_pace else None,
+                              'pace_course_unsupported' if unsupported_pace else
                               'pace_' + scenario if known_styles else 'styles_missing'),
                 'jockey_stable': _slot('jockey_stable', staff,
                                      'staff_relative_midrank' if staff_complete else 'staff_missing'),
-                'rotation': _slot('rotation', rotation,
-                                 'rotation_14_56' if gap is not None and 14 <= gap <= 56 else
-                                 'rotation_7_90' if gap is not None and 7 <= gap <= 90 else
-                                 'rotation_outside' if gap is not None else 'previous_date_missing'),
+                'rotation': _slot('rotation', rotation, rotation_reason),
             }
             result['horses'].append({'number': int(entry['horse_number']), 'factors': slots})
         races.append(result)
