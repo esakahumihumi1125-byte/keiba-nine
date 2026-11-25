@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DEST = ROOT / "dist" / "ARC-RACE-JV-Link-PC-check.zip"
 FILES = (
     "scripts/windows_arc_race_preflight.cmd",
+    "scripts/windows_jvlink_2026_history_store.cmd",
+    "scripts/windows_jvlink_2026_history_store.py",
     "scripts/windows_check_jvlink.cmd",
     "scripts/windows_check_jvlink.ps1",
     "scripts/windows_jvlink_weekly_read.cmd",
@@ -119,6 +121,20 @@ JRA-VAN契約、JV-Link、64bit Python、pywin32 が別途必要です。
 ARC_RACE_RCVN_CHECK=... / ARC_RACE_DAY_HISTORY=... /
 ARC_RACE_OFFLINE_EVIDENCE=... /\nARC_RACE_LOCAL_TRIFECTA=... の状態名だけ
 教えてください。利用キーやパスワードは見せたり送ったりしないでください。
+
+11. 2026年の過去レースデータ蓄積（個人PC専用・実機未検証）
+    scripts/windows_jvlink_2026_history_store.cmd をダブルクリック。
+    契約・無料体験が有効で、個人利用の権限を確認した場合のみYES。
+    通常RACEを20260101000000から1回取得し、中央競馬の2026年RA/SE
+    のみをLOCALAPPDATAのARC-RACE-private/licensed-historyにSQLite保存。
+    同一レコードは重複排除、異なる更新版は区別し、完了時のみ確定。
+    SSD空き3GiB未満なら中断。読取には上限があり、JVOpenの配信容量・
+    時間は制御できません。追加の自動取得や再試行はありません。
+    完了表示は全レース網羅や正式採点・学習成功を意味しません。
+    原データは有料情報です。外部共有・クラウド送信・GitHub登録禁止。
+    契約終了時は保存元データ、キャッシュ、コピー、学習用データを削除。
+    元データ復元不能の個人利用モデルだけ保持可能か別途確認してください。
+    調教・血統・払戻等の蓄積、学習処理、差分更新は今回の対象外です。
 
 重要：
 - Windows実機での成功は未検証。
