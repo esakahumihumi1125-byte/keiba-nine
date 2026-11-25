@@ -1884,6 +1884,25 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
     bettingReady:false,actualPurchase:false,sourceProviderReadCount:0
    }:{error:'invalid signature'}};
   }
+  if(url==='/api/owner-research6-payoff-review'){
+   const args=JSON.parse(options.body);
+   const p=args.receipts[0].snapshot,day=args.date;
+   const ok=args.receipts.length===1&&args.receipts[0].signature==='e'.repeat(64);
+   return {ok,json:async()=>ok?{
+    version:'owner-research6-payoff-review-1',researchWeight:79,serverSigned:true,
+    date:day.slice(0,4)+'-'+day.slice(4,6)+'-'+day.slice(6),unitYen:100,
+    source:'research6-79-jrdb-thj-reference',providerReadCount:1,
+    raceCount:1,observedRaces:1,pendingRaces:0,pendingStakeYen:0,
+    reviewedInvestedYen:p.amountYen,reviewedReturnedYen:26050,
+    reviewedProfitYen:26050-p.amountYen,reviewedRoiPercent:651.25,
+    providerMatchedRaces:1,researchOnly:true,privateOwnerOnly:true,
+    officialJraVerified:false,payoutOfficiallyVerified:false,actualPurchase:false,
+    predictionReady:false,changesExistingReceipts:false,changesExistingRoi:false,
+    writesPersistentResults:false,races:[{track:p.track,race:p.race,
+     status:'provider_observed',trifectaPoints:p.points,investedYen:p.amountYen,
+     returnedYen:26050,providerMatchedTickets:1,officialJraVerified:false}]
+   }:{error:'invalid'}};
+  }
   if(url==='/api/owner-research6-draft-verify'){
    const args=JSON.parse(options.body);
    const ok=Array.isArray(args.receipts)&&args.receipts.length>0&&
@@ -6797,6 +6816,16 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(r6Proof.requests.filter(x=>
   x.url==='/api/owner-research6-draft-verify').length,1);
  assert.equal(r6Proof.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
+ assert.equal(r6Proof.get('autoResearch6PayoffCheck').disabled,false);
+ await r6Proof.get('autoResearch6PayoffCheck').onclick();
+ assert.match(r6Proof.get('autoResearch6PayoffStatus').textContent,/79点参考収支 1R／保留 0R/);
+ assert.match(r6Proof.get('autoResearch6PayoffRows').children[0].textContent,/22,050円.*651.3%/);
+ assert.equal(r6Proof.storage.get(R6_STORAGE),r6Original);
+ assert.equal(r6Proof.requests.filter(x=>x.url==='/api/owner-research6-payoff-review').length,1);
+ r6Proof.get('autoDay').value='2099-01-02';
+ r6Proof.get('autoDay').onchange();
+ assert.equal(r6Proof.get('autoResearch6PayoffRows').children.length,0);
+ assert.equal(r6Proof.get('autoResearch6PayoffCheck').disabled,true);
  const wideR6=boot(),wideSix=[1,2,3,4,5,6],wideTickets=[];
  for(const x of r6First)for(const y of wideSix)for(const z of wideSix)
   if(x!==y&&x!==z&&y!==z)wideTickets.push([x,y,z]);
