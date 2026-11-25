@@ -345,6 +345,15 @@ const fakeFile=contents=>({size:Buffer.byteLength(contents,'utf8'),text:async()=
  }
  assert.equal(boot({...fixture(),[keys[10]]:[
   research6Draft,research6Draft]}).el('backupDownload').disabled,true);
+ const wideSix=[1,2,3,4,5,6],wideTickets=[];
+ for(const a of r6First)for(const b of wideSix)for(const c of wideSix)
+  if(a!==b&&a!==c&&b!==c)wideTickets.push([a,b,c]);
+ assert.equal(wideTickets.length,40);
+ const wide79={...research6Draft,snapshot:{...research6Draft.snapshot,
+  second:wideSix,third:wideSix,tickets:wideTickets}};
+ const wideBackup=boot({...fixture(),[keys[10]]:[wide79]});
+ assert.equal(wideBackup.el('backupDownload').disabled,false);
+ assert.match(wideBackup.el('backupSummary').textContent,/79点研究下書き固定1R/);
  // v9 backups carry per-day signed aggregates, never identities.
  assert.match(boot(fixture()).el('backupSummary').textContent,/騎手厩舎研究固定1日/);
  const sInvalid=[
