@@ -3505,6 +3505,49 @@ def create_app(settings=None):
                 'bettingReady': False, 'actualPurchase': False,
                 'resultComparisonReady': False, 'newProviderReads': 0,
             })
+        if method == 'POST' and path == '/api/owner-research6-result-review':
+            # Separate owner-only 79-weight result study. Only signed
+            # originals; one opt-in /tse read after a provisional off.
+            from owner_research6_result_review import compare_research6_results
+            if (settings.get('KEIBA_RENDER_PRIVATE_ONLY') != '1'
+                    or settings.get('KEIBA_RENDER_PREVIEW_ONLY') == '1'
+                    or settings.get('GITHUB_ACTIONS') == 'true'):
+                return response('404 Not Found', {
+                    'error': '本人専用サービスでのみ利用できます。'})
+            if (environ.get('QUERY_STRING', '')
+                    or environ.get('CONTENT_TYPE', '').split(';')[0].strip().lower()
+                    != 'application/json'):
+                return response('400 Bad Request', {'error': '研究記録の形式が不正です。'})
+            try:
+                length = int(environ.get('CONTENT_LENGTH', '0'))
+                if not 0 < length <= 250000:
+                    raise DraftReceiptError('Invalid request size')
+                raw = environ['wsgi.input'].read(length)
+                if len(raw) != length:
+                    raise DraftReceiptError('Incomplete request')
+                args = json.loads(raw)
+                if not isinstance(args, dict) or set(args) != {'date', 'receipts'}:
+                    raise DraftReceiptError('Untrusted request fields')
+                day = args['date']
+                records = verify_research6_draft_receipts(args['receipts'], password, day)
+                if not records:
+                    raise DraftReceiptError('No verified research6 drafts')
+                stamp = datetime.fromisoformat(_now_in_jst())
+                from keiba_100yen_review import _time
+                if not any(stamp >= _time(p['scheduledOffAt']) for p in records):
+                    return response('200 OK', compare_research6_results(
+                        records, [], day, now=stamp, source_read_count=0))
+            except (ValueError, TypeError, KeyError, DraftReceiptError):
+                return response('400 Bad Request', {'error': '79点研究下書きの署名を確認できません。'})
+            if (settings.get('JRDB_PRIVATE_ENABLED') != '1'
+                    or not all(settings.get(k) for k in ('JRDB_API_KEY', 'JRDB_AUTH_KEY'))):
+                return response('503 Service Unavailable', {'error': 'JRDB成績の接続設定が必要です。'})
+            try:
+                rows = fetch_finished_race_results(day)
+                report = compare_research6_results(records, rows, day, now=stamp)
+            except (JRDBError, ValueError, TypeError, KeyError):
+                return response('502 Bad Gateway', {'error': 'JRDB暫定着順を安全に照合できません。'})
+            return response('200 OK', report)
         if method == 'POST' and path == '/api/owner-research6-draft-verify':
             # Verify captured research tickets ONLY. No client-supplied signing,
             # source lookups, official results, purchase or ROI writes.
