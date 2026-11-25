@@ -61,6 +61,25 @@ class Draft79CaptureTests(unittest.TestCase):
                           "password","realPurchase","payout"):
             self.assertNotIn(forbidden,repr(report))
 
+    def test_six_runner_second_slot_tie_group_is_signable(self):
+        raw, study = materials([("S", "S"), ("S", "A")] +
+                               [("A", "S")] * 4 + [("B", "S")])
+        programme = normalize_program_rows(raw, DAY)
+        draft = calculate(programme, study, now=NOW)
+        row = draft["races"][0]
+        self.assertEqual((row["first"], row["second"], row["third"]),
+                         ([1, 2], list(range(1, 7)), list(range(1, 7))))
+        self.assertEqual(row["points"], 40)
+        hist = {"date": DAY, "predictionReady": False,
+                "newWeightFiveResearch": study, "research6FiveDrafts": draft}
+        signed = issue_research6_draft_receipts(hist, programme, SECRET, DAY, now=NOW)
+        self.assertEqual(signed["receiptCount"], 1)
+        snap = verify_research6_draft_receipts(signed["receipts"], SECRET, DAY)[0]
+        self.assertEqual(snap["tickets"], row["tickets"])
+        self.assertEqual(snap["amountYen"], 4000)
+        self.assertFalse(snap["officialJraVerified"])
+        self.assertFalse(snap["actualPurchase"])
+
     def test_old_source_cannot_be_edited_and_signed_again(self):
         p, h = setup()
         tampered=copy.deepcopy(h)
