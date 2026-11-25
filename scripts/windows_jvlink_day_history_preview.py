@@ -52,10 +52,12 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
 
     RACE retains only requested-day RA2/SE2 (up to 5,000 reads). If
     relevant_ids are passed, RCVN keeps ONLY matching SE7 plus a bounded
-    ring of 10,000 RA7 race-context rows in process memory. Actual RA7
-    context is joined to matched SE7 by exact race ID downstream; unrelated
-    RA7 and all IDs are discarded before any local JSON/HTML is created.
-    If a matching RA7 was outside the ring, its distance/going stays unknown.
+    buffer of 10,000 RA7 race-context rows in process memory. Once a
+    matching SE7 identifies a needed race, retain its RA7 rather than
+    allowing later unrelated records to evict it. The remaining buffer
+    is a trailing window of unmatched RA7. Unrelated RA7 and all IDs are
+    discarded before any local JSON/HTML is created. If context was
+    evicted before its SE7 appeared, distance/going stays unknown.
     This is NOT a complete historical database.
     RCVN scans at most 80,000 steps/60 seconds after JVOpen. Reaching
     either limit is a HOLD, not an assertion of historical completeness.
@@ -87,7 +89,25 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
     observed = []
     # Real RCVN delivered >5,000 RA7 rows before any SE7 on the owner PC.
     # Keep a bounded trailing context window while selecting only relevant SE.
-    context_ra = deque(maxlen=MAX_CONTEXT_RA)
+    context_ra = deque()
+    context_index = {}
+    needed_ra = set()
+    pinned_ra = {}
+
+    def trim_context():
+        while len(context_ra) + len(pinned_ra) > MAX_CONTEXT_RA:
+            old_key, _ = context_ra.popleft()
+            bucket = context_index[old_key]
+            bucket.popleft()
+            if not bucket:
+                del context_index[old_key]
+
+    def pin_context(key, record):
+        previous = pinned_ra.get(key)
+        if previous is not None and previous != record:
+            raise JvLocalCheckError("DAY_HISTORY_INCOMPLETE_OR_MISMATCHED")
+        pinned_ra[key] = record
+        trim_context()
     if diagnostics is not None:
         diagnostics.update({"ra7RowsObserved": 0, "se7RowsObserved": 0,
                             "matchedSe7Rows": 0, "streamCompleted": False})
@@ -157,7 +177,13 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
                     # Historical RA7 does not contain horse IDs. Retain only
                     # a bounded in-memory candidate set; match to selected
                     # runners' SE7 before exposing any race context.
-                    context_ra.append(record)
+                    race_key = record[11:27]
+                    if race_key in needed_ra:
+                        pin_context(race_key, record)
+                    else:
+                        context_ra.append((race_key, record))
+                        context_index.setdefault(race_key, deque()).append(record)
+                        trim_context()
                     continue
                 if record[:3] != b"SE7" or record[30:40] not in relevant_ids:
                     continue
@@ -165,6 +191,16 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
                     diagnostics["matchedSe7Rows"] += 1
                 if len(observed) >= MAX_MATCHED_HISTORIES:
                     raise JvLocalCheckError("DAY_HISTORY_RCVN_MATCH_LIMIT")
+                race_key = record[11:27]
+                if race_key not in needed_ra:
+                    needed_ra.add(race_key)
+                    # Compare all still-buffered revisions BEFORE eviction.
+                    bucket = context_index.get(race_key)
+                    if bucket:
+                        candidate = bucket[0]
+                        if any(row != candidate for row in bucket):
+                            raise JvLocalCheckError("DAY_HISTORY_INCOMPLETE_OR_MISMATCHED")
+                        pin_context(race_key, candidate)
             observed.append(record)
         else:
             raise JvLocalCheckError("DAY_HISTORY_" + dataspec + "_BUDGET_LIMIT")
@@ -178,7 +214,7 @@ def read_source_once(jv, dataspec, *, day=None, max_steps=None,
             except Exception:
                 raise JvLocalCheckError("DAY_HISTORY_CLOSE_FAILED") from None
     if dataspec == "RCVN" and relevant_ids is not None:
-        return observed + list(context_ra)
+        return observed + list(pinned_ra.values())
     return observed
 
 

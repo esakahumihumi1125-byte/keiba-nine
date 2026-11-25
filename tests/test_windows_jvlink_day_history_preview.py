@@ -403,6 +403,36 @@ class WindowsHistoryDayTests(unittest.TestCase):
         self.assertFalse(report["formalTenFactorReady"])
         self.assertFalse(report["productionPredictionReady"])
 
+    def test_matched_course_survives_later_unrelated_ra_buffer_eviction(self):
+        related = old_ra()
+        unrelated = replace(
+            old_ra(day="20250910", created="20250930"), 25, 27, "02")
+        for prefix in ([related, sample(1)], [sample(1), related]):
+            with self.subTest(prefix=prefix[0][:3]):
+                jv = FakeJv({"RACE": sources()["RACE"],
+                             "RCVN": [*prefix, *([unrelated] * 8)]})
+                with patch("windows_jvlink_day_history_preview.MAX_CONTEXT_RA", 3):
+                    report = self.get_report(jv)
+                run = report["races"][0]["byNumber"][0]["recentObservedRuns"][0]
+                self.assertTrue(run["historicalRaceContextMatched"])
+                self.assertEqual(run["surface"], "芝")
+                self.assertEqual(run["distanceMeters"], 1800)
+                self.assertEqual([x[0] for x in jv.opens], ["RACE", "RCVN"])
+                self.assertEqual(jv.closes, 2)
+
+    def test_conflicting_pinned_ra_revision_is_rejected_after_eviction(self):
+        related = old_ra()
+        unrelated = replace(
+            old_ra(day="20250910", created="20250930"), 25, 27, "02")
+        conflict = replace(related, 697, 701, "1600")
+        jv = FakeJv({"RACE": sources()["RACE"],
+                     "RCVN": [related, sample(1), *([unrelated] * 8), conflict]})
+        with patch("windows_jvlink_day_history_preview.MAX_CONTEXT_RA", 3):
+            with self.assertRaisesRegex(
+                    JvLocalCheckError, "^DAY_HISTORY_INCOMPLETE_OR_MISMATCHED$"):
+                self.get_report(jv)
+        self.assertEqual(jv.closes, 2)
+
     def test_no_matching_se_does_not_claim_horse_is_new(self):
         jv = FakeJv({
             "RACE": sources()["RACE"],
