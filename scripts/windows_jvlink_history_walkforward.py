@@ -8,7 +8,6 @@ so metrics are not deployable forecast accuracy. No exported rows or model.
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from itertools import groupby
-import hashlib
 import os
 from pathlib import Path
 import sqlite3
@@ -56,7 +55,8 @@ def completed_races(conn, *, as_of_day):
             continue
         ras = [r for r in rows if r[1:3] == ("RA","7")]
         ses = [r for r in rows if r[1:3] == ("SE","7")]
-        if len(ras) != 1 or not 4 <= len(ses) <= 18:
+        if (len(ras) != 1 or not 4 <= len(ses) <= 18
+                or any(r[3] < key[:8] for r in ras+ses)):
             yield key, None, "missing_or_conflicting_final_rows"
             continue
         try:
