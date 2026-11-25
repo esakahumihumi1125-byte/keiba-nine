@@ -6797,6 +6797,20 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(r6Proof.requests.filter(x=>
   x.url==='/api/owner-research6-draft-verify').length,1);
  assert.equal(r6Proof.requests.filter(x=>x.url==='/api/jrdb/history').length,0);
+ const wideR6=boot(),wideSix=[1,2,3,4,5,6],wideTickets=[];
+ for(const x of r6First)for(const y of wideSix)for(const z of wideSix)
+  if(x!==y&&x!==z&&y!==z)wideTickets.push([x,y,z]);
+ assert.equal(wideTickets.length,40);
+ wideR6.storage.set(R6_STORAGE,JSON.stringify([{
+  ...r6Entry,snapshot:{...r6Entry.snapshot,second:wideSix,third:wideSix,
+   tickets:wideTickets}
+ }]));
+ wideR6.get('autoDay').value=date;
+ wideR6.get('autoDay').onchange();
+ assert.equal(wideR6.get('autoResearch6DraftVerify').disabled,false);
+ assert.equal(wideR6.get('autoFiveQuickSaved').children.length,1);
+ await wideR6.get('autoResearch6DraftVerify').onclick();
+ assert.match(wideR6.get('autoResearch6DraftVerifyStatus').textContent,/署名を確認：1R/);
  const forgedR6=boot();
  forgedR6.storage.set(R6_STORAGE,JSON.stringify([{
   ...r6Entry,snapshot:{...r6Entry.snapshot,amountYen:9900}

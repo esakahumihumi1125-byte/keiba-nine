@@ -87,7 +87,7 @@ def _validate(snapshot):
     first, second, third = (snapshot["first"], snapshot["second"],
                             snapshot["third"])
     if (not _numbers(first, 3) or len(first) not in (2, 3)
-            or not _numbers(second, 5) or len(second) <= len(first)
+            or not _numbers(second, 6) or len(second) <= len(first)
             or not _numbers(third, 9) or len(third) < len(second)
             or len(third) > snapshot["runnerCount"]
             or first != second[:len(first)] or second != third[:len(second)]

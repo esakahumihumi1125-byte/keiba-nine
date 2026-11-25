@@ -5499,7 +5499,7 @@ function validateResearch6DraftEntry(entry){
     !Array.isArray(p.first)||!Array.isArray(p.second)||
     !Array.isArray(p.third)||!Array.isArray(p.tickets)||
     p.first.length<2||p.first.length>3||
-    p.second.length<=p.first.length||p.second.length>5||
+    p.second.length<=p.first.length||p.second.length>6||
     p.third.length<p.second.length||p.third.length>9||
     p.third.length>p.runnerCount||
     typeof p.capturedAt!=='string'||typeof p.scheduledOffAt!=='string'||
@@ -7654,7 +7654,7 @@ function validateHistory(h){
        race.rankedResearch.length!==runners.length||
        race.first.length!==2&&race.first.length!==3||
        race.second.length<=race.first.length||
-       race.second.length>5||race.third.length<race.second.length||
+       race.second.length>6||race.third.length<race.second.length||
        race.third.length>9)
      throw Error('79点研究用下書きの根拠不足');
     for(let i=0;i<runners.length;i++){
