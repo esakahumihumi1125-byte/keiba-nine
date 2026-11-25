@@ -6826,6 +6826,33 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  r6Proof.get('autoDay').onchange();
  assert.equal(r6Proof.get('autoResearch6PayoffRows').children.length,0);
  assert.equal(r6Proof.get('autoResearch6PayoffCheck').disabled,true);
+ const venuesR6=boot();
+ const makeVenueR6=(track,race)=>({...r6Entry,snapshot:{...r6Entry.snapshot,track,race}});
+ venuesR6.storage.set(R6_STORAGE,JSON.stringify([
+  makeVenueR6('東京',10),makeVenueR6('京都',2),makeVenueR6('東京',2)
+ ]));
+ venuesR6.get('autoDay').value=date;
+ venuesR6.get('autoDay').onchange();
+ const venueStorage=venuesR6.storage.get(R6_STORAGE);
+ assert.equal(venuesR6.get('autoFiveQuickSaved').children.length,3);
+ const venueButtons=venuesR6.get('autoFiveQuickTracks').children;
+ assert.equal(venueButtons.length,3);
+ const beforeVenueCalls=venuesR6.requests.length;
+ venueButtons.find(b=>b.textContent==='東京 2R').onclick();
+ const filtered=venuesR6.get('autoFiveQuickSaved').children;
+ assert.equal(filtered.length,2);
+ assert.match(filtered[0].children[0].textContent,/東京 2R/);
+ assert.match(filtered[1].children[0].textContent,/東京 10R/);
+ assert.equal(venuesR6.requests.length,beforeVenueCalls);
+ assert.equal(venuesR6.storage.get(R6_STORAGE),venueStorage);
+ venuesR6.get('autoFiveReviewJump').onclick();
+ assert.equal(venuesR6.get('autoResearch6ReviewPanel').open,true);
+ venuesR6.get('autoDay').value='2099-01-02';
+ venuesR6.get('autoDay').onchange();
+ assert.equal(venuesR6.get('autoFiveQuickTracks').children.length,0);
+ venuesR6.get('autoDay').value=date;
+ venuesR6.get('autoDay').onchange();
+ assert.equal(venuesR6.get('autoFiveQuickSaved').children.length,3);
  const wideR6=boot(),wideSix=[1,2,3,4,5,6],wideTickets=[];
  for(const x of r6First)for(const y of wideSix)for(const z of wideSix)
   if(x!==y&&x!==z&&y!==z)wideTickets.push([x,y,z]);

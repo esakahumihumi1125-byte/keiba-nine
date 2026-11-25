@@ -283,7 +283,9 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p id="autoFiveWeekendStatus" class="muted" role="status">自動追加分析はOFF。許可するまで追加のJRDB履歴照会はしません。</p>
 <p class="muted">ONでもアプリを開いた時だけ実行（バックグラウンドなし）。開催日ごとに過去番組・馬場を最大16回、失敗時の自動再試行なし。発走前のレースがなければ照会せず、翌開催日以降もOFFに変更できます。正式10項目・JRA公式照合ではありません。</p>
 <p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
+<div id="autoFiveQuickTracks" class="venue-tabs" role="group" aria-label="固定79点の競馬場"></div>
 <div id="autoFiveQuickSaved"></div>
+<a class="owner-forecast-cta" href="#autoResearch6ReviewPanel" id="autoFiveReviewJump">固定79点の結果・参考収支へ</a>
 <details class="owner-five-sparse-panel" id="autoMainWorkoutPanel">
 <summary>JRDB本追切の調教資料を確認（任意・調教30点の根拠）</summary>
 <p class="muted">本人が押した時だけJRDBの番組・出走馬・本追切データを計3回取得。追切日・終い・追切指数の記録有無を登録馬と照合します。指数値・調教タイム・オッズは表示せず、採点・3連単・結果は変更しません。</p>
@@ -391,7 +393,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoFiveProviderRaces"></div>
 <div id="autoFiveSaved"></div>
 </details>
-<details><summary>新配点79点・発走前に固定した3連単研究下書き</summary>
+<details id="autoResearch6ReviewPanel"><summary>新配点79点・発走前に固定した3連単研究下書き</summary>
 <p class="muted">「過去の同条件を照合」で新79点の研究下書きが作れたレースは、本人用サーバーで署名を検証してこの端末に**最初の買い目だけ**保存します。正式10項目・JRA公式照合・実購入ではなく、後から結果を見た修正もできません。旧85点の記録とは別です。</p>
 <p id="autoResearch6DraftSaveStatus" class="muted" role="status">新79点研究下書きの初回固定は未確認です。</p>
 <button id="autoResearch6DraftVerify" type="button">この日の79点下書きの署名を確認</button>
@@ -443,7 +445,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261126-r6-payoffs" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261126-r6-venues" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -5842,15 +5844,33 @@ function saveSparseResearchOnce(receipts,day){
   'R／既存'+old+'R／発走後の保存を中止'+late+
   'R。以前の研究例は上書きしません。';
 }
+let fiveQuickVenueDay='',fiveQuickVenue='';
 function renderFiveQuickSaved(day,expanded=false){
  // Only already signed AND locally first-locked 79-point research tickets
  // are displayed here. Never turn an unverified score/unsaved suggestion
  // into a primary forecast; no provider access, no storage writes.
- const root=$('autoFiveQuickSaved'),label=$('autoFiveQuickStatus');
- root.replaceChildren();
+ const root=$('autoFiveQuickSaved'),label=$('autoFiveQuickStatus'),
+  tabs=$('autoFiveQuickTracks');
+ root.replaceChildren();tabs.replaceChildren();
+ if(day!==fiveQuickVenueDay){fiveQuickVenueDay=day;fiveQuickVenue='';}
  try{
-  const records=savedResearch6DraftDay(day).picked;
-  for(const entry of records){
+  const records=savedResearch6DraftDay(day).picked.slice().sort((a,b)=>
+   a.snapshot.track.localeCompare(b.snapshot.track,'ja')||a.snapshot.race-b.snapshot.race);
+  const venues=[...new Set(records.map(x=>x.snapshot.track))];
+  if(!venues.includes(fiveQuickVenue))fiveQuickVenue='';
+  if(venues.length>1){
+   for(const venue of ['',...venues]){
+    const count=records.filter(x=>!venue||x.snapshot.track===venue).length;
+    const button=dom('button',(venue||'全場')+' '+count+'R');
+    button.type='button';button.setAttribute('aria-pressed',String(venue===fiveQuickVenue));
+    button.onclick=()=>{
+     if(day!==$('autoDay').value.replaceAll('-',''))return;
+     fiveQuickVenue=venue;renderFiveQuickSaved(day);
+    };
+    tabs.append(button);
+   }
+  }
+  for(const entry of records.filter(x=>!fiveQuickVenue||x.snapshot.track===fiveQuickVenue)){
    const p=entry.snapshot,card=dom('div',undefined,'owner-five-quick-card');
    card.append(dom('p',p.track+' '+p.race+'R｜保存済み研究用3連単 '+
     p.points+'点（100円換算 '+p.amountYen.toLocaleString('ja-JP')+
@@ -5865,11 +5885,12 @@ function renderFiveQuickSaved(day,expanded=false){
   }
   label.textContent=records.length
    ?'この端末に発走前固定済み '+records.length+
-    'R。署名の真正性はこの表示では未検証／JRA公式未照合。以前の買い目を変更していません。'
+    'R。'+(fiveQuickVenue?'表示：'+fiveQuickVenue+' '+records.filter(x=>x.snapshot.track===fiveQuickVenue).length+'R。':'')+
+    '署名の真正性はこの表示では未検証／JRA公式未照合。以前の買い目を変更していません。'
    :'この日の79点3連単の固定記録は0Rです。資料不足・発走後・同点保留の可能性があります。';
   return records.length;
  }catch(_){
-  root.replaceChildren();
+  root.replaceChildren();tabs.replaceChildren();
   label.textContent='79点の端末内研究記録に不整合があります。買い目は非表示、元データは変更していません。';
   return 0;
  }
@@ -9772,6 +9793,14 @@ $('autoHistoryStaffArchiveVerify').onclick=async()=>{
  }finally{
   if(seq===staffArchiveVerifySeq)
    btn.disabled=false;
+ }
+};
+$('autoFiveReviewJump').onclick=()=>{
+ const panel=$('autoResearch6ReviewPanel');
+ panel.open=true;
+ // Open the surrounding research section as well, if it is collapsed.
+ for(let parent=panel.parentElement;parent;parent=parent.parentElement){
+  if(parent.tagName==='DETAILS')parent.open=true;
  }
 };
 $('autoResearch6PayoffCheck').onclick=async()=>{
