@@ -548,6 +548,22 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.equal(archive.requests.length,4);
  assert.match(archive.get('provisionalStatus').textContent,/サーバー固定記録 2Rをすべて対象/);
  assert.equal(archive.storage.size,0);
+ // Distinct local records are disclosed, but not silently combined
+ // with the authoritative server archive or sent to the provider.
+ const divergent=JSON.parse(JSON.stringify(signed));
+ divergent[0].signature='b'.repeat(64);
+ if(divergent[0].signature===signed[0].signature)divergent[0].signature='c'.repeat(64);
+ divergent[1].snapshot.race=12;
+ archive.storage.set('keiba-nine-owner-server-receipts-v1',JSON.stringify(divergent));
+ await archive.get('provisionalCheck').onclick();
+ assert.match(archive.get('provisionalStatus').textContent,/端末側に別の記録候補 1R、署名が異なる同一R 1R/);
+ assert.deepEqual(JSON.parse(archive.requests.at(-1).opts.body).receipts,signed);
+ assert.equal(archive.storage.size,1);
+ archive.storage.set('keiba-nine-owner-server-receipts-v1','broken');
+ await archive.get('provisionalCheck').onclick();
+ assert.match(archive.get('provisionalStatus').textContent,/端末側の記録形式を確認できません/);
+ assert.deepEqual(JSON.parse(archive.requests.at(-1).opts.body).receipts,signed);
+
  // Malformed local records are rejected before another provider read.
  const corrupt=boot('?date=2099-01-02',fake,sample);
  await new Promise(r=>setImmediate(r));
