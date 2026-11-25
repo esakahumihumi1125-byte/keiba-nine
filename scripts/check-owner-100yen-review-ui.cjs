@@ -610,21 +610,32 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.equal(JSON.parse(thjView.requests[3].opts.body).receipts.length,2);
  assert.match(thjView.get('thjStatus').textContent,/JRDB払戻1R.*未確定1R/);
  assert.equal(thjView.get('thjSummary').children.length,6);
+ assert.match(thjView.get('thjCoverage').textContent,/固定済み合計 7,000円／収支計算対象外 3,000円/);
+ const venues=thjView.get('thjVenues').children;
+ assert.equal(venues.length,2);
+ assert.equal(venues[0].children[0].textContent,'東京');
+ assert.match(venues[0].children[3].textContent,/22,050円.*651.3%/);
+ assert.equal(venues[1].children[0].textContent,'京都');
+ assert.match(venues[1].children[3].textContent,/参考収支 未確定/);
+ assert.match(venues[1].children[4].textContent,/3,000円/);
  assert.match(thjView.get('thjSummary').children.at(-1).children[1].textContent,
   /651.3%/);
  assert.equal(thjView.get('thjRaces').children.length,2);
- assert.match(thjView.get('thjRaces').children[1].textContent,/返還確認が必要/);
+ assert.match(thjView.get('thjRaces').children.find(x=>x.textContent.includes('京都')).textContent,/返還確認が必要/);
  assert.equal(thjView.storage.size,0);
  thjView.get('day').value='2099-01-03';
  thjView.get('day').onchange();
  assert.equal(thjView.get('thjRaces').children.length,0);
  assert.equal(thjView.get('thjSummary').children.length,0);
+ assert.equal(thjView.get('thjVenues').children.length,0);
+ assert.equal(thjView.get('thjCoverage').textContent,'');
  for(const mutate of [
   x=>x.officialJraVerified=true,
   x=>x.races[0].returnedYen=9999,
   x=>x.races[1].returnedYen=0,
   x=>x.races[0].track='福島',
-  x=>x.races[0].trifectaPoints=39
+  x=>x.races[0].trifectaPoints=39,
+  x=>x.races[0].providerMatchedTickets=0
  ]){
   const invalid=JSON.parse(JSON.stringify(thj));mutate(invalid);
   const noFraud=boot('?date=2099-01-02',fake,sample,

@@ -35,10 +35,10 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <p class="muted">発走前に保存した署名付き研究用3連単だけを、JRDBの払戻資料（/thj）と照合します。<strong>実購入・JRA公式独立確認・正式な回収率ではありません。</strong>欠損・返還・組番が読めない場合は保留にします。ここを押した時だけJRDBを最大1回照会。既存記録は変更しません。</p>
 <button id="thjCheck" type="button">保存した3連単の仮想払戻を照合（1回）</button>
 <p id="thjStatus" class="muted" role="status">未実行。JRDBへの払戻照会はしていません。</p>
-<div id="thjSummary" class="summary"></div><div id="thjRaces"></div>
+<div id="thjSummary" class="summary"></div><p id="thjCoverage" class="muted"></p><div id="thjVenues"></div><div id="thjRaces"></div>
 </section>
 <details id="jraResultCandidatePanel"><summary>JRAの結果ページを1Rだけ読み取る（候補・任意）</summary>
-<p class="muted">JRAのレース結果ページのURLを公式サイトからコピーして入力してください。開催日の翌日以降に選択した1Rを1回確認し、<b>同じ日の署名付き発走前3連単があれば、候補の組み合わせと参考比較</b>します。固定記録がない場合はJRA形式の候補だけ表示。公式結果の最終認証・返還確認・的中証明は未完成で、仮想収支には加算しません。</p>
+<p class="muted">JRAのレース結果ページのURLを公式サイトからコピーして入力してください。当日または過去の公開済み結果から選択した1Rを1回確認し、<b>同じ日の署名付き発走前3連単があれば、候補の組み合わせと参考比較</b>します。固定記録がない場合はJRA形式の候補だけ表示。公式結果の最終認証・返還確認・的中証明は未完成で、仮想収支には加算しません。</p>
 <label for="jraResultTrack">競馬場</label>
 <select id="jraResultTrack">
 <option value="">競馬場を選択</option>
@@ -355,6 +355,8 @@ let thjRequest=0;
 function clearThj(){
  thjRequest++;
  $('thjSummary').replaceChildren();
+ $('thjCoverage').textContent='';
+ $('thjVenues').replaceChildren();
  $('thjRaces').replaceChildren();
  $('thjStatus').textContent='未実行。JRDBへの払戻照会はしていません。';
  $('thjCheck').disabled=false;
@@ -392,7 +394,8 @@ function checkThj(raw,day,expected){
    if(r.investedYen!==100*r.trifectaPoints||
       !Number.isInteger(r.returnedYen)||r.returnedYen<0||
       !Number.isInteger(r.providerMatchedTickets)||r.providerMatchedTickets<0||
-      r.providerMatchedTickets>6)
+      r.providerMatchedTickets>6||r.providerMatchedTickets>r.trifectaPoints||
+      (r.returnedYen===0)!==(r.providerMatchedTickets===0))
     throw Error('JRDB払戻計算に矛盾');
    observed++;invested+=r.investedYen;returned+=r.returnedYen;
    hits+=Number(r.providerMatchedTickets>0);
@@ -418,8 +421,10 @@ function checkThj(raw,day,expected){
  return raw;
 }
 $('thjCheck').onclick=async()=>{
+ if($('thjCheck').disabled)return;
  const day=$('day').value,seq=++thjRequest,button=$('thjCheck');
  $('thjSummary').replaceChildren();$('thjRaces').replaceChildren();
+ $('thjCoverage').textContent='';$('thjVenues').replaceChildren();
  if(!validDay(day)){
   $('thjStatus').textContent='開催日を正しく選んでください。';return;
  }
@@ -446,9 +451,31 @@ $('thjCheck').onclick=async()=>{
    stat('参考収支',data.observedRaces?yen(data.reviewedProfitYen):'未確定'),
    stat('JRDB参考回収率',pct(data.reviewedRoiPercent))
   );
+  $('thjCoverage').textContent='固定済み合計 '+yen(data.reviewedInvestedYen+data.pendingStakeYen)+
+   '／収支計算対象外 '+yen(data.pendingStakeYen)+'（'+data.pendingRaces+
+   'R）。未確定分を不的中や0円払戻とは扱いません。';
+  const venues=new Map();
+  for(const row of data.races){
+   if(!venues.has(row.track))venues.set(row.track,{done:0,pending:0,stake:0,returned:0,held:0,hits:0});
+   const v=venues.get(row.track);
+   if(row.status==='provider_observed'){
+    v.done++;v.stake+=row.investedYen;v.returned+=row.returnedYen;
+    v.hits+=Number(row.providerMatchedTickets>0);
+   }else{v.pending++;v.held+=100*row.trifectaPoints;}
+  }
+  for(const [track,v] of venues){
+   const section=el('div',undefined,'stat');
+   section.append(el('strong',track),el('p','確認 '+v.done+'R／保留 '+v.pending+
+    'R／候補一致 '+v.hits+'R','muted'),
+    el('p','参考投資 '+yen(v.stake)+'／参考払戻 '+yen(v.returned),'muted'),
+    el('p','参考収支 '+(v.done?yen(v.returned-v.stake):'未確定')+
+     '／参考回収率 '+pct(v.stake?v.returned*100/v.stake:null),'muted'),
+    el('p','集計対象外 '+yen(v.held),'muted'));
+   $('thjVenues').append(section);
+  }
   const labels={pending:'払戻未取得',refund_review:'返還確認が必要',
    format_review:'組番形式確認が必要',provider_observed:'JRDB払戻資料あり'};
-  for(const row of data.races){
+  for(const row of [...data.races].sort((a,b)=>a.track.localeCompare(b.track,'ja')||a.race-b.race)){
    $('thjRaces').append(el('p',row.track+' '+row.race+'R｜'+
      labels[row.status]+'｜3連単 '+row.trifectaPoints+'点'+
      (row.status==='provider_observed'?
