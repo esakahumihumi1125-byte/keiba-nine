@@ -6,10 +6,10 @@ purchase records, credentials or snapshots are saved by this UI.
 HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#09172b">
-<title>KEIBA NINE｜100円仮想収支</title>
+<title>ARC RACE｜100円仮想収支</title>
 <link rel="stylesheet" href="/owner-100yen-review.css"></head><body><main>
 <nav><a href="/">← 本人用ホーム</a><a href="/owner-jrdb-day-research">全R研究へ</a></nav>
-<h1>KEIBA NINE <small>本人用・100円仮想収支</small></h1>
+<h1>ARC RACE <small>本人用・100円仮想収支</small></h1>
 <p class="notice"><strong>実購入・実際の払戻ではありません。</strong>
 発走前に保存・固定された買い目のみ1点100円で仮購入した計算です。
 公式結果を独立確認できないレースは「結果待ち」のまま保留し、
@@ -21,7 +21,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </div>
 <button id="load" type="button">この日の100円仮想収支を確認</button>
 <p class="muted">直近の土日ボタンは日付選択と保存済み記録の再表示だけ。変則開催は日付を選んでください。新しいJRDBの有料照会や予想・購入はしません。</p>
-<p id="status" class="muted" role="status">開催日を選んで確認してください。</p></section>
+<p id="status" class="muted" role="status">開催日を選んで確認してください。</p><p class="muted">端末内だけの固定記録は、別端末・ブラウザでは見られない場合があります。<a href="/owner-backup">発走前記録のバックアップ・復元</a></p></section>
 <section><h2>全体の集計</h2>
 <div id="summary" class="summary"></div><p class="muted" id="coverage"></p></section>
 <section><h2>競馬場別</h2><div id="venue"></div></section>
@@ -255,6 +255,31 @@ function checkedPreliminary(input,day,expected){
   throw Error('暫定着順の件数不一致');
  return input;
 }
+function localRecordCoverageNote(day,serverReceipts){
+ // Read-only diagnostics. Never merge different storage/signing domains,
+ // and never interpret a local signature-shaped value as authenticated.
+ try{
+  const raw=localStorage.getItem(LOCKED_STORAGE);
+  if(!raw)return '';
+  if(raw.length>650000)throw Error('size');
+  const all=JSON.parse(raw);
+  if(!Array.isArray(all)||all.length>360)throw Error('shape');
+  const chosen=all.filter(x=>x?.snapshot?.date===day);
+  if(!chosen.length)return '';
+  expectedPreliminaryRaces(chosen,day);
+  const server=new Map(serverReceipts.map(x=>[
+   x.snapshot.track+'|'+x.snapshot.race,x.signature]));
+  let localOnly=0,different=0;
+  for(const x of chosen){
+   const k=x.snapshot.track+'|'+x.snapshot.race;
+   if(!server.has(k))localOnly++;
+   else if(server.get(k)!==x.signature)different++;
+  }
+  return localOnly||different?
+   ' 端末側に別の記録候補 '+localOnly+'R、署名が異なる同一R '+different+
+   'Rがあります（未検証）。今回の集計に混ぜず、バックアップ画面で確認してください。':'';
+ }catch(_){return ' 端末側の記録形式を確認できません。サーバー記録のみを使用します。';}
+}
 async function signedForPreliminary(day){
  // Explicit tap only. Prefer original server archive if it exists.
  const r=await fetch('/api/owner-archive-read?date='+encodeURIComponent(day),{
@@ -271,7 +296,8 @@ async function signedForPreliminary(day){
      record.available!==(record.raceCount>0))
    throw Error('サーバー固定記録の形式が不正');
   if(record.raceCount>0)
-   return {receipts:record.receipts,source:'サーバー固定'};
+   return {receipts:record.receipts,source:'サーバー固定',
+    coverageNote:localRecordCoverageNote(day,record.receipts)};
   // When the archive has 0R, older local-only signed records may exist.
   // Never merge receipts signed with different keys into one request.
  }else if(record?.archiveEnabled!==false||record.available!==false||
@@ -283,7 +309,7 @@ async function signedForPreliminary(day){
  if(!Array.isArray(all)||all.length>360)throw Error('固定記録形式が不正');
  const chosen=all.filter(x=>x?.snapshot?.date===day);
  if(chosen.length<1||chosen.length>36)throw Error('対象日の固定記録なし');
- return {receipts:chosen,source:'この端末の固定'};
+ return {receipts:chosen,source:'この端末の固定',coverageNote:' 端末内の記録のみ。別端末の記録は含みません。'};
 }
 function showPreliminary(data){
  const p=$('provisionalRaces');p.replaceChildren();
@@ -326,7 +352,7 @@ $('provisionalCheck').onclick=async()=>{
  btn.disabled=true;
  $('provisionalStatus').textContent='本人用の固定記録を検証中。JRDB成績は発走後のみ取得します。';
  try{
-  const {receipts,source}=await signedForPreliminary(day);
+  const {receipts,source,coverageNote}=await signedForPreliminary(day);
   if(seq!==preliminaryRequest)return;
   const expected=expectedPreliminaryRaces(receipts,day);
   const res=await fetch('/api/owner-prestart-tse-review',{
@@ -341,7 +367,7 @@ $('provisionalCheck').onclick=async()=>{
   $('provisionalStatus').textContent=source+'記録 '+expected.size+
    'Rをすべて対象にJRDB暫定着順との参考比較が完了。'+
    'この保存元以外の未固定・別保存レースは含みません。'+
-   'JRA公式の結果・的中・払戻・回収率に加算していません。';
+   'JRA公式の結果・的中・払戻・回収率に加算していません。'+coverageNote;
  }catch(_){
   if(seq===preliminaryRequest)
    $('provisionalStatus').textContent='暫定照合ができませんでした。記録・仮想収支は変更していません。';
@@ -431,7 +457,7 @@ $('thjCheck').onclick=async()=>{
  button.disabled=true;
  $('thjStatus').textContent='固定記録の署名確認後、JRDBの払戻資料を照合中…';
  try{
-  const {receipts,source}=await signedForPreliminary(day);
+  const {receipts,source,coverageNote}=await signedForPreliminary(day);
   if(seq!==thjRequest||$('day').value!==day)return;
   const expected=expectedPreliminaryRaces(receipts,day);
   const resp=await fetch('/api/owner-prestart-thj-review',{
@@ -484,7 +510,7 @@ $('thjCheck').onclick=async()=>{
   $('thjStatus').textContent=source+' '+data.raceCount+'Rを対象にJRDB払戻'+
     data.observedRaces+'Rを参考照合。未確定'+data.pendingRaces+
     'Rは収支から除外。JRA公式結果は独立未確認、実購入なし。'+
-    '保存済みの3連単・正式収支には反映していません。';
+    '保存済みの3連単・正式収支には反映していません。'+coverageNote;
  }catch(_){
   if(seq===thjRequest)
    $('thjStatus').textContent='JRDB払戻を安全に照合できませんでした。'+
@@ -790,14 +816,14 @@ $('load').onclick=async()=>{
   const {body,signed,serverArchived}=await readReport(day);
   if(seq!==request)return;
   if(!body.available){
-   $('status').textContent='この日の発走前固定済み買い目は未登録です。仮想収支を作成していません。';
+   $('status').textContent='この日の発走前固定済み買い目は未登録です（この端末・接続先で未確認）。別端末の記録は未確認です。仮想収支を作成していません。';
    return;
   }
   draw(body.review);
   $('status').textContent=serverArchived?
    '非公開サーバーに保存した署名付き研究記録。公式発走時刻と結果は未照合・実購入ではありません。':
    signed?
-    '端末内のサーバー署名付き研究記録。公式発走時刻と結果は未照合・実購入ではありません。':
+    '端末内のサーバー署名付き研究記録。別端末への永続保存とは異なります。公式発走時刻と結果は未照合・実購入ではありません。':
     '保存済みのプレビューを読み込みました。発走前の独立監査・公式結果は未接続です。';
  }catch(_){if(seq===request)$('status').textContent='安全な集計ができませんでした。予想・購入記録には影響しません。';}
  finally{if(seq===request)button.disabled=false;}
