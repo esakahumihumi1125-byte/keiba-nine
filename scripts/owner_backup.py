@@ -342,7 +342,7 @@ function signedResearch6Draft(x){
     !Array.isArray(p.first)||!Array.isArray(p.second)||
     !Array.isArray(p.third)||!Array.isArray(p.tickets)||
     p.first.length<2||p.first.length>3||
-    p.second.length<=p.first.length||p.second.length>5||
+    p.second.length<=p.first.length||p.second.length>6||
     p.third.length<p.second.length||p.third.length>9||
     p.third.length>p.runnerCount||
     typeof p.capturedAt!=='string'||typeof p.scheduledOffAt!=='string'||
@@ -357,7 +357,7 @@ function signedResearch6Draft(x){
     off.toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'})
       .replaceAll('-','')!==p.date)return false;
  if(!numbers(p.first)||!numbers(p.second)||!numbers(p.third)||
-    p.first.length>3||p.second.length>5||p.third.length>9||
+    p.first.length>3||p.second.length>6||p.third.length>9||
     p.first.join('|')!==p.second.slice(0,p.first.length).join('|')||
     p.second.join('|')!==p.third.slice(0,p.second.length).join('|'))
   return false;
