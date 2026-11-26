@@ -3,7 +3,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#09172b">
 <title>ARC RACE｜本人用・研究予想</title>
-<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261124-filter"></head><body class="owner-simple owner-preday-view"><main>
+<link rel="stylesheet" href="/owner-auto-forecast.css?theme=arc-blue-20261126-r6-main-review"></head><body class="owner-simple owner-preday-view"><main>
 <details class="owner-menu"><summary>関連ページ・WIN5</summary><nav class="owner-nav">
 <a href="https://esakahumihumi1125-byte.github.io/keiba-nine/keiba-nine-beta51-feed-record.html" rel="noopener noreferrer">← KEIBA NINE本体へ</a>
 <a href="/">本人用ホーム</a>
@@ -25,7 +25,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <nav class="arc-main-tabs" aria-label="アークレースの主な画面">
 <a href="#autoDailyStart">予想を取得</a>
 <a href="#forecastRacesSection">レース一覧</a>
-<a href="#fixedHistorySection">結果・記録</a>
+<a href="#autoResearch6MainSection">結果・記録</a>
 <a id="autoQualityLink" href="/owner-100yen-review">精度検証</a>
 </nav>
 <nav class="owner-view-switch" aria-label="予想の表示を切り替える">
@@ -282,10 +282,6 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <label class="auto-five-consent"><input id="autoFiveWeekendOptIn" type="checkbox"> 土日の当日、アプリを開いて基本データを取得したら、5項目の追加分析も自動で1回だけ実行する</label>
 <p id="autoFiveWeekendStatus" class="muted" role="status">自動追加分析はOFF。許可するまで追加のJRDB履歴照会はしません。</p>
 <p class="muted">ONでもアプリを開いた時だけ実行（バックグラウンドなし）。開催日ごとに過去番組・馬場を最大16回、失敗時の自動再試行なし。発走前のレースがなければ照会せず、翌開催日以降もOFFに変更できます。正式10項目・JRA公式照合ではありません。</p>
-<p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
-<div id="autoFiveQuickTracks" class="venue-tabs" role="group" aria-label="固定79点の競馬場"></div>
-<div id="autoFiveQuickSaved"></div>
-<a class="owner-forecast-cta" href="#autoResearch6ReviewPanel" id="autoFiveReviewJump">固定79点の結果・参考収支へ</a>
 <details class="owner-five-sparse-panel" id="autoMainWorkoutPanel">
 <summary>JRDB本追切の調教資料を確認（任意・調教30点の根拠）</summary>
 <p class="muted">本人が押した時だけJRDBの番組・出走馬・本追切データを計3回取得。追切日・終い・追切指数の記録有無を登録馬と照合します。指数値・調教タイム・オッズは表示せず、採点・3連単・結果は変更しません。</p>
@@ -318,6 +314,29 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </details>
 </section>
 </details>
+</section>
+<section id="autoResearch6MainSection" class="owner-five-quick">
+<h2>結果・記録｜5項目79点の参考予想</h2>
+<p class="muted">選択日の発走前固定済み研究予想。正式100点・JRA公式結果・実購入ではありません。</p>
+<p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
+<div id="autoFiveQuickTracks" class="venue-tabs" role="group" aria-label="固定79点の競馬場"></div>
+<div id="autoFiveQuickSaved"></div>
+<a class="owner-forecast-cta" href="#autoResearch6ReviewPanel" id="autoFiveReviewJump">固定79点の結果・参考収支へ</a>
+<details id="autoResearch6ReviewPanel"><summary>新配点79点・発走前に固定した3連単研究下書き</summary>
+<p class="muted">「過去の同条件を照合」で新79点の研究下書きが作れたレースは、本人用サーバーで署名を検証してこの端末に**最初の買い目だけ**保存します。正式10項目・JRA公式照合・実購入ではなく、後から結果を見た修正もできません。旧85点の記録とは別です。</p>
+<p id="autoResearch6DraftSaveStatus" class="muted" role="status">新79点研究下書きの初回固定は未確認です。</p>
+<button id="autoResearch6DraftVerify" type="button">この日の79点下書きの署名を確認</button>
+<p id="autoResearch6DraftVerifyStatus" class="muted" role="status">署名確認は未実行です。結果や回収率は集計しません。</p>
+<button id="autoResearch6ResultCheck" type="button" disabled>固定79点の暫定着順を参考照合（1回）</button>
+<p id="autoResearch6ResultStatus" class="muted" role="status">未照合。押した時だけJRDB暫定成績を取得します。</p>
+<div id="autoResearch6ResultRows"></div>
+<button id="autoResearch6PayoffCheck" type="button" disabled>固定79点の100円参考収支を照合（1回）</button>
+<p id="autoResearch6PayoffStatus" class="muted" role="status">未照合。JRDB参考払戻・正式収支とは別です。</p>
+<div id="autoResearch6PayoffRows"></div>
+<div id="autoResearch6DraftSaved"></div>
+</details>
+
+<a class="owner-forecast-cta" id="autoLegacyHistoryJump" href="#fixedHistorySection">その他の固定記録・2項目の収支へ</a>
 </section>
 <section id="fixedHistorySection">
 <h2>4. 発走前に固定した買い目</h2>
@@ -393,19 +412,6 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <div id="autoFiveProviderRaces"></div>
 <div id="autoFiveSaved"></div>
 </details>
-<details id="autoResearch6ReviewPanel"><summary>新配点79点・発走前に固定した3連単研究下書き</summary>
-<p class="muted">「過去の同条件を照合」で新79点の研究下書きが作れたレースは、本人用サーバーで署名を検証してこの端末に**最初の買い目だけ**保存します。正式10項目・JRA公式照合・実購入ではなく、後から結果を見た修正もできません。旧85点の記録とは別です。</p>
-<p id="autoResearch6DraftSaveStatus" class="muted" role="status">新79点研究下書きの初回固定は未確認です。</p>
-<button id="autoResearch6DraftVerify" type="button">この日の79点下書きの署名を確認</button>
-<p id="autoResearch6DraftVerifyStatus" class="muted" role="status">署名確認は未実行です。結果や回収率は集計しません。</p>
-<button id="autoResearch6ResultCheck" type="button" disabled>固定79点の暫定着順を参考照合（1回）</button>
-<p id="autoResearch6ResultStatus" class="muted" role="status">未照合。押した時だけJRDB暫定成績を取得します。</p>
-<div id="autoResearch6ResultRows"></div>
-<button id="autoResearch6PayoffCheck" type="button" disabled>固定79点の100円参考収支を照合（1回）</button>
-<p id="autoResearch6PayoffStatus" class="muted" role="status">未照合。JRDB参考払戻・正式収支とは別です。</p>
-<div id="autoResearch6PayoffRows"></div>
-<div id="autoResearch6DraftSaved"></div>
-</details>
 <button id="autoWatchResultCheck" type="button" disabled>固定した巻き返し候補とJRDB成績を参考照合</button>
 <p class="muted">署名済み候補がこのiPhoneにある開催日だけ利用できます。押した時のみJRDBの成績を1回取得。
 JRDBはJRA公式から独立した結果確認ではないので、表示は暫定値です。公式的中・回収率に加算しません。</p>
@@ -445,7 +451,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261126-r6-venues" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261126-r6-main-review" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -484,7 +490,7 @@ main{padding-bottom:65px}
  text-decoration:none;text-align:center}
 .arc-main-tabs a:focus-visible,.quick-links a:focus-visible{outline:3px solid #e8c774}
 .arc-main-tabs #autoQualityLink{background:#215980;color:#f5e4b8}
-#autoDailyStart,#forecastRacesSection,#fixedHistorySection{scroll-margin-top:74px}
+#autoDailyStart,#forecastRacesSection,#fixedHistorySection,#autoResearch6MainSection,#autoResearch6ReviewPanel{scroll-margin-top:74px}
 .owner-menu{background:transparent;border:0;margin:0;padding:0}
 .owner-menu>summary{display:inline-flex;align-items:center;
  min-height:30px;color:#bcd0e1;font-weight:600;font-size:12px}
@@ -12562,7 +12568,7 @@ if(predayReload&&typeof predayReload.addEventListener==='function')
  predayReload.addEventListener('click',()=>choose('preday',false));
 if(typeof document.querySelector==='function'){
  const raceLink=document.querySelector('.arc-main-tabs a[href="#forecastRacesSection"]');
- const resultLink=document.querySelector('.arc-main-tabs a[href="#fixedHistorySection"]');
+ const resultLink=document.getElementById('autoLegacyHistoryJump');
  if(raceLink&&typeof raceLink.addEventListener==='function')
   raceLink.addEventListener('click',()=>choose('jrdb',false));
  if(resultLink&&typeof resultLink.addEventListener==='function')

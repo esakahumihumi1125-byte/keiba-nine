@@ -19,7 +19,7 @@ class OwnerBluePaletteTests(unittest.TestCase):
         self.assertIn('section{background:#173b5b',FORECAST_CSS)
         self.assertIn('linear-gradient(165deg,#10355a,#07182c',LOGIN_CSS)
         self.assertIn('theme=arc-blue-static-20261112',OWNER_HTML)
-        self.assertIn('theme=arc-blue-20261124-filter',FORECAST_HTML)
+        self.assertIn('theme=arc-blue-20261126-r6-main-review',FORECAST_HTML)
         self.assertIn('theme=arc-blue-20261112',LOGIN_HTML)
 
     def test_track_is_blue_without_green_gradient(self):
