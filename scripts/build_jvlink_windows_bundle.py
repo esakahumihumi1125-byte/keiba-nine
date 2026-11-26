@@ -14,6 +14,8 @@ FILES = (
     "scripts/windows_arc_race_preflight.cmd",
     "scripts/windows_jvlink_2026_history_store.cmd",
     "scripts/windows_jvlink_2026_history_store.py",
+    "scripts/windows_jvlink_workout_store.py",
+    "scripts/windows_jvlink_workout_store.cmd",
     "scripts/windows_jvlink_history_walkforward.py",
     "scripts/windows_jvlink_history_walkforward.cmd",
     "scripts/windows_check_jvlink.cmd",
@@ -147,6 +149,16 @@ ARC_RACE_OFFLINE_EVIDENCE=... /\nARC_RACE_LOCAL_TRIFECTA=... の状態名だけ
     事後確定の出走馬・コースを使うため正式発走前検証ではない。
     元データ・学習済みモデル・買い目の外部出力はしない。
     実データ・正式10項目の評価は未検証。
+
+13. 2026年の坂路・ウッド調教資料を本人PC内に蓄積するには、
+    scripts/windows_jvlink_workout_store.cmd を開く。
+    SLOP（坂路）またはWOOD（ウッド）を選択し、有効契約と
+    個人利用権限を確認してYES。選択した通常データを1回取得。
+    SQLiteは坂路・ウッド別に新規保存し、訂正・削除通知も保持。
+    同じファイルを上書きしない。空き3GiB未満で停止。
+    無料体験を含む契約終了時は原データ等の削除が必要。
+    全期間網羅・発走前配信時点・正式調教30点の検証は未完成。
+    外部送信・モデル学習・買い目生成は行わない。
 
 重要：
 - Windows実機での成功は未検証。
