@@ -94,6 +94,10 @@ class MobileForecastFirstContract(unittest.TestCase):
                       parents["autoFiveQuickSection"])
         self.assertIn(("section", "autoDayDetailSection"),
                       parents["autoFiveQuickSection"])
+        self.assertEqual(parents["autoResearch6MainSection"], ())
+        self.assertEqual(parents["autoResearch6ReviewPanel"],
+                         (("section", "autoResearch6MainSection"),))
+        self.assertNotIn("#autoResearch6MainSection,\n", CSS)
         # Hidden by HTML details' default CLOSED state, not by inventing
         # new client permission or making any optional source call.
         opening = HTML[HTML.index('id="autoAdvancedResearch"')-9:
