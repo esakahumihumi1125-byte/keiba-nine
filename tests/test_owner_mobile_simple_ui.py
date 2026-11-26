@@ -55,7 +55,7 @@ class SimpleForecastScreenTest(unittest.TestCase):
         for label, anchor in [
             ("予想を取得", "autoDailyStart"),
             ("レース一覧", "forecastRacesSection"),
-            ("結果・記録", "fixedHistorySection"),
+            ("結果・記録", "autoResearch6MainSection"),
         ]:
             self.assertIn('href="#' + anchor + '">' + label + '</a>', HTML)
             self.assertEqual(HTML.count('id="' + anchor + '"'), 1)
