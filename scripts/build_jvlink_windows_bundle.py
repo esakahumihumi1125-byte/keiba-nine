@@ -14,6 +14,8 @@ FILES = (
     "scripts/windows_arc_race_preflight.cmd",
     "scripts/windows_jvlink_2026_history_store.cmd",
     "scripts/windows_jvlink_2026_history_store.py",
+    "scripts/windows_jvlink_history_walkforward.py",
+    "scripts/windows_jvlink_history_walkforward.cmd",
     "scripts/windows_check_jvlink.cmd",
     "scripts/windows_check_jvlink.ps1",
     "scripts/windows_jvlink_weekly_read.cmd",
@@ -135,6 +137,16 @@ ARC_RACE_OFFLINE_EVIDENCE=... /\nARC_RACE_LOCAL_TRIFECTA=... の状態名だけ
     契約終了時は保存元データ、キャッシュ、コピー、学習用データを削除。
     元データ復元不能の個人利用モデルだけ保持可能か別途確認してください。
     調教・血統・払戻等の蓄積、学習処理、差分更新は今回の対象外です。
+
+12. 取得済みの2026年RA/SEデータからコース研究をする場合は、
+    scripts/windows_jvlink_history_walkforward.cmd をダブルクリック。
+    個人利用契約が有効な間のみYES。追加JV-Link通信0回。
+    完全なRA7/SE7の全着順が揃うレースだけを使い、対象日より
+    過去かつ作成日も前日の履歴だけで同場・同走路・200m帯の
+    3着以内の実績を比較する。均等確率とのBrier誤差を集計。
+    事後確定の出走馬・コースを使うため正式発走前検証ではない。
+    元データ・学習済みモデル・買い目の外部出力はしない。
+    実データ・正式10項目の評価は未検証。
 
 重要：
 - Windows実機での成功は未検証。
