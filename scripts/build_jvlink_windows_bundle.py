@@ -15,6 +15,7 @@ FILES = (
     "scripts/windows_jvlink_2026_history_store.cmd",
     "scripts/windows_jvlink_2026_history_store.py",
     "scripts/windows_jvlink_workout_store.py",
+    "scripts/owner_jvdata_workout_features.py",
     "scripts/windows_jvlink_workout_store.cmd",
     "scripts/windows_jvlink_history_walkforward.py",
     "scripts/windows_jvlink_history_walkforward.cmd",
