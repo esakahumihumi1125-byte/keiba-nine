@@ -16,6 +16,8 @@ FILES = (
     "scripts/windows_jvlink_2026_history_store.py",
     "scripts/windows_jvlink_workout_store.py",
     "scripts/owner_jvdata_workout_features.py",
+    "scripts/windows_jvlink_workout_pair_study.py",
+    "scripts/windows_jvlink_workout_pair_study.cmd",
     "scripts/windows_jvlink_workout_store.cmd",
     "scripts/windows_jvlink_history_walkforward.py",
     "scripts/windows_jvlink_history_walkforward.cmd",
@@ -160,6 +162,15 @@ ARC_RACE_OFFLINE_EVIDENCE=... /\nARC_RACE_LOCAL_TRIFECTA=... の状態名だけ
     無料体験を含む契約終了時は原データ等の削除が必要。
     全期間網羅・発走前配信時点・正式調教30点の検証は未完成。
     外部送信・モデル学習・買い目生成は行わない。
+
+14. 調教時計と過去の着順を比較する場合は、
+    scripts/windows_jvlink_workout_pair_study.cmd を起動。
+    保存済みの2026年レースDBと坂路/ウッドDBを読取専用で使用。
+    同日・同調教場・同走路等の比較可能な馬同士について、
+    終い1Fと加速の良否が着順と一致する割合を集計する。
+    対象日前の14日間・作成日も対象日前の資料だけ使用する。
+    事後確定出走馬を使う研究であり、発走前予想の精度ではない。
+    追加照会・原データ外部転送・採点変更・モデル保存なし。
 
 重要：
 - Windows実機での成功は未検証。
