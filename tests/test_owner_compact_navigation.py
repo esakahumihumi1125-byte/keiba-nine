@@ -42,7 +42,7 @@ assert(start>=0,'isolated compact navigation script');
 const names=['ownerPredayMode','ownerJrdbMode','ownerDetailToggle',
  'forecastRacesSection','autoPredayInlineRaces',
  'autoSaturdayQuick','autoSundayQuick','autoMondayQuick','autoRun',
- 'autoPredayInlineLoad'];
+ 'autoPredayInlineLoad','autoLegacyHistoryJump'];
 const attrs=new Map(),controlListeners=new Map();
 const els=new Map(names.map(n=>[n,{
  textContent:'',onclick:null,scrolls:0,
@@ -82,7 +82,7 @@ assert(classes.has('owner-detailed'));
 assert.equal(els.get('ownerDetailToggle').textContent,'簡単表示に戻す');
 els.get('ownerDetailToggle').onclick();
 assert(!classes.has('owner-detailed'));
-listeners.get('.arc-main-tabs a[href="#fixedHistorySection"]:click')();
+controlListeners.get('autoLegacyHistoryJump:click')();
 assert(classes.has('owner-detailed'),'record navigation reveals history');
 listeners.get('.arc-main-tabs a[href="#forecastRacesSection"]:click')();
 assert(classes.has('owner-jrdb-view'),'race navigation reveals JRDB');
