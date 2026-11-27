@@ -33,7 +33,7 @@ def _int_in(value, low, high):
     return type(value) is int and low <= value <= high
 
 
-def summarize_runner(horse, *, target_day=None):
+def summarize_runner(horse, *, target_day=None, target_course=None):
     """Never infer quality from positions, missing history, or running style.
 
     A saved prior result must predate the race being studied. This blocks
@@ -56,6 +56,9 @@ def summarize_runner(horse, *, target_day=None):
             or horse.get("missingHistoryUnproven") is not True):
         raise CoverageError("Invalid private history collection")
 
+    # Target context is an unverified local RA2 candidate, not official JRA.
+    # A missing context stays unknown rather than zero comparable runs.
+    comparable = [] if target_course is not None else None
     finishes, corners, styles, last3f, dates = [], [], [], [], []
     historical_course_rows = historical_going_rows = 0
     field_relative_runs = []
@@ -117,6 +120,18 @@ def summarize_runner(horse, *, target_day=None):
                     if raw_corners[-1] is not None and finishers == starters else None
                 ),
             }
+        if (comparable is not None and ra_joined
+                and run.get("trackCode") == target_course[0]
+                and past_surface == target_course[1]
+                and _int_in(past_distance, 400, 10000)
+                and abs(past_distance - target_course[2]) <= 200
+                and run.get("hasAbnormalCode") is False):
+            comparable.append({
+                "exactDistance": past_distance == target_course[2],
+                "fieldRelativeFinishAvailable": (
+                    relative is not None
+                    and relative["finisherPositionPercentile"] is not None),
+            })
         field_relative_runs.append(relative)
         finishes.append(finish)
         corners.append(raw_corners)
@@ -154,6 +169,14 @@ def summarize_runner(horse, *, target_day=None):
         "observedCornerPositions": corners,
         "observedStyleCodes": styles,
         "historicalCourseContextRowsObserved": historical_course_rows,
+        "sameVenueSurfaceWithin200mObserved": (
+            len(comparable) if comparable is not None else None),
+        "sameVenueSurfaceExactDistanceObserved": (
+            sum(x["exactDistance"] for x in comparable)
+            if comparable is not None else None),
+        "comparableRunsWithFieldRelativeFinish": (
+            sum(x["fieldRelativeFinishAvailable"] for x in comparable)
+            if comparable is not None else None),
         "historicalGoingContextRowsObserved": historical_going_rows,
         "factorEvidence": factors,
         "factorsWithObservations": [
@@ -200,7 +223,14 @@ def summarize_one_race(report):
             or not isinstance(race.get("byNumber"), list)
             or not 4 <= len(race["byNumber"]) <= MAX_RUNNERS):
         raise CoverageError("Invalid research race details")
-    horses = [summarize_runner(row, target_day=report["date"])
+    surface = race.get("surfaceCandidate")
+    distance = race.get("distanceMetersCandidate")
+    track_code = next(k for k, v in TRACKS.items() if v == race["track"])
+    target_course = ((track_code, surface, distance)
+                     if surface in ("芝", "ダート")
+                     and _int_in(distance, 400, 10000) else None)
+    horses = [summarize_runner(row, target_day=report["date"],
+                              target_course=target_course)
               for row in race["byNumber"]]
     numbers = [horse["number"] for horse in horses]
     if sorted(numbers) != list(range(1, len(numbers) + 1)):
@@ -220,6 +250,10 @@ def summarize_one_race(report):
             "recent" in x["factorsWithObservations"] for x in horses),
         "runnersWithPaceObservation": sum(
             "pace" in x["factorsWithObservations"] for x in horses),
+        "targetCourseCandidateAvailable": target_course is not None,
+        "runnersWithComparableCourseObservations": (
+            sum(x["sameVenueSurfaceWithin200mObserved"] > 0 for x in horses)
+            if target_course is not None else None),
         "runnersWithPastCourseContext": sum(
             x["historicalCourseContextRowsObserved"] > 0 for x in horses),
         "runnersWithFieldRelativeObservations": sum(
@@ -318,6 +352,11 @@ def render_evidence_html(result):
             + "走／過去の馬場条件の観測 "
             + e(horse["historicalGoingContextRowsObserved"])
             + "走（いずれも今回の適性評価ではない）</p>"
+            + "<p>同競馬場・同芝/ダート・距離±200mの過去走："
+            + e(horse.get("sameVenueSurfaceWithin200mObserved")
+                if horse.get("sameVenueSurfaceWithin200mObserved") is not None
+                else "今回の条件不明")
+            + "（観測した5走以内・適性点ではない）</p>"
             + "<p>観測した着順：" + e(finishes)
             + "</p><p>上がり3F候補：" + e(three_f)
             + "</p><p>過去走の出走・入線頭数：" + e(relative)
