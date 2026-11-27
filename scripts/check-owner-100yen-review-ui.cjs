@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const js=fs.readFileSync('/tmp/keiba-owner-100yen-review.js','utf8');
 function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=null,
- jraResultFixture=null,receiptVerifyFixture=null,thjFixture=null,clockISO=null){
+ jraResultFixture=null,receiptVerifyFixture=null,thjFixture=null,clockISO=null,r79VerifyFixture=null){
  const elements=new Map(),requests=[],storage=new Map();
  let pending=null;
  function node(tag){
@@ -31,6 +31,9 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
    };
   if(url.startsWith('/api/owner-100yen-archived'))return {
     ok:true,json:async()=>({archiveEnabled:false,available:false})
+  };
+  if(url==='/api/owner-research6-draft-verify')return {
+    ok:!!r79VerifyFixture,json:async()=>r79VerifyFixture||{error:'unverified'}
   };
   if(url==='/api/owner-100yen-verify-receipts')return {
     ok:!!receiptVerifyFixture,
@@ -149,6 +152,39 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  assert.equal(staleRace.get('jraResultCandidates').children.length,0);
  assert.equal(staleRace.get('jraResultCheck').disabled,false);
  assert.match(staleRace.get('jraResultStatus').textContent,/未実行/);
+ const r79verify={version:'owner-research6-draft-verify-1',serverSigned:true,
+  recordCount:1,researchOnly:true,privateOwnerOnly:true,officialJraVerified:false,
+  independentJraScheduleVerified:false,formalPredictionReady:false,
+  resultComparisonReady:false,bettingReady:false,actualPurchase:false,autoPurchase:false};
+ const r79key='keiba-nine-owner-research6-draft-receipts-v1';
+ const r79receipt={signature:'e'.repeat(64),snapshot:{
+  version:'owner-research6-draft-receipt-1',sourceKind:'prestart-unverified-research6-79-draft',
+  policyVersion:'research-6',researchWeight:79,remainingUnassessedWeight:21,
+  date:'20261108',track:'京都',race:8,researchOnly:true,officialJraVerified:false,
+  predictionReady:false,actualPurchase:false,capturedAt:'2026-11-08T09:00:00+09:00',
+  scheduledOffAt:'2026-11-08T13:30:00+09:00',points:1,amountYen:100,
+  tickets:[candidate.trifectaCandidates[0].ticket]
+ }};
+ for(const verified of [true,false]){
+  const b=boot('?date=2026-11-08',null,null,null,candidate,null,null,
+   '2026-11-08T08:00:00Z',verified?r79verify:null);
+  await new Promise(r=>setImmediate(r));
+  const saved=JSON.stringify([r79receipt]);
+  b.storage.set(r79key,saved);
+  b.get('jraResultMode').value='research79';
+  b.get('jraResultTrack').value='京都';
+  b.get('jraResultRace').value='8';
+  b.get('jraResultUrl').value=officialURL;
+  const before=b.requests.length;
+  await b.get('jraResultCheck').onclick();
+  assert.equal(b.requests.length,before+2);
+  assert.equal(b.requests[before+1].url,'/api/owner-research6-draft-verify');
+  assert.deepEqual(JSON.parse(b.requests[before+1].opts.body),{date:'20261108',receipts:[r79receipt]});
+  assert.equal(b.storage.get(r79key),saved);
+  assert.equal(b.requests.filter(x=>x.url.includes('/api/owner-100yen-verify-receipts')).length,0);
+  if(verified)assert.match(b.get('jraResultStatus').textContent,/固定79点研究予想.*予想内 1組/);
+  else assert.match(b.get('jraResultStatus').textContent,/比較は保留/);
+ }
  const observed=boot('?date=2026-11-08',null,null,null,candidate);
  await new Promise(r=>setImmediate(r));
  assert.equal(observed.requests.length,2,
