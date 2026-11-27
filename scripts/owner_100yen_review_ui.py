@@ -57,7 +57,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </details>
 <p class="muted">表示専用です。予想・購入・記録・JRDBの原資料は変更しません。
 公式結果の自動取り込みが未完成の場合、仮想回収率は未確定のまま表示されます。</p>
-</main><script src="/owner-100yen-review.js?v=20261127-r79-jra" defer></script></body></html>"""
+</main><script src="/owner-100yen-review.js?v=20261127-r79-race-link" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{background:#09172b;color:#edf4ff;margin:0;font:15px/1.6 system-ui,sans-serif}
@@ -842,9 +842,19 @@ function recentWeekendDate(targetDay,now=new Date()){
  d.setUTCDate(d.getUTCDate()-delta);
  return d.toISOString().slice(0,10);
 }
-const selected=typeof location!=='undefined'&&typeof location.search==='string'
- ?/^\?date=(20\d{2}-\d{2}-\d{2})$/.exec(location.search):null;
-const fromForecast=selected&&validDay(selected[1])?selected[1]:null;
+const query=typeof location!=='undefined'&&typeof location.search==='string'?location.search:'';
+const selected=/^\?date=(20\d{2}-\d{2}-\d{2})(?:&mode=research79&track=([^&]{1,90})&race=([1-9]|1[0-2]))?$/.exec(query);
+let fromForecast=selected&&validDay(selected[1])?selected[1]:null;
+if(fromForecast&&selected[2]){
+ let track='';
+ try{track=decodeURIComponent(selected[2]);}catch(_){}
+ if(JRA_TRACKS.has(track)){
+  $('jraResultMode').value='research79';
+  $('jraResultTrack').value=track;
+  $('jraResultRace').value=selected[3];
+  $('jraResultCandidatePanel').open=true;
+ }else fromForecast=null;
+}
 const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
 const dayOfWeek=new Date(today+'T12:00:00Z').getUTCDay();
 $('day').value=fromForecast||recentWeekendDate(dayOfWeek===6?6:0);
