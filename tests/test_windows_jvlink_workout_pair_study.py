@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
-from windows_jvlink_workout_pair_study import evaluate
+from windows_jvlink_workout_pair_study import evaluate, composite_direction
 
 
 def obs(day="20261120",center="0",speed=120,gain=10, *, surface="SLOP", four=None, six=None):
@@ -52,6 +52,40 @@ class PairStudyTests(unittest.TestCase):
         self.assertEqual(metrics["fourFurlongTenths"]["concordant"],1)
         self.assertEqual(metrics["sixFurlongTenths"]["comparablePairs"],1)
         self.assertEqual(metrics["sixFurlongTenths"]["discordant"],1)
+        self.assertFalse(result["formalTrainingGradeReady"])
+
+    def test_fixed_composite_distinguishes_missing_ties_and_surface_weight(self):
+        self.assertIsNone(composite_direction({"SLOP":{"lastFurlongTenths":1}}))
+        self.assertIsNone(composite_direction({"SLOP":{"lastFurlongTenths":1},
+                                               "WOOD":{"lastFurlongTenths":1}}))
+        self.assertEqual(composite_direction({"SLOP":{"lastFurlongTenths":1,
+                                                      "fourFurlongTenths":-1}}),0)
+        self.assertEqual(composite_direction({"SLOP":{"lastFurlongTenths":1},
+                                               "WOOD":{"lastFurlongTenths":-1,
+                                                       "fourFurlongTenths":-1}}),0)
+        self.assertEqual(composite_direction({"SLOP":{"lastFurlongTenths":1,
+                                                      "fourFurlongTenths":0}}),1)
+
+    def test_composite_reports_separate_periods_and_unobserved_pairs(self):
+        horses=[("a",1),("b",2),("c",3),("d",4)]
+        source=[(day+"05010101",(day,"05","芝",1800,horses),None)
+                for day in ("20260630","20260701")]
+        def observations(conn,spec,day,ids):
+            return {"byPrivateHorseId":{
+                "a":[obs(speed=120,gain=10)],"b":[obs(speed=130,gain=5)],
+                "c":[],"d":[]}, "heldWorkoutKeys":0}
+        with patch("windows_jvlink_workout_pair_study.completed_races",return_value=source), \
+             patch("windows_jvlink_workout_pair_study.observations_before",
+                   side_effect=observations):
+            result=evaluate(None,{"SLOP":None},as_of_day="20261130")
+        self.assertEqual(result["holdoutStart"],"20260701")
+        for period in ("earlier","holdout"):
+            s=result["compositeStudy"][period]
+            self.assertEqual(s["totalPairs"],6)
+            self.assertEqual(s["comparablePairs"],1)
+            self.assertEqual(s["insufficient"],5)
+            self.assertEqual(s["concordant"],1)
+        self.assertFalse(result["weightsFitted"])
         self.assertFalse(result["formalTrainingGradeReady"])
 
     def test_ties_and_disagreement_not_hidden(self):
