@@ -6,10 +6,10 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
 from windows_jvlink_workout_pair_study import evaluate
 
 
-def obs(day="20261120",center="0",speed=120,gain=10):
-    return {"date":day,"center":center,"surface":"SLOP","course":None,
+def obs(day="20261120",center="0",speed=120,gain=10, *, surface="SLOP", four=None, six=None):
+    return {"date":day,"center":center,"surface":surface,"course":None,
             "direction":None,"lastFurlongTenths":speed,
-            "lastFurlongGainTenths":gain}
+            "lastFurlongGainTenths":gain,"totalTenths":{4:four,6:six}}
 
 
 class PairStudyTests(unittest.TestCase):
@@ -27,11 +27,32 @@ class PairStudyTests(unittest.TestCase):
         self.assertEqual(s["runnersObserved"],3)
         self.assertEqual(s["totalRunners"],4)
         self.assertEqual(s["racesWithComparablePairs"],1)
-        for metric in s["metrics"].values():
+        for name in ("lastFurlongTenths", "lastFurlongGainTenths"):
+            metric = s["metrics"][name]
             self.assertEqual(metric["comparablePairs"],1)
             self.assertEqual(metric["concordant"],1)
         self.assertFalse(result["formalTrainingGradeReady"])
         self.assertFalse(result["modelSaved"])
+
+    def test_total_clocks_match_same_distance_and_skip_missing_values(self):
+        horses = [("a",1),("b",2),("c",3),("d",4)]
+        source = [("2026112805010101",("20261129","05","芝",1800,horses),None)]
+        records = {
+            "a":[obs(surface="WOOD", four=480, six=760)],
+            "b":[obs(surface="WOOD", four=500, six=740)],
+            "c":[obs(surface="WOOD", four=None, six=800, center="1")],
+            "d":[obs(surface="WOOD", four=None, six=None)],
+        }
+        with patch("windows_jvlink_workout_pair_study.completed_races",return_value=source), \
+             patch("windows_jvlink_workout_pair_study.observations_before",
+                   return_value={"byPrivateHorseId":records,"heldWorkoutKeys":0}):
+            result = evaluate(None,{"WOOD":None},as_of_day="20261130")
+        metrics = result["bySpec"]["WOOD"]["metrics"]
+        self.assertEqual(metrics["fourFurlongTenths"]["comparablePairs"],1)
+        self.assertEqual(metrics["fourFurlongTenths"]["concordant"],1)
+        self.assertEqual(metrics["sixFurlongTenths"]["comparablePairs"],1)
+        self.assertEqual(metrics["sixFurlongTenths"]["discordant"],1)
+        self.assertFalse(result["formalTrainingGradeReady"])
 
     def test_ties_and_disagreement_not_hidden(self):
         source=[("2026112805010101",("20261129","05","芝",1800,[("a",1),("b",2),("c",3),("d",4)]),None)]

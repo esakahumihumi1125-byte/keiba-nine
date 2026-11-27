@@ -22,6 +22,10 @@ from windows_jvlink_weekly_read import JST, JvLocalCheckError
 
 
 METRICS = ("lastFurlongTenths", "lastFurlongGainTenths")
+TOTAL_METRICS = {"fourFurlongTenths": 4, "sixFurlongTenths": 6}
+SPEC_METRICS = {"SLOP": METRICS + ("fourFurlongTenths",),
+                "WOOD": METRICS + ("fourFurlongTenths", "sixFurlongTenths")}
+LOWER_IS_FASTER = {"lastFurlongTenths", *TOTAL_METRICS}
 
 
 def _comparable(observations):
@@ -29,8 +33,13 @@ def _comparable(observations):
     for row in observations:
         key = (row["date"], row["center"], row["surface"],
                row["course"] or "", row["direction"] or "")
-        for metric in METRICS:
-            value = row[metric]
+        for metric in SPEC_METRICS[row["surface"]]:
+            if metric in TOTAL_METRICS:
+                # Compare identical measured distances, never substitute a
+                # shorter clock or estimate a missing interval.
+                value = row.get("totalTenths", {}).get(TOTAL_METRICS[metric])
+            else:
+                value = row.get(metric)
             if type(value) is int:
                 groups[(key, metric)].append(value)
     return {key: median(values) for key, values in groups.items()}
@@ -42,7 +51,7 @@ def evaluate(race_conn, workout_conns, *, as_of_day):
     results = {spec: {"racesObserved": 0, "racesWithComparablePairs": 0,
                       "runnersObserved": 0, "totalRunners": 0,
                       "heldWorkoutKeys": 0,
-                      "metrics": {metric: Counter() for metric in METRICS}}
+                      "metrics": {metric: Counter() for metric in SPEC_METRICS[spec]}}
                for spec in workout_conns}
     skipped = Counter()
     for key, race, reason in completed_races(race_conn, as_of_day=as_of_day):
@@ -63,7 +72,7 @@ def evaluate(race_conn, workout_conns, *, as_of_day):
             found = False
             for (a, finish_a), (b, finish_b) in combinations(horses, 2):
                 shared = summaries[a].keys() & summaries[b].keys()
-                for metric in METRICS:
+                for metric in SPEC_METRICS[spec]:
                     candidates = [x for x in shared if x[1] == metric]
                     if not candidates:
                         continue
@@ -71,7 +80,7 @@ def evaluate(race_conn, workout_conns, *, as_of_day):
                     # break, independent of clock values and race outcomes.
                     selected = max(candidates)
                     x, y = summaries[a][selected], summaries[b][selected]
-                    if metric == "lastFurlongTenths":
+                    if metric in LOWER_IS_FASTER:
                         x, y = -x, -y
                     stat["metrics"][metric][
                         "tied" if x == y else "concordant"
@@ -132,6 +141,7 @@ def main():
             print(spec+"_RUNNERS_OBSERVED="+str(stat["runnersObserved"])+"/"+str(stat["totalRunners"]))
             for metric, values in stat["metrics"].items():
                 print(spec+"_"+metric+"_PAIRS="+str(values["comparablePairs"]))
+                print(spec+"_"+metric+"_TIES="+str(values["tied"]))
                 print(spec+"_"+metric+"_AGREEMENT_PERCENT="+str(values["directionalAgreementPercent"]))
         print("FORMAL_TRAINING_GRADE_READY=NO")
         return 0
