@@ -162,6 +162,28 @@ class OwnerFiveDraftTests(unittest.TestCase):
         self.assertEqual(r["reason"], "tied_cutoff")
         self.assertEqual(r["tickets"], [])
 
+    def test_missing_factor_coverage_counts_only_eligible_prestart_holds(self):
+        p, s = materials([("S","S"),("S","A"),("未評価","S"),
+                          ("A","未評価"),("B","S"),("B","A"),("C","S")])
+        report = calculate(p,s)["missingFactorCoverage"]
+        self.assertEqual(report["heldRaceCount"],1)
+        self.assertEqual(report["byFactor"]["training"],
+                         {"missingRunners":1,"affectedRaces":1,"soleMissingFactorRaces":0})
+        self.assertEqual(report["byFactor"]["recent"]["missingRunners"],1)
+        self.assertEqual(report["priority"],["training","recent"])
+        self.assertTrue(report["soleFactorCompletionDoesNotGuaranteeDraft"])
+        p,s = materials([("S","S"),("S","A"),("未評価","S"),
+                          ("A","A"),("B","S"),("B","A"),("C","S")])
+        report = calculate(p,s)["missingFactorCoverage"]
+        self.assertEqual(report["byFactor"]["training"]["soleMissingFactorRaces"],1)
+        self.assertEqual(report["priority"],["training"])
+        late = calculate(p,s,datetime(2099,1,1,12,0,tzinfo=JST))["missingFactorCoverage"]
+        self.assertEqual(late["heldRaceCount"],0)
+        self.assertEqual(late["priority"],[])
+        p[0]["headcount"]=6
+        self.assertEqual(calculate(p,s)["missingFactorCoverage"]["heldRaceCount"],0)
+        self.assertEqual(calculate()["missingFactorCoverage"]["heldRaceCount"],0)
+
     def test_non_future_races_never_reconstruct_research_tickets(self):
         p, s = materials()
         for now in (datetime(2099,1,1,12,0,tzinfo=JST),
