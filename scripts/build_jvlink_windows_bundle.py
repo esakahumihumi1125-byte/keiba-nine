@@ -14,6 +14,8 @@ FILES = (
     "scripts/windows_arc_race_preflight.cmd",
     "scripts/windows_jvlink_2026_history_store.cmd",
     "scripts/windows_jvlink_2026_history_store.py",
+    "scripts/windows_jvlink_history_workflow.py",
+    "scripts/windows_jvlink_history_workflow.cmd",
     "scripts/windows_jvlink_workout_store.py",
     "scripts/owner_jvdata_workout_features.py",
     "scripts/windows_jvlink_workout_pair_study.py",
@@ -171,6 +173,15 @@ ARC_RACE_OFFLINE_EVIDENCE=... /\nARC_RACE_LOCAL_TRIFECTA=... の状態名だけ
     対象日前の14日間・作成日も対象日前の資料だけ使用する。
     事後確定出走馬を使う研究であり、発走前予想の精度ではない。
     追加照会・原データ外部転送・採点変更・モデル保存なし。
+
+15. 2026年過去成績・坂路・ウッドをまとめて準備する場合は、
+    scripts/windows_jvlink_history_workflow.cmd を起動。
+    保存済みDBの種類・完了状態・件数を確認し、未取得分のみ表示。
+    契約と利用権限を確認してYESと入力した時だけ、RACE・SLOP・WOOD
+    の不足分を順番に各1回取得する。途中失敗時は後続照会を中止。
+    再度本人が起動した場合、既存完了DBは読み直さない。
+    3種類が揃っても取得期間網羅、正式採点、AI学習完了を意味しない。
+    契約終了時の原データ等の削除条件は従来通り。
 
 重要：
 - Windows実機での成功は未検証。
