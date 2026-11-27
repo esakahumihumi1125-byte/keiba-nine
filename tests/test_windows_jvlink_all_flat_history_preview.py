@@ -97,6 +97,27 @@ class AllFlatHistoryTests(unittest.TestCase):
                 self.assertNotIn("1000000001",repr(result))
                 self.assertFalse(result["formalTenFactorReady"])
 
+    def test_integrated_evidence_table_uses_ungraded_observations(self):
+        report = read(FakeJv({"RACE":first_card(),"RCVN":sources()["RCVN"]}))
+        race = report["races"][0]
+        self.assertIn("重点3項目の資料一覧",local_html(report))
+        self.assertIn("坂路 未照合",local_html(report))
+        self.assertIn("過去4角の位置傾向",local_html(report))
+        race["workoutCoverage"] = {
+            "formalTrainingGradeReady":False,"researchOnly":True,
+            "byNumber":[{"number":n,"bySpec":{"SLOP":{"observedWorkouts":2},
+                                              "WOOD":{"observedWorkouts":0}}}
+                        for n in range(1,5)],
+        }
+        rendered = local_html(report)
+        self.assertIn("坂路 2件 / ウッド 0件",rendered)
+        self.assertIn("資料不足",rendered)
+        self.assertFalse(report["formalTenFactorReady"])
+        race["workoutCoverage"]["byNumber"].pop()
+        from jrdb_coverage import CoverageError
+        with self.assertRaises(CoverageError):
+            local_html(report)
+
     def test_one_unmatched_race_remains_unassessed_not_excluded(self):
         initial = []
         for row in first_card():
