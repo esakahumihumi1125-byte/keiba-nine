@@ -7,9 +7,54 @@ odds, purchases or export of licensed observations.
 """
 from collections import defaultdict
 from datetime import datetime, timedelta
+from itertools import combinations
+from statistics import median
 
 from windows_jvlink_workout_store import workout_record, SPECS
 from windows_jvlink_weekly_read import JvLocalCheckError
+
+
+METRICS = ("lastFurlongTenths", "lastFurlongGainTenths")
+TOTAL_METRICS = {"fourFurlongTenths": 4, "sixFurlongTenths": 6}
+SPEC_METRICS = {"SLOP": METRICS + ("fourFurlongTenths",),
+                "WOOD": METRICS + ("fourFurlongTenths", "sixFurlongTenths")}
+LOWER_IS_FASTER = {"lastFurlongTenths", *TOTAL_METRICS}
+
+
+def comparable_workout_values(observations):
+    """Identical-condition daily medians; do not compare missing intervals."""
+    groups = defaultdict(list)
+    for row in observations:
+        key = (row["date"], row["center"], row["surface"],
+               row["course"] or "", row["direction"] or "")
+        for metric in SPEC_METRICS[row["surface"]]:
+            if metric in TOTAL_METRICS:
+                value = row.get("totalTenths", {}).get(TOTAL_METRICS[metric])
+            else:
+                value = row.get(metric)
+            if type(value) is int:
+                groups[(key, metric)].append(value)
+    return {key: median(values) for key, values in groups.items()}
+
+
+def compare_workout_summaries(a, b, spec):
+    """Latest shared date/condition per metric, no clocks or dates returned.
+
+    1 means a has the better observed clock/acceleration, -1 means b,
+    0 means equal; absent metric means no comparable observations.
+    """
+    shared = a.keys() & b.keys()
+    outcome = {}
+    for metric in SPEC_METRICS[spec]:
+        candidates = [k for k in shared if k[1] == metric and k[0][2] == spec]
+        if not candidates:
+            continue
+        selected = max(candidates)
+        x, y = a[selected], b[selected]
+        if metric in LOWER_IS_FASTER:
+            x, y = -x, -y
+        outcome[metric] = (x > y) - (x < y)
+    return outcome
 
 
 def _time(raw, start, length):
@@ -147,10 +192,19 @@ def race_workout_coverage(connections, number_to_id, *, target_day, capture_day)
         report = observations_before(conn, spec, target_day,
                                      set(number_to_id.values()), capture_day=capture_day)
         held[spec] = report["heldWorkoutKeys"]
+        summaries = {n: comparable_workout_values(report["byPrivateHorseId"][h])
+                     for n, h in number_to_id.items()}
+        pair_counts = {n: {m: {"better": 0, "worse": 0, "equal": 0}
+                          for m in SPEC_METRICS[spec]} for n in number_to_id}
+        for a, b in combinations(sorted(number_to_id), 2):
+            for metric, direction in compare_workout_summaries(summaries[a], summaries[b], spec).items():
+                pair_counts[a][metric]["better" if direction > 0 else "worse" if direction < 0 else "equal"] += 1
+                pair_counts[b][metric]["worse" if direction > 0 else "better" if direction < 0 else "equal"] += 1
         for number, horse_id in number_to_id.items():
             rows = report["byPrivateHorseId"][horse_id]
             horses[number][spec] = {
                 "observedWorkouts": len(rows),
+                "sameConditionComparisons": pair_counts[number],
                 "last1FCount": sum(type(r["lastFurlongTenths"]) is int for r in rows),
                 "accelerationCount": sum(type(r["lastFurlongGainTenths"]) is int for r in rows),
                 "fourFCount": sum(type(r["totalTenths"].get(4)) is int for r in rows),
