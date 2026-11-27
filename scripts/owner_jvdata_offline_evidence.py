@@ -62,6 +62,7 @@ def summarize_runner(horse, *, target_day=None, target_course=None):
     finishes, corners, styles, last3f, dates = [], [], [], [], []
     historical_course_rows = historical_going_rows = 0
     field_relative_runs = []
+    pace_positions = [] if target_course is not None else None
     for run in recent:
         if not isinstance(run, dict) or not isinstance(run.get("date"), str):
             raise CoverageError("Invalid private prior run")
@@ -132,6 +133,21 @@ def summarize_runner(horse, *, target_day=None, target_course=None):
                     relative is not None
                     and relative["finisherPositionPercentile"] is not None),
             })
+        # Compare normalized fourth-corner positions in normal races on
+        # the same surface and within 200m, independent of finishing order.
+        # Different venues remain eligible; this is a position observation,
+        # not an assertion about the target course or actual race pace.
+        if (pace_positions is not None and ra_joined
+                and past_surface == target_course[1]
+                and _int_in(past_distance, 400, 10000)
+                and abs(past_distance - target_course[2]) <= 200
+                and run.get("hasAbnormalCode") is False
+                and _int_in(starters, 4, 18) and finishers == starters
+                and _int_in(raw_corners[-1], 1, starters)):
+            offset = raw_corners[-1] - 1
+            span = starters - 1
+            pace_positions.append("front" if 3*offset <= span else
+                                  "back" if 3*offset >= 2*span else "middle")
         field_relative_runs.append(relative)
         finishes.append(finish)
         corners.append(raw_corners)
@@ -139,6 +155,12 @@ def summarize_runner(horse, *, target_day=None, target_course=None):
         last3f.append(closing)
     if dates != sorted(dates, reverse=True):
         raise CoverageError("Non-chronological private observations")
+    position_counts = ({k: pace_positions.count(k) for k in ("front", "middle", "back")}
+                       if pace_positions is not None else None)
+    position_label = "insufficient"
+    if pace_positions is not None and len(pace_positions) >= 2:
+        position_label = next((k for k, n in position_counts.items()
+                               if 3*n >= 2*len(pace_positions)), "mixed")
     recent_evidence = any(x is not None for x in finishes)
     pace_evidence = any(x is not None for x in styles + last3f) or any(
         x is not None for row in corners for x in row
@@ -168,6 +190,8 @@ def summarize_runner(horse, *, target_day=None, target_course=None):
         "observedLast3fTenths": last3f,
         "observedCornerPositions": corners,
         "observedStyleCodes": styles,
+        "comparableFourthCornerPositions": position_counts,
+        "priorPositionPattern": position_label,
         "historicalCourseContextRowsObserved": historical_course_rows,
         "sameVenueSurfaceWithin200mObserved": (
             len(comparable) if comparable is not None else None),
@@ -240,6 +264,9 @@ def summarize_one_race(report):
         raise CoverageError("Invalid private history coverage counter")
     if observed != race["observedHorseHistory"]:
         raise CoverageError("History coverage counter inconsistent")
+    patterns = {k: sum(h["priorPositionPattern"] == k for h in horses)
+                for k in ("front", "middle", "back", "mixed", "insufficient")}
+    known = len(horses) - patterns["insufficient"]
     return {
         "version": VERSION,
         "date": report["date"],
@@ -261,6 +288,10 @@ def summarize_one_race(report):
             for h in horses),
         "runnersWithPastGoingContext": sum(
             x["historicalGoingContextRowsObserved"] > 0 for x in horses),
+        "priorPositionDistribution": patterns,
+        "positionCoverageAdequateForResearch": known >= 3 and known*5 >= len(horses)*3,
+        "frontPositionObservedCountRange": [patterns["front"], patterns["front"] + patterns["mixed"] + patterns["insufficient"]],
+        "actualPaceForecastReady": False,
         "byNumber": horses,
         "factorNames": [FACTORS_JP[k] for k in OWNER_FORMAL_FACTORS],
         "tenFactorScoresReady": False,
@@ -320,6 +351,9 @@ def render_evidence_html(result):
         + "頭／過去レースのコース条件あり "
         + e(result["runnersWithPastCourseContext"])
         + "頭（今回の適性は未評価）</p>",
+        "<p>過去4角の位置傾向（同芝/ダート・距離±200m、2走以上）："
+        + e(result.get("priorPositionDistribution", {}))
+        + "。実際のペース予測ではありません。</p>",
         "<p class='muted'>馬番順。優劣順でも人気順でもありません。"
         "過去走の記録が見つからなくても新馬とは断定しません。</p>",
     ]
