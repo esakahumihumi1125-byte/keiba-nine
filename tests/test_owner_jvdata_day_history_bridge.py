@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from jrdb_coverage import CoverageError
@@ -54,6 +55,20 @@ class DayJvDataHistoryBridgeTests(unittest.TestCase):
         for forbidden in ("1000000001", "1000000003",
                           "registrationId", "horse_id", "SECRET_FILENAME"):
             self.assertNotIn(forbidden, repr(result))
+
+    def test_optional_workout_coverage_is_bound_to_current_race_and_before_off(self):
+        with patch("owner_jvdata_day_history_bridge.race_workout_coverage",
+                   return_value={"formalTrainingGradeReady":False}) as coverage:
+            before = build_local_day_history(current(), [], DAY,
+                captured_at=BEFORE, workout_connections={"SLOP":None})
+            coverage.assert_called_once_with({"SLOP":None},
+                {n:f"100000000{n}" for n in range(1,5)},
+                target_day=DAY, capture_day="20261120")
+            self.assertFalse(before["races"][0]["workoutCoverage"]["formalTrainingGradeReady"])
+            after = build_local_day_history(current(), [], DAY,
+                captured_at=AFTER, workout_connections={"SLOP":None})
+            self.assertNotIn("workoutCoverage", after["races"][0])
+            coverage.assert_called_once()
 
     def test_empty_history_is_not_debut_claim(self):
         x = bridge([])

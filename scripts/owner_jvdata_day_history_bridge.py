@@ -10,6 +10,7 @@ JRA scratches or official starter list. Never send output to public APIs.
 from datetime import datetime
 
 from jrdb_coverage import CoverageError
+from owner_jvdata_workout_features import race_workout_coverage
 from jrdb_evidence_readiness import _valid_date
 from jvdata_ra_se_candidate import (
     RA_LENGTH, SE_LENGTH, parse_jvdata_prestart_racecard,
@@ -35,7 +36,7 @@ def _require_record(raw, kind, category, length):
 
 
 def build_local_day_history(current_records, history_records, day, *,
-                            captured_at):
+                            captured_at, workout_connections=None):
     """Produce no more than 36 local-only, ungraded per-horse observations.
 
     An RCVN feed without linked SE7 rows does not prove a horse is unraced.
@@ -157,6 +158,12 @@ def build_local_day_history(current_records, history_records, day, *,
             "historyComplete": False, "graded": False,
             "bettingReady": False,
         }
+        if workout_connections is not None and preview["status"] != "post_off_capture_hold":
+            by_key[coord]["workoutCoverage"] = race_workout_coverage(
+                workout_connections,
+                {int(row[28:30]): row[30:40].decode("ascii") for row in se},
+                target_day=day, capture_day=capture_day,
+            )
 
     return {
         "version": VERSION, "date": day,

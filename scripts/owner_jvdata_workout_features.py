@@ -63,7 +63,7 @@ def parse_observation(raw, spec):
     }
 
 
-def observations_before(conn, spec, target_day, horse_ids):
+def observations_before(conn, spec, target_day, horse_ids, *, capture_day=None):
     """14 preceding calendar days, with a strict prior creation-day cutoff.
 
     Internal use only. The registration IDs must come from a matching
@@ -81,6 +81,14 @@ def observations_before(conn, spec, target_day, horse_ids):
             raise ValueError()
     except (ValueError,TypeError):
         raise JvLocalCheckError("WORKOUT_TARGET_INVALID") from None
+    if capture_day is not None:
+        try:
+            captured = datetime.strptime(capture_day, "%Y%m%d")
+            if captured.strftime("%Y%m%d") != capture_day or captured > target:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise JvLocalCheckError("WORKOUT_CAPTURE_DAY_INVALID") from None
+    cutoff = capture_day if capture_day is not None else target_day
     start = (target-timedelta(days=14)).strftime("%Y%m%d")
     manifest = dict(conn.execute("SELECT key,value FROM manifest"))
     if (manifest.get("schema")!="arc-race-workout-1" or manifest.get("dataspec")!=spec
@@ -89,7 +97,7 @@ def observations_before(conn, spec, target_day, horse_ids):
     rows = conn.execute(
         "SELECT digest,workout_day,workout_key,created_day,category,raw FROM records "
         "WHERE workout_day>=? AND workout_day<? AND created_day<? "
-        "ORDER BY workout_key,created_day DESC", (start,target_day,target_day))
+        "ORDER BY workout_key,created_day DESC", (start,cutoff,cutoff))
     groups = defaultdict(list)
     for row in rows:
         if row[2][-10:] not in horse_ids:
@@ -118,3 +126,38 @@ def observations_before(conn, spec, target_day, horse_ids):
     return {"byPrivateHorseId":output,"heldWorkoutKeys":held,
             "prestartAvailabilityVerified":False,"coverageVerified":False,
             "formalTrainingGradeReady":False,"newProviderRequests":0}
+
+
+def race_workout_coverage(connections, number_to_id, *, target_day, capture_day):
+    """Owner-local prestart evidence coverage; no clocks, IDs or grades leave this adapter.
+
+    Exclude capture-day creations conservatively even for tomorrow's card.
+    A zero count means no accepted records observed, not poor fitness.
+    """
+    if (not isinstance(connections, dict) or not connections
+            or not set(connections) <= set(SPECS)
+            or not isinstance(number_to_id, dict) or not 4 <= len(number_to_id) <= 18
+            or any(type(n) is not int or not 1 <= n <= 18 for n in number_to_id)
+            or any(type(h) is not str for h in number_to_id.values())
+            or len(set(number_to_id.values())) != len(number_to_id)):
+        raise JvLocalCheckError("WORKOUT_RACE_ROSTER_INVALID")
+    horses = {number: {} for number in sorted(number_to_id)}
+    held = {}
+    for spec, conn in sorted(connections.items()):
+        report = observations_before(conn, spec, target_day,
+                                     set(number_to_id.values()), capture_day=capture_day)
+        held[spec] = report["heldWorkoutKeys"]
+        for number, horse_id in number_to_id.items():
+            rows = report["byPrivateHorseId"][horse_id]
+            horses[number][spec] = {
+                "observedWorkouts": len(rows),
+                "last1FCount": sum(type(r["lastFurlongTenths"]) is int for r in rows),
+                "accelerationCount": sum(type(r["lastFurlongGainTenths"]) is int for r in rows),
+                "fourFCount": sum(type(r["totalTenths"].get(4)) is int for r in rows),
+                "sixFCount": (sum(type(r["totalTenths"].get(6)) is int for r in rows)
+                              if spec == "WOOD" else None),
+            }
+    return {"byNumber": [{"number": n, "bySpec": v} for n, v in horses.items()],
+            "heldWorkoutKeysBySpec": held, "formalTrainingGradeReady": False,
+            "coverageVerified": False, "prestartAvailabilityVerified": False,
+            "researchOnly": True, "newProviderRequests": 0}
