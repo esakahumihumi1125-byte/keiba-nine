@@ -6843,6 +6843,7 @@ function boot({manualWeekday=true,initialClock=null,initialServerRaw=null,seedSt
  assert.equal(filtered.length,2);
  assert.match(filtered[0].children[0].textContent,/東京 2R/);
  assert.match(filtered[1].children[0].textContent,/東京 10R/);
+ assert.equal(filtered[0].children[5].href,'/owner-100yen-review?date=2099-01-01&mode=research79&track='+encodeURIComponent('東京')+'&race=2#jraResultCandidatePanel');
  assert.equal(venuesR6.requests.length,beforeVenueCalls);
  assert.equal(venuesR6.storage.get(R6_STORAGE),venueStorage);
  venuesR6.get('autoFiveReviewJump').onclick();
