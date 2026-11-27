@@ -1,6 +1,7 @@
 """One RACE+RCVN stream yields multiple strictly private prestart racecards."""
 import json
 import os
+import sqlite3
 from pathlib import Path
 import sys
 import tempfile
@@ -13,6 +14,7 @@ from test_jvdata_ra_se_candidate import replace, DAY
 from test_windows_jvlink_day_history_preview import FakeJv, sources, PRESTART, JST
 from windows_jvlink_day_history_preview import (
     read_local_day_history, save_private_day_local, JvLocalCheckError,
+    local_workout_connections, local_html,
 )
 
 
@@ -62,6 +64,38 @@ class AllFlatHistoryTests(unittest.TestCase):
             self.assertIs(output[flag], False)
         self.assertNotIn("1000000001", repr(output))
         self.assertNotIn("PRIVATE_FILENAME", repr(output))
+
+    def test_saved_workout_archives_read_only_and_no_additional_provider_calls(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)/"ARC-RACE-private"/"licensed-history"
+            folder.mkdir(parents=True)
+            with patch.dict(os.environ, {"LOCALAPPDATA":tmp}):
+                with self.assertRaisesRegex(JvLocalCheckError, "DAY_WORKOUT_ARCHIVE_MISSING_SLOP"):
+                    with local_workout_connections():
+                        self.fail("missing archive accepted")
+                for spec in ("SLOP","WOOD"):
+                    path = folder/("jvdata-2026-"+spec.lower()+".sqlite3")
+                    conn = sqlite3.connect(path)
+                    conn.execute("CREATE TABLE manifest(key,value)")
+                    conn.executemany("INSERT INTO manifest VALUES (?,?)", [
+                        ("schema","arc-race-workout-1"),("dataspec",spec),
+                        ("stream_completed","yes")])
+                    conn.execute("CREATE TABLE records(digest,workout_day,workout_key,created_day,category,raw)")
+                    conn.commit()
+                    conn.close()
+                jv = FakeJv({"RACE":first_card(),"RCVN":sources()["RCVN"]})
+                with local_workout_connections() as connections:
+                    with self.assertRaises(sqlite3.OperationalError):
+                        connections["SLOP"].execute("DELETE FROM manifest")
+                    result = read(jv, workout_connections=connections)
+                self.assertEqual([args[0] for args in jv.opens],["RACE","RCVN"])
+                coverage = result["races"][0]["workoutCoverage"]
+                self.assertEqual(len(coverage["byNumber"]),4)
+                self.assertEqual(coverage["byNumber"][0]["bySpec"]["SLOP"]["observedWorkouts"],0)
+                self.assertFalse(coverage["formalTrainingGradeReady"])
+                self.assertIn("調教資料の照合件数",local_html(result))
+                self.assertNotIn("1000000001",repr(result))
+                self.assertFalse(result["formalTenFactorReady"])
 
     def test_one_unmatched_race_remains_unassessed_not_excluded(self):
         initial = []

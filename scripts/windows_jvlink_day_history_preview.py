@@ -11,12 +11,14 @@ formal score, wager, or production prediction.
 """
 import argparse
 from collections import deque
+from contextlib import ExitStack, closing, contextmanager
 from datetime import datetime
 from html import escape
 import json
 import os
 from pathlib import Path
 import struct
+import sqlite3
 import sys
 import tempfile
 import time
@@ -296,7 +298,7 @@ def select_one_complete_prestart_race(current, day, *, as_of, flat_only=False):
 
 def read_local_day_history(day, *, jv_factory=None, captured_at=None,
                            flat_only=False, all_flat_races=False,
-                           diagnostics=None):
+                           diagnostics=None, workout_connections=None):
     """One RACE read and one RCVN read, no unattended resubmission.
 
     Opt-in all_flat_races exports ALL complete upcoming flat card candidates
@@ -364,12 +366,14 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None,
             return build_local_day_history(
                 [raw for _off, card in upcoming for raw in card],
                 history, day, captured_at=completed_at,
+                workout_connections=workout_connections,
             )
         for _off, card in upcoming:
             card_ids = {raw[30:40] for raw in card if raw[:3] == b"SE2"}
             if card_ids & matched_ids:
                 return build_local_day_history(
                     card, history, day, captured_at=completed_at,
+                    workout_connections=workout_connections,
                 )
         if any(completed_at.astimezone(JST) < off
                for off, _track, _race, _card in selected):
@@ -381,6 +385,34 @@ def read_local_day_history(day, *, jv_factory=None, captured_at=None,
         raise JvLocalCheckError("DAY_HISTORY_INCOMPLETE_OR_MISMATCHED") from None
     except Exception:
         raise JvLocalCheckError("DAY_HISTORY_LOCAL_READ_FAILED") from None
+
+
+@contextmanager
+def local_workout_connections():
+    """Open both previously acquired archives read-only before any JVOpen."""
+    base = Path(os.environ.get("LOCALAPPDATA", ""))
+    folder = base / "ARC-RACE-private" / "licensed-history"
+    if not base.is_absolute() or folder.is_symlink() or folder.parent.is_symlink():
+        raise JvLocalCheckError("DAY_WORKOUT_ARCHIVE_PATH_INVALID")
+    with ExitStack() as stack:
+        connections = {}
+        try:
+            for spec in ("SLOP", "WOOD"):
+                path = folder / ("jvdata-2026-" + spec.lower() + ".sqlite3")
+                if path.is_symlink() or not path.is_file():
+                    raise JvLocalCheckError("DAY_WORKOUT_ARCHIVE_MISSING_" + spec)
+                conn = stack.enter_context(closing(sqlite3.connect(
+                    path.as_uri() + "?mode=ro", uri=True)))
+                conn.execute("PRAGMA query_only=ON")
+                manifest = dict(conn.execute("SELECT key,value FROM manifest"))
+                if (manifest.get("schema") != "arc-race-workout-1"
+                        or manifest.get("dataspec") != spec
+                        or manifest.get("stream_completed") != "yes"):
+                    raise JvLocalCheckError("DAY_WORKOUT_ARCHIVE_INVALID_" + spec)
+                connections[spec] = conn
+        except sqlite3.Error:
+            raise JvLocalCheckError("DAY_WORKOUT_ARCHIVE_READ_FAILED") from None
+        yield connections
 
 
 def _display_value(v):
@@ -418,6 +450,16 @@ def local_html(report):
         lines.append("<section><h2>" + title + "</h2><p>"
                      "過去RA7とSE7の同一レース照合ができた場合のみ"
                      "過去の距離・馬場を表示。今回の馬場・適性とは別です。</p>")
+        workout = race.get("workoutCoverage")
+        if workout is not None:
+            lines.append("<p>調教資料の照合件数（未採点・網羅性未確認）</p>")
+            lines.append("<table><tr><th>馬番</th><th>坂路</th><th>ウッド</th></tr>")
+            for entry in workout["byNumber"]:
+                values = [entry["number"], *(entry["bySpec"].get(spec, {}).get("observedWorkouts")
+                                              for spec in ("SLOP", "WOOD"))]
+                lines.append("<tr>" + "".join("<td>" + _display_value(v) + "</td>"
+                                                for v in values) + "</tr>")
+            lines.append("</table>")
         for horse in race["byNumber"]:
             label = "{}番 / 過去走観測 {}件".format(
                 horse["number"], horse["observedRecordCount"],
@@ -598,13 +640,19 @@ def main(argv=None):
                         help="Skip jump/unknown course before history read")
     parser.add_argument("--all-flat-races", action="store_true",
                         help="One RACE+RCVN scan for all complete prestart flat racecards")
+    parser.add_argument("--with-local-workouts", action="store_true",
+                        help="Read both existing private workout archives; no additional JVOpen")
     args = parser.parse_args(argv)
     day = args.date or default_race_day()
     diagnostics = {}
     try:
-        report = read_local_day_history(
-            day, flat_only=args.flat_only or args.all_flat_races,
-            all_flat_races=args.all_flat_races, diagnostics=diagnostics)
+        with ExitStack() as stack:
+            connections = (stack.enter_context(local_workout_connections())
+                           if args.with_local_workouts else None)
+            report = read_local_day_history(
+                day, flat_only=args.flat_only or args.all_flat_races,
+                all_flat_races=args.all_flat_races, diagnostics=diagnostics,
+                workout_connections=connections)
         target = (save_private_day_local(report) if args.all_flat_races
                   else save_private_local(report))
         print("ARC_RACE_DAY_HISTORY=SUCCESS_RESEARCH_ONLY")
@@ -613,6 +661,9 @@ def main(argv=None):
             print("ALL_FLAT_PRESTART_RESEARCH=YES")
             print("RACES_WITH_PRIOR_OBSERVATIONS=" + str(
                 diagnostics.get("racesWithObservedPriorRows", 0)))
+        if args.with_local_workouts:
+            print("LOCAL_WORKOUT_COVERAGE_RACES=" + str(sum(
+                "workoutCoverage" in race for race in report["races"])))
         print("FORMAL_PREDICTION=NO")
         print("PRIVATE_LOCAL_VIEW=READY")
         if diagnostics.get("streamCompleted"):
