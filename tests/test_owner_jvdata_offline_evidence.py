@@ -185,6 +185,40 @@ class OfflineEvidenceTests(unittest.TestCase):
             old["recentObservedRuns"][0].pop(key)
         self.assertEqual(summarize_runner(old)["fieldRelativeHistoricalObservations"], [None])
 
+    def test_position_pattern_uses_field_size_and_same_surface_only(self):
+        report = self.report()
+        race = report["races"][0]
+        race.update(surfaceCandidate="芝",distanceMetersCandidate=1800)
+        horse = race["byNumber"][0]
+        run = horse["recentObservedRuns"][0]
+        run.update(date="20261031",surface="芝",distanceMeters=1800,
+                   historicalRaceContextMatched=True,hasAbnormalCode=False,
+                   historicalStarterCount=18,historicalFinishersCount=18,
+                   finishPosition=5,cornerPositions=[4,4,4,4])
+        other = copy.deepcopy(run)
+        other.update(date="20261015",historicalStarterCount=6,
+                     historicalFinishersCount=6,cornerPositions=[2,2,2,2])
+        horse["recentObservedRuns"].append(other)
+        horse["observedRecordCount"] = 2
+        result = summarize_one_race(report)
+        h = result["byNumber"][0]
+        self.assertEqual(h["priorPositionPattern"],"front")
+        self.assertEqual(h["comparableFourthCornerPositions"],
+                         {"front":2,"middle":0,"back":0})
+        self.assertEqual(result["priorPositionDistribution"]["front"],1)
+        self.assertEqual(result["frontPositionObservedCountRange"],[1,4])
+        self.assertFalse(result["positionCoverageAdequateForResearch"])
+        self.assertFalse(result["actualPaceForecastReady"])
+        self.assertIsNone(h["factorEvidence"]["pace"]["score"])
+        for change in ({"surface":"ダート"},{"distanceMeters":2200},
+                       {"hasAbnormalCode":True},{"historicalStarterCount":None}):
+            bad = copy.deepcopy(report)
+            bad["races"][0]["byNumber"][0]["recentObservedRuns"][1].update(change)
+            h = summarize_one_race(bad)["byNumber"][0]
+            self.assertEqual(h["priorPositionPattern"],"insufficient")
+        other["cornerPositions"] = [6,6,6,6]
+        self.assertEqual(summarize_one_race(report)["byNumber"][0]["priorPositionPattern"],"mixed")
+
     def test_only_weak_observations_dont_become_strength_or_a_debut(self):
         report = self.report()
         one = report["races"][0]["byNumber"][0]
