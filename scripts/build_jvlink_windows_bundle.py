@@ -23,6 +23,8 @@ FILES = (
     "scripts/windows_jvlink_workout_store.cmd",
     "scripts/windows_jvlink_history_walkforward.py",
     "scripts/windows_jvlink_history_walkforward.cmd",
+    "scripts/windows_arc_race_validate_history.py",
+    "scripts/windows_arc_race_validate_history.cmd",
     "scripts/windows_check_jvlink.cmd",
     "scripts/windows_check_jvlink.ps1",
     "scripts/windows_jvlink_weekly_read.cmd",
@@ -182,6 +184,15 @@ ARC_RACE_OFFLINE_EVIDENCE=... /\nARC_RACE_LOCAL_TRIFECTA=... の状態名だけ
     再度本人が起動した場合、既存完了DBは読み直さない。
     3種類が揃っても取得期間網羅、正式採点、AI学習完了を意味しない。
     契約終了時の原データ等の削除条件は従来通り。
+
+16. 保存済み3種類のDBをまとめて検証する場合は
+    scripts/windows_arc_race_validate_history.cmd をダブルクリック。
+    有効な個人利用権限を確認してYESを1回だけ入力。
+    コース適性・調教複合比較・馬別調教指数の期間別検証を一括実行。
+    追加のJV-Link照会0回。DBは読取専用、結果は集計値だけ画面に表示。
+    ARC_RACE_VALIDATION=RETROSPECTIVE_ONLY は事後検証であり、
+    正式採点・発走前予想の精度を証明するものではありません。
+    キーや元データは共有せず、集計行だけ確認してください。
 
 重要：
 - Windows実機での成功は未検証。
