@@ -1,6 +1,7 @@
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import sys
 
@@ -48,6 +49,34 @@ class WalkforwardTests(unittest.TestCase):
         self.assertFalse(r["prestartAvailabilityVerified"])
         self.assertFalse(r["modelSaved"])
         self.assertEqual(r["newProviderRequests"],0)
+
+    def test_partial_coverage_preserves_unknowns_and_strict_chronology(self):
+        records = [
+            ("202601010501", ("20260102", "05", "芝", 1400,
+                             [("a",1),("b",2),("c",3),("d",4)]), None),
+            ("202601020501", ("20260103", "05", "芝", 1500,
+                             [("a",1),("e",2),("f",3),("g",4)]), None),
+            ("202601040501", ("20260105", "05", "芝", 1600,
+                             [("a",1),("h",2),("i",3),("j",4)]), None),
+            ("202601060501", ("20260107", "05", "ダート", 1600,
+                             [("a",1),("k",2),("l",3),("m",4)]), None),
+            ("202601080601", ("20260109", "06", "芝", 1600,
+                             [("a",1),("n",2),("o",3),("p",4)]), None),
+            ("202601100501", ("20260111", "05", "芝", 2000,
+                             [("a",1),("q",2),("r",3),("s",4)]), None),
+        ]
+        with patch("windows_jvlink_history_walkforward.completed_races",
+                   return_value=iter(records)):
+            report = evaluate(None, as_of_day="20261126")
+        self.assertEqual(report["evaluatedRaces"], 0)
+        partial = report["partialCoverage"]
+        self.assertEqual(partial["evaluatedRaces"], 1)
+        self.assertEqual(partial["fieldRunners"], 4)
+        self.assertEqual(partial["observedRunners"], 1)
+        self.assertEqual(partial["unknownRunners"], 3)
+        self.assertFalse(partial["missingEvidenceGraded"])
+        self.assertLess(partial["modelBrier"], partial["uniformBrier"])
+        self.assertLess(partial["observedModelBrier"], partial["observedUniformBrier"])
 
     def test_late_revisions_and_abnormal_groups_never_train(self):
         first = result("20260104","20260105")
