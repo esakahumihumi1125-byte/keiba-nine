@@ -65,6 +65,20 @@ function boot(query,reviewFixture=null,provisionalFixture=null,archiveFixture=nu
  return {get,requests,storage,delay:p=>{pending=p}};
 }
 (async()=>{
+ const direct=boot('?date=2026-11-08&mode=research79&track='+encodeURIComponent('京都')+'&race=8');
+ await new Promise(r=>setImmediate(r));
+ assert.equal(direct.get('day').value,'2026-11-08');
+ assert.equal(direct.get('jraResultMode').value,'research79');
+ assert.equal(direct.get('jraResultTrack').value,'京都');
+ assert.equal(direct.get('jraResultRace').value,'8');
+ assert.equal(direct.get('jraResultCandidatePanel').open,true);
+ assert.equal(direct.get('jraResultUrl').value,'');
+ assert.equal(direct.requests.length,2,'navigation alone does not read JRA or JRDB');
+ assert.equal(direct.storage.size,0);
+ const invalid=boot('?date=2026-11-08&mode=research79&track=%ZZ&race=8');
+ await new Promise(r=>setImmediate(r));
+ assert.notEqual(invalid.get('jraResultMode').value,'research79');
+ assert.equal(invalid.requests.length,2);
  const a=boot('?date=2099-01-02');
  await new Promise(r=>setImmediate(r));
  assert.equal(a.get('day').value,'2099-01-02');
