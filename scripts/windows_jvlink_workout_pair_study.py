@@ -9,7 +9,6 @@ from collections import Counter
 from contextlib import closing
 from datetime import datetime
 from itertools import combinations
-from fractions import Fraction
 import os
 from pathlib import Path
 import sqlite3
@@ -17,6 +16,7 @@ import sys
 
 from owner_jvdata_workout_features import (
     observations_before, comparable_workout_values, compare_workout_summaries, SPEC_METRICS,
+    composite_direction, runner_composite_index,
 )
 from windows_jvlink_history_walkforward import completed_races
 from windows_jvlink_2026_history_store import DATABASE
@@ -25,20 +25,6 @@ from windows_jvlink_weekly_read import JST, JvLocalCheckError
 
 # Fixed before examining any outcomes; no fitted weights.
 HOLDOUT_START = "20260701"
-
-
-def composite_direction(by_spec):
-    """Equal weight across available surfaces, then metrics within surface.
-
-    Require at least two distinct clock/acceleration metrics. A missing
-    comparison contributes no vote; a measured tie contributes zero.
-    The output is a research-only pair direction, not a probability or grade.
-    """
-    nonempty = [v for v in by_spec.values() if v]
-    if len({m for v in nonempty for m in v}) < 2:
-        return None
-    mean = sum((Fraction(sum(v.values()), len(v)) for v in nonempty), Fraction())
-    return (mean > 0) - (mean < 0)
 
 
 def _agreement(counts):
@@ -59,6 +45,7 @@ def evaluate(race_conn, workout_conns, *, as_of_day):
                for spec in workout_conns}
     skipped = Counter()
     composite = {period: Counter() for period in ("earlier", "holdout")}
+    runner_study = {period: Counter() for period in composite}
     for key, race, reason in completed_races(race_conn, as_of_day=as_of_day):
         if reason:
             skipped[reason] += 1
@@ -88,6 +75,9 @@ def evaluate(race_conn, workout_conns, *, as_of_day):
                     found = True
             stat["racesWithComparablePairs"] += int(found)
         period = "holdout" if key[:8] >= HOLDOUT_START else "earlier"
+        runner_indices = runner_composite_index([h for h,_ in horses], comparisons)
+        runner_counts = runner_study[period]
+        runner_counts["totalRunners"] += len(horses)
         for (a, finish_a), (b, finish_b) in pairs:
             direction = composite_direction(comparisons[(a,b)])
             counts = composite[period]
@@ -97,6 +87,14 @@ def evaluate(race_conn, workout_conns, *, as_of_day):
                 continue
             counts["tied" if direction == 0 else "concordant"
                    if (direction > 0) == (finish_a < finish_b) else "discordant"] += 1
+        runner_counts["indexedRunners"] += sum(row["index"] is not None for row in runner_indices.values())
+        for (a, finish_a), (b, finish_b) in pairs:
+            x, y = runner_indices[a]["index"], runner_indices[b]["index"]
+            runner_counts["totalPairs"] += 1
+            if x is None or y is None:
+                continue
+            runner_counts["tied" if x == y else "concordant"
+                          if (x > y) == (finish_a < finish_b) else "discordant"] += 1
     for stat in results.values():
         for metric, counts in stat["metrics"].items():
             good, bad, tied = (counts[k] for k in ("concordant", "discordant", "tied"))
@@ -110,6 +108,9 @@ def evaluate(race_conn, workout_conns, *, as_of_day):
             "compositeStudy": {period: {**_agreement(counts),
                 "totalPairs": counts["totalPairs"], "insufficient": counts["insufficient"]}
                 for period, counts in composite.items()},
+            "runnerIndexStudy": {period: {**_agreement(counts),
+                "totalRunners": counts["totalRunners"], "indexedRunners": counts["indexedRunners"],
+                "totalPairs": counts["totalPairs"]} for period, counts in runner_study.items()},
             "holdoutStart": HOLDOUT_START, "weightsFitted": False,
             "retrospectiveFinalRoster":True,"prestartAvailabilityVerified":False,
             "formalTrainingGradeReady":False,"modelSaved":False,
@@ -160,6 +161,10 @@ def main():
             print("COMPOSITE_"+period.upper()+"_PAIRS="+str(values["comparablePairs"])+"/"+str(values["totalPairs"]))
             print("COMPOSITE_"+period.upper()+"_AGREEMENT_PERCENT="+str(values["directionalAgreementPercent"]))
             print("COMPOSITE_"+period.upper()+"_TIES="+str(values["tied"]))
+        for period, values in report["runnerIndexStudy"].items():
+            print("RUNNER_INDEX_"+period.upper()+"_COVERAGE="+str(values["indexedRunners"])+"/"+str(values["totalRunners"]))
+            print("RUNNER_INDEX_"+period.upper()+"_PAIRS="+str(values["comparablePairs"])+"/"+str(values["totalPairs"]))
+            print("RUNNER_INDEX_"+period.upper()+"_AGREEMENT_PERCENT="+str(values["directionalAgreementPercent"]))
         print("FORMAL_TRAINING_GRADE_READY=NO")
         return 0
     except Exception:
