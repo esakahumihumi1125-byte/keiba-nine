@@ -1,6 +1,7 @@
 import sqlite3
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
 from owner_jvdata_workout_features import parse_observation, observations_before, race_workout_coverage
@@ -31,6 +32,34 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertIsNone(parse_observation(raw[:2]+b"0"+raw[3:],"SLOP"))
         with self.assertRaises(JvLocalCheckError):
             parse_observation(raw[:34]+b"0600"+raw[38:],"SLOP")
+
+    def test_runner_comparisons_keep_missing_and_tied_metrics_distinct(self):
+        def obs(day, center, speed, gain, four):
+            return {"date":day,"center":center,"surface":"SLOP","course":None,
+                    "direction":None,"lastFurlongTenths":speed,
+                    "lastFurlongGainTenths":gain,"totalTenths":{4:four}}
+        rows = {
+            "1000000001":[obs("20261120","0",120,10,520),
+                          obs("20261121","0",130,5,540)],
+            "1000000002":[obs("20261120","0",130,10,500)],
+            "1000000003":[obs("20261120","1",110,20,490)],
+            "1000000004":[],
+        }
+        with patch("owner_jvdata_workout_features.observations_before",
+                   return_value={"byPrivateHorseId":rows,"heldWorkoutKeys":0}):
+            result = race_workout_coverage({"SLOP":None},
+                {n:f"100000000{n}" for n in range(1,5)},
+                target_day="20261126",capture_day="20261125")
+        a,b,c,d = [r["bySpec"]["SLOP"]["sameConditionComparisons"]
+                   for r in result["byNumber"]]
+        self.assertEqual(a["lastFurlongTenths"],{"better":1,"worse":0,"equal":0})
+        self.assertEqual(b["lastFurlongTenths"],{"better":0,"worse":1,"equal":0})
+        self.assertEqual(a["lastFurlongGainTenths"],{"better":0,"worse":0,"equal":1})
+        self.assertEqual(a["fourFurlongTenths"],{"better":0,"worse":1,"equal":0})
+        for unknown in (c,d):
+            self.assertTrue(all(not sum(v.values()) for v in unknown.values()))
+        self.assertFalse(result["formalTrainingGradeReady"])
+        self.assertNotIn("1000000001",repr(result))
 
     def test_revision_cutoff_and_deletion(self):
         conn=sqlite3.connect(":memory:")
