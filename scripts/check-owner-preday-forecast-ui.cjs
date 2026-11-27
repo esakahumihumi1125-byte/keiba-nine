@@ -11,7 +11,7 @@ const data=()=>({schema:'keiba-nine-private-preday-review-v1',date:'2026-11-07',
   confidence:3,status:'買い候補',headNames:['架空A','架空B'],note:'仮',
   provisional:true,jraOfficialConfirmed:false,fullFactorVerified:false
  })))}); 
-function boot(serverReady=false,cache=null){
+function boot(serverReady=false,cache=null,serverData=data()){
  const nodes=new Map(),store=new Map([['other','preserved']]),writes=[],calls=[];
  if(cache!==null)store.set(KEY,cache);
  const node=()=>({textContent:'',value:'',files:[],children:[],checked:false,
@@ -83,8 +83,8 @@ function boot(serverReady=false,cache=null){
      officialJraVerified:false,predictionReady:false,races:[{track:'東京',race:1,
       time:'12:00',observedAt:'11:45',ground:'稍重',paddock:[5,6],note:'試験用の短い観察メモ'}]}
    }:{available:false,notes:null}):(serverReady?{
-    available:true,forecast:{...data(),sourceKind:'owner-private-authored-preday',
-      predictionReady:false,officialJraVerified:false,purchased:false,raceCount:36}
+    available:true,forecast:{...serverData,sourceKind:'owner-private-authored-preday',
+      predictionReady:false,officialJraVerified:false,purchased:false,raceCount:serverData.races.length}
    }:{available:false,forecast:null})};
   },
   localStorage:{getItem:k=>store.get(k)||null,
@@ -95,6 +95,20 @@ function boot(serverReady=false,cache=null){
 }
 async function tick(){await new Promise(resolve=>setImmediate(resolve));}
 (async()=>{
+ const partial=data();partial.races=partial.races.filter(r=>r.track==='東京');
+ const protectedView=boot(true,JSON.stringify(data()),partial),pv=protectedView.$;
+ await tick();
+ assert.equal(pv('fpVenueTabs').children.length,3,'partial same-day server must not hide cached venues');
+ assert.match(pv('fpCloudStatus').textContent,/未配信のR/);
+ assert.match(pv('fpSummary').textContent,/全36R/);
+ for(const id of ['fpFreezeAll','fpFreeze','fpJraAdvance'])await pv(id).onclick();
+ assert.equal(protectedView.calls.length,3,'mismatched display cannot trigger server freeze or programme lookup');
+ assert.equal(protectedView.writes.length,0,'cache and previous decisions remain unchanged');
+ assert.match(pv('fpFreezeAllStatus').textContent,/一致していません/);
+ const partialOnly=boot(true,null,partial);
+ await tick();
+ assert.equal(partialOnly.$('fpVenueTabs').children.length,1,'partial server is still visible without a fuller cache');
+ assert.match(partialOnly.$('fpSummary').textContent,/全12R/);
  const server=boot(true),se=server.$;
  await tick();
  assert.equal(se('fpRaces').children.length,12,'open with all 12R for the selected venue');
