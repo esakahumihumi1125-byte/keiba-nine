@@ -25,6 +25,7 @@ import time
 
 from jrdb_coverage import CoverageError
 from owner_jvdata_day_history_bridge import build_local_day_history
+from owner_jvdata_offline_evidence import summarize_runner
 from jvdata_ra_se_candidate import parse_jvdata_prestart_racecard
 from jrdb_program_preview import TRACKS
 from jrdb_evidence_readiness import _valid_date
@@ -421,6 +422,46 @@ def _display_value(v):
     return escape(str(v))
 
 
+def _integrated_evidence_rows(report, race):
+    """Private per-horse observations; absent data is never a grade."""
+    venue = next((k for k, v in TRACKS.items() if v == race["track"]), None)
+    surface, distance = race.get("surfaceCandidate"), race.get("distanceMetersCandidate")
+    target = ((venue, surface, distance) if venue and surface in ("芝", "ダート")
+              and type(distance) is int and 400 <= distance <= 10000 else None)
+    workout = race.get("workoutCoverage")
+    workout_by_number = {}
+    if workout is not None:
+        if (not isinstance(workout, dict)
+                or workout.get("formalTrainingGradeReady") is not False
+                or workout.get("researchOnly") is not True
+                or not isinstance(workout.get("byNumber"), list)):
+            raise CoverageError("Invalid private workout coverage")
+        for entry in workout["byNumber"]:
+            number = entry.get("number")
+            if type(number) is not int or number in workout_by_number:
+                raise CoverageError("Invalid private workout runner")
+            workout_by_number[number] = entry["bySpec"]
+        if set(workout_by_number) != {h["number"] for h in race["byNumber"]}:
+            raise CoverageError("Workout roster mismatch")
+    position_labels = {"front": "前方", "middle": "中団", "back": "後方",
+                       "mixed": "混合", "insufficient": "資料不足"}
+    for horse in sorted(race["byNumber"], key=lambda h: h["number"]):
+        evidence = summarize_runner(horse, target_day=report["date"], target_course=target)
+        counts = workout_by_number.get(horse["number"], {})
+        clocks = []
+        for spec, label in (("SLOP", "坂路"), ("WOOD", "ウッド")):
+            if spec not in counts:
+                clocks.append(label + " 未照合")
+                continue
+            observed = counts[spec].get("observedWorkouts")
+            if type(observed) is not int or not 0 <= observed <= 10000:
+                raise CoverageError("Invalid workout coverage count")
+            clocks.append(label + " " + str(observed) + "件")
+        yield (horse["number"], " / ".join(clocks),
+               evidence["sameVenueSurfaceWithin200mObserved"],
+               position_labels[evidence["priorPositionPattern"]])
+
+
 def local_html(report):
     """Display only the already sanitized report; no network or JS."""
     if (not isinstance(report, dict)
@@ -450,6 +491,14 @@ def local_html(report):
         lines.append("<section><h2>" + title + "</h2><p>"
                      "過去RA7とSE7の同一レース照合ができた場合のみ"
                      "過去の距離・馬場を表示。今回の馬場・適性とは別です。</p>")
+        lines.append("<p>重点3項目の資料一覧（調教30・コース17・展開17、未採点）</p>"
+                     "<table><tr><th>馬番</th><th>調教資料</th><th>同場同芝ダ±200m</th>"
+                     "<th>過去4角の位置傾向</th></tr>")
+        for values in _integrated_evidence_rows(report, race):
+            lines.append("<tr>" + "".join("<td>" + _display_value(v) + "</td>"
+                                            for v in values) + "</tr>")
+        lines.append("</table><p>件数0は観測なし、—は今回の条件不明。"
+                     "位置傾向は比較可能な過去2走以上から算出した観測で、脚質やペースの確定ではありません。</p>")
         workout = race.get("workoutCoverage")
         if workout is not None:
             lines.append("<p>調教資料の照合件数（未採点・網羅性未確認）</p>")
