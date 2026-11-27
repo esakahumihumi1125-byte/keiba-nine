@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
-from owner_jvdata_workout_features import parse_observation, observations_before
+from owner_jvdata_workout_features import parse_observation, observations_before, race_workout_coverage
 from windows_jvlink_workout_store import workout_record
 from windows_jvlink_weekly_read import JvLocalCheckError
 from test_windows_jvlink_workout_store import row
@@ -51,6 +51,20 @@ class WorkoutFeatureTests(unittest.TestCase):
             second=observations_before(conn,"SLOP","20261126",horse)
             self.assertEqual(second["byPrivateHorseId"]["1000000001"],[])
             self.assertFalse(first["formalTrainingGradeReady"])
+            mapping = {n: f"100000000{n}" for n in range(1,5)}
+            early = race_workout_coverage({"SLOP":conn}, mapping,
+                                         target_day="20261126", capture_day="20261125")
+            self.assertEqual(early["byNumber"][0]["bySpec"]["SLOP"]["fourFCount"],1)
+            self.assertEqual(early["byNumber"][1]["bySpec"]["SLOP"]["observedWorkouts"],0)
+            self.assertIsNone(early["byNumber"][0]["bySpec"]["SLOP"]["sixFCount"])
+            self.assertNotIn("1000000001", repr(early))
+            self.assertFalse(early["formalTrainingGradeReady"])
+            later = race_workout_coverage({"SLOP":conn}, mapping,
+                                         target_day="20261126", capture_day="20261126")
+            self.assertEqual(later["byNumber"][0]["bySpec"]["SLOP"]["observedWorkouts"],0)
+            with self.assertRaises(JvLocalCheckError):
+                race_workout_coverage({"SLOP":conn}, mapping,
+                                     target_day="20261126", capture_day="20261127")
         finally:
             conn.close()
 
