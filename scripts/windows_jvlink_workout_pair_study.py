@@ -5,44 +5,21 @@ training center, course and direction. Use the latest shared day/condition
 per pair and median on that day. No tuning on outcomes, odds, data export,
 source writes, purchase or model persistence.
 """
-from collections import Counter, defaultdict
+from collections import Counter
 from contextlib import closing
 from datetime import datetime
 from itertools import combinations
 import os
 from pathlib import Path
 import sqlite3
-from statistics import median
 import sys
 
-from owner_jvdata_workout_features import observations_before
+from owner_jvdata_workout_features import (
+    observations_before, comparable_workout_values, compare_workout_summaries, SPEC_METRICS,
+)
 from windows_jvlink_history_walkforward import completed_races
 from windows_jvlink_2026_history_store import DATABASE
 from windows_jvlink_weekly_read import JST, JvLocalCheckError
-
-
-METRICS = ("lastFurlongTenths", "lastFurlongGainTenths")
-TOTAL_METRICS = {"fourFurlongTenths": 4, "sixFurlongTenths": 6}
-SPEC_METRICS = {"SLOP": METRICS + ("fourFurlongTenths",),
-                "WOOD": METRICS + ("fourFurlongTenths", "sixFurlongTenths")}
-LOWER_IS_FASTER = {"lastFurlongTenths", *TOTAL_METRICS}
-
-
-def _comparable(observations):
-    groups = defaultdict(list)
-    for row in observations:
-        key = (row["date"], row["center"], row["surface"],
-               row["course"] or "", row["direction"] or "")
-        for metric in SPEC_METRICS[row["surface"]]:
-            if metric in TOTAL_METRICS:
-                # Compare identical measured distances, never substitute a
-                # shorter clock or estimate a missing interval.
-                value = row.get("totalTenths", {}).get(TOTAL_METRICS[metric])
-            else:
-                value = row.get(metric)
-            if type(value) is int:
-                groups[(key, metric)].append(value)
-    return {key: median(values) for key, values in groups.items()}
 
 
 def evaluate(race_conn, workout_conns, *, as_of_day):
@@ -68,23 +45,13 @@ def evaluate(race_conn, workout_conns, *, as_of_day):
             stat["totalRunners"] += len(horses)
             stat["runnersObserved"] += sum(bool(rows[h]) for h in ids)
             stat["heldWorkoutKeys"] += report["heldWorkoutKeys"]
-            summaries = {h: _comparable(rows[h]) for h in ids}
+            summaries = {h: comparable_workout_values(rows[h]) for h in ids}
             found = False
             for (a, finish_a), (b, finish_b) in combinations(horses, 2):
-                shared = summaries[a].keys() & summaries[b].keys()
-                for metric in SPEC_METRICS[spec]:
-                    candidates = [x for x in shared if x[1] == metric]
-                    if not candidates:
-                        continue
-                    # Latest shared day, then stable lexical condition tie
-                    # break, independent of clock values and race outcomes.
-                    selected = max(candidates)
-                    x, y = summaries[a][selected], summaries[b][selected]
-                    if metric in LOWER_IS_FASTER:
-                        x, y = -x, -y
+                for metric, direction in compare_workout_summaries(summaries[a], summaries[b], spec).items():
                     stat["metrics"][metric][
-                        "tied" if x == y else "concordant"
-                        if (x > y) == (finish_a < finish_b) else "discordant"
+                        "tied" if direction == 0 else "concordant"
+                        if (direction > 0) == (finish_a < finish_b) else "discordant"
                     ] += 1
                     found = True
             stat["racesWithComparablePairs"] += int(found)
