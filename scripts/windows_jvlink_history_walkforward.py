@@ -100,6 +100,10 @@ def evaluate(conn, *, as_of_day):
     skipped, pending, history = Counter(), [], defaultdict(lambda:[0,0])
     count = runners = 0
     baseline_loss = model_loss = 0.0
+    # Separate relaxed research view; never replace the strict baseline.
+    nearby = defaultdict(lambda: defaultdict(lambda: [0, 0]))
+    partial_races = partial_runners = observed_runners = 0
+    partial_loss = partial_uniform = observed_loss = observed_uniform = 0.0
     for key, record, reason in completed_races(conn, as_of_day=as_of_day):
         if reason:
             skipped[reason] += 1
@@ -113,7 +117,32 @@ def evaluate(conn, *, as_of_day):
                 stats = history[(horse,venue,surface,distance//200)]
                 stats[0] += 1
                 stats[1] += int(finish <= 3)
+                prior = nearby[(horse, venue, surface)][distance]
+                prior[0] += 1
+                prior[1] += int(finish <= 3)
         available, venue, surface, distance, horses = record
+        # Match exact venue and surface, distance within inclusive 200m.
+        # Missing history stays unknown; uniform probability is only a
+        # comparator fallback, not evidence or an assigned factor grade.
+        matches = []
+        for horse, _ in horses:
+            samples = [v for d, v in nearby.get((horse, venue, surface), {}).items()
+                       if abs(d - distance) <= 200]
+            matches.append((sum(v[0] for v in samples), sum(v[1] for v in samples)))
+        if any(n for n, _ in matches):
+            p = 3 / len(horses)
+            partial_races += 1
+            partial_runners += len(horses)
+            for (_, finish), (n, hits) in zip(horses, matches):
+                y = int(finish <= 3)
+                predicted = (hits + 3 * p) / (n + 3) if n else p
+                loss, uniform = (predicted - y)**2, (p - y)**2
+                partial_loss += loss
+                partial_uniform += uniform
+                if n:
+                    observed_runners += 1
+                    observed_loss += loss
+                    observed_uniform += uniform
         stats = [history.get((h,venue,surface,distance//200)) for h,_ in horses]
         if all(s is not None and s[0] > 0 for s in stats):
             p = 3/len(horses)
@@ -131,6 +160,16 @@ def evaluate(conn, *, as_of_day):
             "skippedRaces":dict(skipped),
             "modelBrier":round(model_loss/runners,6) if runners else None,
             "uniformBrier":round(baseline_loss/runners,6) if runners else None,
+            "partialCoverage": {
+                "evaluatedRaces": partial_races, "fieldRunners": partial_runners,
+                "observedRunners": observed_runners,
+                "unknownRunners": partial_runners - observed_runners,
+                "modelBrier": round(partial_loss / partial_runners, 6) if partial_runners else None,
+                "uniformBrier": round(partial_uniform / partial_runners, 6) if partial_runners else None,
+                "observedModelBrier": round(observed_loss / observed_runners, 6) if observed_runners else None,
+                "observedUniformBrier": round(observed_uniform / observed_runners, 6) if observed_runners else None,
+                "distanceToleranceMeters": 200, "missingEvidenceGraded": False,
+            },
             "retrospectiveFinalRoster":True,"prestartAvailabilityVerified":False,
             "formalTenFactorReady":False,"modelSaved":False,
             "newProviderRequests":0}
@@ -160,6 +199,13 @@ def main():
         print("EVALUATED_RUNNERS="+str(report["evaluatedRunners"]))
         print("MODEL_BRIER="+str(report["modelBrier"]))
         print("UNIFORM_BRIER="+str(report["uniformBrier"]))
+        partial = report["partialCoverage"]
+        print("PARTIAL_RACES="+str(partial["evaluatedRaces"]))
+        print("PARTIAL_OBSERVED_RUNNERS="+str(partial["observedRunners"])+"/"+str(partial["fieldRunners"]))
+        print("PARTIAL_MODEL_BRIER="+str(partial["modelBrier"]))
+        print("PARTIAL_UNIFORM_BRIER="+str(partial["uniformBrier"]))
+        print("PARTIAL_OBSERVED_MODEL_BRIER="+str(partial["observedModelBrier"]))
+        print("PARTIAL_OBSERVED_UNIFORM_BRIER="+str(partial["observedUniformBrier"]))
         print("FORMAL_TEN_FACTOR_READY=NO")
         return 0
     except Exception:
