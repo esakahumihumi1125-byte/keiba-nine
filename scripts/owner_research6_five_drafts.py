@@ -197,6 +197,9 @@ def build_research6_five_drafts(programme, study, day, *, now=None):
         raise CoverageError("Trusted timezone-aware clock required")
     now = now.astimezone(JST)
     output = []
+    blockers = {k: {"missingRunners": 0, "affectedRaces": 0,
+                    "soleMissingFactorRaces": 0} for k in KEYS}
+    missing_races = 0
     for program in normalized:
         coord = program["track"], program["race"]
         race = by_race[coord]
@@ -234,6 +237,12 @@ def build_research6_five_drafts(programme, study, day, *, now=None):
             output.append(slot)
             continue
         if any(h["weightedResearchPoints"] is None for h in runners):
+            missing_races += 1
+            missing_keys = [k for k in KEYS if race["missingByFactor"][k]]
+            for k in missing_keys:
+                blockers[k]["missingRunners"] += race["missingByFactor"][k]
+                blockers[k]["affectedRaces"] += 1
+                blockers[k]["soleMissingFactorRaces"] += int(len(missing_keys) == 1)
             slot["reason"] = "incomplete_five_factors"
             output.append(slot)
             continue
@@ -277,6 +286,17 @@ def build_research6_five_drafts(programme, study, day, *, now=None):
                           for r in output),
         "holdCount": sum(r["status"] == "hold" for r in output),
         "holdReasons": reasons, "races": output,
+        "missingFactorCoverage": {
+            "heldRaceCount": missing_races,
+            "byFactor": blockers,
+            "priority": sorted(
+                (k for k in KEYS if blockers[k]["affectedRaces"]),
+                key=lambda k: (-blockers[k]["soleMissingFactorRaces"],
+                               -blockers[k]["affectedRaces"],
+                               -WEIGHTS[k]*blockers[k]["missingRunners"], k)),
+            "coverageIsNotAbilityScore": True,
+            "soleFactorCompletionDoesNotGuaranteeDraft": True,
+        },
         "unitYen": STAKE, "researchFactorWeight": 79,
         "factorWeights": dict(WEIGHTS), "remainingUnassessedWeight": 21,
         "officialJraVerified": False,

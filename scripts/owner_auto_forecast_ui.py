@@ -319,6 +319,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>結果・記録｜5項目79点の参考予想</h2>
 <p class="muted">選択日の発走前固定済み研究予想。正式100点・JRA公式結果・実購入ではありません。</p>
 <p id="autoFiveQuickStatus" class="muted" role="status">開催日の基本資料を取得すると使えます。新しい79点下書きは未取得です。</p>
+<p id="autoFiveBlockerStatus" class="muted" role="status">5項目の不足資料は未確認です。</p>
 <div id="autoFiveQuickTracks" class="venue-tabs" role="group" aria-label="固定79点の競馬場"></div>
 <div id="autoFiveQuickSaved"></div>
 <a class="owner-forecast-cta" href="#autoResearch6ReviewPanel" id="autoFiveReviewJump">固定79点の結果・参考収支へ</a>
@@ -451,7 +452,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261127-r79-race-link" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261127-r79-blockers" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -5188,6 +5189,7 @@ function clearHistory(){
  renderSparseFiveReference(null,$('autoDay').value.replaceAll('-',''));
  renderSavedSparse($('autoDay').value.replaceAll('-',''));
  fiveQuickReadDay='';
+ $('autoFiveBlockerStatus').textContent='5項目の不足資料は未確認です。';
  $('autoFiveQuick').disabled=true;
  $('autoFiveQuickStatus').textContent='基本資料の取得前です。過去番組は追加照会していません。';
  renderFiveQuickSaved($('autoDay').value.replaceAll('-',''));
@@ -7672,6 +7674,8 @@ function validateHistory(h){
      !v.holdReasons||typeof v.holdReasons!=='object')
    throw Error('79点研究用下書きの形式が不正');
   const seenRaces=new Set(),counts={};let drafts=0,holds=0;
+  const coverage=Object.fromEntries(keys.map(k=>[k,{missingRunners:0,affectedRaces:0,soleMissingFactorRaces:0}]));
+  let missingRaces=0;
   for(const race of v.races){
    const id=race?.track+'|'+race?.race,d=perRace.get(id),
     prior=d?.newWeightFive;
@@ -7693,6 +7697,15 @@ function validateHistory(h){
        race.tickets.length||race.rankedResearch.length)
      throw Error('保留中の79点下書きに買い目が混入');
     holds++;counts[race.reason]=(counts[race.reason]||0)+1;
+    if(race.reason==='incomplete_five_factors'){
+     const missing=keys.map(k=>[k,prior.horses.filter(x=>x.bands[k]==='未評価').length]).filter(x=>x[1]>0);
+     if(!missing.length)throw Error('79点の不足項目なし');
+     missingRaces++;
+     for(const [k,n] of missing){
+      coverage[k].missingRunners+=n;coverage[k].affectedRaces++;
+      if(missing.length===1)coverage[k].soleMissingFactorRaces++;
+     }
+    }
    }else if(race.status==='five_factor_research_draft'){
     const runners=prior.horses.slice().sort((a,b)=>
      b.rawThirdPoints-a.rawThirdPoints||a.number-b.number);
@@ -7742,6 +7755,19 @@ function validateHistory(h){
      drafts!==v.draftCount||holds!==v.holdCount||
      JSON.stringify(v.holdReasons)!==JSON.stringify(counts))
    throw Error('79点研究用の件数不一致');
+  if(v.missingFactorCoverage!==undefined){
+   const c=v.missingFactorCoverage,priority=keys.filter(k=>coverage[k].affectedRaces)
+    .sort((a,b)=>coverage[b].soleMissingFactorRaces-coverage[a].soleMissingFactorRaces||
+      coverage[b].affectedRaces-coverage[a].affectedRaces||
+      weights[b]*coverage[b].missingRunners-weights[a]*coverage[a].missingRunners||
+      (a<b?-1:a>b?1:0));
+   if(!c||c.heldRaceCount!==missingRaces||c.coverageIsNotAbilityScore!==true||
+      c.soleFactorCompletionDoesNotGuaranteeDraft!==true||!c.byFactor||
+      Object.keys(c.byFactor).length!==keys.length||
+      keys.some(k=>!c.byFactor[k]||Object.keys(coverage[k]).some(n=>c.byFactor[k][n]!==coverage[k][n]))||
+      JSON.stringify(c.priority)!==JSON.stringify(priority))
+    throw Error('79点不足項目の集計不一致');
+  }
  }
  validateWatchCapture(h.watchCapture,h);
  return results;
@@ -10896,6 +10922,13 @@ $('autoHistoryAudit').onclick=async()=>{
    }
    $('autoHistoryAuditRaces').append(card);
   }
+  const blockers=raw.research6FiveDrafts?.missingFactorCoverage;
+  const factorNames={training:'調教',course_distance:'コース・距離',pace:'展開・脚質',ground:'馬場',recent:'近走'};
+  $('autoFiveBlockerStatus').textContent=blockers?
+   '発走前の資料不足保留 '+blockers.heldRaceCount+'R。'+
+   blockers.priority.map(k=>factorNames[k]+' '+blockers.byFactor[k].affectedRaces+'R（この項目のみ不足 '+blockers.byFactor[k].soleMissingFactorRaces+'R）').join('／')+
+   '。資料補完後も同点・発走時刻等の確認が必要です。':
+   '5項目の不足資料は未確認です。';
   fiveQuickReadDay=day;
   renderSparseFiveReference(sparseFive,day);
   renderSavedSparse(day);
@@ -10909,6 +10942,7 @@ $('autoHistoryAudit').onclick=async()=>{
    ' 予想・購入・保存済みの買い目は変更しません。';
  }catch(_){if(seq===historySeq){
   $('autoHistoryAuditRaces').replaceChildren();
+  $('autoFiveBlockerStatus').textContent='5項目の不足資料は未確認です。';
   renderSparseFiveReference(null,day);
   $('autoHistoryStaffStatus').textContent=
    '騎手・厩舎の資料確認に失敗。既存の買い目や成績は変更していません。';
