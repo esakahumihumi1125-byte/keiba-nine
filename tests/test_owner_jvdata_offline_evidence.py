@@ -113,6 +113,45 @@ class OfflineEvidenceTests(unittest.TestCase):
         self.assertEqual(partial["byNumber"][0][
             "factorEvidence"]["ground"]["status"], "unverified")
 
+    def test_comparable_course_counts_are_not_grades(self):
+        report = self.report()
+        race = report["races"][0]
+        race.update(surfaceCandidate="芝", distanceMetersCandidate=1800)
+        run = race["byNumber"][0]["recentObservedRuns"][0]
+        from jrdb_program_preview import TRACKS
+        venue = next(k for k, v in TRACKS.items() if v == race["track"])
+        run.update(trackCode=venue, surface="芝", distanceMeters=1800,
+                   historicalRaceContextMatched=True, hasAbnormalCode=False,
+                   finishPosition=5, cornerPositions=[4, 5, 6, 6],
+                   historicalStarterCount=6, historicalFinishersCount=6)
+        for distance, count, exact in ((1800, 1, 1), (2000, 1, 0),
+                                        (1600, 1, 0), (2001, 0, 0)):
+            run["distanceMeters"] = distance
+            horse = summarize_one_race(report)["byNumber"][0]
+            self.assertEqual(horse["sameVenueSurfaceWithin200mObserved"], count)
+            self.assertEqual(horse["sameVenueSurfaceExactDistanceObserved"], exact)
+            self.assertEqual(horse["comparableRunsWithFieldRelativeFinish"], count)
+            self.assertIsNone(horse["totalScore"])
+            self.assertFalse(horse["eligibleForPrediction"])
+        run["distanceMeters"] = 1800
+        for changes in ({"trackCode": "99"}, {"surface": "ダート"},
+                        {"historicalRaceContextMatched": False},
+                        {"hasAbnormalCode": True}):
+            bad = copy.deepcopy(report)
+            bad["races"][0]["byNumber"][0]["recentObservedRuns"][0].update(changes)
+            self.assertEqual(summarize_one_race(bad)["byNumber"][0][
+                "sameVenueSurfaceWithin200mObserved"], 0)
+        result = summarize_one_race(report)
+        self.assertTrue(result["targetCourseCandidateAvailable"])
+        self.assertGreaterEqual(result["runnersWithComparableCourseObservations"], 1)
+        self.assertFalse(result["formalForecastReady"])
+        self.assertIn("同競馬場・同芝/ダート・距離±200m", render_evidence_html(result))
+        race["distanceMetersCandidate"] = None
+        unknown = summarize_one_race(report)
+        self.assertFalse(unknown["targetCourseCandidateAvailable"])
+        self.assertIsNone(unknown["runnersWithComparableCourseObservations"])
+        self.assertIsNone(unknown["byNumber"][0]["sameVenueSurfaceWithin200mObserved"])
+
     def test_field_relative_history_never_imputes_old_or_abnormal_rows(self):
         horse = self.report()["races"][0]["byNumber"][0]
         run = horse["recentObservedRuns"][0]
