@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
 from windows_jvlink_workout_pair_study import evaluate, composite_direction
+from owner_jvdata_workout_features import runner_composite_index
 
 
 def obs(day="20261120",center="0",speed=120,gain=10, *, surface="SLOP", four=None, six=None):
@@ -86,6 +87,37 @@ class PairStudyTests(unittest.TestCase):
             self.assertEqual(s["insufficient"],5)
             self.assertEqual(s["concordant"],1)
         self.assertFalse(result["weightsFitted"])
+        self.assertFalse(result["formalTrainingGradeReady"])
+
+    def test_runner_index_coverage_and_measured_ties(self):
+        from fractions import Fraction
+        from itertools import combinations
+        numbers = [1,2,3,4]
+        votes = {(a,b):{"SLOP":{"lastFurlongTenths":1,"fourFurlongTenths":1}}
+                 for a,b in combinations(numbers,2)}
+        result = runner_composite_index(numbers,votes)
+        self.assertEqual([result[n]["index"] for n in numbers],
+                         [100,Fraction(200,3),Fraction(100,3),0])
+        votes[(1,2)] = {"SLOP":{"lastFurlongTenths":0,"fourFurlongTenths":0}}
+        self.assertEqual(runner_composite_index(numbers,votes)[1]["index"],Fraction(250,3))
+        del votes[(1,3)]
+        result = runner_composite_index(numbers,votes)
+        self.assertIsNone(result[1]["index"])
+        self.assertIsNone(result[3]["index"])
+        self.assertEqual(result[1]["comparedOpponents"],2)
+
+    def test_runner_index_period_validation_uses_exact_indices(self):
+        horses=[("a",1),("b",2),("c",3),("d",4)]
+        source=[("2026112805010101",("20261129","05","芝",1800,horses),None)]
+        records={h:[obs(speed=110+10*i,gain=20-2*i)] for i,(h,_) in enumerate(horses)}
+        with patch("windows_jvlink_workout_pair_study.completed_races",return_value=source), \
+             patch("windows_jvlink_workout_pair_study.observations_before",
+                   return_value={"byPrivateHorseId":records,"heldWorkoutKeys":0}):
+            result=evaluate(None,{"SLOP":None},as_of_day="20261130")
+        r=result["runnerIndexStudy"]["holdout"]
+        self.assertEqual(r["indexedRunners"],4)
+        self.assertEqual(r["concordant"],6)
+        self.assertEqual(r["comparablePairs"],6)
         self.assertFalse(result["formalTrainingGradeReady"])
 
     def test_ties_and_disagreement_not_hidden(self):

@@ -8,6 +8,7 @@ odds, purchases or export of licensed observations.
 from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import combinations
+from fractions import Fraction
 from statistics import median
 
 from windows_jvlink_workout_store import workout_record, SPECS
@@ -55,6 +56,42 @@ def compare_workout_summaries(a, b, spec):
             x, y = -x, -y
         outcome[metric] = (x > y) - (x < y)
     return outcome
+
+
+def composite_direction(by_spec):
+    """Fixed equal-surface comparison, requiring two distinct metrics."""
+    nonempty = [v for v in by_spec.values() if v]
+    if len({m for v in nonempty for m in v}) < 2:
+        return None
+    mean = sum((Fraction(sum(v.values()), len(v)) for v in nonempty), Fraction())
+    return (mean > 0) - (mean < 0)
+
+
+def runner_composite_index(numbers, comparisons):
+    """Descriptive 0..100 index, not a probability or a formal grade.
+
+    Require comparisons against at least half the other runners, and at
+    least three opponents. Measured ties count half; missing pairs never
+    count as losses. Preserve exact fractions for downstream validation.
+    """
+    numbers = list(numbers)
+    stats = {n: [0, 0, 0] for n in numbers}  # better, worse, equal
+    for a, b in combinations(numbers, 2):
+        direction = composite_direction(comparisons.get((a, b), {}))
+        if direction is not None:
+            stats[a][0 if direction > 0 else 1 if direction < 0 else 2] += 1
+            stats[b][1 if direction > 0 else 0 if direction < 0 else 2] += 1
+    threshold = max(3, (len(numbers) - 1 + 1)//2)
+    result = {}
+    for number, (better, worse, equal) in stats.items():
+        total = better + worse + equal
+        result[number] = {
+            "better": better, "worse": worse, "equal": equal,
+            "comparedOpponents": total, "requiredOpponents": threshold,
+            "index": Fraction(100*(2*better+equal), 2*total)
+                     if total >= threshold else None,
+        }
+    return result
 
 
 def _time(raw, start, length):
@@ -188,6 +225,8 @@ def race_workout_coverage(connections, number_to_id, *, target_day, capture_day)
         raise JvLocalCheckError("WORKOUT_RACE_ROSTER_INVALID")
     horses = {number: {} for number in sorted(number_to_id)}
     held = {}
+    pairs = list(combinations(sorted(number_to_id), 2))
+    comparisons = {pair: {} for pair in pairs}
     for spec, conn in sorted(connections.items()):
         report = observations_before(conn, spec, target_day,
                                      set(number_to_id.values()), capture_day=capture_day)
@@ -196,8 +235,10 @@ def race_workout_coverage(connections, number_to_id, *, target_day, capture_day)
                      for n, h in number_to_id.items()}
         pair_counts = {n: {m: {"better": 0, "worse": 0, "equal": 0}
                           for m in SPEC_METRICS[spec]} for n in number_to_id}
-        for a, b in combinations(sorted(number_to_id), 2):
-            for metric, direction in compare_workout_summaries(summaries[a], summaries[b], spec).items():
+        for a, b in pairs:
+            votes = compare_workout_summaries(summaries[a], summaries[b], spec)
+            comparisons[(a,b)][spec] = votes
+            for metric, direction in votes.items():
                 pair_counts[a][metric]["better" if direction > 0 else "worse" if direction < 0 else "equal"] += 1
                 pair_counts[b][metric]["worse" if direction > 0 else "better" if direction < 0 else "equal"] += 1
         for number, horse_id in number_to_id.items():
@@ -211,7 +252,12 @@ def race_workout_coverage(connections, number_to_id, *, target_day, capture_day)
                 "sixFCount": (sum(type(r["totalTenths"].get(6)) is int for r in rows)
                               if spec == "WOOD" else None),
             }
-    return {"byNumber": [{"number": n, "bySpec": v} for n, v in horses.items()],
+    index = runner_composite_index(sorted(number_to_id), comparisons)
+    for row in index.values():
+        if row["index"] is not None:
+            row["index"] = round(float(row["index"]), 2)
+    return {"byNumber": [{"number": n, "bySpec": v,
+                          "compositeResearch": index[n]} for n, v in horses.items()],
             "heldWorkoutKeysBySpec": held, "formalTrainingGradeReady": False,
             "coverageVerified": False, "prestartAvailabilityVerified": False,
             "researchOnly": True, "newProviderRequests": 0}
