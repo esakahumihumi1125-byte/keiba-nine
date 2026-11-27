@@ -451,7 +451,7 @@ JRDBはJRA公式から独立した結果確認ではないので、表示は暫�
 <p class="muted">Sは金色、Aは赤色。調教・近走のS/A/B/Cはそれぞれの仮評価。仮順位は調教30：近走3の配点で算出し、
 総合10項目ランクや勝率とは区別しています。
 買い目は重複除外・原則40点以内、同点見送りだったRだけ最大48点・1点100円換算。結果を見てから買い目を作ることはできません。</p>
-</main><script src="/owner-auto-forecast.js?v=20261126-r6-main-review" defer></script></body></html>"""
+</main><script src="/owner-auto-forecast.js?v=20261127-r79-race-link" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{margin:0;background:radial-gradient(ellipse 108% 35% at 82% 0%,#24669a7a,transparent 75%),linear-gradient(160deg,#103a61,#0b2745 55%,#071a30 100%);min-height:100vh;color:#eff5ff;font:15px/1.55 system-ui,sans-serif}
@@ -5887,7 +5887,12 @@ function renderFiveQuickSaved(day,expanded=false){
    const detail=dom('details');
    detail.append(dom('summary','発走前に固定した全'+p.points+'点を確認'));
    detail.append(dom('p',p.tickets.map(t=>t.join('→')).join(' / '),'ticket-list'));
-   card.append(detail);root.append(card);
+   card.append(detail);
+   const link=dom('a','このRのJRA結果と参考照合','owner-forecast-cta');
+   const iso=p.date.slice(0,4)+'-'+p.date.slice(4,6)+'-'+p.date.slice(6);
+   link.href='/owner-100yen-review?date='+encodeURIComponent(iso)+
+    '&mode=research79&track='+encodeURIComponent(p.track)+'&race='+p.race+'#jraResultCandidatePanel';
+   card.append(link);root.append(card);
   }
   label.textContent=records.length
    ?'この端末に発走前固定済み '+records.length+
