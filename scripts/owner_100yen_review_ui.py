@@ -39,6 +39,9 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </section>
 <details id="jraResultCandidatePanel"><summary>JRAの結果ページを1Rだけ読み取る（候補・任意）</summary>
 <p class="muted">JRAのレース結果ページのURLを公式サイトからコピーして入力してください。当日または過去の公開済み結果から選択した1Rを1回確認し、<b>同じ日の署名付き発走前3連単があれば、候補の組み合わせと参考比較</b>します。固定記録がない場合はJRA形式の候補だけ表示。公式結果の最終認証・返還確認・的中証明は未完成で、仮想収支には加算しません。</p>
+<label for="jraResultMode">比較する発走前固定予想</label>
+<select id="jraResultMode"><option value="legacy">従来の2項目固定予想</option><option value="research79">5項目79点（この端末の固定予想）</option></select>
+<p class="muted">2方式を混ぜず、選択した予想だけを比較します。</p>
 <label for="jraResultTrack">競馬場</label>
 <select id="jraResultTrack">
 <option value="">競馬場を選択</option>
@@ -54,7 +57,7 @@ HTML = """<!doctype html><html lang="ja"><head><meta charset="utf-8">
 </details>
 <p class="muted">表示専用です。予想・購入・記録・JRDBの原資料は変更しません。
 公式結果の自動取り込みが未完成の場合、仮想回収率は未確定のまま表示されます。</p>
-</main><script src="/owner-100yen-review.js" defer></script></body></html>"""
+</main><script src="/owner-100yen-review.js?v=20261127-r79-jra" defer></script></body></html>"""
 
 CSS = """*{box-sizing:border-box}html{color-scheme:dark}
 body{background:#09172b;color:#edf4ff;margin:0;font:15px/1.6 system-ui,sans-serif}
@@ -629,6 +632,54 @@ function validateJraCandidate(obj,day,track,race){
 // Only the server can confirm an HMAC signed *prestart* receipt.
 // Never compare browser-edited picks to public result candidates as an
 // apparent hit. This does not certify a JRA result or add virtual returns.
+async function matchJraCandidateToResearch79(report,day,track,race,seq){
+ const compact=day.replaceAll('-','');
+ const raw=localStorage.getItem('keiba-nine-owner-research6-draft-receipts-v1');
+ if(raw&&raw.length>2200000)throw Error('Research79 storage size');
+ const all=JSON.parse(raw||'[]');
+ if(!Array.isArray(all)||all.length>360)throw Error('Research79 storage shape');
+ const chosen=all.filter(x=>x?.snapshot?.date===compact&&
+  x.snapshot.track===track&&x.snapshot.race===race);
+ if(!chosen.length)return {kind:'no_receipt',text:'この端末に選択Rの79点固定予想はありません。結果候補だけ表示しています。'};
+ if(chosen.length!==1)throw Error('Duplicate research79 receipt');
+ const entry=chosen[0],p=entry.snapshot;
+ if(typeof entry.signature!=='string'||!/^[a-f0-9]{64}$/.test(entry.signature)||
+    p.version!=='owner-research6-draft-receipt-1'||
+    p.sourceKind!=='prestart-unverified-research6-79-draft'||
+    p.policyVersion!=='research-6'||p.researchWeight!==79||
+    p.remainingUnassessedWeight!==21||p.researchOnly!==true||
+    p.officialJraVerified!==false||p.predictionReady!==false||p.actualPurchase!==false||
+    !Number.isInteger(p.points)||p.points<1||p.points>40||
+    p.amountYen!==p.points*100||!Array.isArray(p.tickets)||p.tickets.length!==p.points||
+    p.tickets.some(t=>!Array.isArray(t)||t.length!==3||new Set(t).size!==3||
+     t.some(n=>!Number.isInteger(n)||n<1||n>18))||
+    !Number.isFinite(Date.parse(p.capturedAt))||!Number.isFinite(Date.parse(p.scheduledOffAt))||
+    Date.parse(p.capturedAt)>=Date.parse(p.scheduledOffAt)||Date.now()<Date.parse(p.scheduledOffAt))
+  throw Error('Invalid or not yet off research79 receipt');
+ const picks=new Set(p.tickets.map(t=>t.join('-')));
+ if(picks.size!==p.points)throw Error('Duplicate research79 tickets');
+ const res=await fetch('/api/owner-research6-draft-verify',{
+  method:'POST',cache:'no-store',credentials:'same-origin',
+  headers:{'X-Keiba-Request':'private','Content-Type':'application/json','Accept':'application/json'},
+  body:JSON.stringify({date:compact,receipts:chosen})
+ });
+ if(!res.ok)throw Error('Research79 verification failed');
+ const v=await res.json();
+ if(seq!==jraCandidateRequest)return null;
+ if(!v||v.version!=='owner-research6-draft-verify-1'||v.serverSigned!==true||
+    v.recordCount!==1||v.researchOnly!==true||v.privateOwnerOnly!==true||
+    v.officialJraVerified!==false||v.independentJraScheduleVerified!==false||
+    v.formalPredictionReady!==false||v.resultComparisonReady!==false||
+    v.bettingReady!==false||v.actualPurchase!==false||v.autoPurchase!==false)
+  throw Error('Contradictory research79 verification');
+ const matched=report.trifectaCandidates.filter(x=>picks.has(x.ticket.join('-')));
+ const stakeYen=p.points*100,candidateReturnedYen=matched.reduce((sum,row)=>sum+row.payoutYen,0);
+ if(!Number.isSafeInteger(candidateReturnedYen)||candidateReturnedYen<0||
+    candidateReturnedYen>18000000000)throw Error('Unsafe arithmetic');
+ return {kind:'matched',source:'この端末の固定79点研究予想',points:p.points,matched,
+  candidateCount:report.trifectaCandidates.length,stakeYen,candidateReturnedYen,
+  candidateDifferenceYen:candidateReturnedYen-stakeYen};
+}
 async function matchJraCandidateToLockedDraft(report,day,track,race,seq){
  const {receipts,source}=await signedForPreliminary(day);
  if(seq!==jraCandidateRequest)return null;
@@ -682,7 +733,7 @@ async function matchJraCandidateToLockedDraft(report,day,track,race,seq){
 }
 // In-flight response belongs to the old selection. Reset on every change,
  // including typing a replacement URL before the first request completes.
- for(const id of ['jraResultTrack','jraResultRace','jraResultUrl']){
+ for(const id of ['jraResultMode','jraResultTrack','jraResultRace','jraResultUrl']){
   $(id).onchange=clearJraCandidate;
   $(id).oninput=clearJraCandidate;
  }
@@ -691,11 +742,11 @@ async function matchJraCandidateToLockedDraft(report,day,track,race,seq){
  const seq=++jraCandidateRequest,day=$('day').value,
   track=$('jraResultTrack').value,
   race=Number($('jraResultRace').value),
-  url=$('jraResultUrl').value.trim(),
+  url=$('jraResultUrl').value.trim(),mode=$('jraResultMode').value||'legacy',
   button=$('jraResultCheck');
  $('jraResultCandidates').replaceChildren();
  const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
- if(!validDay(day)||day>today||!JRA_TRACKS.has(track)||
+ if(!['legacy','research79'].includes(mode)||!validDay(day)||day>today||!JRA_TRACKS.has(track)||
     !Number.isInteger(race)||race<1||race>12||
     url.length>500||!/^https:\/\/(?:www\.jra\.go\.jp|jra\.jp|app\.jra\.jp|sp\.jra\.jp)\/JRADB\/accessS\.html\?CNAME=/.test(url)||
     url.includes('#')){
@@ -729,7 +780,9 @@ async function matchJraCandidateToLockedDraft(report,day,track,race,seq){
   // HMAC receipt. It never triggers JRDB reads or writes results/ROI.
   let matchState='固定済み予想との比較は保留。';
   try{
-   const compared=await matchJraCandidateToLockedDraft(report,day,track,race,seq);
+   const compared=mode==='research79'?
+    await matchJraCandidateToResearch79(report,day,track,race,seq):
+    await matchJraCandidateToLockedDraft(report,day,track,race,seq);
    if(seq!==jraCandidateRequest)return;
    if(compared?.kind==='matched'){
     matchState=compared.source+'の署名付き3連単'+compared.points+
